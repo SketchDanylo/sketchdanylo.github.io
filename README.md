@@ -1,2 +1,2 @@
 # sketchdanylo.github.io
-Projects I made while i was bored
+I will post lots of fun stuff soon ;) (insired by neal.fun)
