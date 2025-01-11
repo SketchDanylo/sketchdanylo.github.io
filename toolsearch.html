@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search for Tool</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #2a2a2a, #333333);
+            color: #f1f1f1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            background-color: rgba(30, 30, 30, 0.9);
+            border-radius: 15px;
+            padding: 20px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            text-align: center;
+            font-size: 2.5rem;
+            color: #f1f1f1;
+            margin-bottom: 30px;
+            letter-spacing: 4px;
+        }
+        #search-bar {
+            width: 100%;
+            padding: 15px;
+            font-size: 1.2rem;
+            border: none;
+            border-radius: 10px;
+            background-color: #444;
+            color: #fff;
+            margin-bottom: 20px;
+            transition: box-shadow 0.3s ease;
+        }
+        #search-bar:focus {
+            outline: none;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+        }
+        #link-list {
+            transition: opacity 0.3s ease;
+        }
+        .link-item {
+            background-color: rgba(50, 50, 50, 0.9);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            overflow: hidden;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+        .link-item a {
+            display: block;
+            padding: 15px;
+            text-decoration: none;
+            color: #f1f1f1;
+            font-size: 1.2rem;
+            transition: background-color 0.3s ease;
+        }
+        .link-item:hover {
+            transform: translateY(-5px);
+        }
+        .link-item a:hover {
+            background-color: rgba(80, 80, 80, 0.9);
+        }
+        .similarity-percentage {
+            float: right;
+            font-size: 0.9rem;
+            color: #aaa;
+        }
+        #no-results-message {
+            text-align: center;
+            font-size: 1.2rem;
+            color: #ff6b6b;
+            margin-top: 20px;
+            display: none;
+        }
+
+        #no-results-joke {
+            text-align: center;
+            font-size: 0.9rem;
+            color: #ff6b6b;
+            margin-top: 5px;
+            display: none;
+        }
+
+        @media screen and (max-width: 600px) {
+            h1 { font-size: 2rem; }
+            #search-bar { font-size: 1rem; }
+            .link-item a { font-size: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Danylo's Helping Tools</h1>
+        <input type="text" id="search-bar" placeholder="Ask AI to open something">
+        <div id="link-list"></div>
+        <div id="no-results-message">AI couldn't find what you were looking for</div>
+        <div id="no-results-joke">Maybe instead of looking for tools you look for some bitches</div>
+    </div>
+    <script>
+        const links = [
+            { url: "https://i8danylo8i.github.io/graph", text: "Graph Calculator", keywords: ["math", "graf", "points", "protocoll"] },
+            { url: "https://i8danylo8i.github.io/drop", text: "Drip Funnel Helper", keywords: ["drop", "droplet", "aparatur", "handle", "measuring", "tropf", "trichter"] },
+            { url: "https://vplan.evonik.com", text: "vPlan", keywords: ["general", "tool", "plan", "zeit", "evonik", "protokoll", "day"] },
+            { url: "http://p63.evonik.com/sap/bc/ui2/flp?sap-language=de#Shell-home", text: "Work Time", keywords: ["zeit", "erfassung", "arbeitzeit", "time", "work", "day"] },
+            { url: "https://i8danylo8i.github.io/yield", text: "Yield Calculator", keywords: ["ausbeutel", "math", "rechnung", "einheiten", "units", "prozent", "percent"] },
+            { url: "https://i8danylo8i.github.io/density", text: "Density Calculator", keywords: ["dichte", "math", "rechnung", "einheiten", "units", "material"] },
+            { url: "https://i8danylo8i.github.io/orbital", text: "Orbital Model Drawer", keywords: ["orbital", "quantum", "physik", "modell", "3D", "visualisierung", "elektronen", "orbitalmodell", "atom"] },
+            { url: "https://i8danylo8i.github.io/resonance", text: "Resonance Engine", keywords: ["resonance", "engine", "construct", "bindungen", "bonds", "organic", "organisch", "atom", "calculator", "builder"] },
+            { url: "https://i8danylo8i.github.io/nomenclature", text: "Nomenclature Engine", keywords: ["builder, engine, construct, bindungen, bonds, organic, organisch, atom, calculator, nomenclature, IUPAC, systematic, stereochemistry, CIP, chirality, enantiomers, isomers, tautomers, cycloalkanes, bridgehead, homologous series, InChI, SMILES, functional group priorities, ring substituents, naming algorithms, Z/E configuration, R/S configuration, stereocenters, polycyclic, bridgehead atoms, conformational analysis, functional derivatives, nomenclature descriptors, heterocycles, tautomeric forms, systematic rules, ring systems, substituent locating numbers, Konstitutionsisomere, Konfigurationsisomere, Konformationsanalyse, Konstitutionsformel, Chiralitätszentren, Trivialnamen, Polycyclische Verbindungen, Brückenkopfatome, Funktionelle Gruppen, Halbstrukturformel, Mehrfachbindungen, Stoffklassen, Regioselektivität, Stereozentrum, Polyfunktionelle Verbindungen, Nomenklaturregeln"] },
+            { url: "https://i8danylo8i.github.io/periodicgame", text: "Periodic Memo", keywords: ["game", "spiel", "memo"] },
+        ];
+        
+        function levenshteinDistance(a, b) {
+            if (a.length === 0) return b.length;
+            if (b.length === 0) return a.length;
+            const matrix = [];
+            for (let i = 0; i <= b.length; i++) {
+                matrix[i] = [i];
+            }
+            for (let j = 0; j <= a.length; j++) {
+                matrix[0][j] = j;
+            }
+            for (let i = 1; i <= b.length; i++) {
+                for (let j = 1; j <= a.length; j++) {
+                    if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                        matrix[i][j] = matrix[i - 1][j - 1];
+                    } else {
+                        matrix[i][j] = Math.min(
+                            matrix[i - 1][j - 1] + 1,
+                            matrix[i][j - 1] + 1,
+                            matrix[i - 1][j] + 1
+                        );
+                    }
+                }
+            }
+            return matrix[b.length][a.length];
+        }
+        
+        function tokenize(text) {
+            return text.toLowerCase().match(/\b\w+\b/g) || [];
+        }
+        
+        function calculateSimilarity(query, text, keywords) {
+            const queryWords = tokenize(query);
+            const textWords = tokenize(text);
+            const allWords = new Set([...textWords, ...keywords]);
+            
+            let totalSimilarity = 0;
+            let matchedKeywords = 0;
+        
+            for (let queryWord of queryWords) {
+                let maxSimilarity = 0;
+                for (let word of allWords) {
+                    const distance = levenshteinDistance(queryWord, word);
+                    const maxLength = Math.max(queryWord.length, word.length);
+                    const similarity = 1 - distance / maxLength;
+                    
+                    if (similarity > 0.8 && keywords.includes(word)) {
+                        matchedKeywords++;
+                    }
+                    
+                    maxSimilarity = Math.max(maxSimilarity, similarity);
+                }
+                totalSimilarity += maxSimilarity;
+            }
+        
+            const keywordBoost = matchedKeywords * 20;
+            
+            return (totalSimilarity / queryWords.length) * 100 + keywordBoost;
+        }
+        
+        function debounce(func, delay) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), delay);
+            };
+        }
+        
+        function filterLinks() {
+            const query = document.getElementById('search-bar').value.trim().toLowerCase();
+            const linkList = document.getElementById('link-list');
+            const noResultsMessage = document.getElementById('no-results-message');
+            const noResultsJoke = document.getElementById('no-results-joke');
+            let visibleLinks = 0;
+        
+            linkList.style.opacity = '0.5';
+            setTimeout(() => {
+                links.forEach(link => {
+                    const similarity = calculateSimilarity(query, link.text, link.keywords);
+                    const linkElement = document.getElementById(link.url);
+                    if (similarity > 30) {  
+                        linkElement.style.display = 'block';
+                        linkElement.querySelector('.similarity-percentage').textContent = `(${similarity.toFixed(1)}%)`;
+                        visibleLinks++;
+                    } else {
+                        linkElement.style.display = 'none';
+                    }
+                });
+                noResultsMessage.style.display = visibleLinks === 0 ? 'block' : 'none';
+                noResultsJoke.style.display = visibleLinks === 0 ? 'block' : 'none';
+                linkList.style.opacity = '1';
+            }, 300);
+        }
+        
+        function openLink(url) {
+            window.location.href = url;
+        }
+        
+        function openFirstResult(event) {
+            if (event.key === 'Enter') {
+                const input = document.getElementById('search-bar').value.trim().toLowerCase();
+                let bestMatch = null;
+                let highestSimilarity = -1;
+        
+                links.forEach(link => {
+                    const similarity = calculateSimilarity(input, link.text, link.keywords);
+                    if (similarity > highestSimilarity) {
+                        highestSimilarity = similarity;
+                        bestMatch = link;
+                    }
+                });
+        
+                if (bestMatch && highestSimilarity > 30) {
+                    openLink(bestMatch.url);
+                } else {
+                    alert("AI couldn't find what you were looking for.");
+                }
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            const linkList = document.getElementById('link-list');
+            links.forEach(link => {
+                const linkItem = document.createElement('div');
+                linkItem.className = 'link-item';
+                linkItem.id = link.url;
+                linkItem.innerHTML = `
+                    <a href="javascript:void(0);" onclick="openLink('${link.url}');">
+                        ${link.text}
+                        <span class="similarity-percentage"></span>
+                    </a>
+                `;
+                linkList.appendChild(linkItem);
+            });
+        
+            const searchBar = document.getElementById('search-bar');
+            searchBar.addEventListener('input', debounce(filterLinks, 300));
+            searchBar.addEventListener('keypress', openFirstResult);
+        });
+        </script>
+</body>
+</html>

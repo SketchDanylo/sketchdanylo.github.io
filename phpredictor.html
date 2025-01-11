@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Danylo's pH Predictor</title>
+    <style>
+        /* Styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #2a2a2a, #333333);
+            color: #f1f1f1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            /* Removed overflow: hidden to allow scrolling */
+        }
+        .container {
+            background-color: rgba(30, 30, 30, 0.9);
+            border-radius: 15px;
+            padding: 20px;
+            max-width: 700px;
+            width: 100%;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            position: relative;
+            animation: fadeIn 0.8s ease-in-out;
+        }
+        h1 {
+            text-align: center;
+            font-size: 2.5rem;
+            color: #f1f1f1;
+            margin-bottom: 30px;
+            letter-spacing: 4px;
+            animation: textAppear 1s ease-in-out;
+        }
+        input, button, select, textarea {
+            width: 100%;
+            padding: 15px;
+            font-size: 1.2rem;
+            border: none;
+            border-radius: 10px;
+            background-color: #444;
+            color: #fff;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+            text-align: center;
+            opacity: 0;
+            animation: elementFadeIn 0.5s forwards;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+        }
+        button {
+            background-color: #555;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.3s ease, transform 0.3s ease;
+            opacity: 0;
+            animation: elementFadeIn 0.5s forwards;
+        }
+        button:hover {
+            background-color: #666;
+            transform: translateY(-2px);
+        }
+        table {
+            width: 100%;
+            margin-bottom: 20px;
+            border-collapse: collapse;
+            opacity: 0;
+            animation: elementFadeIn 0.5s forwards;
+        }
+        th, td {
+            padding: 10px;
+            text-align: center;
+            border-bottom: 1px solid #555;
+            vertical-align: middle;
+        }
+        #prediction-result {
+            text-align: center;
+            font-size: 1.5rem;
+            color: #ff6b6b;
+            margin-top: 20px;
+            opacity: 0;
+            animation: elementFadeIn 0.5s forwards;
+        }
+        .settings-button {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background-color: #555;
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            font-size: 2rem;
+            color: #fff;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+        .settings-button:hover {
+            background-color: #666;
+            transform: rotate(90deg);
+        }
+        .settings-menu {
+            display: none;
+            position: absolute;
+            top: 80px;
+            right: 20px;
+            background-color: rgba(50, 50, 50, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+            max-width: 300px;
+            width: 90%;
+            transform: translateY(-20px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+        .settings-menu.open {
+            display: block;
+            transform: translateY(0);
+            opacity: 1;
+        }
+        .settings-menu h2 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .settings-menu hr {
+            border: 0;
+            height: 1px;
+            background-color: #555;
+            margin: 10px 0;
+        }
+        .settings-menu .settings-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .settings-menu .setting-label {
+            margin-left: 10px;
+            font-size: 1.1rem;
+        }
+        .settings-menu .settings-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .settings-menu button, .settings-menu select, .settings-menu textarea {
+            margin-bottom: 10px;
+            text-align: left;
+            width: 100%;
+        }
+        .settings-menu label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 1rem;
+        }
+        @media screen and (max-width: 600px) {
+            h1 { font-size: 2rem; }
+            input, button, select, textarea { font-size: 1rem; }
+            .settings-button {
+                width: 40px;
+                height: 40px;
+                font-size: 1.2rem;
+            }
+        }
+        .delete-button {
+            background-color: #ff6b6b;
+            border: none;
+            border-radius: 999px;
+            padding: 10px;
+            color: #fff;
+            cursor: pointer;
+            width: 50px;
+            height: 50px;
+            transition: background-color 0.3s ease, transform 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto;
+        }
+        .delete-button:hover {
+            background-color: #ff4c4c;
+            transform: scale(1.1);
+        }
+        #error-message {
+            color: #ff6b6b;
+            background-color: rgba(255, 107, 107, 0.1);
+            padding: 10px;
+            border: 1px solid #ff6b6b;
+            border-radius: 5px;
+            margin-top: 10px;
+            display: none;
+            text-align: center;
+        }
+        /* Slider Switch Styles */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+            margin-right: 10px;
+        }
+        .switch input { display: none; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #444;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px; width: 26px;
+            left: 4px; bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #2196F3;
+        }
+        input:focus + .slider {
+            box-shadow: 0 0 1px #2196F3;
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        select {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url('data:image/svg+xml;utf8,<svg fill="%23fff" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+            background-repeat: no-repeat;
+            background-position-x: 95%;
+            background-position-y: 50%;
+        }
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes textAppear {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes elementFadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes rowFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .table-row-animate {
+            animation: rowFadeIn 0.5s ease-in-out;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <button class="settings-button" onclick="toggleSettings()">⚙️</button>
+        <div class="settings-menu" id="settings-menu">
+            <h2>Settings</h2>
+            <hr>
+            <div class="settings-group">
+                <label class="switch">
+                    <input type="checkbox" id="auto-method" onchange="toggleAutoMethod()">
+                    <span class="slider"></span>
+                </label>
+                <label for="auto-method" class="setting-label">Auto Method</label>
+            </div>
+            <hr>
+            <div class="settings-group">
+                <label for="prediction-method" class="setting-label">Prediction Method:</label>
+                <select id="prediction-method" onchange="changePredictionMethod()">
+                    <option value="linear">Linear Regression Prediction</option>
+                    <option value="average">Average Prediction</option>
+                    <option value="polynomial">Polynomial Regression Prediction</option>
+                </select>
+            </div>
+            <hr>
+            <div class="settings-actions">
+                <button onclick="copyData()">📋 Copy Dataset to Clipboard</button>
+                <button onclick="pasteData()">📥 Paste Dataset from Clipboard</button>
+                <button onclick="clearData()">🗑️ Clear Dataset</button>
+            </div>
+        </div>
+        <h1>Danylo's pH Predictor</h1>
+        <input type="number" step="any" id="naoh-input" placeholder="Enter NaOH w = 50% amount in grams" style="animation-delay: 0.2s;">
+        <input type="text" id="ph-range-input" placeholder="Enter pH value or range (e.g., 7.5 or 7.5 - 8.0)" style="animation-delay: 0.4s;">
+        <input type="number" step="any" id="Thickener-input" placeholder="Enter Thickener percentage (%)" style="animation-delay: 0.6s;">
+        <button onclick="addData()" style="animation-delay: 0.8s;">➕ Add Data Point</button>
+        <table id="data-table" style="animation-delay: 1s;">
+            <tr>
+                <th>NaOH w = 50% (g)</th>
+                <th>pH Range</th>
+                <th>Thickener (%)</th>
+                <th>Action</th>
+            </tr>
+        </table>
+        <input type="number" step="0.01" id="desired-ph" placeholder="Enter desired pH value" style="animation-delay: 1.2s;">
+        <input type="number" step="any" id="desired-Thickener" placeholder="Enter desired Thickener percentage (%)" style="animation-delay: 1.4s;">
+        <button onclick="predictNaOH()" style="animation-delay: 1.6s;">🔍 Predict NaOH Amount</button>
+        <div id="prediction-result" style="animation-delay: 1.8s;"></div>
+        <div id="error-message"></div>
+    </div>
+    <script>
+        
+        let dataPoints = [];
+        let predictionMethod = 'linear';
+        let autoMethodEnabled = false;
+
+        window.onload = function() {
+            loadDataFromLocalStorage();
+        };
+
+        function loadDataFromLocalStorage() {
+            const storedData = localStorage.getItem('naohDataPoints');
+            if (storedData) {
+                dataPoints = JSON.parse(storedData);
+                refreshDataTable();
+            }
+            const storedPredictionMethod = localStorage.getItem('predictionMethod');
+            if (storedPredictionMethod) {
+                predictionMethod = storedPredictionMethod;
+                const methodSelect = document.getElementById('prediction-method');
+                methodSelect.value = predictionMethod;
+            }
+            const storedAutoMethodEnabled = localStorage.getItem('autoMethodEnabled');
+            if (storedAutoMethodEnabled !== null) {
+                autoMethodEnabled = storedAutoMethodEnabled === 'true';
+                document.getElementById('auto-method').checked = autoMethodEnabled;
+                const methodSelect = document.getElementById('prediction-method');
+                methodSelect.disabled = autoMethodEnabled;
+            }
+            const storedDesiredThickener = localStorage.getItem('desiredThickener');
+            if (storedDesiredThickener) {
+                document.getElementById('desired-Thickener').value = storedDesiredThickener;
+            }
+        }
+
+        function saveDataToLocalStorage() {
+            localStorage.setItem('naohDataPoints', JSON.stringify(dataPoints));
+            localStorage.setItem('predictionMethod', predictionMethod);
+            localStorage.setItem('autoMethodEnabled', autoMethodEnabled);
+            const desiredThickenerInput = document.getElementById('desired-Thickener').value;
+            localStorage.setItem('desiredThickener', desiredThickenerInput);
+        }
+
+        function toggleSettings() {
+            const menu = document.getElementById('settings-menu');
+            menu.classList.toggle('open');
+        }
+
+        function toggleAutoMethod() {
+            autoMethodEnabled = document.getElementById('auto-method').checked;
+            const methodSelect = document.getElementById('prediction-method');
+            methodSelect.disabled = autoMethodEnabled;
+            saveDataToLocalStorage();
+        }
+
+        function addData() {
+            clearError();
+            const naohInput = document.getElementById('naoh-input').value.replace(',', '.');
+            const phRangeInput = document.getElementById('ph-range-input').value.replace(',', '.').trim();
+            const verdickerInput = document.getElementById('Thickener-input').value.replace(',', '.');
+
+            const naohAmount = parseFloat(naohInput);
+            const verdickerPercentage = parseFloat(verdickerInput);
+
+            if (isNaN(naohAmount) || phRangeInput === '' || isNaN(verdickerPercentage)) {
+                showError('Please enter valid numbers for NaOH amount, pH value or range, and Thickener percentage.');
+                return;
+            }
+
+            let phMin, phMax;
+
+            if (phRangeInput.includes('-')) {
+                const parts = phRangeInput.split('-').map(s => parseFloat(s.trim()));
+                if (parts.length !== 2 || isNaN(parts[0]) || isNaN(parts[1])) {
+                    showError('Please enter a valid pH range (e.g., 7.5 - 8.0).');
+                    return;
+                }
+                phMin = Math.min(parts[0], parts[1]);
+                phMax = Math.max(parts[0], parts[1]);
+            } else {
+                const phValue = parseFloat(phRangeInput);
+                if (isNaN(phValue)) {
+                    showError('Please enter a valid pH value.');
+                    return;
+                }
+                phMin = phMax = phValue;
+            }
+
+            const dataPoint = { naohAmount: naohAmount, phMin: phMin, phMax: phMax, verdickerPercentage: verdickerPercentage };
+            dataPoints.push(dataPoint);
+            addDataRow(dataPoint, dataPoints.length - 1);
+
+            saveDataToLocalStorage();
+
+            document.getElementById('naoh-input').value = '';
+            document.getElementById('ph-range-input').value = '';
+            document.getElementById('Thickener-input').value = '';
+        }
+
+        function addDataRow(dataPoint, index) {
+            const table = document.getElementById('data-table');
+            const row = table.insertRow();
+            row.setAttribute('data-index', index);
+
+            
+            row.classList.add('table-row-animate');
+
+            const cellNaOH = row.insertCell(0);
+            const cellPH = row.insertCell(1);
+            const cellVerdicker = row.insertCell(2);
+            const cellAction = row.insertCell(3);
+
+            cellNaOH.innerHTML = dataPoint.naohAmount.toFixed(6).replace('.', ',')+'g';
+            cellPH.innerHTML = dataPoint.phMin.toFixed(2).replace('.', ',') + (dataPoint.phMin !== dataPoint.phMax ? ' - ' + dataPoint.phMax.toFixed(2).replace('.', ',') : '');
+            cellVerdicker.innerHTML = dataPoint.verdickerPercentage.toFixed(2).replace('.', ',') + ' %';
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.innerHTML = '🗑️';
+            deleteBtn.className = 'delete-button';
+            deleteBtn.onclick = function() {
+                deleteDataPoint(index);
+            };
+            cellAction.appendChild(deleteBtn);
+
+            
+            setTimeout(() => {
+                row.classList.remove('table-row-animate');
+            }, 500); 
+        }
+
+        function deleteDataPoint(index) {
+            clearError();
+            dataPoints.splice(index, 1);
+            saveDataToLocalStorage();
+            refreshDataTable();
+        }
+
+        function refreshDataTable() {
+            const table = document.getElementById('data-table');
+
+            while (table.rows.length > 1) {
+                table.deleteRow(1);
+            }
+
+            dataPoints.forEach((dp, index) => {
+                addDataRow(dp, index);
+            });
+        }
+
+        function predictNaOH() {
+            clearError();
+            if (dataPoints.length < 1) {
+                showError('Please add at least one data point to make a prediction.');
+                return;
+            }
+
+            const desiredPHInput = document.getElementById('desired-ph').value.replace(',', '.');
+            const desiredPH = parseFloat(desiredPHInput);
+
+            const desiredVerdickerInput = document.getElementById('desired-Thickener').value.replace(',', '.');
+            const desiredVerdicker = parseFloat(desiredVerdickerInput);
+
+            if (isNaN(desiredPH) || isNaN(desiredVerdicker)) {
+                showError('Please enter valid desired pH value and Thickener percentage.');
+                return;
+            }
+
+            let predictedNaOH, naohRange;
+
+            let method = predictionMethod;
+
+            if (autoMethodEnabled) {
+                const maxPH = Math.max(...dataPoints.map(dp => dp.phMax));
+                if (desiredPH > maxPH) {
+                    method = 'linear';
+                } else {
+                    method = 'polynomial';
+                }
+            }
+
+            switch (method) {
+                case 'linear':
+                    ({ predictedNaOH, naohRange } = multipleLinearPrediction(desiredPH, desiredVerdicker));
+                    break;
+                case 'average':
+                    ({ predictedNaOH, naohRange } = averagePrediction(desiredPH, desiredVerdicker));
+                    break;
+                case 'polynomial':
+                    ({ predictedNaOH, naohRange } = multiplePolynomialPrediction(desiredPH, desiredVerdicker));
+                    break;
+                default:
+                    showError('Invalid prediction method selected.');
+                    return;
+            }
+
+            if (!isFinite(predictedNaOH) || !isFinite(naohRange.min) || !isFinite(naohRange.max)) {
+                showError('Prediction could not be made with the current data.');
+                return;
+            }
+
+            const resultDiv = document.getElementById('prediction-result');
+            let warningMessage = '';
+
+            if (desiredVerdicker < Math.min(...dataPoints.map(dp => dp.verdickerPercentage)) ||
+                desiredVerdicker > Math.max(...dataPoints.map(dp => dp.verdickerPercentage))) {
+                warningMessage = '<br><span id="warning-message" style="color: yellow;">⚠️ Values Outside Range (not accurate)</span>';
+            }
+
+            resultDiv.innerHTML = `🔹 NaOH(w=50%): <strong>${naohRange.min.toFixed(6).replace('.', ',')}g</strong> - <strong>${naohRange.max.toFixed(6).replace('.', ',')}g</strong><br>✨ Recommended: <strong>${predictedNaOH.toFixed(6).replace('.', ',')}g</strong>${warningMessage}`;
+
+            
+            if (warningMessage) {
+                setTimeout(() => {
+                    const warningEl = document.getElementById('warning-message');
+                    if (warningEl) {
+                        warningEl.style.transition = 'opacity 2s';
+                        warningEl.style.opacity = '0';
+                        setTimeout(() => {
+                            warningEl.remove();
+                        }, 2000);
+                    }
+                }, 5000);
+            }
+        }
+
+        function multipleLinearPrediction(desiredPH, desiredVerdicker) {
+            const regressionData = dataPoints.map(dp => ({
+                x: [(dp.phMin + dp.phMax) / 2, dp.verdickerPercentage],
+                y: dp.naohAmount
+            }));
+
+            
+            const regressionResult = ridgeRegression(regressionData, 0.001);
+
+            if (!regressionResult) {
+                return { predictedNaOH: NaN, naohRange: { min: NaN, max: NaN } };
+            }
+
+            const predictedNaOH = regressionResult.predict([desiredPH, desiredVerdicker]);
+            const naohRange = estimateMultipleRange(regressionData, regressionResult, [desiredPH, desiredVerdicker]);
+
+            return { predictedNaOH, naohRange };
+        }
+
+        function ridgeRegression(data, lambda) {
+            const n = data.length;
+            const m = data[0].x.length; 
+            const X = [];
+            const Y = [];
+
+            for (let i = 0; i < n; i++) {
+                X[i] = [1].concat(data[i].x); 
+                Y[i] = data[i].y;
+            }
+
+            const XT = transposeMatrix(X);
+            let XTX = multiplyMatrices(XT, X);
+
+            
+            for (let i = 0; i < XTX.length; i++) {
+                XTX[i][i] += lambda;
+            }
+
+            const XTY = multiplyMatrixVector(XT, Y);
+            const beta = gaussianElimination(XTX, XTY);
+
+            if (!beta) {
+                return null;
+            }
+
+            return {
+                coefficients: beta,
+                predict: function(inputX) {
+                    let yPred = beta[0];
+                    for (let i = 0; i < inputX.length; i++) {
+                        yPred += beta[i + 1] * inputX[i];
+                    }
+                    return yPred;
+                }
+            };
+        }
+
+        function averagePrediction(desiredPH, desiredVerdicker) {
+            const tolerancePH = 0.1;
+            const toleranceVerdicker = 0.1;
+            const nearbyPoints = dataPoints.filter(dp => {
+                const phAvg = (dp.phMin + dp.phMax) / 2;
+                return Math.abs(phAvg - desiredPH) <= tolerancePH && Math.abs(dp.verdickerPercentage - desiredVerdicker) <= toleranceVerdicker;
+            });
+
+            if (nearbyPoints.length === 0) {
+                const naohValues = dataPoints.map(dp => dp.naohAmount);
+                const predictedNaOH = naohValues.reduce((a, b) => a + b, 0) / naohValues.length;
+                const minNaOH = Math.min(...naohValues);
+                const maxNaOH = Math.max(...naohValues);
+                return { predictedNaOH, naohRange: { min: minNaOH, max: maxNaOH } };
+            }
+
+            const naohValues = nearbyPoints.map(dp => dp.naohAmount);
+            const predictedNaOH = naohValues.reduce((a, b) => a + b, 0) / naohValues.length;
+            const minNaOH = Math.min(...naohValues);
+            const maxNaOH = Math.max(...naohValues);
+
+            return { predictedNaOH, naohRange: { min: minNaOH, max: maxNaOH } };
+        }
+
+        function multiplePolynomialPrediction(desiredPH, desiredVerdicker) {
+            
+            return multipleLinearPrediction(desiredPH, desiredVerdicker);
+        }
+
+        function transposeMatrix(A) {
+            return A[0].map((_, colIndex) => A.map(row => row[colIndex]));
+        }
+
+        function multiplyMatrices(A, B) {
+            const result = [];
+            for (let i = 0; i < A.length; i++) {
+                result[i] = [];
+                for (let j = 0; j < B[0].length; j++) {
+                    let sum = 0;
+                    for (let k = 0; k < A[0].length; k++) {
+                        sum += A[i][k] * B[k][j];
+                    }
+                    result[i][j] = sum;
+                }
+            }
+            return result;
+        }
+
+        function multiplyMatrixVector(A, v) {
+            const result = [];
+            for (let i = 0; i < A.length; i++) {
+                let sum = 0;
+                for (let j = 0; j < A[0].length; j++) {
+                    sum += A[i][j] * v[j];
+                }
+                result[i] = sum;
+            }
+            return result;
+        }
+
+        function gaussianElimination(A, b) {
+            const n = A.length;
+            for (let i = 0; i < n; i++) {
+                A[i].push(b[i]);
+            }
+
+            for (let i = 0; i < n; i++) {
+                let maxEl = Math.abs(A[i][i]);
+                let maxRow = i;
+                for (let k = i + 1; k < n; k++) {
+                    if (Math.abs(A[k][i]) > maxEl) {
+                        maxEl = Math.abs(A[k][i]);
+                        maxRow = k;
+                    }
+                }
+
+                [A[maxRow], A[i]] = [A[i], A[maxRow]];
+
+                if (A[i][i] === 0) {
+                    return null;
+                }
+
+                for (let k = i + 1; k < n; k++) {
+                    const c = -A[k][i] / A[i][i];
+                    for (let j = i; j < n + 1; j++) {
+                        if (i === j) {
+                            A[k][j] = 0;
+                        } else {
+                            A[k][j] += c * A[i][j];
+                        }
+                    }
+                }
+            }
+
+            const x = new Array(n);
+            for (let i = n - 1; i >= 0; i--) {
+                x[i] = A[i][n] / A[i][i];
+                for (let k = i - 1; k >= 0; k--) {
+                    A[k][n] -= A[k][i] * x[i];
+                }
+            }
+            return x;
+        }
+
+        function estimateMultipleRange(data, regressionResult, inputX) {
+            const n = data.length;
+            const p = regressionResult.coefficients.length - 1;
+            let sumSquaredResiduals = 0;
+            for (let i = 0; i < n; i++) {
+                const predictedY = regressionResult.predict(data[i].x);
+                const residual = data[i].y - predictedY;
+                sumSquaredResiduals += residual * residual;
+            }
+            const degreesOfFreedom = n - p - 1;
+            const variance = degreesOfFreedom > 0 ? sumSquaredResiduals / degreesOfFreedom : 0;
+            const standardError = Math.sqrt(variance);
+
+            const predictedNaOH = regressionResult.predict(inputX);
+            const minNaOH = predictedNaOH - standardError;
+            const maxNaOH = predictedNaOH + standardError;
+
+            return { min: minNaOH, max: maxNaOH };
+        }
+
+        function copyData() {
+            clearError();
+            const dataStr = JSON.stringify(dataPoints);
+            navigator.clipboard.writeText(dataStr).then(() => {
+                
+            }, () => {
+                showError('Failed to copy dataset to clipboard.');
+            });
+        }
+
+        function pasteData() {
+            clearError();
+            navigator.clipboard.readText().then(text => {
+                try {
+                    const importedData = JSON.parse(text);
+                    if (Array.isArray(importedData)) {
+                        dataPoints = importedData;
+                        saveDataToLocalStorage();
+                        refreshDataTable();
+                        
+                    } else {
+                        showError('Invalid dataset format in clipboard.');
+                    }
+                } catch (error) {
+                    showError('Error parsing the dataset from clipboard.');
+                }
+            }, () => {
+                showError('Failed to read from clipboard.');
+            });
+        }
+
+        function clearData() {
+            clearError();
+            if (confirm('Are you sure you want to clear the dataset? This action cannot be undone.')) {
+                dataPoints = [];
+                saveDataToLocalStorage();
+                refreshDataTable();
+            }
+        }
+
+        function changePredictionMethod() {
+            const select = document.getElementById('prediction-method');
+            predictionMethod = select.value;
+            saveDataToLocalStorage();
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.innerText = message;
+            errorDiv.style.display = 'block';
+        }
+
+        function clearError() {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.innerText = '';
+            errorDiv.style.display = 'none';
+        }
+
+        
+        document.getElementById('desired-Thickener').addEventListener('input', function() {
+            saveDataToLocalStorage();
+        });
+    </script>
+</body>
+</html>
+

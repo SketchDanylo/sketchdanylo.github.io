@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Danylo's Resonance Tool</title>
+    <style>
+        /* Global Styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none; /* Make everything unselectable */
+        }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #2a2a2a, #333333);
+            color: #f1f1f1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            transition: background 0.5s ease; /* Smooth background transition */
+        }
+        .container {
+            background-color: rgba(30, 30, 30, 0.95);
+            border-radius: 15px;
+            padding: 20px;
+            max-width: 900px;
+            width: 100%;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            position: relative; /* For context menu positioning */
+            transition: transform 0.5s ease; /* Smooth container transition */
+        }
+        h1 {
+            text-align: center;
+            font-size: 3rem; /* Increased font size for larger screens */
+            color: #f1f1f1;
+            margin-bottom: 20px;
+            letter-spacing: 2px;
+            font-weight: bold; /* Make title bold */
+            transition: color 0.5s ease; /* Smooth color transition */
+        }
+        /* Toolbar Styles */
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 15px;
+            gap: 10px;
+        }
+        .toolbar button, .toolbar label {
+            background-color: #444;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 15px;
+            cursor: pointer;
+            color: #f1f1f1;
+            font-size: 1rem;
+            transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease, color 0.3s ease; /* Smooth transitions */
+            display: flex;
+            align-items: center;
+            justify-content: center; /* Center content horizontally */
+            gap: 5px;
+            min-width: 40px; /* Ensure buttons have enough width */
+            font-weight: bold; /* Make button text bold */
+        }
+        .toolbar button:hover, .toolbar label:hover {
+            background-color: #555;
+            transform: scale(1.05); /* Subtle scale effect */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* Subtle shadow on hover */
+            color: #fff; /* Ensure text remains visible on hover */
+        }
+        .toolbar button:active, .toolbar label:active {
+            transform: translateY(0);
+        }
+        .toolbar button .icon, .toolbar label .icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem; /* Adjust font size for better centering */
+            font-weight: bold; /* Make icons bold */
+        }
+        /* Active Toolbar Button */
+        .toolbar button.active, .toolbar label.active {
+            background-color: #2ecc71;
+            box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5);
+        }
+        /* Checkbox Label */
+        .toolbar label {
+            background-color: #444;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-weight: bold; /* Make label text bold */
+        }
+        .toolbar input[type="checkbox"] {
+            transform: scale(1.2);
+            cursor: pointer;
+            transition: transform 0.2s ease; /* Smooth scaling on interaction */
+        }
+        /* Atom Counts Display */
+        #atomCounts {
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+            animation: fadeIn 0.5s ease;
+            transition: opacity 0.3s ease, pointer-events 0.3s ease;
+            /* Styled for better appearance */
+            background-color: rgba(50, 50, 50, 0.8);
+            padding: 10px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            font-weight: bold; /* Make counts bold */
+        }
+        #atomCounts span:hover {
+            text-shadow: 0 0 5px #fff;
+            transform: scale(1.1);
+            transition: transform 0.2s ease, text-shadow 0.3s ease;
+        }
+        /* Canvas Container */
+        #canvasContainer {
+            border: 2px solid; /* Increased border width */
+            width: 800px;
+            height: 600px;
+            position: relative;
+            margin: 0 auto 20px auto;
+            border-radius: 10px;
+            background-color: #1e1e1e;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+            transition: border 0.3s ease;
+        }
+        #canvasContainer:hover {
+            border: 2px solid #2ecc71;
+        }
+        canvas {
+            border-radius: 10px;
+            cursor: crosshair; /* Default cursor */
+            transition: transform 0.5s ease; /* Smooth canvas transformations */
+        }
+        /* Specific Cursor Styles Based on Tool */
+        canvas.adding-atom {
+            cursor: pointer;
+        }
+        canvas.drawing-bond {
+            cursor: cell;
+        }
+        /* Context Menu */
+        .context-menu {
+            position: absolute;
+            background: rgba(50, 50, 50, 0.95);
+            color: #f1f1f1;
+            display: none;
+            border: 1px solid #555;
+            border-radius: 10px; /* Rounded corners */
+            box-shadow: 0 6px 12px rgba(0,0,0,0.4); /* Subtle shadow */
+            z-index: 1000;
+            animation: fadeIn 0.3s ease;
+            transition: opacity 0.3s ease; /* Smooth appearance */
+        }
+        .context-menu div {
+            padding: 10px 15px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            font-weight: bold; /* Make context menu text bold */
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .context-menu div:hover {
+            background-color: #555;
+        }
+        /* Notification Styles */
+        .no-resonance {
+            background-color: #555;
+            border-left: 4px solid #e74c3c;
+            padding: 15px;
+            margin: 10px 0;
+            font-weight: bold;
+            border-radius: 5px;
+            animation: fadeIn 0.5s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: background-color 0.3s ease, border-left-color 0.3s ease;
+        }
+        .resonance-form {
+            background-color: #555;
+            border-left: 4px solid #2ecc71;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            animation: fadeIn 0.5s ease;
+            cursor: pointer; /* Indicate that resonance form is clickable */
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: background-color 0.3s ease, border-left-color 0.3s ease;
+        }
+        .resonance-form:hover {
+            background-color: #666;
+        }
+        .resonance-form-canvas {
+            border: 1px solid #2ecc71;
+            background: #1e1e1e;
+            margin-top: 10px;
+            border-radius: 5px;
+            transition: border 0.3s ease;
+        }
+        /* Hidden Class for Toggling GUI */
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease, pointer-events 0.3s ease;
+        }
+        /* Modal Styles */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 2000; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.8); /* Black w/ opacity */
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.5s ease; /* Smooth modal appearance */
+        }
+        .modal-content {
+            position: relative;
+            background-color: #1e1e1e;
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 90%;
+            max-height: 90%;
+            overflow: auto;
+            transition: transform 0.5s ease; /* Smooth content transitions */
+            animation: zoomIn 0.3s ease; /* Zoom-in effect */
+        }
+        .modal-content canvas {
+            width: 100%;
+            height: auto;
+            border: none;
+        }
+        /* Close Button */
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            color: #fff;
+            font-size: 30px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+        .close-btn:hover {
+            color: #e74c3c;
+        }
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes zoomIn {
+            from {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+        /* Responsive Design */
+        @media screen and (max-width: 900px) {
+            #canvasContainer {
+                width: 100%;
+                height: 400px;
+            }
+            h1 {
+                font-size: 2.5rem; /* Adjusted font size for medium screens */
+            }
+        }
+        @media screen and (max-width: 600px) {
+            h1 { font-size: 2rem; }
+            .toolbar button, .toolbar label { padding: 8px 10px; font-size: 0.9rem; }
+            #atomCounts { font-size: 1rem; }
+            #canvasContainer { height: 300px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Danylo's Resonance Engine</h1>
+        
+        <div id="atomCounts">
+            <span style="color: #ebdfac;">C: 0</span> | 
+            <span style="color: #4a9dcf;">H: 0</span> | 
+            <span style="color: #fa5e5c;">O: 0</span> | 
+            <span style="color: #078f00;">N: 0</span>
+        </div>
+        <div class="toolbar">
+            
+            <button id="addC" title="Add Carbon" aria-label="Add Carbon">
+                <span class="icon" style="color: #ebdfac;">C</span>
+            </button>
+            <button id="addH" title="Add Hydrogen" aria-label="Add Hydrogen">
+                <span class="icon" style="color: #4a9dcf;">H</span>
+            </button>
+            <button id="addO" title="Add Oxygen" aria-label="Add Oxygen">
+                <span class="icon" style="color: #fa5e5c;">O</span>
+            </button>
+            <button id="addN" title="Add Nitrogen" aria-label="Add Nitrogen">
+                <span class="icon" style="color: #078f00;">N</span>
+            </button>
+            <button id="bondSingle" title="Single Bond" aria-label="Single Bond">
+                <span class="icon" style="color: #f1f1f1;">-</span>
+            </button>
+            <label title="Manual H Placement">
+                <input type="checkbox" id="manualHCheckbox">
+                Manual H
+            </label>
+            <button id="autoHBtn" title="Auto Fill Hydrogens" aria-label="Auto Fill Hydrogens">
+                <span class="icon" style="color: #f1f1f1;">🪄</span> 
+            </button>
+            <button id="undoBtn" title="Undo" aria-label="Undo">
+                <span class="icon" style="color: #f1f1f1;">↩️</span> 
+            </button>
+            <button id="redoBtn" title="Redo" aria-label="Redo">
+                <span class="icon" style="color: #f1f1f1;">↪️</span> 
+            </button>
+            <button id="clearBtn" title="Clear All" aria-label="Clear All">
+                <span class="icon" style="color: #f1f1f1;">🗑️</span> 
+            </button>
+            <button id="resonanceBtn" title="Generate Resonance" aria-label="Generate Resonance">
+                <span class="icon" style="color: #f1f1f1;">🧪</span> 
+            </button>
+        </div>
+        <div id="canvasContainer">
+            <canvas id="molCanvas" width="800" height="600"></canvas>
+        </div>
+        <div id="resonanceResults"></div>
+    </div>
+    <div class="context-menu" id="contextMenu">
+        <div id="deleteAtomItem" style="display:none;">🗑️ Delete Atom</div>
+        <div id="addPositiveCharge" style="display:none;">➕ Positive</div>
+        <div id="addNegativeCharge" style="display:none;">➖ Negative</div>
+        <div id="addNeutralCharge" style="display:none;">⚪️ Neutral</div>
+        <div id="deleteBondItem" style="display:none;">🗑️ Delete Bond</div>
+        <div id="bondDoubleItem" style="display:none;">|| Bond</div>
+        <div id="bondTripleItem" style="display:none;">||| Bond</div>
+        <div id="cancelItem">❌ Cancel</div>
+    </div>
+
+    
+    <div class="modal" id="resonanceModal">
+        <div class="modal-content">
+            <span class="close-btn" id="modalClose">&times;</span>
+            <canvas id="modalCanvas" width="1000" height="700"></canvas>
+        </div>
+    </div>
+
+    <script>
+        
+
+        
+        const canvas = document.getElementById('molCanvas');
+        const ctx = canvas.getContext('2d');
+
+        
+        let currentTool = 'atom';
+        let currentAtom = 'C';
+        let currentBondType = 'single';
+        let atoms = [];
+        let bonds = [];
+        let bondStart = -1;
+
+        
+        const historyStack = [];
+        const redoStack = [];
+
+        
+        const contextMenu = document.getElementById('contextMenu');
+        const resonanceResults = document.getElementById('resonanceResults');
+        const atomCountsDisplay = document.getElementById('atomCounts');
+
+        
+        let isDraggingAtom = false;
+        let dragAtomIndex = -1;
+
+        
+        const manualHCheckbox = document.getElementById('manualHCheckbox');
+
+        
+        const resonanceModal = document.getElementById('resonanceModal');
+        const modalCloseBtn = document.getElementById('modalClose');
+        const modalCanvas = document.getElementById('modalCanvas');
+        const modalCtx = modalCanvas.getContext('2d');
+
+        
+        const guiElements = [
+            
+        ];
+
+        
+        let longPressTimer;
+        const longPressThreshold = 500; 
+        let longPressTriggered = false;
+
+        
+        let lastTapTime = 0;
+
+        
+        const atomColors = {
+            'C': '#ebdfac', 
+            'H': '#4a9dcf', 
+            'O': '#fa5e5c', 
+            'N': '#078f00'  
+        };
+
+        
+        function updateAtomCounts(){
+            const counts = { 'C': 0, 'H': 0, 'O': 0, 'N': 0 };
+            atoms.forEach(atom => {
+                if(counts.hasOwnProperty(atom.atom)){
+                    counts[atom.atom]++;
+                }
+            });
+            atomCountsDisplay.innerHTML = `
+                <span style="color: #ebdfac;">C: ${counts['C']}</span> | 
+                <span style="color: #4a9dcf;">H: ${counts['H']}</span> | 
+                <span style="color: #fa5e5c;">O: ${counts['O']}</span> | 
+                <span style="color: #078f00;">N: ${counts['N']}</span>
+            `;
+        }
+
+        
+        function pushHistory(){
+            redoStack.length = 0; 
+            const state = JSON.stringify({atoms: atoms, bonds: bonds});
+            historyStack.push(state);
+        }
+
+        
+        function undo(){
+            if(historyStack.length > 1){
+                const current = historyStack.pop();
+                redoStack.push(current);
+                const prev = historyStack[historyStack.length-1];
+                const s = JSON.parse(prev);
+                atoms = s.atoms;
+                bonds = s.bonds;
+                redraw();
+                updateAtomCounts();
+            }
+        }
+
+        
+        function redo(){
+            if(redoStack.length > 0){
+                const next = redoStack.pop();
+                historyStack.push(next);
+                const s = JSON.parse(next);
+                atoms = s.atoms;
+                bonds = s.bonds;
+                redraw();
+                updateAtomCounts();
+            }
+        }
+
+        
+        function redraw(){
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            bonds.forEach(bond => {
+                const a1 = atoms[bond.from];
+                const a2 = atoms[bond.to];
+                if(!a1 || !a2) return;
+
+                
+                const gradient = ctx.createLinearGradient(a1.x, a1.y, a2.x, a2.y);
+                gradient.addColorStop(0, atomColors[a1.atom]);
+                gradient.addColorStop(1, atomColors[a2.atom]);
+
+                ctx.strokeStyle = gradient;
+                ctx.lineWidth = 2;
+
+                const dx = a2.x - a1.x;
+                const dy = a2.y - a1.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                let offx = 0, offy = 0;
+                if(bond.type === 'double'){
+                    offx = -dy/dist*3; 
+                    offy = dx/dist*3;  
+                } else if(bond.type === 'triple'){
+                    offx = -dy/dist*6; 
+                    offy = dx/dist*6;  
+                }
+
+                if(bond.type === 'double' || bond.type === 'triple'){
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(a1.x + offx, a1.y + offy);
+                    ctx.lineTo(a2.x + offx, a2.y + offy);
+                    ctx.stroke();
+
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(a1.x - offx, a1.y - offy);
+                    ctx.lineTo(a2.x - offx, a2.y - offy);
+                    ctx.stroke();
+
+                    if(bond.type === 'triple'){
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(a1.x, a1.y);
+                        ctx.lineTo(a2.x, a2.y);
+                        ctx.stroke();
+                    }
+                } else {
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(a1.x, a1.y);
+                    ctx.lineTo(a2.x, a2.y);
+                    ctx.stroke();
+                }
+            });
+
+            
+            atoms.forEach(atom => {
+                
+                ctx.beginPath();
+                ctx.fillStyle = atomColors[atom.atom] || '#FFFFFF'; 
+                ctx.strokeStyle = '#000000'; 
+                ctx.lineWidth = 1;
+                ctx.arc(atom.x, atom.y, 15, 0, 2*Math.PI);
+                ctx.fill();
+                ctx.stroke();
+
+                
+                ctx.fillStyle = '#000000'; 
+                ctx.font = 'bold 16px Poppins, sans-serif';
+                const label = atom.atom + (atom.charge === 1 ? '+' : (atom.charge === -1 ? '-' : ''));
+                const textWidth = ctx.measureText(label).width;
+                ctx.fillText(label, atom.x - textWidth / 2, atom.y + 6);
+            });
+        }
+
+        
+        function findAtom(x, y){
+            for(let i = atoms.length-1; i >= 0; i--){
+                const A = atoms[i];
+                const dx = A.x - x; 
+                const dy = A.y - y;
+                if(dx*dx + dy*dy < 225) return i; 
+            }
+            return -1;
+        }
+
+        
+        function linePointDist(x1, y1, x2, y2, px, py){
+            const A = px - x1;
+            const B = py - y1;
+            const C = x2 - x1;
+            const D = y2 - y1;
+            const dot = A*C + B*D;
+            const lenSq = C*C + D*D;
+            const param = dot / lenSq;
+            let xx, yy;
+
+            if(param < 0){
+                xx = x1;
+                yy = y1;
+            }
+            else if(param > 1){
+                xx = x2;
+                yy = y2;
+            }
+            else{
+                xx = x1 + param*C;
+                yy = y1 + param*D;
+            }
+
+            const dx = px - xx;
+            const dy = py - yy;
+            return Math.sqrt(dx*dx + dy*dy);
+        }
+
+        
+        function findBond(x, y){
+            for(let i = 0; i < bonds.length; i++){
+                const bond = bonds[i];
+                const a1 = atoms[bond.from];
+                const a2 = atoms[bond.to];
+                if(!a1 || !a2) continue;
+                const dist = linePointDist(a1.x, a1.y, a2.x, a2.y, x, y);
+                if(dist < 5) return i;
+            }
+            return -1;
+        }
+
+        
+        function addChargeToAtom(atomIndex, charge){
+            atoms[atomIndex].charge = charge;
+            pushHistory();
+            redraw();
+            updateAtomCounts();
+        }
+
+        
+        function changeBondType(bondIndex, type){
+            if(bonds[bondIndex]){
+                bonds[bondIndex].type = type;
+                pushHistory();
+                redraw();
+                updateAtomCounts();
+            }
+        }
+
+        
+        function autoFillHydrogens(){
+            if(manualHCheckbox.checked) return;
+            const valenceMap = {C:4, N:3, O:2, H:1};
+            atoms.forEach((A, i) => {
+                if(A.atom in valenceMap){
+                    const needed = valenceMap[A.atom];
+                    let currentCount = 0;
+                    bonds.forEach(bond => {
+                        if(bond.from === i || bond.to === i){
+                            const t = bond.type;
+                            const val = (t === 'double') ? 2 : (t === 'triple') ? 3 : 1;
+                            currentCount += val;
+                        }
+                    });
+                    const atomVal = (A.atom === 'H') ? 1 : 0;
+                    const missing = needed - currentCount - atomVal;
+                    if(missing > 0 && A.atom !== 'H'){
+                        let attempts = 0; 
+                        let placed = 0;
+                        while(placed < missing && attempts < 2000){
+                            const angle = Math.random() * Math.PI * 2;
+                            const hx = A.x + 60*Math.cos(angle);
+                            const hy = A.y + 60*Math.sin(angle);
+                            let overlap = false;
+                            for(let k = 0; k < atoms.length; k++){
+                                const dx = atoms[k].x - hx; 
+                                const dy = atoms[k].y - hy;
+                                if(dx*dx + dy*dy < 2025){ overlap = true; break; }
+                            }
+                            if(!overlap){
+                                atoms.push({atom:'H', charge:0, x:hx, y:hy});
+                                const hIndex = atoms.length - 1;
+                                bonds.push({from:i, to:hIndex, type:'single'});
+                                placed++;
+                            }
+                            attempts++;
+                        }
+                    }
+                }
+            });
+            pushHistory();
+            redraw();
+            updateAtomCounts();
+        }
+
+        
+        function addAtomWithNearestBond(atomSymbol, x, y){
+            atoms.push({atom:atomSymbol, charge:0, x:x, y:y});
+            const newIndex = atoms.length - 1;
+            if(atoms.length > 1){
+                let closestDist = Infinity; 
+                let closestIndex = -1;
+                for(let i = 0; i < atoms.length - 1; i++){
+                    const dx = atoms[i].x - x; 
+                    const dy = atoms[i].y - y;
+                    const dist = dx*dx + dy*dy;
+                    if(dist < closestDist){
+                        closestDist = dist;
+                        closestIndex = i;
+                    }
+                }
+                if(closestIndex >= 0){
+                    bonds.push({from:closestIndex, to:newIndex, type:'single'});
+                }
+            }
+            pushHistory();
+            updateAtomCounts();
+            redraw();
+        }
+
+        
+        function deleteAtomFunc(idx){
+            bonds = bonds.filter(b => b.from !== idx && b.to !== idx);
+            atoms.splice(idx, 1);
+            
+            bonds.forEach(bond => {
+                if(bond.from > idx) bond.from -= 1;
+                if(bond.to > idx) bond.to -= 1;
+            });
+            pushHistory();
+            redraw();
+            updateAtomCounts();
+        }
+
+        
+        function deleteBondFunc(idx){
+            bonds.splice(idx, 1);
+            pushHistory();
+            redraw();
+            updateAtomCounts();
+        }
+
+        
+        function hideContextMenu(){
+            contextMenu.style.display = 'none';
+            delete contextMenu.dataset.atom;
+            delete contextMenu.dataset.bond;
+        }
+
+        
+        function showContextMenu(absX, absY, atomIndex, bondIndex){
+            
+            document.getElementById('deleteAtomItem').style.display = 'none';
+            document.getElementById('addPositiveCharge').style.display = 'none';
+            document.getElementById('addNegativeCharge').style.display = 'none';
+            document.getElementById('addNeutralCharge').style.display = 'none';
+            document.getElementById('deleteBondItem').style.display = 'none';
+            document.getElementById('bondDoubleItem').style.display = 'none';
+            document.getElementById('bondTripleItem').style.display = 'none';
+
+            
+            contextMenu.dataset.atom = (atomIndex >= 0 ? atomIndex : "");
+            contextMenu.dataset.bond = (bondIndex >= 0 ? bondIndex : "");
+
+            if(atomIndex >= 0){
+                document.getElementById('deleteAtomItem').style.display = 'flex';
+                document.getElementById('addPositiveCharge').style.display = 'flex';
+                document.getElementById('addNegativeCharge').style.display = 'flex';
+                document.getElementById('addNeutralCharge').style.display = 'flex';
+            } else if(bondIndex >= 0){
+                document.getElementById('deleteBondItem').style.display = 'flex';
+                document.getElementById('bondDoubleItem').style.display = 'flex';
+                document.getElementById('bondTripleItem').style.display = 'flex';
+            }
+
+            
+            contextMenu.style.left = absX + 'px';
+            contextMenu.style.top = absY + 'px';
+            contextMenu.style.display = 'block';
+        }
+
+        
+        function convertToInternalMol(){
+            return {
+                atoms: atoms.map(a => ({atom: a.atom, charge: a.charge, x: a.x, y: a.y})),
+                bonds: bonds.map(b => ({from: b.from, to: b.to, type: b.type}))
+            };
+        }
+
+        
+        function bondsTo(bonds, idx){
+            const r = [];
+            bonds.forEach(bond => {
+                if(bond.from === idx) r.push(bond.to);
+                else if(bond.to === idx) r.push(bond.from);
+            });
+            return r;
+        }
+
+        
+        function findBondBetween(bonds, a, b){
+            return bonds.find(bond => 
+                (bond.from === a && bond.to === b) || 
+                (bond.from === b && bond.to === a)
+            ) || null;
+        }
+
+        
+        function deepCopyMolecule(m){
+            return {
+                atoms: m.atoms.map(a => ({atom: a.atom, charge: a.charge, x: a.x, y: a.y})),
+                bonds: m.bonds.map(b => ({from: b.from, to: b.to, type: b.type}))
+            };
+        }
+
+        
+        function molToString(m){
+            let s = "";
+            m.atoms.forEach((a, i) => {
+                s += `${i}:${a.atom}${a.charge === 1 ? '+' : (a.charge === -1 ? '-' : '')}; `;
+            });
+            s += "| ";
+            m.bonds.forEach(b => {
+                s += `${b.from}-${b.to}(${b.type}) `;
+            });
+            return s;
+        }
+
+        
+        function attemptShiftAll(m, atomIdx, chargeSign, forms, noChange){
+            const neighbors = bondsTo(m.bonds, atomIdx);
+            neighbors.forEach(nb => {
+                const nbBonds = bondsTo(m.bonds, nb);
+                nbBonds.forEach(x => {
+                    if(x !== atomIdx){
+                        const bond = findBondBetween(m.bonds, nb, x);
+                        if(bond && bond.type === 'double'){
+                            const copy = deepCopyMolecule(m);
+                            const oldDouble = findBondBetween(copy.bonds, nb, x);
+                            const oldSingle = findBondBetween(copy.bonds, atomIdx, nb);
+                            if(oldSingle && oldDouble && oldSingle.type === 'single' && oldDouble.type === 'double'){
+                                oldSingle.type = 'double';
+                                oldDouble.type = 'single';
+                                copy.atoms[atomIdx].charge = 0;
+                                copy.atoms[x].charge = chargeSign;
+                                const newStr = molToString(copy);
+                                const duplicate = forms.some(f => molToString(f) === newStr);
+                                if(newStr !== noChange && !duplicate){
+                                    forms.push(copy);
+                                }
+                            }
+                        }
+                    }
+                });
+            });
+        }
+
+        
+        function tryCreatePositiveOnO(m, forms, noChange){
+            m.atoms.forEach((A, i) => {
+                if(A.atom === 'O' && A.charge === 0){
+                    const neighborIndices = bondsTo(m.bonds, i);
+                    let hasH = false;
+                    let doubleToC = false;
+                    neighborIndices.forEach(ni => {
+                        const bond = findBondBetween(m.bonds, i, ni);
+                        if(m.atoms[ni].atom === 'H' && bond && bond.type === 'single'){
+                            hasH = true;
+                        }
+                        if(m.atoms[ni].atom === 'C' && bond && bond.type === 'double'){
+                            doubleToC = true;
+                        }
+                    });
+                    if(hasH && doubleToC){
+                        const copy = deepCopyMolecule(m);
+                        copy.atoms[i].charge = 1;
+                        copy.atoms.forEach((B, j) => {
+                            if(['C', 'N', 'O'].includes(B.atom) && B.charge === 1){
+                                attemptShiftAll(copy, j, 1, forms, noChange);
+                            }
+                        });
+                    }
+                }
+            });
+        }
+
+        
+        function trySimpleResonanceShifts(m){
+            const forms = [];
+            const noChange = molToString(m);
+            const chargedAtomsIndices = m.atoms
+                .map((A, i) => (['C', 'N', 'O'].includes(A.atom) && A.charge !== 0) ? {idx: i, charge: A.charge} : null)
+                .filter(item => item !== null);
+            chargedAtomsIndices.forEach(c => {
+                attemptShiftAll(m, c.idx, c.charge, forms, noChange);
+            });
+            if(forms.length === 0 && chargedAtomsIndices.length === 0){
+                tryCreatePositiveOnO(m, forms, noChange);
+            }
+            return forms;
+        }
+
+        
+        function findResonanceForms(m){
+            const forms = trySimpleResonanceShifts(m);
+            if(forms.length === 0){
+                console.log("No resonance found.");
+            }
+            return forms;
+        }
+
+        
+        function highlightDifferences(m1, m2){
+            const changedAtoms = new Set();
+            const changedBonds = new Set();
+            const bondKey = (b) => b.from < b.to ? `${b.from}-${b.to}` : `${b.to}-${b.from}`;
+            const len = Math.min(m1.atoms.length, m2.atoms.length);
+            for(let i = 0; i < len; i++){
+                if(m1.atoms[i].atom !== m2.atoms[i].atom || m1.atoms[i].charge !== m2.atoms[i].charge){
+                    changedAtoms.add(i);
+                }
+            }
+            if(m1.atoms.length !== m2.atoms.length){
+                for(let i = len; i < m2.atoms.length; i++){
+                    changedAtoms.add(i);
+                }
+            }
+            const b1 = new Map();
+            m1.bonds.forEach(bond => {
+                b1.set(bondKey(bond), bond.type);
+            });
+            m2.bonds.forEach((bond, i) => {
+                const key = bondKey(bond);
+                if(!b1.has(key) || b1.get(key) !== bond.type){
+                    changedBonds.add(i);
+                }
+            });
+            return {changedAtoms, changedBonds};
+        }
+
+        
+        function drawMolOnCanvasScaled(m, canvasEl, changed){
+            const cctx = canvasEl.getContext('2d');
+            cctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+            let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+            m.atoms.forEach(A => {
+                if(A.x < minx) minx = A.x;
+                if(A.x > maxx) maxx = A.x;
+                if(A.y < miny) miny = A.y;
+                if(A.y > maxy) maxy = A.y;
+            });
+            const w = maxx - minx;
+            const h = maxy - miny;
+            const scale = Math.min((canvasEl.width - 40) / w, (canvasEl.height - 40) / h) || 1;
+            const ox = minx - (canvasEl.width / (2 * scale)) + (w / 2);
+            const oy = miny - (canvasEl.height / (2 * scale)) + (h / 2);
+
+            const sx = (x) => (x - ox) * scale;
+            const sy = (y) => (y - oy) * scale;
+
+            
+            m.bonds.forEach((bond, index) => {
+                const a1 = m.atoms[bond.from];
+                const a2 = m.atoms[bond.to];
+                if(!a1 || !a2) return;
+
+                
+                const gradient = cctx.createLinearGradient(sx(a1.x), sy(a1.y), sx(a2.x), sy(a2.y));
+                gradient.addColorStop(0, atomColors[a1.atom]);
+                gradient.addColorStop(1, atomColors[a2.atom]);
+
+                cctx.strokeStyle = changed.changedBonds.has(index) ? '#2ecc71' : gradient;
+                cctx.lineWidth = 2;
+
+                const dx = a2.x - a1.x;
+                const dy = a2.y - a1.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                let offx = 0, offy = 0;
+                if(bond.type === 'double'){
+                    offx = -dy/dist*3; 
+                    offy = dx/dist*3;  
+                } else if(bond.type === 'triple'){
+                    offx = -dy/dist*6; 
+                    offy = dx/dist*6;  
+                }
+
+                if(bond.type === 'double' || bond.type === 'triple'){
+                    
+                    cctx.beginPath();
+                    cctx.moveTo(sx(a1.x + offx), sy(a1.y + offy));
+                    cctx.lineTo(sx(a2.x + offx), sy(a2.y + offy));
+                    cctx.stroke();
+
+                    
+                    cctx.beginPath();
+                    cctx.moveTo(sx(a1.x - offx), sy(a1.y - offy));
+                    cctx.lineTo(sx(a2.x - offx), sy(a2.y - offy));
+                    cctx.stroke();
+
+                    if(bond.type === 'triple'){
+                        
+                        cctx.beginPath();
+                        cctx.moveTo(sx(a1.x), sy(a1.y));
+                        cctx.lineTo(sx(a2.x), sy(a2.y));
+                        cctx.stroke();
+                    }
+                } else {
+                    
+                    cctx.beginPath();
+                    cctx.moveTo(sx(a1.x), sy(a1.y));
+                    cctx.lineTo(sx(a2.x), sy(a2.y));
+                    cctx.stroke();
+                }
+            });
+
+            
+            m.atoms.forEach((atom, index) => {
+                
+                if(changed.changedAtoms.has(index)){
+                    cctx.beginPath();
+                    cctx.fillStyle = '#2ecc71'; 
+                    cctx.strokeStyle = '#2ecc71';
+                    cctx.lineWidth = 2;
+                    cctx.arc(sx(atom.x), sy(atom.y), 15, 0, 2*Math.PI);
+                    cctx.fill();
+                    cctx.stroke();
+                } else {
+                    cctx.beginPath();
+                    cctx.fillStyle = atomColors[atom.atom] || '#FFFFFF'; 
+                    cctx.strokeStyle = '#000000'; 
+                    cctx.lineWidth = 1;
+                    cctx.arc(sx(atom.x), sy(atom.y), 15, 0, 2*Math.PI);
+                    cctx.fill();
+                    cctx.stroke();
+                }
+
+                
+                if(changed.changedAtoms.has(index)){
+                    cctx.fillStyle = '#000000'; 
+                }
+                else{
+                    cctx.fillStyle = '#000000'; 
+                }
+                cctx.font = 'bold 16px Poppins, sans-serif';
+                const label = atom.atom + (atom.charge === 1 ? '+' : (atom.charge === -1 ? '-' : ''));
+                const textWidth = cctx.measureText(label).width;
+                cctx.fillText(label, sx(atom.x) - textWidth / 2, sy(atom.y) + 6);
+            });
+        }
+
+        
+        function deleteAtom(idx){
+            deleteAtomFunc(idx);
+            hideContextMenu();
+        }
+
+        
+        function deleteBond(idx){
+            deleteBondFunc(idx);
+            hideContextMenu();
+        }
+
+        
+        document.addEventListener('click', function(e){
+            if(!contextMenu.contains(e.target) && e.target !== contextMenu){
+                hideContextMenu();
+            } else {
+                const aIdx = contextMenu.dataset.atom;
+                const bIdx = contextMenu.dataset.bond;
+                if(e.target.id === 'deleteAtomItem' && aIdx !== ""){
+                    deleteAtom(parseInt(aIdx)); 
+                } else if(e.target.id === 'addPositiveCharge' && aIdx !== ""){
+                    addChargeToAtom(parseInt(aIdx), 1); hideContextMenu();
+                } else if(e.target.id === 'addNegativeCharge' && aIdx !== ""){
+                    addChargeToAtom(parseInt(aIdx), -1); hideContextMenu();
+                } else if(e.target.id === 'addNeutralCharge' && aIdx !== ""){
+                    addChargeToAtom(parseInt(aIdx), 0); hideContextMenu();
+                } else if(e.target.id === 'deleteBondItem' && bIdx !== ""){
+                    deleteBond(parseInt(bIdx)); 
+                } else if(e.target.id === 'bondDoubleItem' && bIdx !== ""){
+                    changeBondType(parseInt(bIdx), 'double'); hideContextMenu();
+                } else if(e.target.id === 'bondTripleItem' && bIdx !== ""){
+                    changeBondType(parseInt(bIdx), 'triple'); hideContextMenu();
+                } else if(e.target.id === 'cancelItem'){
+                    hideContextMenu();
+                }
+            }
+        });
+
+        
+        const toolbarButtons = document.querySelectorAll('.toolbar button, .toolbar label');
+
+        toolbarButtons.forEach(button => {
+            button.addEventListener('click', function(){
+                
+                toolbarButtons.forEach(btn => btn.classList.remove('active'));
+                
+                if(this.tagName.toLowerCase() === 'button'){
+                    this.classList.add('active');
+                    
+                    if(this.id.startsWith('add')){
+                        canvas.classList.remove('drawing-bond');
+                        canvas.classList.add('adding-atom');
+                    } else if(this.id.startsWith('bond')){
+                        canvas.classList.remove('adding-atom');
+                        canvas.classList.add('drawing-bond');
+                    } else {
+                        canvas.classList.remove('adding-atom', 'drawing-bond');
+                    }
+                }
+            });
+        });
+
+        document.getElementById('addC').addEventListener('click', function(){
+            currentTool = 'atom'; currentAtom = 'C';
+        });
+        document.getElementById('addH').addEventListener('click', function(){
+            currentTool = 'atom'; currentAtom = 'H';
+        });
+        document.getElementById('addO').addEventListener('click', function(){
+            currentTool = 'atom'; currentAtom = 'O';
+        });
+        document.getElementById('addN').addEventListener('click', function(){
+            currentTool = 'atom'; currentAtom = 'N';
+        });
+        document.getElementById('bondSingle').addEventListener('click', function(){
+            currentTool = 'bond'; currentBondType = 'single';
+        });
+        document.getElementById('undoBtn').addEventListener('click', undo);
+        document.getElementById('redoBtn').addEventListener('click', redo);
+        document.getElementById('clearBtn').addEventListener('click', function(){
+            atoms = []; bonds = []; bondStart = -1;
+            pushHistory(); redraw(); updateAtomCounts();
+        });
+        document.getElementById('autoHBtn').addEventListener('click', autoFillHydrogens);
+        document.getElementById('resonanceBtn').addEventListener('click', generateResonance);
+
+        
+        canvas.addEventListener('contextmenu', function(e){
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const a = findAtom(x, y);
+            const bd = findBond(x, y);
+            showContextMenu(e.clientX, e.clientY, a, bd);
+        });
+
+        
+        canvas.addEventListener('mousedown', function(e){
+            if(e.button === 2) return; 
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            if(currentTool === 'atom'){
+                const clickedAtom = findAtom(x, y);
+                if(clickedAtom >= 0){
+                    isDraggingAtom = true;
+                    dragAtomIndex = clickedAtom;
+                } else {
+                    addAtomWithNearestBond(currentAtom, x, y);
+                }
+            } else if(currentTool === 'bond'){
+                const clickedAtom = findAtom(x, y);
+                if(clickedAtom >= 0){
+                    if(bondStart < 0) bondStart = clickedAtom;
+                    else {
+                        if(bondStart !== clickedAtom){
+                            bonds.push({from: bondStart, to: clickedAtom, type: 'single'});
+                            bondStart = -1; pushHistory(); redraw(); updateAtomCounts();
+                        } else {
+                            bondStart = -1;
+                        }
+                    }
+                }
+            }
+        });
+
+        canvas.addEventListener('mousemove', function(e){
+            if(isDraggingAtom && dragAtomIndex >= 0){
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                atoms[dragAtomIndex].x = x;
+                atoms[dragAtomIndex].y = y;
+                redraw();
+            }
+        });
+
+        canvas.addEventListener('mouseup', function(e){
+            if(isDraggingAtom && dragAtomIndex >= 0){
+                pushHistory();
+                redraw();
+            }
+            isDraggingAtom = false;
+            dragAtomIndex = -1;
+        });
+
+        
+        pushHistory();
+        redraw();
+        updateAtomCounts();
+
+        
+        function toggleGUI() {
+            guiElements.forEach(el => {
+                el.classList.toggle('hidden');
+            });
+        }
+
+        function onMouseDown(e) {
+            longPressTriggered = false;
+            longPressTimer = setTimeout(function() {
+                toggleGUI();
+                longPressTriggered = true;
+            }, longPressThreshold);
+        }
+
+        function onMouseUp(e) {
+            clearTimeout(longPressTimer);
+        }
+
+        function onTouchStart(e) {
+            longPressTriggered = false;
+            longPressTimer = setTimeout(function() {
+                toggleGUI();
+                longPressTriggered = true;
+            }, longPressThreshold);
+        }
+
+        function onTouchEnd(e) {
+            clearTimeout(longPressTimer);
+        }
+
+        
+        canvas.addEventListener('mousedown', onMouseDown);
+        canvas.addEventListener('mouseup', onMouseUp);
+        canvas.addEventListener('mouseleave', onMouseUp);
+        canvas.addEventListener('touchstart', onTouchStart);
+        canvas.addEventListener('touchend', onTouchEnd);
+
+        
+        function openModalWithCanvas(clickedCanvas) {
+            
+            modalCtx.clearRect(0, 0, modalCanvas.width, modalCanvas.height);
+            
+            modalCanvas.width = clickedCanvas.width  * 2.5;
+            modalCanvas.height = clickedCanvas.height * 2.5;
+            modalCtx.drawImage(clickedCanvas, 0, 0, modalCanvas.width, modalCanvas.height);
+            
+            resonanceModal.style.display = 'flex';
+        }
+
+        function closeModal(){
+            resonanceModal.style.display = 'none';
+        }
+
+        
+        modalCloseBtn.addEventListener('click', closeModal);
+
+        
+        window.addEventListener('click', function(event){
+            if(event.target === resonanceModal){
+                closeModal();
+            }
+        });
+
+        
+        canvas.addEventListener('click', function(e){
+            const currentTime = new Date().getTime();
+            const tapLength = currentTime - lastTapTime;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const clickedAtom = findAtom(x, y);
+
+            if(tapLength < 300 && tapLength > 0){
+                
+                if(clickedAtom >= 0){
+                    
+                    canvas.firstAtomForBond = clickedAtom;
+                }
+            } else {
+                
+                if(canvas.firstAtomForBond !== undefined && canvas.firstAtomForBond !== -1 && clickedAtom >= 0){
+                    if(canvas.firstAtomForBond !== clickedAtom){
+                        
+                        bonds.push({from: canvas.firstAtomForBond, to: clickedAtom, type: 'single'});
+                        pushHistory();
+                        redraw();
+                        updateAtomCounts();
+                    }
+                    
+                    canvas.firstAtomForBond = -1;
+                }
+            }
+            lastTapTime = currentTime;
+        });
+
+        
+        function convertToInternalMol(){
+            return {
+                atoms: atoms.map(a => ({atom: a.atom, charge: a.charge, x: a.x, y: a.y})),
+                bonds: bonds.map(b => ({from: b.from, to: b.to, type: b.type}))
+            };
+        }
+
+        
+        function trySimpleResonanceShifts(m){
+            const forms = [];
+            const noChange = molToString(m);
+            const chargedAtomsIndices = m.atoms
+                .map((A, i) => (['C', 'N', 'O'].includes(A.atom) && A.charge !== 0) ? {idx: i, charge: A.charge} : null)
+                .filter(item => item !== null);
+            chargedAtomsIndices.forEach(c => {
+                attemptShiftAll(m, c.idx, c.charge, forms, noChange);
+            });
+            if(forms.length === 0 && chargedAtomsIndices.length === 0){
+                tryCreatePositiveOnO(m, forms, noChange);
+            }
+            return forms;
+        }
+
+        
+        function generateResonance(){
+            const mol = convertToInternalMol();
+            const forms = findResonanceForms(mol);
+            resonanceResults.innerHTML = '';
+            if(forms.length === 0){
+                const noDiv = document.createElement('div');
+                noDiv.className = 'no-resonance';
+                noDiv.innerHTML = `😕 Couldn't Calculate Resonance. The Engine Can Make Errors`;
+                resonanceResults.appendChild(noDiv);
+            } else {
+                forms.forEach(form => {
+                    const div = document.createElement('div');
+                    div.className = 'resonance-form';
+                    const c = document.createElement('canvas');
+                    c.width = 400; 
+                    c.height = 300;
+                    c.className = 'resonance-form-canvas';
+                    div.appendChild(c);
+                    resonanceResults.appendChild(div);
+                    const changed = highlightDifferences(mol, form);
+                    drawMolOnCanvasScaled(form, c, changed);
+
+                    
+                    div.addEventListener('click', function(event){
+                        const clickedCanvas = event.currentTarget.querySelector('canvas');
+                        openModalWithCanvas(clickedCanvas);
+                    });
+                });
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Code Meteor's Client</title>
+  <link rel="stylesheet" type="text/css" href="css/MainStyle.css">
+  <style>
+    html {
+      scroll-behavior: smooth;
+    }
+  </style>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      var links = document.querySelectorAll('a[href^="#"]');
+      for (var i = 0; i < links.length; i++) {
+        links[i].addEventListener('click', smoothScroll);
+      }
+
+      function smoothScroll(e) {
+        e.preventDefault();
+        var targetId = this.getAttribute('href');
+        var targetElement = document.querySelector(targetId);
+        if (targetElement) {
+          targetElement.scrollIntoView({ behavior: 'smooth' });
+        }
+      }
+    });
+  </script>
+</head>
+<body>
+  <header>
+    <h1>Code Meteor's Client</h1>
+  </header>
+
+  <nav>
+    <ul>
+      <li><a href="#about">About</a></li>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#plans">Plans</a></li>
+    </ul>
+  </nav>
+
+  <section id="about">
+    <div class="container">
+      <h2>About Code Meteor's Client</h2>
+      <p>Introducing the powerful cheat client that will revolutionize your gaming experience.</p>
+      <p>Our features include:</p>
+      <ul>
+        <li>Advanced Aimbot</li>
+        <li>ESP</li>
+        <li>Fake Stand</li>
+        <li>X-Ray</li>
+        <li>No Recoil</li>
+        <li>Tracers</li>
+        <li>Water Walk</li>
+        <li>And much more!</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="features" class="purple-section">
+    <div class="container">
+      <h2 style="color: white;">Features</h2>
+      <div class="feature">
+        <h3>Advanced Aimbot</h3>
+        <p>Enhance your shooting precision with our advanced aimbot feature that automatically targets your opponents!</p>
+      </div>
+      <div class="feature">
+        <h3>ESP (Extra Sensory Perception)</h3>
+        <p>See your enemies through walls and obstacles, giving you a strategic advantage in any game!</p>
+      </div>
+      <div class="feature">
+        <h3>Fake Stand</h3>
+        <p>A unique feature only available in our client!</p>
+      </div>
+      <div class="feature">
+        <h3>X-Ray</h3>
+        <p>See Ores, Dungeons and more!</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="plans">
+    <div class="container">
+      <h2>Plans</h2>
+      <div class="plan">
+        <h3>Code Meteor Lite</h3>
+        <p>Basic features without any combat modules</p>
+        <p>Price: Free</p>
+        <a href="https://greasyfork.org/en/scripts/467929-voxiom-io-code-meteor-s-client" class="button">Get it Free</a>
+      </div>
+      <div class="plan">
+        <h3>Code Meteor</h3>
+        <p>Has a bad aimbot and some of the exploit tab</p>
+        <p>Price: Discord Nitro Classic for one month</p>
+        <a href="https://discord.gg/cY3ExsfSt" class="button">Get it Now</a>
+      </div>
+      <div class="plan">
+        <h3>Meteor+</h3>
+        <p>Has all the features you need! Advanced Aim, No Recoil, Chams, Tracers, Xray!</p>
+        <p>Price: $15.99</p>
+        <a href="PayPage.html" class="button">NOT OUT</a>
+      </div>
+    </div>
+  </section>
+  <footer>
+    <div class="container">
+      &copy; 2023 Code Meteor's Client. All rights reserved.
+    </div>
+  </footer>
+</body>
+</html>

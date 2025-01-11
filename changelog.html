@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Change Log</title>
+    <style>
+        /* Basic Reset */
+        body, h1, h2, h3, ul, li, p, a {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Roboto', sans-serif;
+            color: #ffffff;
+            background: url('https://starwalk.space/gallery/images/what-is-space/1920x1080.jpg') no-repeat center center fixed;
+            background-size: cover;
+            overflow-x: hidden;
+            height: 100vh;
+            margin: 0;
+            position: relative;
+        }
+        #particles-js {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+        .container {
+            width: 80%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.8); /* Semi-transparent background */
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.7);
+            position: relative;
+            z-index: 1;
+        }
+        header {
+            text-align: center;
+            padding-bottom: 20px;
+        }
+        header h1 {
+            font-size: 4em;
+            color: #e0aaff;
+            margin-bottom: 15px;
+            text-shadow: 0 0 15px rgba(255, 255, 255, 0.9);
+            animation: fadeIn 1s ease-out;
+        }
+        .changelog {
+            margin-bottom: 20px;
+            animation: fadeIn 1s ease-out;
+            border: 1px solid #555;
+            border-radius: 15px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.9);
+        }
+        .changelog h2 {
+            font-size: 2.5em;
+            border-bottom: 2px solid #e0aaff;
+            padding-bottom: 10px;
+            color: #d0aaff;
+            margin-bottom: 15px;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
+        }
+        .changelog ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        .changelog li {
+            padding: 8px 0;
+            border-bottom: 1px solid #333;
+            transition: background 0.3s ease, color 0.3s ease;
+        }
+        .changelog li:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #e0aaff;
+        }
+        .changelog .category {
+            margin-top: 20px;
+        }
+        .changelog .category h3 {
+            font-size: 1.8em;
+            border-bottom: 1px solid #e0aaff;
+            color: #d0aaff;
+            padding-bottom: 8px;
+            margin-bottom: 15px;
+        }
+        footer {
+            text-align: center;
+            padding: 15px 0;
+            font-size: 0.9em;
+            border-top: 1px solid #555;
+            margin-top: 30px;
+        }
+        footer p {
+            margin-bottom: 5px;
+        }
+        footer a {
+            color: #e0aaff;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        footer a:hover {
+            text-decoration: underline;
+        }
+        /* Keyframes for Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                width: 90%;
+                padding: 15px;
+            }
+            header h1 {
+                font-size: 3em;
+            }
+            .changelog h2 {
+                font-size: 2em;
+            }
+            .changelog .category h3 {
+                font-size: 1.5em;
+            }
+        }
+        @media (max-width: 480px) {
+            header h1 {
+                font-size: 2.5em;
+            }
+            .changelog h2 {
+                font-size: 1.8em;
+            }
+            .changelog .category h3 {
+                font-size: 1.3em;
+            }
+        }
+        /* Additional Styles for Extended Features */
+        .changelog .details {
+            display: none;
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            border: 1px solid #777;
+        }
+        .changelog.expanded .details {
+            display: block;
+        }
+        .changelog .expand-btn {
+            cursor: pointer;
+            color: #e0aaff;
+            text-decoration: underline;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .changelog .expand-btn:hover {
+            color: #ffffff;
+        }
+    </style>
+</head>
+<body>
+    <div id="particles-js"></div>
+    <div class="container">
+        <header>
+            <h1>Liquid Star's Change Log</h1>
+        </header>
+        <main>
+            <section class="changelog" id="version-1-0-0">
+                <h2>Version [intern]</h2>
+                <div class="category" id="added">
+                    <h3>Added</h3>
+                    <ul>
+                        <li>Imported Aimbot from Code Meteor</li>
+                        <li>Imported Xray from Code Meteor</li>
+                        <li>Basic ESP module</li>
+                        <li>Player Chams</li>
+                        <li>Wireframe World</li>
+                        <li>Minimize Spread</li>
+                        <li>Missfire Fix</li>
+                        <li>Anti AFK</li>
+                        <li>Tracers</li>
+                        <li>Precise Hitboxes</li>
+                        <li>Item Esp</li>
+                        <li>Account Informaion (username and when the account expires)</li>
+                        <li>Privite Database (needed to be hosted)</li>
+                        <li>New World Tab</li>
+                        <li>No Sniper zoom</li>
+                        <li>Show Spread</li>
+                        <li>90% hitchance option (i can`t call it anything else cuz it will be removed), is achieved by (this data was redacted and removed by lolua due to safety reasons)</li>
+                        <li>(this data was redacted and removed by lolua due to safety reasons)</li>
+                    </ul>
+                </div>
+                <div class="category" id="fixed">
+                    <h3>Fixed</h3>
+                    <ul>
+                        <li>Aimbot lag due to new voxiom update</li>
+                        <li>Not being able to shoot when aiming + using aimbot</li>
+                        <li>Not all modules working after cheat startup</li>
+                        <li>"game undefined" loop error</li>
+                        <li>(this data was redacted and removed by lolua due to safety reasons)</li>
+                        <li>(this data was redacted and removed by lolua due to safety reasons)</li>
+                        <li>Chams not working on everyone</li>
+                        <li>Insta remove chams</li>
+                        <li>(this data was redacted and removed by lolua due to safety reasons)</li>
+                        <li>Raycast, (this data was redacted and removed by lolua due to safety reasons)</li>
+                        <li>Xray is now faster by using (this data was redacted and removed by lolua due to safety reasons)</li>
+                        <li>Config issues</li>
+                        <li>Spelling mistakes</li>
+                        <li>GUI blur and etc</li>
+                        <li>Esp bugging out sometimes</li>
+                        <li>Hitbox Precision</li>
+                        <li>Menu errors when switching icons</li>
+                        <li>Colors being duplicated when clicking on the icon multiple times</li>
+                        <li>Other improvements that i can`t tell</li>
+                    </ul>
+                </div>
+                <div class="category" id="removed">
+                    <h3>Removed</h3>
+                    <ul>
+                        <li>Removed Tunnel ESP</li>
+                        <li>Old ESP, becuase of unoptimized code and bugs with it</li>
+                        <li>HeadHItbox</li>
+                    </ul>
+                </div>
+            </section>
+            <!-- Add more sections as needed -->
+        </main>
+        <footer>
+            <p>Created by Code Meteor</p>
+            <p><a href="https://i8danylo8i.github.io">Liquid Star</a></p>
+        </footer>
+    </div>
+
+    <!-- Particles.js Library -->
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    <script>
+        // Particles.js Configuration
+        particlesJS('particles-js', {
+            "particles": {
+                "number": {
+                    "value": 150,
+                    "density": {
+                        "enable": true,
+                        "value_area": 800
+                    }
+                },
+                "color": {
+                    "value": "#ffffff"
+                },
+                "shape": {
+                    "type": "circle",
+                    "stroke": {
+                        "width": 0,
+                        "color": "#000000"
+                    }
+                },
+                "opacity": {
+                    "value": 0.6,
+                    "random": false,
+                    "anim": {
+                        "enable": true,
+                        "speed": 1,
+                        "opacity_min": 0.1,
+                        "sync": false
+                    }
+                },
+                "size": {
+                    "value": 4,
+                    "random": true,
+                    "anim": {
+                        "enable": true,
+                        "speed": 10,
+                        "size_min": 0.1,
+                        "sync": false
+                    }
+                },
+                "line_linked": {
+                    "enable": true,
+                    "distance": 150,
+                    "color": "#ffffff",
+                    "opacity": 0.5,
+                    "width": 1
+                },
+                "move": {
+                    "enable": true,
+                    "speed": 3,
+                    "direction": "none",
+                    "random": false,
+                    "straight": false,
+                    "out_mode": "out",
+                    "bounce": false,
+                    "attract": {
+                        "enable": false,
+                        "rotateX": 600,
+                        "rotateY": 1200
+                    }
+                }
+            },
+            "interactivity": {
+                "detect_on": "canvas",
+                "events": {
+                    "onhover": {
+                        "enable": true,
+                        "mode": "repulse"
+                    },
+                    "onclick": {
+                        "enable": true,
+                        "mode": "push"
+                    },
+                    "resize": true
+                },
+                "modes": {
+                    "grab": {
+                        "distance": 400,
+                        "line_linked": {
+                            "opacity": 1
+                        }
+                    },
+                    "bubble": {
+                        "distance": 400,
+                        "size": 40,
+                        "duration": 2,
+                        "opacity": 0.8,
+                        "speed": 3
+                    },
+                    "repulse": {
+                        "distance": 200,
+                        "duration": 0.4
+                    },
+                    "push": {
+                        "particles_nb": 4
+                    },
+                    "remove": {
+                        "particles_nb": 2
+                    }
+                }
+            },
+            "retina_detect": true
+        });
+    </script>
+</body>
+</html>
