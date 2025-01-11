@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Danylo's Payday Countdown</title>
+    <style>
+        /* Reset and Base Styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #2a2a2a, #333333);
+            color: #f1f1f1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            overflow: hidden; /* Prevent scrollbars from glowing elements */
+        }
+        .container {
+            background-color: rgba(30, 30, 30, 0.9);
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 800px;
+            width: 100%;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+        }
+        /* Glowing Background Effect */
+        .container::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(76, 175, 80, 0.2) 0%, rgba(0, 0, 0, 0) 60%);
+            animation: rotateGlow 10s linear infinite;
+            pointer-events: none;
+        }
+        @keyframes rotateGlow {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
+        h1 {
+            text-align: center;
+            font-size: 2.5rem;
+            color: #f1f1f1;
+            margin-bottom: 30px;
+            letter-spacing: 4px;
+            text-shadow: 0 0 10px rgba(76, 175, 80, 0.7);
+        }
+        /* Countdown Timer Styles */
+        .countdown-section {
+            margin-bottom: 40px;
+        }
+        .countdown-timer {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+            text-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+        .time-box {
+            text-align: center;
+            position: relative;
+        }
+        .time-box .number {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #4caf50;
+            text-shadow: 0 0 10px rgba(76, 175, 80, 0.7);
+        }
+        .time-box .label {
+            font-size: 1rem;
+            color: #ccc;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        /* Slider Styles */
+        .slider-container {
+            margin-bottom: 20px;
+        }
+        .slider-label {
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+            color: #ccc;
+            text-shadow: 0 0 3px rgba(0,0,0,0.3);
+        }
+        .slider {
+            width: 100%;
+            height: 10px;
+            border-radius: 5px;
+            background: #555;
+            appearance: none;
+            outline: none;
+            transition: background 0.3s ease;
+        }
+        .slider::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4caf50;
+            cursor: pointer;
+            transition: background 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 0 5px rgba(76, 175, 80, 0.7);
+        }
+        .slider::-webkit-slider-thumb:hover {
+            background: #66bb6a;
+            box-shadow: 0 0 15px rgba(76, 175, 80, 1);
+        }
+        /* Progress Bar Styles */
+        .progress-bar-container {
+            margin-bottom: 20px;
+        }
+        .progress-bar-label {
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+            color: #ccc;
+            text-shadow: 0 0 3px rgba(0,0,0,0.3);
+        }
+        .progress-bar {
+            width: 100%;
+            background-color: #555;
+            border-radius: 5px;
+            overflow: hidden;
+            height: 15px;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.3);
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background-color: #4caf50;
+            width: 0%;
+            transition: width 1s linear;
+            box-shadow: inset 0 0 5px rgba(76, 175, 80, 0.7);
+        }
+        /* Circular Progress Styles */
+        .circular-progress-container {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        .circular-progress {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            margin: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .circular-progress svg {
+            transform: rotate(-90deg);
+            width: 100%;
+            height: 100%;
+        }
+        .circular-progress circle {
+            fill: none;
+            stroke-width: 10;
+            stroke: #555;
+            transition: stroke 0.3s ease;
+        }
+        .circular-progress .progress {
+            stroke: #4caf50;
+            stroke-linecap: round;
+            stroke-dasharray: 314; /* 2 * PI * 50 */
+            stroke-dashoffset: 314;
+            transition: stroke-dashoffset 1s linear, stroke 0.3s ease;
+        }
+        .circular-progress .percentage {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1rem;
+            color: #f1f1f1;
+            text-shadow: 0 0 3px rgba(0,0,0,0.5);
+        }
+        /* Glowing Circles */
+        .circular-progress::before {
+            content: '';
+            position: absolute;
+            top: -5px;
+            left: -5px;
+            width: 130px;
+            height: 130px;
+            border-radius: 50%;
+            background: rgba(76, 175, 80, 0.2);
+            filter: blur(15px);
+            opacity: 0.7;
+            transition: opacity 0.3s ease;
+        }
+        .circular-progress:hover::before {
+            opacity: 1;
+        }
+        /* Responsive Styles */
+        @media screen and (max-width: 600px) {
+            h1 { font-size: 2rem; }
+            .countdown-timer {
+                flex-direction: column;
+                align-items: center;
+            }
+            .circular-progress-container {
+                justify-content: center;
+            }
+            .circular-progress {
+                width: 100px;
+                height: 100px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Danylo's Payday Countdown</h1>
+
+        <!-- Countdown Timer Section -->
+        <div class="countdown-section">
+            <div class="countdown-timer">
+                <div class="time-box">
+                    <div class="number" id="days">0</div>
+                    <div class="label">Days</div>
+                </div>
+                <div class="time-box">
+                    <div class="number" id="hours">0</div>
+                    <div class="label">Hours</div>
+                </div>
+                <div class="time-box">
+                    <div class="number" id="minutes">0</div>
+                    <div class="label">Minutes</div>
+                </div>
+                <div class="time-box">
+                    <div class="number" id="seconds">0</div>
+                    <div class="label">Seconds</div>
+                </div>
+            </div>
+
+            <!-- Slider Bars -->
+            <div class="slider-container">
+                <div class="slider-label">Days Remaining</div>
+                <input type="range" min="0" max="30" value="0" class="slider" id="days-slider" disabled>
+            </div>
+            <div class="slider-container">
+                <div class="slider-label">Hours Remaining</div>
+                <input type="range" min="0" max="24" value="0" class="slider" id="hours-slider" disabled>
+            </div>
+            <div class="slider-container">
+                <div class="slider-label">Minutes Remaining</div>
+                <input type="range" min="0" max="60" value="0" class="slider" id="minutes-slider" disabled>
+            </div>
+            <div class="slider-container">
+                <div class="slider-label">Seconds Remaining</div>
+                <input type="range" min="0" max="60" value="0" class="slider" id="seconds-slider" disabled>
+            </div>
+
+            <!-- Overall Progress Bar -->
+            <div class="progress-bar-container">
+                <div class="progress-bar-label">Overall Progress to Payday</div>
+                <div class="progress-bar">
+                    <div class="progress-bar-fill" id="overall-progress"></div>
+                </div>
+            </div>
+
+            <!-- Circular Progress Indicators -->
+            <div class="circular-progress-container">
+                <div class="circular-progress">
+                    <svg>
+                        <circle cx="60" cy="60" r="50"></circle>
+                        <circle class="progress" cx="60" cy="60" r="50"></circle>
+                    </svg>
+                    <div class="percentage" id="days-circle">0%</div>
+                </div>
+                <div class="circular-progress">
+                    <svg>
+                        <circle cx="60" cy="60" r="50"></circle>
+                        <circle class="progress" cx="60" cy="60" r="50"></circle>
+                    </svg>
+                    <div class="percentage" id="hours-circle">0%</div>
+                </div>
+                <div class="circular-progress">
+                    <svg>
+                        <circle cx="60" cy="60" r="50"></circle>
+                        <circle class="progress" cx="60" cy="60" r="50"></circle>
+                    </svg>
+                    <div class="percentage" id="minutes-circle">0%</div>
+                </div>
+                <div class="circular-progress">
+                    <svg>
+                        <circle cx="60" cy="60" r="50"></circle>
+                        <circle class="progress" cx="60" cy="60" r="50"></circle>
+                    </svg>
+                    <div class="percentage" id="seconds-circle">0%</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Payday Countdown Script
+        // Set initial payday date: 30 October 2024 13:00:00
+        let paydayDate = new Date('October, 30, 2024 13:00:00').getTime();
+
+        // Function to get the next payday date
+        function getNextPayday(currentDate) {
+            let nextPayday = new Date(currentDate);
+            nextPayday.setMonth(nextPayday.getMonth() + 1);
+            nextPayday.setDate(30);
+            nextPayday.setHours(13, 0, 0, 0);
+
+            // Handle months that do not have 30 days
+            if (nextPayday.getDate() !== 30) {
+                // Set to last day of the month
+                nextPayday = new Date(nextPayday.getFullYear(), nextPayday.getMonth() + 1, 0, 13, 0, 0, 0);
+            }
+
+            return nextPayday.getTime();
+        }
+
+        // Countdown Elements
+        const daysEl = document.getElementById('days');
+        const hoursEl = document.getElementById('hours');
+        const minutesEl = document.getElementById('minutes');
+        const secondsEl = document.getElementById('seconds');
+
+        const daysSlider = document.getElementById('days-slider');
+        const hoursSlider = document.getElementById('hours-slider');
+        const minutesSlider = document.getElementById('minutes-slider');
+        const secondsSlider = document.getElementById('seconds-slider');
+
+        const overallProgress = document.getElementById('overall-progress');
+
+        const daysCircle = document.getElementById('days-circle');
+        const hoursCircle = document.getElementById('hours-circle');
+        const minutesCircle = document.getElementById('minutes-circle');
+        const secondsCircle = document.getElementById('seconds-circle');
+
+        // Function to update the countdown
+        function updateCountdown() {
+            const now = new Date().getTime();
+            let distance = paydayDate - now;
+
+            // If payday has passed, set to next payday
+            if (distance < 0) {
+                paydayDate = getNextPayday(new Date(paydayDate));
+                distance = paydayDate - now;
+            }
+
+            // Time calculations
+            const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+            // Update HTML
+            daysEl.innerHTML = days;
+            hoursEl.innerHTML = hours;
+            minutesEl.innerHTML = minutes;
+            secondsEl.innerHTML = seconds;
+
+            // Update Sliders
+            updateSliders(days, hours, minutes, seconds);
+
+            // Update Overall Progress
+            const firstOfMonth = new Date(paydayDate);
+            firstOfMonth.setDate(1);
+            firstOfMonth.setHours(0, 0, 0, 0);
+            const totalTime = paydayDate - firstOfMonth.getTime();
+            const elapsedTime = now - firstOfMonth.getTime();
+            const progressPercent = Math.min((elapsedTime / totalTime) * 100, 100);
+            overallProgress.style.width = progressPercent + '%';
+
+            
+            updateCircles(days, hours, minutes, seconds);
+        }
+
+        
+        function updateSliders(days, hours, minutes, seconds) {
+            
+            daysSlider.value = days;
+            daysSlider.max = 30;
+            daysSlider.style.background = `linear-gradient(to right, #4caf50 ${days * (100/30)}%, #555 ${days * (100/30)}%)`;
+
+            
+            hoursSlider.value = hours;
+            hoursSlider.max = 24;
+            hoursSlider.style.background = `linear-gradient(to right, #4caf50 ${hours * (100/24)}%, #555 ${hours * (100/24)}%)`;
+
+            
+            minutesSlider.value = minutes;
+            minutesSlider.max = 60;
+            minutesSlider.style.background = `linear-gradient(to right, #4caf50 ${minutes * (100/60)}%, #555 ${minutes * (100/60)}%)`;
+
+            
+            secondsSlider.value = seconds;
+            secondsSlider.max = 60;
+            secondsSlider.style.background = `linear-gradient(to right, #4caf50 ${seconds * (100/60)}%, #555 ${seconds * (100/60)}%)`;
+        }
+
+        
+        function updateCircles(days, hours, minutes, seconds) {
+            
+            const daysPercent = (days / 30) * 100;
+            daysCircle.innerHTML = `${Math.round(daysPercent)}%`;
+            daysCircle.parentElement.querySelector('.progress').style.strokeDashoffset = 314 - (314 * daysPercent / 100);
+            daysCircle.parentElement.querySelector('.progress').style.stroke = `rgba(76, 175, 80, ${daysPercent / 100})`;
+
+            
+            const hoursPercent = (hours / 24) * 100;
+            hoursCircle.innerHTML = `${Math.round(hoursPercent)}%`;
+            hoursCircle.parentElement.querySelector('.progress').style.strokeDashoffset = 314 - (314 * hoursPercent / 100);
+            hoursCircle.parentElement.querySelector('.progress').style.stroke = `rgba(76, 175, 80, ${hoursPercent / 100})`;
+
+            
+            const minutesPercent = (minutes / 60) * 100;
+            minutesCircle.innerHTML = `${Math.round(minutesPercent)}%`;
+            minutesCircle.parentElement.querySelector('.progress').style.strokeDashoffset = 314 - (314 * minutesPercent / 100);
+            minutesCircle.parentElement.querySelector('.progress').style.stroke = `rgba(76, 175, 80, ${minutesPercent / 100})`;
+
+            
+            const secondsPercent = (seconds / 60) * 100;
+            secondsCircle.innerHTML = `${Math.round(secondsPercent)}%`;
+            secondsCircle.parentElement.querySelector('.progress').style.strokeDashoffset = 314 - (314 * secondsPercent / 100);
+            secondsCircle.parentElement.querySelector('.progress').style.stroke = `rgba(76, 175, 80, ${secondsPercent / 100})`;
+        }
+
+        
+        updateCountdown();
+        setInterval(updateCountdown, 1000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Orbital Model</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * {
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #2a2a2a, #333333);
+      color: #f1f1f1;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      font-size: 2.2rem;
+      margin-bottom: 30px;
+      letter-spacing: 2px;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      max-width: 1300px;
+      margin: 0 auto;
+    }
+    .section {
+      background-color: rgba(40, 40, 40, 0.9);
+      border-radius: 15px;
+      padding: 20px;
+      width: 100%;
+      max-width: 1000px;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+      transition: all 0.3s ease;
+    }
+    .section h2 {
+      text-align: center;
+      font-size: 1.6rem;
+      margin-bottom: 20px;
+    }
+    input, button {
+      width: 100%;
+      padding: 12px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 10px;
+      background-color: #444;
+      color: #fff;
+      margin-bottom: 10px;
+      transition: box-shadow 0.3s ease, background-color 0.3s ease, transform 0.3s ease;
+    }
+    input:focus, button:focus {
+      outline: none;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+    }
+    button {
+      cursor: pointer;
+      background-color: #555;
+      transition: background-color 0.3s ease, transform 0.3s ease;
+    }
+    button:hover {
+      background-color: #666;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(255, 255, 255, 0.1);
+    }
+    button:active {
+      transform: scale(0.98);
+      box-shadow: 0 2px 10px rgba(255, 255, 255, 0.1);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 15px;
+      background-color: #3a3a3a;
+      color: #f1f1f1;
+      border: 1px solid #555;
+    }
+    th, td {
+      border: 1px solid #555;
+      padding: 8px;
+      text-align: center;
+      font-size: 0.9rem;
+      transition: background-color 0.3s ease;
+    }
+    th {
+      background-color: #444; 
+      color: #fff;
+    }
+    tr:hover {
+      background-color: #484848;
+    }
+    #electronConfig {
+      font-family: 'Poppins', sans-serif;
+    }
+    #electronConfig sup {
+      font-size: 0.8em;
+      vertical-align: super;
+    }
+    .toggle-section {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    .toggle-section label {
+      margin-left: 10px;
+      font-size: 1.4rem;
+      margin-top: 10px;
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 60px;
+      height: 34px;
+      margin-bottom: 0px;
+    }
+    .switch input {
+      display: none;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      background-color: #ccc;
+      border-radius: 34px;
+      top: 0; left: 0; right: 0; bottom: 0;
+      transition: background-color 0.4s;
+    }
+    .slider::before {
+      content: "";
+      position: absolute;
+      left: 4px;
+      bottom: 4px;
+      height: 26px; width: 26px;
+      background-color: white;
+      border-radius: 50%;
+      transition: transform 0.4s;
+    }
+    input:checked + .slider {
+      background-color: #2196F3;
+    }
+    input:checked + .slider::before {
+      transform: translateX(26px);
+    }
+    .fade-in {
+      animation: fadeIn 0.5s ease-in;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    .test-feature {
+      display: none;
+    }
+    .orbital-diagram {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .orbital-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .orbital-label {
+      margin-right: 10px;
+      width: 50px;
+      font-weight: bold;
+      text-align: right;
+    }
+    .orbital-boxes {
+      display: flex;
+    }
+    .orbital-box {
+      width: 30px; height: 40px;
+      border: 1px solid #fff;
+      margin-right: 5px;
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .orbital-box:last-child {
+      margin-right: 0;
+    }
+    .arrow-up, .arrow-down {
+      width: 0; 
+      height: 0;
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+    }
+    .arrow-up {
+      border-bottom: 12px solid #fff;
+    }
+    .arrow-down {
+      border-top: 12px solid #fff;
+    }
+    
+    #settingsPanel {
+      display: none;
+      margin-top: 15px;
+      border: 2px solid #555;
+      padding: 15px;
+      border-radius: 10px;
+    }
+    #settingsPanel.show {
+      display: block;
+    }
+
+    
+    .periodic-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .period-label {
+      text-align: center;
+      font-size: 1rem;
+      margin: 5px 0;
+    }
+    .periodic-table {
+      display: grid;
+      
+      grid-template-columns: repeat(18, 50px);
+      grid-gap: 5px;
+      justify-content: center;
+      margin-bottom: 15px;
+    }
+    .element-cell {
+      width: 50px; 
+      height: 50px;
+      background-color: #444;
+      display: flex; 
+      flex-direction: column;
+      align-items: center; 
+      justify-content: center;
+      font-size: 0.7rem;
+      text-align: center;
+      cursor: pointer;
+      border-radius: 5px;
+      padding: 2px;
+      box-sizing: border-box;
+    }
+    .element-cell:hover {
+      background-color: #666;
+    }
+    .element-cell.selected {
+      outline: 2px solid gold;
+    }
+    .empty-cell {
+      background-color: transparent;
+      cursor: default;
+      border: none;
+    }
+    .row-lanthact {
+      display: grid;
+      grid-template-columns: repeat(15, 50px);
+      grid-gap: 5px;
+      justify-content: center;
+      margin-bottom: 15px;
+    }
+    .row-label {
+      margin-right: 10px;
+      width: 60px;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+<h1>Danylo's Orbital Model</h1>
+
+<div class="toggle-section">
+  <label class="switch">
+    <input type="checkbox" id="toggleFeatures">
+    <span class="slider"></span>
+  </label>
+  <label for="toggleFeatures">Show Beta Features</label>
+</div>
+
+<div class="container">
+
+  <!-- Electron configuration input -->
+  <div class="section">
+    <h2>Enter Electron Configuration</h2>
+    <div contenteditable="true" 
+         id="electronConfig" 
+         placeholder="e.g., 1s2 2s2 2p6"
+         style="width: 100%; padding: 12px; font-size: 1rem; border: none; border-radius: 10px; 
+                background-color: #444; color: #fff; margin-bottom: 10px; min-height: 40px;">
+    </div>
+    <button id="buildFromConfig">Build Orbitals</button>
+  </div>
+
+  <!-- Orbital Box Diagram -->
+  <div class="section">
+    <h2>Orbital Box Diagram</h2>
+    <div id="orbitalBoxDiagram" class="orbital-diagram"></div>
+  </div>
+
+  <!-- Quantum Numbers Table + Toggle "Max Orbital" or "All" -->
+  <div class="section">
+    <h2>Quantum Numbers Table</h2>
+    <div style="display:flex; align-items:center; justify-content:center; margin-bottom:10px;">
+      <label class="switch" style="margin-right:10px;">
+        <input type="checkbox" id="toggleMaxOrbitals">
+        <span class="slider"></span>
+      </label>
+      <span>Show Only Highest Occupied Orbital</span>
+    </div>
+    <table id="qnTable">
+      <thead>
+        <tr>
+          <th>Orbital</th>
+          <th>N</th>
+          <th>L</th>
+          <th>m<sub>l</sub></th>
+          <th>Spin</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- Full Periodic Table (main block + lanthanides + actinides) -->
+  <div class="section">
+    <h2>Periodic Table</h2>
+    <div class="periodic-container">
+      <div id="mainPT" class="periodic-table"></div>
+
+      <!-- Lanthanides row -->
+      <div class="row-label">La-Lu:</div>
+      <div id="lanthRow" class="row-lanthact"></div>
+
+      <!-- Actinides row -->
+      <div class="row-label">Ac-Lr:</div>
+      <div id="actRow" class="row-lanthact"></div>
+    </div>
+  </div>
+
+  <!-- Beta/hidden feature: user quantum numbers input (n only) -->
+  <div class="section test-feature">
+    <h2>Enter Principal Quantum Number (n), l, m<sub>l</sub></h2>
+    <table id="quantumTable">
+      <thead>
+      <tr>
+        <th>n</th>
+        <th>l</th>
+        <th>m<sub>l</sub></th>
+        <th>Actions</th>
+      </tr>
+      </thead>
+      <tbody>
+      <!-- Rows dynamically added -->
+      </tbody>
+    </table>
+    <button id="addRow">Add Row</button>
+    <button id="deleteAllBtn">Delete All</button>
+  </div>
+
+  <!-- Another Beta: isoc Settings panel -->
+  <div class="section test-feature">
+    <h2>Extra Settings (isoc)</h2>
+    <button id="toggleSettingsBtn">Toggle Settings Panel</button>
+    <div id="settingsPanel">
+      <label>
+        <input type="checkbox" id="isocCheckbox" />
+        <span>Enable isoc?</span>
+      </label>
+    </div>
+  </div>
+
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+  // ---------- DOM elements ----------
+  const electronConfigInput  = document.getElementById('electronConfig');
+  const buildFromConfigBtn   = document.getElementById('buildFromConfig');
+  const orbitalBoxDiagramDiv = document.getElementById('orbitalBoxDiagram');
+  const qnTableBody          = document.getElementById('qnTable').querySelector('tbody');
+  const toggleFeaturesCheckbox = document.getElementById('toggleFeatures');
+  const quantumTable         = document.getElementById('quantumTable').querySelector('tbody');
+  const addRowBtn            = document.getElementById('addRow');
+  const deleteAllBtn         = document.getElementById('deleteAllBtn');
+  const toggleMaxOrbitals    = document.getElementById('toggleMaxOrbitals');
+  const mainPT               = document.getElementById('mainPT');
+  const lanthRow             = document.getElementById('lanthRow');
+  const actRow               = document.getElementById('actRow');
+  const toggleSettingsBtn    = document.getElementById('toggleSettingsBtn');
+  const settingsPanel        = document.getElementById('settingsPanel');
+  const isocCheckbox         = document.getElementById('isocCheckbox');
+
+  // ---------- BETA/hidden features toggle ----------
+  function updateTestFeatures() {
+    const testFeatures = document.querySelectorAll('.test-feature');
+    testFeatures.forEach(feature => {
+      if (toggleFeaturesCheckbox.checked) {
+        feature.style.display = 'block';
+        feature.classList.add('fade-in');
+      } else {
+        feature.style.display = 'none';
+        feature.classList.remove('fade-in');
+      }
+    });
+  }
+  updateTestFeatures();
+  toggleFeaturesCheckbox.addEventListener('change', updateTestFeatures);
+
+  // ---------- Extra Settings (isoc) ----------
+  toggleSettingsBtn.addEventListener('click', () => {
+    settingsPanel.classList.toggle('show');
+  });
+  isocCheckbox.addEventListener('change', () => {
+    console.log('isoc is now:', isocCheckbox.checked);
+    localStorage.setItem('isocSetting', isocCheckbox.checked);
+  });
+  // Load isoc setting if saved
+  const savedIsoC = localStorage.getItem('isocSetting');
+  if (savedIsoC === 'true') {
+    isocCheckbox.checked = true;
+  }
+
+  // ---------- Full Periodic Table Data (Z=1 to 118) ----------
+  // For the sake of demonstration, we use a "textbook" set of electron configs
+  // Some elements (e.g., Cr, Cu, Mo, Pd, Pt, etc.) have known exceptions,
+  // but we'll keep it simplified.
+  
+  
+  
+  
+  
+  
+  const periodicData = [
+    
+    {Z:1, symbol:'H',  config:'1s1',     row:1, col:1,  block:'main'},
+    {Z:2, symbol:'He', config:'1s2',     row:1, col:18, block:'main'},
+    
+    {Z:3, symbol:'Li',  config:'1s2 2s1',    row:2, col:1,  block:'main'},
+    {Z:4, symbol:'Be',  config:'1s2 2s2',    row:2, col:2,  block:'main'},
+    {Z:5, symbol:'B',   config:'1s2 2s2 2p1', row:2, col:13, block:'main'},
+    {Z:6, symbol:'C',   config:'1s2 2s2 2p2', row:2, col:14, block:'main'},
+    {Z:7, symbol:'N',   config:'1s2 2s2 2p3', row:2, col:15, block:'main'},
+    {Z:8, symbol:'O',   config:'1s2 2s2 2p4', row:2, col:16, block:'main'},
+    {Z:9, symbol:'F',   config:'1s2 2s2 2p5', row:2, col:17, block:'main'},
+    {Z:10, symbol:'Ne', config:'1s2 2s2 2p6', row:2, col:18, block:'main'},
+    
+    {Z:11, symbol:'Na', config:'1s2 2s2 2p6 3s1',    row:3, col:1,  block:'main'},
+    {Z:12, symbol:'Mg', config:'1s2 2s2 2p6 3s2',    row:3, col:2,  block:'main'},
+    {Z:13, symbol:'Al', config:'1s2 2s2 2p6 3s2 3p1', row:3, col:13, block:'main'},
+    {Z:14, symbol:'Si', config:'1s2 2s2 2p6 3s2 3p2', row:3, col:14, block:'main'},
+    {Z:15, symbol:'P',  config:'1s2 2s2 2p6 3s2 3p3', row:3, col:15, block:'main'},
+    {Z:16, symbol:'S',  config:'1s2 2s2 2p6 3s2 3p4', row:3, col:16, block:'main'},
+    {Z:17, symbol:'Cl', config:'1s2 2s2 2p6 3s2 3p5', row:3, col:17, block:'main'},
+    {Z:18, symbol:'Ar', config:'1s2 2s2 2p6 3s2 3p6', row:3, col:18, block:'main'},
+    
+    {Z:19, symbol:'K',  config:'1s2 2s2 2p6 3s2 3p6 4s1',     row:4, col:1,  block:'main'},
+    {Z:20, symbol:'Ca', config:'1s2 2s2 2p6 3s2 3p6 4s2',     row:4, col:2,  block:'main'},
+    {Z:21, symbol:'Sc', config:'[Ar] 3d1 4s2',               row:4, col:3,  block:'main'},
+    {Z:22, symbol:'Ti', config:'[Ar] 3d2 4s2',               row:4, col:4,  block:'main'},
+    {Z:23, symbol:'V',  config:'[Ar] 3d3 4s2',               row:4, col:5,  block:'main'},
+    {Z:24, symbol:'Cr', config:'[Ar] 3d5 4s1',               row:4, col:6,  block:'main'},
+    {Z:25, symbol:'Mn', config:'[Ar] 3d5 4s2',               row:4, col:7,  block:'main'},
+    {Z:26, symbol:'Fe', config:'[Ar] 3d6 4s2',               row:4, col:8,  block:'main'},
+    {Z:27, symbol:'Co', config:'[Ar] 3d7 4s2',               row:4, col:9,  block:'main'},
+    {Z:28, symbol:'Ni', config:'[Ar] 3d8 4s2',               row:4, col:10, block:'main'},
+    {Z:29, symbol:'Cu', config:'[Ar] 3d10 4s1',              row:4, col:11, block:'main'},
+    {Z:30, symbol:'Zn', config:'[Ar] 3d10 4s2',              row:4, col:12, block:'main'},
+    {Z:31, symbol:'Ga', config:'[Ar] 3d10 4s2 4p1',          row:4, col:13, block:'main'},
+    {Z:32, symbol:'Ge', config:'[Ar] 3d10 4s2 4p2',          row:4, col:14, block:'main'},
+    {Z:33, symbol:'As', config:'[Ar] 3d10 4s2 4p3',          row:4, col:15, block:'main'},
+    {Z:34, symbol:'Se', config:'[Ar] 3d10 4s2 4p4',          row:4, col:16, block:'main'},
+    {Z:35, symbol:'Br', config:'[Ar] 3d10 4s2 4p5',          row:4, col:17, block:'main'},
+    {Z:36, symbol:'Kr', config:'[Ar] 3d10 4s2 4p6',          row:4, col:18, block:'main'},
+    
+    {Z:37, symbol:'Rb', config:'[Kr] 5s1',     row:5, col:1,  block:'main'},
+    {Z:38, symbol:'Sr', config:'[Kr] 5s2',     row:5, col:2,  block:'main'},
+    {Z:39, symbol:'Y',  config:'[Kr] 4d1 5s2', row:5, col:3,  block:'main'},
+    {Z:40, symbol:'Zr', config:'[Kr] 4d2 5s2', row:5, col:4,  block:'main'},
+    {Z:41, symbol:'Nb', config:'[Kr] 4d4 5s1', row:5, col:5,  block:'main'},
+    {Z:42, symbol:'Mo', config:'[Kr] 4d5 5s1', row:5, col:6,  block:'main'},
+    {Z:43, symbol:'Tc', config:'[Kr] 4d5 5s2', row:5, col:7,  block:'main'},
+    {Z:44, symbol:'Ru', config:'[Kr] 4d7 5s1', row:5, col:8,  block:'main'},
+    {Z:45, symbol:'Rh', config:'[Kr] 4d8 5s1', row:5, col:9,  block:'main'},
+    {Z:46, symbol:'Pd', config:'[Kr] 4d10',    row:5, col:10, block:'main'},
+    {Z:47, symbol:'Ag', config:'[Kr] 4d10 5s1',row:5, col:11, block:'main'},
+    {Z:48, symbol:'Cd', config:'[Kr] 4d10 5s2',row:5, col:12, block:'main'},
+    {Z:49, symbol:'In', config:'[Kr] 4d10 5s2 5p1', row:5, col:13, block:'main'},
+    {Z:50, symbol:'Sn', config:'[Kr] 4d10 5s2 5p2', row:5, col:14, block:'main'},
+    {Z:51, symbol:'Sb', config:'[Kr] 4d10 5s2 5p3', row:5, col:15, block:'main'},
+    {Z:52, symbol:'Te', config:'[Kr] 4d10 5s2 5p4', row:5, col:16, block:'main'},
+    {Z:53, symbol:'I',  config:'[Kr] 4d10 5s2 5p5', row:5, col:17, block:'main'},
+    {Z:54, symbol:'Xe', config:'[Kr] 4d10 5s2 5p6', row:5, col:18, block:'main'},
+    
+    {Z:55, symbol:'Cs', config:'[Xe] 6s1',     row:6, col:1,  block:'main'},
+    {Z:56, symbol:'Ba', config:'[Xe] 6s2',     row:6, col:2,  block:'main'},
+    
+    {Z:57, symbol:'La', config:'[Xe] 5d1 6s2', block:'lanth'}, 
+    {Z:58, symbol:'Ce', config:'[Xe] 4f2 6s2', block:'lanth'},
+    {Z:59, symbol:'Pr', config:'[Xe] 4f3 6s2', block:'lanth'},
+    {Z:60, symbol:'Nd', config:'[Xe] 4f4 6s2', block:'lanth'},
+    {Z:61, symbol:'Pm', config:'[Xe] 4f5 6s2', block:'lanth'},
+    {Z:62, symbol:'Sm', config:'[Xe] 4f6 6s2', block:'lanth'},
+    {Z:63, symbol:'Eu', config:'[Xe] 4f7 6s2', block:'lanth'},
+    {Z:64, symbol:'Gd', config:'[Xe] 4f7 5d1 6s2', block:'lanth'},
+    {Z:65, symbol:'Tb', config:'[Xe] 4f9 6s2', block:'lanth'},
+    {Z:66, symbol:'Dy', config:'[Xe] 4f10 6s2',block:'lanth'},
+    {Z:67, symbol:'Ho', config:'[Xe] 4f11 6s2',block:'lanth'},
+    {Z:68, symbol:'Er', config:'[Xe] 4f12 6s2',block:'lanth'},
+    {Z:69, symbol:'Tm', config:'[Xe] 4f13 6s2',block:'lanth'},
+    {Z:70, symbol:'Yb', config:'[Xe] 4f14 6s2',block:'lanth'},
+    {Z:71, symbol:'Lu', config:'[Xe] 4f14 5d1 6s2',block:'lanth'},
+
+    {Z:72, symbol:'Hf', config:'[Xe] 4f14 5d2 6s2', row:6, col:4,  block:'main'},
+    {Z:73, symbol:'Ta', config:'[Xe] 4f14 5d3 6s2', row:6, col:5,  block:'main'},
+    {Z:74, symbol:'W',  config:'[Xe] 4f14 5d4 6s2', row:6, col:6,  block:'main'},
+    {Z:75, symbol:'Re', config:'[Xe] 4f14 5d5 6s2', row:6, col:7,  block:'main'},
+    {Z:76, symbol:'Os', config:'[Xe] 4f14 5d6 6s2', row:6, col:8,  block:'main'},
+    {Z:77, symbol:'Ir', config:'[Xe] 4f14 5d7 6s2', row:6, col:9,  block:'main'},
+    {Z:78, symbol:'Pt', config:'[Xe] 4f14 5d9 6s1', row:6, col:10, block:'main'},
+    {Z:79, symbol:'Au', config:'[Xe] 4f14 5d10 6s1',row:6, col:11, block:'main'},
+    {Z:80, symbol:'Hg', config:'[Xe] 4f14 5d10 6s2',row:6, col:12, block:'main'},
+    {Z:81, symbol:'Tl', config:'[Xe] 4f14 5d10 6s2 6p1', row:6, col:13, block:'main'},
+    {Z:82, symbol:'Pb', config:'[Xe] 4f14 5d10 6s2 6p2', row:6, col:14, block:'main'},
+    {Z:83, symbol:'Bi', config:'[Xe] 4f14 5d10 6s2 6p3', row:6, col:15, block:'main'},
+    {Z:84, symbol:'Po', config:'[Xe] 4f14 5d10 6s2 6p4', row:6, col:16, block:'main'},
+    {Z:85, symbol:'At', config:'[Xe] 4f14 5d10 6s2 6p5', row:6, col:17, block:'main'},
+    {Z:86, symbol:'Rn', config:'[Xe] 4f14 5d10 6s2 6p6', row:6, col:18, block:'main'},
+    
+    {Z:87, symbol:'Fr', config:'[Rn] 7s1',     row:7, col:1,  block:'main'},
+    {Z:88, symbol:'Ra', config:'[Rn] 7s2',     row:7, col:2,  block:'main'},
+    
+    {Z:89, symbol:'Ac', config:'[Rn] 6d1 7s2', block:'act'},
+    {Z:90, symbol:'Th', config:'[Rn] 6d2 7s2', block:'act'},
+    {Z:91, symbol:'Pa', config:'[Rn] 5f2 6d1 7s2', block:'act'},
+    {Z:92, symbol:'U',  config:'[Rn] 5f3 6d1 7s2', block:'act'},
+    {Z:93, symbol:'Np', config:'[Rn] 5f4 6d1 7s2', block:'act'},
+    {Z:94, symbol:'Pu', config:'[Rn] 5f6 7s2',     block:'act'},
+    {Z:95, symbol:'Am', config:'[Rn] 5f7 7s2',     block:'act'},
+    {Z:96, symbol:'Cm', config:'[Rn] 5f7 6d1 7s2', block:'act'},
+    {Z:97, symbol:'Bk', config:'[Rn] 5f9 7s2',     block:'act'},
+    {Z:98, symbol:'Cf', config:'[Rn] 5f10 7s2',    block:'act'},
+    {Z:99, symbol:'Es', config:'[Rn] 5f11 7s2',    block:'act'},
+    {Z:100, symbol:'Fm', config:'[Rn] 5f12 7s2',   block:'act'},
+    {Z:101, symbol:'Md', config:'[Rn] 5f13 7s2',   block:'act'},
+    {Z:102, symbol:'No', config:'[Rn] 5f14 7s2',   block:'act'},
+    {Z:103, symbol:'Lr', config:'[Rn] 5f14 6d1 7s2', block:'act'},
+
+    {Z:104, symbol:'Rf', config:'[Rn] 5f14 6d2 7s2', row:7, col:4,  block:'main'},
+    {Z:105, symbol:'Db', config:'[Rn] 5f14 6d3 7s2', row:7, col:5,  block:'main'},
+    {Z:106, symbol:'Sg', config:'[Rn] 5f14 6d4 7s2', row:7, col:6,  block:'main'},
+    {Z:107, symbol:'Bh', config:'[Rn] 5f14 6d5 7s2', row:7, col:7,  block:'main'},
+    {Z:108, symbol:'Hs', config:'[Rn] 5f14 6d6 7s2', row:7, col:8,  block:'main'},
+    {Z:109, symbol:'Mt', config:'[Rn] 5f14 6d7 7s2', row:7, col:9,  block:'main'},
+    {Z:110, symbol:'Ds', config:'[Rn] 5f14 6d8 7s2', row:7, col:10, block:'main'},
+    {Z:111, symbol:'Rg', config:'[Rn] 5f14 6d10 7s1',row:7, col:11, block:'main'},
+    {Z:112, symbol:'Cn', config:'[Rn] 5f14 6d10 7s2',row:7, col:12, block:'main'},
+    {Z:113, symbol:'Nh', config:'[Rn] 5f14 6d10 7s2 7p1', row:7, col:13, block:'main'},
+    {Z:114, symbol:'Fl', config:'[Rn] 5f14 6d10 7s2 7p2', row:7, col:14, block:'main'},
+    {Z:115, symbol:'Mc', config:'[Rn] 5f14 6d10 7s2 7p3', row:7, col:15, block:'main'},
+    {Z:116, symbol:'Lv', config:'[Rn] 5f14 6d10 7s2 7p4', row:7, col:16, block:'main'},
+    {Z:117, symbol:'Ts', config:'[Rn] 5f14 6d10 7s2 7p5', row:7, col:17, block:'main'},
+    {Z:118, symbol:'Og', config:'[Rn] 5f14 6d10 7s2 7p6', row:7, col:18, block:'main'},
+  ];
+
+  
+  function buildMainTable() {
+    
+    for (let r = 1; r <= 7; r++) {
+      for (let c = 1; c <= 18; c++) {
+        
+        const found = periodicData.find(el => el.block === 'main' && el.row === r && el.col === c);
+        const cell = document.createElement('div');
+        if (found) {
+          cell.className = 'element-cell';
+          cell.innerHTML = `<strong>${found.symbol}</strong><br>${found.Z}`;
+          cell.title = `Z=${found.Z}, ${found.symbol}\n${found.config}`;
+          cell.addEventListener('click', () => {
+            clearPTSelection();
+            cell.classList.add('selected');
+            
+            electronConfigInput.innerText = found.config.replace(/\[.*?\]\s*/g,''); 
+            
+            buildFromConfigBtn.click();
+          });
+        } else {
+          
+          cell.className = 'element-cell empty-cell';
+        }
+        mainPT.appendChild(cell);
+      }
+    }
+  }
+  buildMainTable();
+
+  
+  function buildLanthanides() {
+    
+    const lanths = periodicData.filter(el => el.block === 'lanth');
+    lanths.forEach((el) => {
+      const cell = document.createElement('div');
+      cell.className = 'element-cell';
+      cell.innerHTML = `<strong>${el.symbol}</strong><br>${el.Z}`;
+      cell.title = `Z=${el.Z}, ${el.symbol}\n${el.config}`;
+      cell.addEventListener('click', () => {
+        clearPTSelection();
+        cell.classList.add('selected');
+        electronConfigInput.innerText = el.config.replace(/\[.*?\]\s*/g,'');
+        buildFromConfigBtn.click();
+      });
+      lanthRow.appendChild(cell);
+    });
+  }
+  buildLanthanides();
+
+  
+  function buildActinides() {
+    const acts = periodicData.filter(el => el.block === 'act');
+    acts.forEach((el) => {
+      const cell = document.createElement('div');
+      cell.className = 'element-cell';
+      cell.innerHTML = `<strong>${el.symbol}</strong><br>${el.Z}`;
+      cell.title = `Z=${el.Z}, ${el.symbol}\n${el.config}`;
+      cell.addEventListener('click', () => {
+        clearPTSelection();
+        cell.classList.add('selected');
+        electronConfigInput.innerText = el.config.replace(/\[.*?\]\s*/g,'');
+        buildFromConfigBtn.click();
+      });
+      actRow.appendChild(cell);
+    });
+  }
+  buildActinides();
+
+  function clearPTSelection() {
+    document.querySelectorAll('.element-cell').forEach(el => {
+      el.classList.remove('selected');
+    });
+  }
+
+  
+  function highlightElementByElectronCount(count) {
+    clearPTSelection();
+    const found = periodicData.find(el => el.Z === count);
+    if (found) {
+      
+      if (found.block === 'main') {
+        
+        
+        const index = (found.row-1) * 18 + (found.col-1);
+        const cell = mainPT.children[index];
+        if (cell) cell.classList.add('selected');
+      } else if (found.block === 'lanth') {
+        
+        const lanths = periodicData.filter(x => x.block==='lanth');
+        const idx = lanths.indexOf(found);
+        const cell = lanthRow.children[idx];
+        if (cell) cell.classList.add('selected');
+      } else if (found.block === 'act') {
+        const acts = periodicData.filter(x => x.block==='act');
+        const idx = acts.indexOf(found);
+        const cell = actRow.children[idx];
+        if (cell) cell.classList.add('selected');
+      }
+    }
+  }
+
+  
+  const orbitalCapacities = [2, 6, 10, 14, 18]; 
+  const orbitalOrder = [
+    { n: 1, l: 0 },  
+    { n: 2, l: 0 },  
+    { n: 2, l: 1 },  
+    { n: 3, l: 0 },  
+    { n: 3, l: 1 },  
+    { n: 4, l: 0 },  
+    { n: 3, l: 2 },  
+    { n: 4, l: 1 },  
+    { n: 5, l: 0 },  
+    { n: 4, l: 2 },  
+    { n: 5, l: 1 },  
+    { n: 6, l: 0 },
+    { n: 4, l: 3 },
+    { n: 5, l: 2 },
+    { n: 6, l: 1 },
+    { n: 7, l: 0 },
+    { n: 5, l: 3 },
+    { n: 6, l: 2 },
+    { n: 7, l: 1 },
+  ];
+
+  function getOrbitalType(l) {
+    const types = ['s','p','d','f','g','h'];
+    return types[l] || 'unknown';
+  }
+
+  function parseElectronConfiguration(config) {
+    
+    let processedConfig = config.replace(/\[.*?\]/g, '');
+    
+    processedConfig = processedConfig.replace(/\^/g, '');
+
+    const regex = /(\d+)([spdfgh])(\d+)/g;
+    let match;
+    const userOrbitals = {};
+
+    while ((match = regex.exec(processedConfig)) !== null) {
+      const n = parseInt(match[1]);
+      const lChar = match[2];
+      const electrons = parseInt(match[3]);
+      const l = 'spdfgh'.indexOf(lChar);
+      const orbitalKey = `${n}${lChar}`;
+      userOrbitals[orbitalKey] = electrons;
+    }
+
+    
+    let highestOrbitalIndex = -1;
+    orbitalOrder.forEach((orb, idx) => {
+      const type = getOrbitalType(orb.l);
+      const key = `${orb.n}${type}`;
+      if (userOrbitals.hasOwnProperty(key) && idx > highestOrbitalIndex) {
+        highestOrbitalIndex = idx;
+      }
+    });
+    if (highestOrbitalIndex === -1) return [];
+
+    
+    const neededOrbitals = orbitalOrder.slice(0, highestOrbitalIndex+1);
+
+    
+    let totalElectrons = 0;
+    neededOrbitals.forEach(orb => {
+      const capacity = orbitalCapacities[orb.l];
+      const type = getOrbitalType(orb.l);
+      const key = `${orb.n}${type}`;
+      let eInOrb = capacity;
+      if (userOrbitals[key]) {
+        eInOrb = userOrbitals[key];
+      }
+      totalElectrons += eInOrb;
+    });
+
+    
+    const orbitals = [];
+    let electronsRemaining = totalElectrons;
+    for (let i=0; i<=highestOrbitalIndex && electronsRemaining>0; i++) {
+      const orb = orbitalOrder[i];
+      const capacity = orbitalCapacities[orb.l];
+      const type = getOrbitalType(orb.l);
+      const key = `${orb.n}${type}`;
+      let electronsToPlace = capacity;
+      if (userOrbitals[key]) {
+        electronsToPlace = userOrbitals[key];
+      } else {
+        electronsToPlace = Math.min(electronsRemaining, capacity);
+      }
+      if (electronsToPlace <= 0) continue;
+
+      
+      const mValues = [];
+      for (let m=-orb.l; m<=orb.l; m++) {
+        mValues.push(m);
+      }
+      let eCount = 0;
+      let boxCount = mValues.length || 1;
+      let idxBox = 0;
+      
+      while (eCount < electronsToPlace && idxBox < boxCount) {
+        orbitals.push({n: orb.n, l: orb.l, m: mValues[idxBox]||0, s: 1});
+        eCount++; idxBox++;
+      }
+      
+      idxBox = 0;
+      while (eCount < electronsToPlace && idxBox < boxCount) {
+        orbitals.push({n: orb.n, l: orb.l, m: mValues[idxBox]||0, s: -1});
+        eCount++; idxBox++;
+      }
+
+      electronsRemaining -= electronsToPlace;
+    }
+
+    return orbitals;
+  }
+
+  function generateOrbitalBoxDiagram(orbitals) {
+    orbitalBoxDiagramDiv.innerHTML = '';
+
+    
+    const orbitalsMap = {};
+    orbitals.forEach(e => {
+      const orbKey = `${e.n}${getOrbitalType(e.l)}`;
+      if (!orbitalsMap[orbKey]) orbitalsMap[orbKey] = [];
+      orbitalsMap[orbKey].push(e);
+    });
+
+    
+    const keys = Object.keys(orbitalsMap).map(k => {
+      const n = parseInt(k.match(/\d+/)[0]);
+      const lChar = k.match(/[a-z]+/)[0];
+      const l = 'spdfgh'.indexOf(lChar);
+      return {n, l, key: k};
+    });
+    keys.sort((a, b) => {
+      const aSum = a.n + a.l, bSum = b.n + b.l;
+      if (aSum !== bSum) return aSum - bSum;
+      return a.n - b.n;
+    });
+
+    
+    keys.forEach(orbInfo => {
+      const electrons = orbitalsMap[orbInfo.key];
+      const numBoxes = (2*orbInfo.l+1) || 1;
+      const boxes = Array.from({length: numBoxes}, () => []);
+
+      
+      let idx = 0;
+      electrons.filter(e => e.s === 1).forEach(e => {
+        boxes[idx].push(e);
+        idx = (idx+1) % numBoxes;
+      });
+      
+      idx = 0;
+      electrons.filter(e => e.s === -1).forEach(e => {
+        boxes[idx].push(e);
+        idx = (idx+1) % numBoxes;
+      });
+
+      
+      const rowDiv = document.createElement('div');
+      rowDiv.className = 'orbital-row';
+      const labelDiv = document.createElement('div');
+      labelDiv.className = 'orbital-label';
+      labelDiv.textContent = orbInfo.key;
+      rowDiv.appendChild(labelDiv);
+
+      const boxesDiv = document.createElement('div');
+      boxesDiv.className = 'orbital-boxes';
+
+      boxes.forEach(b => {
+        const boxDiv = document.createElement('div');
+        boxDiv.className = 'orbital-box';
+        b.forEach(elec => {
+          const arrow = document.createElement('div');
+          arrow.className = elec.s === 1 ? 'arrow-up' : 'arrow-down';
+          boxDiv.appendChild(arrow);
+        });
+        boxesDiv.appendChild(boxDiv);
+      });
+
+      rowDiv.appendChild(boxesDiv);
+      orbitalBoxDiagramDiv.appendChild(rowDiv);
+    });
+  }
+
+  function generateElectronConfigurationString(orbitals) {
+    
+    const orbCounts = {};
+    orbitals.forEach(e => {
+      const key = `${e.n}${getOrbitalType(e.l)}`;
+      if (!orbCounts[key]) orbCounts[key] = 0;
+      orbCounts[key]++;
+    });
+    
+    const arr = Object.keys(orbCounts).map(k => {
+      const n = parseInt(k.match(/\d+/)[0]);
+      const lChar = k.match(/[a-z]+/)[0];
+      const l = 'spdfgh'.indexOf(lChar);
+      return { n, l, key: k, electrons: orbCounts[k] };
+    });
+    
+    arr.sort((a, b) => {
+      const sumA = a.n + a.l, sumB = b.n + b.l;
+      if (sumA !== sumB) return sumA - sumB;
+      return a.n - b.n;
+    });
+    const configParts = arr.map(o => `${o.key}${o.electrons}`);
+    return configParts.join(' ');
+  }
+
+  function addQuantumNumberToTable(qnMap) {
+    qnTableBody.innerHTML = '';
+
+    
+    const entries = Object.keys(qnMap).map(k => {
+      const [nS, lS] = k.split('-');
+      const n = parseInt(nS);
+      const l = parseInt(lS);
+      return { n, l, key: k };
+    });
+    entries.sort((a,b) => {
+      const sumA = a.n + a.l, sumB = b.n + b.l;
+      if (sumA !== sumB) return sumA - sumB;
+      return a.n - b.n;
+    });
+
+    let rowsToShow = entries;
+    if (toggleMaxOrbitals.checked) {
+      
+      if (entries.length > 0) {
+        rowsToShow = [ entries[entries.length - 1] ];
+      }
+    }
+
+    rowsToShow.forEach(entry => {
+      const orbSet = qnMap[entry.key];
+      
+      const mVals = orbSet.map(o => o.m).join(', ');
+      const spins = orbSet.map(o => o.s === 1 ? '↑' : '↓').join(' ');
+
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${entry.n}${getOrbitalType(entry.l)}</td>
+        <td class="qn-n">${entry.n}</td>
+        <td>${entry.l}</td>
+        <td>${mVals}</td>
+        <td>${spins}</td>
+      `;
+      qnTableBody.appendChild(row);
+    });
+
+    
+    console.log("Quantum Numbers Table updated. Highest only?", toggleMaxOrbitals.checked);
+    localStorage.setItem('maxOrbitalSetting', toggleMaxOrbitals.checked);
+  }
+
+  
+  toggleMaxOrbitals.addEventListener('change', () => {
+    
+    if (lastQNMap) {
+      addQuantumNumberToTable(lastQNMap);
+    }
+  });
+  
+  const savedMaxOrbitalSetting = localStorage.getItem('maxOrbitalSetting');
+  if (savedMaxOrbitalSetting === 'true') {
+    toggleMaxOrbitals.checked = true;
+  }
+
+  let lastQNMap = null;
+
+  
+  buildFromConfigBtn.addEventListener('click', () => {
+    const configStr = electronConfigInput.innerText.trim();
+    const orbitals = parseElectronConfiguration(configStr);
+
+    
+    highlightElementByElectronCount(orbitals.length);
+
+    
+    generateOrbitalBoxDiagram(orbitals);
+
+    
+    const qnMap = {};
+    orbitals.forEach(o => {
+      const key = `${o.n}-${o.l}`;
+      if (!qnMap[key]) qnMap[key] = [];
+      qnMap[key].push(o);
+    });
+    lastQNMap = qnMap;
+    addQuantumNumberToTable(qnMap);
+
+    
+    electronConfigInput.innerHTML = formatElectronConfiguration(
+      generateElectronConfigurationString(orbitals)
+    );
+  });
+
+  
+  function formatElectronConfiguration(config) {
+    
+    config = config.replace(/<sup>(\d+)<\/sup>/g, '$1');
+    
+    config = config.replace(/([a-z])(\d+)/gi, (match, p1, p2) => {
+      return p1 + '<sup>' + p2 + '</sup>';
+    });
+    return config;
+  }
+
+  
+  electronConfigInput.addEventListener('input', () => {
+    const selection = window.getSelection();
+    const range = selection.getRangeAt(0);
+
+    const preCaretRange = range.cloneRange();
+    preCaretRange.selectNodeContents(electronConfigInput);
+    preCaretRange.setEnd(range.endContainer, range.endOffset);
+    const caretOffset = preCaretRange.toString().length;
+
+    let content = electronConfigInput.innerText;
+    electronConfigInput.innerHTML = formatElectronConfiguration(content);
+
+    
+    const textNode = electronConfigInput.firstChild;
+    if (textNode) {
+      const newRange = document.createRange();
+      let charCount = 0;
+      let nodeStack = [electronConfigInput];
+      let found = false;
+
+      while (nodeStack.length > 0 && !found) {
+        const node = nodeStack.pop();
+        if (node.nodeType === Node.TEXT_NODE) {
+          const nextCharCount = charCount + node.length;
+          if (caretOffset <= nextCharCount) {
+            newRange.setStart(node, caretOffset - charCount);
+            found = true;
+            break;
+          } else {
+            charCount = nextCharCount;
+          }
+        } else {
+          let i = node.childNodes.length;
+          while (i--) {
+            nodeStack.push(node.childNodes[i]);
+          }
+        }
+      }
+      if (found) {
+        newRange.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(newRange);
+      }
+    }
+  });
+
+  
+  function saveQuantumNumbers() {
+    const rowsData = [];
+    quantumTable.querySelectorAll('tr').forEach(row => {
+      const nInput  = row.querySelector('input[name="n"]');
+      const lInput  = row.querySelector('input[name="l"]');
+      const mInput  = row.querySelector('input[name="m"]');
+      if (nInput && lInput && mInput) {
+        rowsData.push({
+          n: parseInt(nInput.value),
+          l: parseInt(lInput.value),
+          m: parseInt(mInput.value),
+        });
+      }
+    });
+    localStorage.setItem('userDefinedQNs', JSON.stringify(rowsData));
+  }
+  function loadQuantumNumbers() {
+    const stored = localStorage.getItem('userDefinedQNs');
+    if (stored) {
+      const arr = JSON.parse(stored);
+      if (Array.isArray(arr)) {
+        quantumTable.innerHTML = '';
+        arr.forEach(obj => {
+          addQuantumRow(obj.n, obj.l, obj.m);
+        });
+        return;
+      }
+    }
+    
+    addQuantumRow(1,0,0);
+  }
+  function addQuantumRow(nVal, lVal, mVal) {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td><input type="number" name="n" min="1" value="${nVal}"></td>
+      <td><input type="number" name="l" min="0" value="${lVal}"></td>
+      <td><input type="number" name="m" value="${mVal}"></td>
+      <td>
+        <button class="simulateBtn">Simulate</button>
+        <button class="deleteBtn">Delete</button>
+      </td>
+    `;
+    quantumTable.appendChild(row);
+
+    
+    const nInput = row.querySelector('input[name="n"]');
+    const lInput = row.querySelector('input[name="l"]');
+    const mInput = row.querySelector('input[name="m"]');
+    const simBtn = row.querySelector('.simulateBtn');
+    const delBtn = row.querySelector('.deleteBtn');
+
+    [nInput, lInput, mInput].forEach(inp => {
+      inp.addEventListener('change', () => {
+        if (parseInt(lInput.value) > parseInt(nInput.value) - 1) {
+          alert('l must be <= n-1');
+        }
+        if (parseInt(mInput.value) > parseInt(lInput.value) ||
+            parseInt(mInput.value) < -parseInt(lInput.value)) {
+          alert('m must be between -l and +l');
+        }
+        saveQuantumNumbers();
+      });
+    });
+
+    simBtn.addEventListener('click', () => {
+      const valN = parseInt(nInput.value);
+      const valL = parseInt(lInput.value);
+      const valM = parseInt(mInput.value);
+      if (isNaN(valN) || valN<1) {
+        alert('Invalid n');
+        return;
+      }
+      if (valL<0 || valL>valN-1) {
+        alert('Invalid l, must be 0 <= l <= n-1');
+        return;
+      }
+      if (valM < -valL || valM > valL) {
+        alert('Invalid m');
+        return;
+      }
+      
+      console.log(`Simulate single orbital n=${valN}, l=${valL}, m=${valM}. (No 3D shown)`);
+      saveQuantumNumbers();
+    });
+    delBtn.addEventListener('click', () => {
+      row.remove();
+      saveQuantumNumbers();
+    });
+  }
+  addRowBtn.addEventListener('click', () => {
+    addQuantumRow(1,0,0);
+    saveQuantumNumbers();
+  });
+  deleteAllBtn.addEventListener('click', () => {
+    quantumTable.innerHTML = '';
+    localStorage.removeItem('userDefinedQNs');
+  });
+  loadQuantumNumbers();
+
+});
+</script>
+
+</body>
+</html>
+

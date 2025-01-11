@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ausbeutel Calculator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #2a2a2a, #333333);
+            color: #ddd;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .calculator-container {
+            background-color: rgba(30, 30, 30, 0.9);
+            border-radius: 15px;
+            padding: 20px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            text-align: center;
+        }
+        h2 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            color: #ddd;
+            letter-spacing: 4px;
+        }
+        .input-container {
+            position: relative;
+            margin: 10px 0;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            font-size: 1.2rem;
+            border: none;
+            border-radius: 10px;
+            background-color: #444;
+            color: #ddd;
+            transition: box-shadow 0.3s ease;
+        }
+        input[type="text"]:focus {
+            outline: none;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+        }
+        button {
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            background-color: #555;
+            color: #ddd;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.3s ease, background-color 0.3s ease;
+        }
+        button:hover {
+            transform: scale(1.05);
+            background-color: #666;
+        }
+        .result {
+            margin-top: 20px;
+            font-size: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="calculator-container">
+        <h2>Ausbeutel Calculator</h2>
+        <div class="input-container">
+            <input type="text" id="initialAmount" placeholder="Enter initial amount (e.g., 20kg, 1L)" />
+        </div>
+        <div class="input-container">
+            <input type="text" id="finalAmount" placeholder="Enter final amount (e.g., 53g, 70ml)" />
+        </div>
+        <button onclick="calculateAusbeutel()">Calculate Ausbeutel</button>
+        <div class="result" id="result"></div>
+    </div>
+
+    <script>
+        function convertToGramsOrMilliliters(value) {
+            const unit = value.match(/[a-zA-Z]+/);
+            const amount = parseFloat(value);
+
+            if (!amount || !unit) return null;
+
+            switch (unit[0].toLowerCase()) {
+                case 'kg': return amount * 1000; 
+                case 'g': return amount; 
+                case 'l': return amount * 1000; 
+                case 'ml': return amount; 
+                default: return null;
+            }
+        }
+
+        function calculateAusbeutel() {
+            const initialValue = document.getElementById('initialAmount').value.trim();
+            const finalValue = document.getElementById('finalAmount').value.trim();
+
+            const initialAmount = convertToGramsOrMilliliters(initialValue);
+            const finalAmount = convertToGramsOrMilliliters(finalValue);
+
+            if (initialAmount === null || finalAmount === null || initialAmount <= 0) {
+                document.getElementById('result').innerHTML = "Please enter valid amounts for both fields.";
+                return;
+            }
+
+            const ausbeutel = (finalAmount / initialAmount) * 100;
+            const color = calculateColor(ausbeutel);
+            document.getElementById('result').innerHTML = `Ausbeutel: <span style="color: ${color};">${ausbeutel.toFixed(2)}%</span>`;
+        }
+
+        function calculateColor(value) {
+            const green = [0, 255, 0];
+            const red = [139, 0, 0];
+            const ratio = Math.min(Math.max(value / 100, 0), 1);
+            const color = red.map((start, index) => Math.round(start + (green[index] - start) * ratio));
+            return `rgb(${color.join(",")})`;
+        }
+    </script>
+</body>
+</html>

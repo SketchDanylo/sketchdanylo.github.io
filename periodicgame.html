@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Periodic Table Game</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #2a2a2a, #333333);
+      color: #f1f1f1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    h1, h2, h3, p, ul, li, label {
+      margin: 5px 0;
+    }
+    ul { margin-left: 20px; }
+    .wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      margin: auto;
+      width: 95%;
+      max-width: 1400px;
+      background-color: rgba(30, 30, 30, 0.9);
+      border-radius: 15px;
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(10px);
+    }
+
+    .tab-container {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+    .tab {
+      flex: 1 1 auto;
+      max-width: 180px;
+      text-align: center;
+      background-color: #444;
+      border-radius: 8px 8px 0 0;
+      padding: 10px;
+      cursor: pointer;
+      transition: background-color 0.3s ease, transform 0.3s ease;
+    }
+    .tab:hover {
+      background-color: #666;
+      transform: translateY(-2px);
+    }
+    .tab.active {
+      background-color: #555;
+      transform: none;
+    }
+    .tab-content {
+      display: none; 
+      width: 100%;
+      margin-bottom: 20px;
+    }
+    .tab-content.active {
+      display: block; 
+    }
+
+    .periodic-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 10px;
+      width: 100%;
+    }
+    .table-row {
+      display: grid;
+      grid-template-columns: repeat(18, 60px);
+      gap: 5px;
+      justify-content: center;
+      margin: 0 auto;
+    }
+    .element-cell {
+      background-color: rgba(50, 50, 50, 0.9);
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      transition: transform 0.3s ease, background-color 0.3s ease, box-shadow 0.3s ease;
+      position: relative;
+      user-select: none;
+      cursor: pointer;
+      min-width: 60px;
+      min-height: 60px;
+    }
+    .element-empty {
+      background-color: transparent;
+      pointer-events: none;
+    }
+    .element-cell:hover {
+      transform: translateY(-3px);
+      background-color: rgba(80, 80, 80, 0.9);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    }
+    .element-dragging {
+      opacity: 0.5;
+      border: 2px dashed #fff;
+    }
+    .drop-target {
+      border: 2px dashed #aaa;
+    }
+
+    .inventory {
+      margin-top: 10px;
+      background-color: rgba(50,50,50,0.9);
+      border-radius: 8px;
+      padding: 10px;
+      min-width: 250px;
+      max-height: 400px; 
+      overflow-y: auto;  
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      justify-content: center;
+      margin-bottom: 10px;
+      width: 100%;
+    }
+
+    .mode-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      background-color: rgba(40,40,40,0.8);
+      padding: 10px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      gap: 10px;
+    }
+    .mode-header .left,
+    .mode-header .right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-block;
+      padding: 8px 12px;
+      font-size: 0.9rem;
+      color: #fff;
+      background-color: #444;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 0.3s ease, transform 0.3s ease;
+    }
+    .btn:hover {
+      background-color: #666;
+      transform: translateY(-2px);
+    }
+    .btn:active {
+      transform: translateY(0);
+    }
+    input[type="number"], select, input[type="text"] {
+      width: auto;
+      padding: 6px 8px;
+      border: none;
+      border-radius: 5px;
+      background-color: #444;
+      color: #fff;
+    }
+
+    #messageBox {
+      text-align: center;
+      padding: 10px;
+      margin-top: 10px;
+      border-top: 1px solid #666;
+      width: 100%;
+      font-size: 1rem;
+      min-height: 40px;
+    }
+    .msg-success {
+      color: #adff2f;
+    }
+    .msg-fail {
+      color: #ff6b6b;
+    }
+    .msg-info {
+      color: #ddd;
+    }
+
+    @media screen and (max-width: 600px) {
+      .table-row {
+        grid-template-columns: repeat(9, 40px);
+      }
+      .element-cell {
+        width: 40px;
+        height: 40px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="wrapper">
+
+  <h1>Danylo's Periodic Table Game</h1>
+
+  <div class="tab-container">
+    <div class="tab active" data-tab="tab-home">Home</div>
+    <div class="tab" data-tab="tab-coverup">Cover Up Game</div>
+    <div class="tab" data-tab="tab-clicknamed">Click Named Element</div>
+    <div class="tab" data-tab="tab-locatesymbol">Locate by Symbol</div>
+    <div class="tab" data-tab="tab-custom">Custom Mode</div>
+  </div>
+
+  <div id="messageBox" class="msg-info">
+    Welcome! Select a tab above to start a game.
+  </div>
+
+  <div id="tab-home" class="tab-content active">
+    <h2>Welcome / Instructions</h2>
+    <p>
+      This version is a "test run" so ther may be bug and other shit that i was too lazy to fix:
+    </p>
+    <ul style="line-height:1.6;">
+      <li><strong>Cover Up Game</strong> has 3 difficulties:
+        <ul>
+          <li><em>Easy</em>: drag & drop from an inventory (names visible).</li>
+          <li><em>Normal</em>: quiz with <strong>no drag & drop</strong>. I show the <strong>full name</strong>, you type the <strong>symbol</strong>.</li>
+          <li><em>Hard</em>: quiz with <strong>no drag & drop</strong>. I show the <strong>symbol</strong>, you type the <strong>full English name</strong>.</li>
+        </ul>
+      </li>
+      <li><strong>Click Named Element</strong>: You fucking click the named element (can't u read).</li>
+      <li><strong>Locate by Symbol</strong>: Locate the given symbol on a blank table.</li>
+      <li><strong>Custom Mode</strong>: Customize how much of the Periodic Table you want to cover up.</li>
+      <li><strong>You have a suggestion? go fuck yourself.. jk just tell me and i'll prolly fix it</strong></li>
+    </ul>
+  </div>
+
+  <!-- ========== COVER UP GAME ========== -->
+  <div id="tab-coverup" class="tab-content">
+    <div class="mode-header">
+      <div class="left">
+        <h2>Cover Up Game</h2>
+      </div>
+      <div class="right">
+        <label for="coverupDifficulty">Difficulty:</label>
+        <select id="coverupDifficulty">
+          <option value="easy">Easy</option>
+          <option value="normal">Normal</option>
+          <option value="hard">Hard</option>
+        </select>
+        <button class="btn" onclick="startCoverUpGame()">Start</button>
+      </div>
+    </div>
+
+    <p id="coverupStatus" style="margin-bottom:10px;"></p>
+    <!-- For "easy" => show table + inventory -->
+    <div class="periodic-container">
+      <div id="coverup-table" class="table-row"></div>
+      <div id="coverup-inventory" class="inventory" style="display:none;"></div>
+    </div>
+    <!-- For "normal" & "hard" => quiz without drag/drop -->
+    <div id="coverup-quiz" style="display:none; margin-top:20px; text-align:center;"></div>
+    <div id="coverup-checkArea" style="display: flex; justify-content: center; margin-top:10px;"></div>
+  </div>
+
+  <!-- ========== CLICK NAMED ELEMENT ========== -->
+  <div id="tab-clicknamed" class="tab-content">
+    <div class="mode-header">
+      <div class="left">
+        <h2>Click The Named Element</h2>
+      </div>
+      <div class="right">
+        <button class="btn" onclick="startNamedClickGame()">Start</button>
+      </div>
+    </div>
+    <p id="namedClickInstructions"></p>
+    <div class="periodic-container">
+      <div id="namedClick-table" class="table-row"></div>
+    </div>
+  </div>
+
+  <!-- ========== LOCATE BY SYMBOL ========== -->
+  <div id="tab-locatesymbol" class="tab-content">
+    <div class="mode-header">
+      <div class="left">
+        <h2>Locate by Symbol</h2>
+      </div>
+      <div class="right">
+        <p style="margin:0;font-size:0.95rem;">Auto-starts & repeats upon success.</p>
+      </div>
+    </div>
+    <p id="locateSymbolInstructions" style="margin-bottom:10px;"></p>
+    <div class="periodic-container">
+      <div id="locateSymbol-table" class="table-row"></div>
+    </div>
+  </div>
+
+  <!-- ========== CUSTOM MODE ========== -->
+  <div id="tab-custom" class="tab-content">
+    <div class="mode-header">
+      <div class="left"><h2>Custom Mode</h2></div>
+      <div class="right">
+        <label for="hideRows">Hide Rows:</label>
+        <input type="number" id="hideRows" value="0" min="0" max="10"/>
+        <label for="hideCols">Hide Cols:</label>
+        <input type="number" id="hideCols" value="0" min="0" max="18"/>
+        <button class="btn" onclick="applyCustomMode()">Apply & Shuffle</button>
+        <!-- NEW BUTTON ADDED HERE -->
+        <button class="btn" onclick="checkCustomPositions()">Check Position</button>
+      </div>
+    </div>
+    <p style="font-size:0.9rem;">
+      <strong>Tip (Touchscreen):</strong> You can drag & drop or click an element in inventory,
+      then click an empty cell to place it.
+    </p>
+    <div class="periodic-container">
+      <div id="custom-table" class="table-row"></div>
+      <div id="custom-inventory" class="inventory"></div>
+    </div>
+  </div>
+
+</div> <!-- wrapper end -->
+
+<script>
+/* ================ GLOBAL MESSAGE BOX =============== */
+const messageBox = document.getElementById('messageBox');
+function displayMessage(msg, type="info") {
+  messageBox.className = "msg-" + type; // e.g. msg-success, msg-fail, msg-info
+  messageBox.innerHTML = msg;
+}
+
+/* =================== createElementHTML =================== */
+function createElementHTML(data, options={ showNumber:true, showName:true }) {
+  /* We'll always show the symbol,
+     optionally show the atomic # and/or English+German name. */
+  let html = '';
+  if (options.showNumber) {
+    html += `<div style="font-size:0.8rem; color:#999; position:absolute; top:3px; right:3px;">${data.num}</div>`;
+  }
+  
+  html += `<div class="symbol" style="font-size:1.1rem; font-weight:bold;">${data.symbol}</div>`;
+  
+  if (options.showName) {
+    html += `<div class="element-name" style="font-size:0.75rem;">${data.nameEN} (${data.nameDE})</div>`;
+  }
+  return html;
+}
+
+
+const elementsData = [
+  { num:1, symbol:"H", nameEN:"Hydrogen", nameDE:"Wasserstoff", row:1, col:1 },
+  { num:2, symbol:"He", nameEN:"Helium", nameDE:"Helium", row:1, col:18 },
+  { num:3, symbol:"Li", nameEN:"Lithium", nameDE:"Lithium", row:2, col:1 },
+  { num:4, symbol:"Be", nameEN:"Beryllium", nameDE:"Beryllium", row:2, col:2 },
+  { num:5, symbol:"B", nameEN:"Boron", nameDE:"Bor", row:2, col:13 },
+  { num:6, symbol:"C", nameEN:"Carbon", nameDE:"Kohlenstoff", row:2, col:14 },
+  { num:7, symbol:"N", nameEN:"Nitrogen", nameDE:"Stickstoff", row:2, col:15 },
+  { num:8, symbol:"O", nameEN:"Oxygen", nameDE:"Sauerstoff", row:2, col:16 },
+  { num:9, symbol:"F", nameEN:"Fluorine", nameDE:"Fluor", row:2, col:17 },
+  { num:10, symbol:"Ne", nameEN:"Neon", nameDE:"Neon", row:2, col:18 },
+  { num:11, symbol:"Na", nameEN:"Sodium", nameDE:"Natrium", row:3, col:1 },
+  { num:12, symbol:"Mg", nameEN:"Magnesium", nameDE:"Magnesium", row:3, col:2 },
+  { num:13, symbol:"Al", nameEN:"Aluminium", nameDE:"Aluminium", row:3, col:13 },
+  { num:14, symbol:"Si", nameEN:"Silicon", nameDE:"Silicium", row:3, col:14 },
+  { num:15, symbol:"P", nameEN:"Phosphorus", nameDE:"Phosphor", row:3, col:15 },
+  { num:16, symbol:"S", nameEN:"Sulfur", nameDE:"Schwefel", row:3, col:16 },
+  { num:17, symbol:"Cl", nameEN:"Chlorine", nameDE:"Chlor", row:3, col:17 },
+  { num:18, symbol:"Ar", nameEN:"Argon", nameDE:"Argon", row:3, col:18 },
+  { num:19, symbol:"K", nameEN:"Potassium", nameDE:"Kalium", row:4, col:1 },
+  { num:20, symbol:"Ca", nameEN:"Calcium", nameDE:"Calcium", row:4, col:2 },
+  { num:21, symbol:"Sc", nameEN:"Scandium", nameDE:"Scandium", row:4, col:3 },
+  { num:22, symbol:"Ti", nameEN:"Titanium", nameDE:"Titan", row:4, col:4 },
+  { num:23, symbol:"V", nameEN:"Vanadium", nameDE:"Vanadium", row:4, col:5 },
+  { num:24, symbol:"Cr", nameEN:"Chromium", nameDE:"Chrom", row:4, col:6 },
+  { num:25, symbol:"Mn", nameEN:"Manganese", nameDE:"Mangan", row:4, col:7 },
+  { num:26, symbol:"Fe", nameEN:"Iron", nameDE:"Eisen", row:4, col:8 },
+  { num:27, symbol:"Co", nameEN:"Cobalt", nameDE:"Cobalt", row:4, col:9 },
+  { num:28, symbol:"Ni", nameEN:"Nickel", nameDE:"Nickel", row:4, col:10 },
+  { num:29, symbol:"Cu", nameEN:"Copper", nameDE:"Kupfer", row:4, col:11 },
+  { num:30, symbol:"Zn", nameEN:"Zinc", nameDE:"Zink", row:4, col:12 },
+  { num:31, symbol:"Ga", nameEN:"Gallium", nameDE:"Gallium", row:4, col:13 },
+  { num:32, symbol:"Ge", nameEN:"Germanium", nameDE:"Germanium", row:4, col:14 },
+  { num:33, symbol:"As", nameEN:"Arsenic", nameDE:"Arsen", row:4, col:15 },
+  { num:34, symbol:"Se", nameEN:"Selenium", nameDE:"Selen", row:4, col:16 },
+  { num:35, symbol:"Br", nameEN:"Bromine", nameDE:"Brom", row:4, col:17 },
+  { num:36, symbol:"Kr", nameEN:"Krypton", nameDE:"Krypton", row:4, col:18 },
+  { num:37, symbol:"Rb", nameEN:"Rubidium", nameDE:"Rubidium", row:5, col:1 },
+  { num:38, symbol:"Sr", nameEN:"Strontium", nameDE:"Strontium", row:5, col:2 },
+  { num:39, symbol:"Y", nameEN:"Yttrium", nameDE:"Yttrium", row:5, col:3 },
+  { num:40, symbol:"Zr", nameEN:"Zirconium", nameDE:"Zirconium", row:5, col:4 },
+  { num:41, symbol:"Nb", nameEN:"Niobium", nameDE:"Niob", row:5, col:5 },
+  { num:42, symbol:"Mo", nameEN:"Molybdenum", nameDE:"Molybdän", row:5, col:6 },
+  { num:43, symbol:"Tc", nameEN:"Technetium", nameDE:"Technetium", row:5, col:7 },
+  { num:44, symbol:"Ru", nameEN:"Ruthenium", nameDE:"Ruthenium", row:5, col:8 },
+  { num:45, symbol:"Rh", nameEN:"Rhodium", nameDE:"Rhodium", row:5, col:9 },
+  { num:46, symbol:"Pd", nameEN:"Palladium", nameDE:"Palladium", row:5, col:10 },
+  { num:47, symbol:"Ag", nameEN:"Silver", nameDE:"Silber", row:5, col:11 },
+  { num:48, symbol:"Cd", nameEN:"Cadmium", nameDE:"Cadmium", row:5, col:12 },
+  { num:49, symbol:"In", nameEN:"Indium", nameDE:"Indium", row:5, col:13 },
+  { num:50, symbol:"Sn", nameEN:"Tin", nameDE:"Zinn", row:5, col:14 },
+  { num:51, symbol:"Sb", nameEN:"Antimony", nameDE:"Antimon", row:5, col:15 },
+  { num:52, symbol:"Te", nameEN:"Tellurium", nameDE:"Tellur", row:5, col:16 },
+  { num:53, symbol:"I", nameEN:"Iodine", nameDE:"Iod", row:5, col:17 },
+  { num:54, symbol:"Xe", nameEN:"Xenon", nameDE:"Xenon", row:5, col:18 },
+  { num:55, symbol:"Cs", nameEN:"Cesium", nameDE:"Caesium", row:6, col:1 },
+  { num:56, symbol:"Ba", nameEN:"Barium", nameDE:"Barium", row:6, col:2 },
+  { num:57, symbol:"La", nameEN:"Lanthanum", nameDE:"Lanthan", row:8, col:4 },
+  { num:58, symbol:"Ce", nameEN:"Cerium", nameDE:"Cer", row:8, col:5 },
+  { num:59, symbol:"Pr", nameEN:"Praseodymium", nameDE:"Praseodym", row:8, col:6 },
+  { num:60, symbol:"Nd", nameEN:"Neodymium", nameDE:"Neodym", row:8, col:7 },
+  { num:61, symbol:"Pm", nameEN:"Promethium", nameDE:"Promethium", row:8, col:8 },
+  { num:62, symbol:"Sm", nameEN:"Samarium", nameDE:"Samarium", row:8, col:9 },
+  { num:63, symbol:"Eu", nameEN:"Europium", nameDE:"Europium", row:8, col:10 },
+  { num:64, symbol:"Gd", nameEN:"Gadolinium", nameDE:"Gadolinium", row:8, col:11 },
+  { num:65, symbol:"Tb", nameEN:"Terbium", nameDE:"Terbium", row:8, col:12 },
+  { num:66, symbol:"Dy", nameEN:"Dysprosium", nameDE:"Dysprosium", row:8, col:13 },
+  { num:67, symbol:"Ho", nameEN:"Holmium", nameDE:"Holmium", row:8, col:14 },
+  { num:68, symbol:"Er", nameEN:"Erbium", nameDE:"Erbium", row:8, col:15 },
+  { num:69, symbol:"Tm", nameEN:"Thulium", nameDE:"Thulium", row:8, col:16 },
+  { num:70, symbol:"Yb", nameEN:"Ytterbium", nameDE:"Ytterbium", row:8, col:17 },
+  { num:71, symbol:"Lu", nameEN:"Lutetium", nameDE:"Lutetium", row:8, col:18 },
+  { num:72, symbol:"Hf", nameEN:"Hafnium", nameDE:"Hafnium", row:6, col:4 },
+  { num:73, symbol:"Ta", nameEN:"Tantalum", nameDE:"Tantal", row:6, col:5 },
+  { num:74, symbol:"W", nameEN:"Tungsten", nameDE:"Wolfram", row:6, col:6 },
+  { num:75, symbol:"Re", nameEN:"Rhenium", nameDE:"Rhenium", row:6, col:7 },
+  { num:76, symbol:"Os", nameEN:"Osmium", nameDE:"Osmium", row:6, col:8 },
+  { num:77, symbol:"Ir", nameEN:"Iridium", nameDE:"Iridium", row:6, col:9 },
+  { num:78, symbol:"Pt", nameEN:"Platinum", nameDE:"Platin", row:6, col:10 },
+  { num:79, symbol:"Au", nameEN:"Gold", nameDE:"Gold", row:6, col:11 },
+  { num:80, symbol:"Hg", nameEN:"Mercury", nameDE:"Quecksilber", row:6, col:12 },
+  { num:81, symbol:"Tl", nameEN:"Thallium", nameDE:"Thallium", row:6, col:13 },
+  { num:82, symbol:"Pb", nameEN:"Lead", nameDE:"Blei", row:6, col:14 },
+  { num:83, symbol:"Bi", nameEN:"Bismuth", nameDE:"Bismut", row:6, col:15 },
+  { num:84, symbol:"Po", nameEN:"Polonium", nameDE:"Polonium", row:6, col:16 },
+  { num:85, symbol:"At", nameEN:"Astatine", nameDE:"Astat", row:6, col:17 },
+  { num:86, symbol:"Rn", nameEN:"Radon", nameDE:"Radon", row:6, col:18 },
+  { num:87, symbol:"Fr", nameEN:"Francium", nameDE:"Francium", row:7, col:1 },
+  { num:88, symbol:"Ra", nameEN:"Radium", nameDE:"Radium", row:7, col:2 },
+  { num:89, symbol:"Ac", nameEN:"Actinium", nameDE:"Actinium", row:9, col:4 },
+  { num:90, symbol:"Th", nameEN:"Thorium", nameDE:"Thorium", row:9, col:5 },
+  { num:91, symbol:"Pa", nameEN:"Protactinium", nameDE:"Protactinium", row:9, col:6 },
+  { num:92, symbol:"U", nameEN:"Uranium", nameDE:"Uran", row:9, col:7 },
+  { num:93, symbol:"Np", nameEN:"Neptunium", nameDE:"Neptunium", row:9, col:8 },
+  { num:94, symbol:"Pu", nameEN:"Plutonium", nameDE:"Plutonium", row:9, col:9 },
+  { num:95, symbol:"Am", nameEN:"Americium", nameDE:"Americium", row:9, col:10 },
+  { num:96, symbol:"Cm", nameEN:"Curium", nameDE:"Curium", row:9, col:11 },
+  { num:97, symbol:"Bk", nameEN:"Berkelium", nameDE:"Berkelium", row:9, col:12 },
+  { num:98, symbol:"Cf", nameEN:"Californium", nameDE:"Californium", row:9, col:13 },
+  { num:99, symbol:"Es", nameEN:"Einsteinium", nameDE:"Einsteinium", row:9, col:14 },
+  { num:100, symbol:"Fm", nameEN:"Fermium", nameDE:"Fermium", row:9, col:15 },
+  { num:101, symbol:"Md", nameEN:"Mendelevium", nameDE:"Mendelevium", row:9, col:16 },
+  { num:102, symbol:"No", nameEN:"Nobelium", nameDE:"Nobelium", row:9, col:17 },
+  { num:103, symbol:"Lr", nameEN:"Lawrencium", nameDE:"Lawrencium", row:9, col:18 },
+  { num:104, symbol:"Rf", nameEN:"Rutherfordium", nameDE:"Rutherfordium", row:7, col:4 },
+  { num:105, symbol:"Db", nameEN:"Dubnium", nameDE:"Dubnium", row:7, col:5 },
+  { num:106, symbol:"Sg", nameEN:"Seaborgium", nameDE:"Seaborgium", row:7, col:6 },
+  { num:107, symbol:"Bh", nameEN:"Bohrium", nameDE:"Bohrium", row:7, col:7 },
+  { num:108, symbol:"Hs", nameEN:"Hassium", nameDE:"Hassium", row:7, col:8 },
+  { num:109, symbol:"Mt", nameEN:"Meitnerium", nameDE:"Meitnerium", row:7, col:9 },
+  { num:110, symbol:"Ds", nameEN:"Darmstadtium", nameDE:"Darmstadtium", row:7, col:10 },
+  { num:111, symbol:"Rg", nameEN:"Roentgenium", nameDE:"Roentgenium", row:7, col:11 },
+  { num:112, symbol:"Cn", nameEN:"Copernicium", nameDE:"Copernicium", row:7, col:12 },
+  { num:113, symbol:"Nh", nameEN:"Nihonium", nameDE:"Nihonium", row:7, col:13 },
+  { num:114, symbol:"Fl", nameEN:"Flerovium", nameDE:"Flerovium", row:7, col:14 },
+  { num:115, symbol:"Mc", nameEN:"Moscovium", nameDE:"Moscovium", row:7, col:15 },
+  { num:116, symbol:"Lv", nameEN:"Livermorium", nameDE:"Livermorium", row:7, col:16 },
+  { num:117, symbol:"Ts", nameEN:"Tennessine", nameDE:"Tenness", row:7, col:17 },
+  { num:118, symbol:"Og", nameEN:"Oganesson", nameDE:"Oganesson", row:7, col:18 }
+];
+
+
+let isDragging = null;
+let selectedInventoryItem = null; 
+
+function handleDragStart(e) {
+  const cell = e.currentTarget;
+  if (!cell.dataset.symbol) {
+    e.preventDefault();
+    return;
+  }
+  isDragging = cell;
+  cell.classList.add('element-dragging');
+  e.dataTransfer.setData('text/plain', JSON.stringify({
+    num: cell.dataset.num,
+    symbol: cell.dataset.symbol,
+    nameEN: cell.dataset.nameEN,
+    nameDE: cell.dataset.nameDE
+  }));
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  const cell = e.currentTarget;
+  if (!cell.classList.contains('element-empty')) {
+    cell.classList.add('drop-target');
+  }
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  const cell = e.currentTarget;
+  cell.classList.remove('drop-target');
+  if (!isDragging) return;
+  const sourceData = JSON.parse(e.dataTransfer.getData('text/plain') || '{}');
+
+  if (cell.dataset.symbol) {
+    
+    const temp = {
+      num: cell.dataset.num,
+      symbol: cell.dataset.symbol,
+      nameEN: cell.dataset.nameEN,
+      nameDE: cell.dataset.nameDE
+    };
+    cell.dataset.num = sourceData.num;
+    cell.dataset.symbol = sourceData.symbol;
+    cell.dataset.nameEN = sourceData.nameEN;
+    cell.dataset.nameDE = sourceData.nameDE;
+    cell.innerHTML = createElementHTML(cell.dataset, cell.buildOptions || {showNumber:true, showName:true});
+
+    isDragging.dataset.num = temp.num || '';
+    isDragging.dataset.symbol = temp.symbol || '';
+    isDragging.dataset.nameEN = temp.nameEN || '';
+    isDragging.dataset.nameDE = temp.nameDE || '';
+    if (temp.symbol) {
+      isDragging.innerHTML = createElementHTML(temp, isDragging.buildOptions || {showNumber:true, showName:true});
+    } else {
+      isDragging.innerHTML = '';
+    }
+  } else {
+    
+    cell.dataset.num = sourceData.num;
+    cell.dataset.symbol = sourceData.symbol;
+    cell.dataset.nameEN = sourceData.nameEN;
+    cell.dataset.nameDE = sourceData.nameDE;
+    cell.innerHTML = createElementHTML(cell.dataset, cell.buildOptions || {showNumber:true, showName:true});
+
+    isDragging.dataset.num = '';
+    isDragging.dataset.symbol = '';
+    isDragging.dataset.nameEN = '';
+    isDragging.dataset.nameDE = '';
+    isDragging.innerHTML = '';
+  }
+}
+
+function handleDragEnd(e) {
+  if (isDragging) {
+    isDragging.classList.remove('element-dragging');
+  }
+  isDragging = null;
+  document.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+}
+
+
+function handleInventoryItemClick(e) {
+  const item = e.currentTarget;
+  
+  if (selectedInventoryItem === item) {
+    selectedInventoryItem = null;
+    item.style.outline = 'none';
+    displayMessage('Deselected inventory item.', 'info');
+  } else {
+    
+    if (selectedInventoryItem) {
+      selectedInventoryItem.style.outline = 'none';
+    }
+    selectedInventoryItem = item;
+    item.style.outline = '2px solid #adff2f';
+    displayMessage('Now click on a cell to place this element.', 'info');
+  }
+}
+
+function handleTableCellClick(e) {
+  const cell = e.currentTarget;
+  if (selectedInventoryItem) {
+    
+    if (!cell.dataset.symbol && !cell.classList.contains('element-empty')) {
+      
+      cell.dataset.num = selectedInventoryItem.dataset.num;
+      cell.dataset.symbol = selectedInventoryItem.dataset.symbol;
+      cell.dataset.nameEN = selectedInventoryItem.dataset.nameEN;
+      cell.dataset.nameDE = selectedInventoryItem.dataset.nameDE;
+      cell.innerHTML = createElementHTML(cell.dataset, cell.buildOptions || {showNumber:true, showName:true});
+
+      selectedInventoryItem.dataset.num = '';
+      selectedInventoryItem.dataset.symbol = '';
+      selectedInventoryItem.dataset.nameEN = '';
+      selectedInventoryItem.dataset.nameDE = '';
+      selectedInventoryItem.innerHTML = '';
+      selectedInventoryItem.style.outline = 'none';
+      selectedInventoryItem = null;
+    } else if (cell.dataset.symbol) {
+      
+      const tmp = {
+        num: cell.dataset.num,
+        symbol: cell.dataset.symbol,
+        nameEN: cell.dataset.nameEN,
+        nameDE: cell.dataset.nameDE
+      };
+      cell.dataset.num = selectedInventoryItem.dataset.num;
+      cell.dataset.symbol = selectedInventoryItem.dataset.symbol;
+      cell.dataset.nameEN = selectedInventoryItem.dataset.nameEN;
+      cell.dataset.nameDE = selectedInventoryItem.dataset.nameDE;
+      cell.innerHTML = createElementHTML(cell.dataset, cell.buildOptions || {showNumber:true, showName:true});
+
+      selectedInventoryItem.dataset.num = tmp.num || '';
+      selectedInventoryItem.dataset.symbol = tmp.symbol || '';
+      selectedInventoryItem.dataset.nameEN = tmp.nameEN || '';
+      selectedInventoryItem.dataset.nameDE = tmp.nameDE || '';
+      if (tmp.symbol) {
+        selectedInventoryItem.innerHTML = createElementHTML(tmp, {showNumber:true, showName:true});
+      } else {
+        selectedInventoryItem.innerHTML = '';
+      }
+      selectedInventoryItem.style.outline = 'none';
+      selectedInventoryItem = null;
+    } else {
+      displayMessage('Cannot place item here.', 'fail');
+    }
+  }
+}
+
+
+function buildPeriodicTableGrid(containerId, opts={hideNames:false, hideNumber:false}) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = '';
+  let posMap = {};
+  elementsData.forEach(el => {
+    posMap[el.row + ',' + el.col] = el;
+  });
+
+  for (let r = 1; r <= 10; r++) {
+    for (let c = 1; c <= 18; c++) {
+      const cell = document.createElement('div');
+      cell.classList.add('element-cell');
+      cell.draggable = true;
+
+      const key = r + ',' + c;
+      if (posMap[key]) {
+        const eData = posMap[key];
+        cell.dataset.num = eData.num;
+        cell.dataset.symbol = eData.symbol;
+        cell.dataset.nameEN = eData.nameEN;
+        cell.dataset.nameDE = eData.nameDE;
+        cell.dataset.row = r;
+        cell.dataset.col = c;
+
+        cell.buildOptions = {
+          showNumber: !opts.hideNumber,
+          showName: !opts.hideNames
+        };
+        cell.innerHTML = createElementHTML(eData, cell.buildOptions);
+      } else {
+        cell.classList.add('element-empty');
+      }
+
+      cell.addEventListener('dragstart', handleDragStart);
+      cell.addEventListener('dragover', handleDragOver);
+      cell.addEventListener('drop', handleDrop);
+      cell.addEventListener('dragend', handleDragEnd);
+
+      cell.addEventListener('click', handleTableCellClick);
+      cell.addEventListener('click', handleCellClick);
+
+      container.appendChild(cell);
+    }
+  }
+}
+
+
+
+
+let coverUpCurrentRound = 0;
+let coverUpDifficulty = 'easy'; 
+
+function startCoverUpGame() {
+  coverUpCurrentRound = 0;
+  document.getElementById('coverup-inventory').style.display = 'none';
+  document.getElementById('coverup-inventory').innerHTML = '';
+  document.getElementById('coverupStatus').textContent = '';
+  document.getElementById('coverup-quiz').style.display = 'none';
+  document.getElementById('coverup-quiz').innerHTML = '';
+  document.getElementById('coverup-checkArea').innerHTML = '';
+
+  coverUpDifficulty = document.getElementById('coverupDifficulty').value;
+  if (coverUpDifficulty === 'easy') {
+    buildPeriodicTableGrid('coverup-table', {hideNames:false, hideNumber:false});
+    displayMessage(`Cover Up (Easy) started. Drag & Drop the hidden elements back.`, 'info');
+    nextCoverUpRound();
+  } else {
+    buildPeriodicTableGrid('coverup-table', {hideNames:false, hideNumber:false});
+    document.getElementById('coverup-quiz').style.display = 'block';
+    displayMessage(`Cover Up (${coverUpDifficulty}) started. Quiz mode.`, 'info');
+    nextCoverUpQuizRound();
+  }
+}
+
+function nextCoverUpRound() {
+  coverUpCurrentRound++;
+  let coverCount = 3 + (coverUpCurrentRound - 1)*2;
+  if (coverCount > 25) coverCount = 25;
+
+  const allCells = Array.from(document.querySelectorAll('#coverup-table .element-cell'))
+    .filter(c => c.dataset.symbol);
+  allCells.sort(() => Math.random() - 0.5);
+  const covered = allCells.slice(0, coverCount);
+
+  const inv = document.getElementById('coverup-inventory');
+  inv.style.display = 'flex';
+  inv.innerHTML = '';
+
+  document.getElementById('coverup-checkArea').innerHTML = '';
+  const checkBtn = document.createElement('button');
+  checkBtn.classList.add('btn');
+  checkBtn.textContent = 'Check Placements';
+  checkBtn.addEventListener('click', coverUpCheckEasy);
+  document.getElementById('coverup-checkArea').appendChild(checkBtn);
+
+  covered.forEach(cell => {
+    const data = {
+      num: cell.dataset.num,
+      symbol: cell.dataset.symbol,
+      nameEN: cell.dataset.nameEN,
+      nameDE: cell.dataset.nameDE
+    };
+    cell.dataset.num = '';
+    cell.dataset.symbol = '';
+    cell.dataset.nameEN = '';
+    cell.dataset.nameDE = '';
+    cell.innerHTML = '';
+
+    const invItem = document.createElement('div');
+    invItem.classList.add('element-cell');
+    invItem.draggable = true;
+    invItem.dataset.num = data.num;
+    invItem.dataset.symbol = data.symbol;
+    invItem.dataset.nameEN = data.nameEN;
+    invItem.dataset.nameDE = data.nameDE;
+    invItem.buildOptions = {showNumber:true, showName:true};
+    invItem.innerHTML = createElementHTML(data, invItem.buildOptions);
+    invItem.addEventListener('dragstart', handleDragStart);
+    invItem.addEventListener('dragend', handleDragEnd);
+    invItem.addEventListener('click', handleInventoryItemClick);
+
+    inv.appendChild(invItem);
+  });
+}
+
+function coverUpCheckEasy() {
+  let correctCount = 0;
+  const totalElements = 118;
+  const allCells = document.querySelectorAll('#coverup-table .element-cell');
+  allCells.forEach(cell => {
+    cell.style.outline = 'none';
+  });
+
+  for (const cell of allCells) {
+    if (cell.dataset.symbol) {
+      const r = parseInt(cell.dataset.row);
+      const c = parseInt(cell.dataset.col);
+      const actual = elementsData.find(e => e.row === r && e.col === c);
+      if (!actual) continue;
+      if (actual.symbol === cell.dataset.symbol) {
+        correctCount++;
+      } else {
+        cell.style.outline = '2px solid red';
+      }
+    }
+  }
+
+  if (correctCount === totalElements) {
+    displayMessage(`All ${totalElements} elements placed correctly! Next round...`, 'success');
+    nextCoverUpRound();
+  } else {
+    displayMessage(`You placed ${correctCount}/${totalElements} correctly. Keep trying!`, 'fail');
+  }
+}
+
+
+let coverUpQuizIndex = 0;
+let coverUpQuizList = [];
+function nextCoverUpQuizRound() {
+  coverUpCurrentRound++;
+  if (coverUpCurrentRound === 1) {
+    coverUpQuizList = [];
+    const all = [...elementsData];
+    all.sort(() => Math.random() - 0.5);
+    coverUpQuizList = all.slice(0, 5);
+    coverUpQuizIndex = 0;
+  }
+  if (coverUpQuizIndex >= coverUpQuizList.length) {
+    displayMessage(`Cover Up (${coverUpDifficulty}) complete!`, 'success');
+    document.getElementById('coverup-quiz').innerHTML = '';
+    return;
+  }
+  const questionData = coverUpQuizList[coverUpQuizIndex];
+  const quizEl = document.getElementById('coverup-quiz');
+  quizEl.innerHTML = '';
+
+  const questionDiv = document.createElement('div');
+  questionDiv.style.marginBottom = '10px';
+
+  if (coverUpDifficulty === 'normal') {
+    questionDiv.textContent = `Question ${coverUpQuizIndex+1}/${coverUpQuizList.length}:
+      ${questionData.nameEN} (${questionData.nameDE}). Enter symbol:`;
+  } else {
+    questionDiv.textContent = `Question ${coverUpQuizIndex+1}/${coverUpQuizList.length}:
+      Symbol: ${questionData.symbol}. Enter full English name:`;
+  }
+  quizEl.appendChild(questionDiv);
+
+  const inputField = document.createElement('input');
+  inputField.type = 'text';
+  inputField.style.width = '200px';
+  quizEl.appendChild(inputField);
+
+  const checkBtn = document.createElement('button');
+  checkBtn.classList.add('btn');
+  checkBtn.textContent = 'Submit';
+  checkBtn.style.marginLeft = '10px';
+  checkBtn.addEventListener('click', () => {
+    const userAns = inputField.value.trim();
+    let correct = false;
+    if (coverUpDifficulty === 'normal') {
+      
+      if (userAns.toLowerCase() === questionData.symbol.toLowerCase()) {
+        correct = true;
+      }
+    } else {
+      
+      if (userAns.toLowerCase() === questionData.nameEN.toLowerCase()) {
+        correct = true;
+      }
+    }
+    if (correct) {
+      displayMessage(`Correct!`, 'success');
+    } else {
+      displayMessage(`Wrong! The answer was: ${
+        (coverUpDifficulty==='normal'? questionData.symbol : questionData.nameEN)
+      }`, 'fail');
+    }
+    coverUpQuizIndex++;
+    setTimeout(() => {
+      displayMessage("", "info");
+      nextCoverUpQuizRound();
+    }, 1200);
+  });
+  quizEl.appendChild(checkBtn);
+}
+
+
+
+let currentElementToGuess = null;
+function startNamedClickGame() {
+  buildPeriodicTableGrid('namedClick-table', {hideNames:true, hideNumber:false});
+  currentElementToGuess = null;
+  const all = Array.from(document.querySelectorAll('#namedClick-table .element-cell'))
+    .filter(c => c.dataset.symbol);
+  const rand = all[Math.floor(Math.random() * all.length)];
+  currentElementToGuess = {
+    symbol: rand.dataset.symbol,
+    nameEN: rand.dataset.nameEN,
+    nameDE: rand.dataset.nameDE
+  };
+  displayMessage(`Click Named Element started. Look for ${currentElementToGuess.nameEN}.`, 'info');
+}
+
+
+
+let locateSymbolActive = false;
+function startLocateSymbolGame() {
+  locateSymbolActive = true;
+  buildPeriodicTableGrid('locateSymbol-table', {hideNames:true, hideNumber:false});
+  nextLocateSymbolRound();
+}
+function nextLocateSymbolRound() {
+  if (!locateSymbolActive) return;
+  const instructions = document.getElementById('locateSymbolInstructions');
+  instructions.textContent = '';
+  const all = Array.from(document.querySelectorAll('#locateSymbol-table .element-cell'))
+    .filter(c => c.dataset.symbol);
+
+  
+  all.forEach(c => {
+    c.innerHTML = `<div style="font-size:0.8rem; position:absolute; top:3px; right:3px; color:#999;">${c.dataset.num}</div>`;
+  });
+
+  const rand = all[Math.floor(Math.random() * all.length)];
+  currentElementToGuess = {
+    symbol: rand.dataset.symbol,
+    nameEN: rand.dataset.nameEN,
+    nameDE: rand.dataset.nameDE
+  };
+  displayMessage(`Locate symbol: ${currentElementToGuess.symbol}`, 'info');
+}
+
+
+
+function applyCustomMode() {
+  const hideR = parseInt(document.getElementById('hideRows').value) || 0;
+  const hideC = parseInt(document.getElementById('hideCols').value) || 0;
+  
+  buildPeriodicTableGrid('custom-table', {hideNames:false, hideNumber:true});
+  document.getElementById('custom-inventory').innerHTML = '';
+  displayMessage(`Custom Mode: hiding rows <= ${hideR}, cols <= ${hideC}`, 'info');
+
+  const allCells = Array.from(document.querySelectorAll('#custom-table .element-cell'))
+    .filter(c => c.dataset.symbol);
+  let hidden = [];
+  for (const cell of allCells) {
+    const r = parseInt(cell.dataset.row);
+    const co = parseInt(cell.dataset.col);
+    if (r <= hideR || co <= hideC) {
+      hidden.push(cell);
+    }
+  }
+  hidden.sort(() => Math.random() - 0.5);
+  const inv = document.getElementById('custom-inventory');
+
+  hidden.forEach(cell => {
+    const data = {
+      num: cell.dataset.num,
+      symbol: cell.dataset.symbol,
+      nameEN: cell.dataset.nameEN,
+      nameDE: cell.dataset.nameDE
+    };
+    const item = document.createElement('div');
+    item.classList.add('element-cell');
+    item.draggable = true;
+    item.dataset.num = data.num;
+    item.dataset.symbol = data.symbol;
+    item.dataset.nameEN = data.nameEN;
+    item.dataset.nameDE = data.nameDE;
+    
+    item.buildOptions = { showNumber:false, showName:true };
+    item.innerHTML = createElementHTML(data, item.buildOptions);
+
+    item.addEventListener('dragstart', handleDragStart);
+    item.addEventListener('dragend', handleDragEnd);
+    item.addEventListener('click', handleInventoryItemClick);
+
+    inv.appendChild(item);
+
+    
+    cell.dataset.num = '';
+    cell.dataset.symbol = '';
+    cell.dataset.nameEN = '';
+    cell.dataset.nameDE = '';
+    cell.innerHTML = '';
+  });
+}
+
+
+function checkCustomPositions() {
+  
+  let correctCount = 0;
+  const allCells = Array.from(document.querySelectorAll('#custom-table .element-cell'));
+  
+  
+  allCells.forEach(cell => {
+    cell.style.outline = 'none';
+  });
+  
+  
+  let totalPlaced = 0;
+  for (const cell of allCells) {
+    if (cell.dataset.symbol) {
+      totalPlaced++;
+      const r = parseInt(cell.dataset.row);
+      const c = parseInt(cell.dataset.col);
+      
+      const actual = elementsData.find(e => e.row === r && e.col === c);
+      if (actual && actual.symbol === cell.dataset.symbol) {
+        correctCount++;
+      } else {
+        cell.style.outline = '2px solid red';
+      }
+    }
+  }
+  
+  if (totalPlaced === 0) {
+    displayMessage(`No elements placed yet.`, 'info');
+    return;
+  }
+  
+  if (correctCount === totalPlaced) {
+    displayMessage(`All ${totalPlaced} placed elements are correct!`, 'success');
+  } else {
+    displayMessage(`You placed ${correctCount} out of ${totalPlaced} correctly. Keep trying!`, 'fail');
+  }
+}
+
+
+
+function handleCellClick(e) {
+  const cell = e.currentTarget;
+  const containerId = cell.parentElement.id;
+
+  
+  if (containerId === 'namedClick-table' && currentElementToGuess) {
+    if (cell.dataset.symbol === currentElementToGuess.symbol) {
+      displayMessage(`Correct! That was ${currentElementToGuess.nameEN}. Starting new round...`, 'success');
+      document.getElementById('namedClickInstructions').textContent = '';
+      setTimeout(() => {
+        displayMessage("", "info");
+        startNamedClickGame();
+      }, 1200);
+    } else if (cell.dataset.symbol) {
+      displayMessage(`No, that's ${cell.dataset.symbol}. Try again.`, 'fail');
+    }
+  }
+  
+  else if (containerId === 'locateSymbol-table' && locateSymbolActive && currentElementToGuess) {
+    if (cell.dataset.symbol === currentElementToGuess.symbol) {
+      displayMessage(`Correct! That was ${currentElementToGuess.nameEN}.`, 'success');
+      setTimeout(() => {
+        displayMessage("", "info");
+        nextLocateSymbolRound();
+      }, 1200);
+    } else if (cell.dataset.symbol) {
+      displayMessage(`No, that's ${cell.dataset.symbol}. Try again.`, 'fail');
+    }
+  }
+}
+
+
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+
+    
+    displayMessage("", "info");
+
+    
+    tab.classList.add('active');
+    const targetId = tab.dataset.tab;
+    const targetContent = document.getElementById(targetId);
+    if (targetContent) {
+      targetContent.classList.add('active');
+    }
+
+    
+    if (tab.dataset.tab !== "tab-locatesymbol") {
+      locateSymbolActive = false;
+    }
+    
+    if (tab.dataset.tab === "tab-locatesymbol") {
+      startLocateSymbolGame();
+    }
+  });
+});
+</script>
+</body>
+</html>
+

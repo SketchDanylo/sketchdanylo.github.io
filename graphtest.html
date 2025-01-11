@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Danylo's Graph Creator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #4b4b4b, #2e2e2e);
+      color: #d3d3d3;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+      overflow: auto;
+    }
+
+    .container {
+      background-color: rgba(50, 50, 50, 0.95);
+      border-radius: 15px;
+      padding: 30px;
+      max-width: 1200px;
+      width: 100%;
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(10px);
+      animation: fadeIn 1s ease-in-out;
+    }
+
+    h1 {
+      text-align: center;
+      color: #d3d3d3;
+      font-size: 2.5rem;
+      margin-bottom: 30px;
+      letter-spacing: 4px;
+      animation: bounceIn 1.5s ease-out;
+    }
+
+    .section {
+      margin-bottom: 25px;
+      animation: fadeInUp 1s ease-in-out;
+    }
+
+    .section-title {
+      margin-bottom: 15px;
+      font-weight: 600;
+      font-size: 1.3em;
+      color: #ffc4c4;
+      text-transform: uppercase;
+      border-bottom: 2px solid #ffc4c4;
+      padding-bottom: 5px;
+      transition: color 0.3s;
+    }
+
+    .section-title:hover {
+      color: #ffffff;
+    }
+
+    .input-group {
+      display: flex;
+      align-items: center;
+      margin-bottom: 15px;
+      opacity: 0;
+      transform: translateY(20px);
+      animation: fadeInUp 0.5s forwards;
+    }
+
+    label {
+      display: inline-block;
+      width: 180px;
+      font-weight: 600;
+      margin-right: 10px;
+      color: #d3d3d3;
+      transition: color 0.3s;
+    }
+
+    label:hover {
+      color: #c0c0c0;
+    }
+
+    input[type="number"],
+    input[type="text"],
+    select {
+      padding: 10px;
+      font-size: 1em;
+      width: 200px;
+      border: 1px solid #666;
+      border-radius: 8px;
+      background-color: #555;
+      color: #fff;
+      transition: filter 0.3s, border 0.3s;
+    }
+
+    input[type="number"]:focus,
+    input[type="text"]:focus,
+    select:focus {
+      outline: none;
+      border: none;
+      filter: blur(2px);
+    }
+
+    button {
+      padding: 12px 20px;
+      font-size: 1em;
+      cursor: pointer;
+      border: none;
+      background-color: #777;
+      color: white;
+      border-radius: 8px;
+      transition: background-color 0.3s, transform 0.2s;
+      margin-top: 10px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }
+
+    button:hover {
+      background-color: #888;
+      transform: translateY(-2px);
+    }
+
+    .add-button {
+      background-color: #555;
+      border-radius: 99999px;
+      width: 50px;
+      height: 50px;
+      font-size: 2rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-top: 20px;
+      transition: background-color 0.3s, transform 0.2s;
+    }
+
+    .add-button:hover {
+      background-color: #666;
+      transform: rotate(45deg);
+    }
+
+    .remove-button {
+      background-color: #777;
+      flex: 0 0 auto;
+      margin-left: 10px;
+      border-radius: 8px;
+      transition: background-color 0.3s, transform 0.2s;
+      height: 40px;
+      width: 40px;
+      font-size: 1.5rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: #fff;
+    }
+
+    .remove-button:hover {
+      background-color: #888;
+      transform: scale(1.1);
+    }
+
+    .average-button {
+      background-color: #777;
+      width: 100%;
+      margin-top: 20px;
+      transition: background-color 0.3s, transform 0.2s;
+    }
+
+    .average-button:hover {
+      background-color: #888;
+      transform: translateY(-2px);
+    }
+
+    #graph {
+      border: 2px solid #666;
+      margin-top: 30px;
+      cursor: pointer;
+      background-color: #fff;
+      width: 100%;
+      height: auto;
+      border-radius: 10px;
+      transition: transform 0.3s;
+      animation: fadeIn 1.5s ease-in-out;
+    }
+
+    #graph:hover {
+      transform: scale(1.02);
+    }
+
+    #scale-info {
+      margin-top: 40px;
+      background-color: rgba(70, 70, 70, 0.95);
+      padding: 25px;
+      border-radius: 10px;
+      border: 1px solid #ffc4c4;
+      color: #d3d3d3;
+      animation: fadeInUp 1s ease-in-out;
+    }
+
+    .scale-section-title {
+      font-size: 1.3em;
+      font-weight: 600;
+      margin-bottom: 15px;
+      color: #ffc4c4;
+      transition: color 0.3s;
+    }
+
+    .scale-section-title:hover {
+      color: #ffffff;
+    }
+
+    .scale-values {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+      gap: 10px;
+    }
+
+    .scale-list {
+      padding: 15px;
+      border: 1px solid #666;
+      border-radius: 8px;
+      background-color: #555;
+      width: auto;
+      max-width: none;
+      margin-bottom: 20px;
+      transition: background-color 0.3s;
+    }
+
+    .scale-list div {
+      margin-bottom: 10px;
+      padding: 5px 10px;
+      background-color: #666;
+      border-radius: 5px;
+      transition: background-color 0.3s, transform 0.2s;
+    }
+
+    .scale-list div:hover {
+      background-color: #777;
+      transform: translateX(5px);
+    }
+
+    .custom-values {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      animation: fadeInUp 1s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes bounceIn {
+      0% {
+        transform: scale(0.5);
+        opacity: 0;
+      }
+      60% {
+        transform: scale(1.05);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(1);
+      }
+    }
+
+    @media screen and (max-width: 800px) {
+      .scale-list {
+        width: 100%;
+      }
+      .input-group {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      input[type="number"],
+      input[type="text"],
+      select {
+        width: 100%;
+        max-width: 100%;
+      }
+    }
+
+    @media (min-width: 600px) {
+      .value-pair {
+        display: flex;
+        align-items: center;
+      }
+      .custom-values .input-group {
+        display: flex;
+        align-items: center;
+      }
+      .scale-values > div {
+        flex: 1 1 calc(50% - 20px);
+        max-width: calc(50% - 20px);
+      }
+    }
+
+    @media (min-width: 768px) {
+      label {
+        width: 180px;
+      }
+      input[type="number"],
+      input[type="text"],
+      select {
+        width: 200px;
+      }
+      .value-pair input,
+      .value-pair select {
+        flex: 1 1 auto;
+      }
+      .remove-button {
+        margin-left: 5px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Danylo's Graph Creator</h1>
+    <div class="section input-fields">
+      <div class="section-title">Dimensions of the Graph</div>
+      <div class="input-group">
+        <label for="graphWidth">Graph Width (cm):</label>
+        <input type="number" id="graphWidth" value="27" min="1" onchange="saveValues()">
+      </div>
+      <div class="input-group">
+        <label for="graphHeight">Graph Height (cm):</label>
+        <input type="number" id="graphHeight" value="17" min="1" onchange="saveValues()">
+      </div>
+      <div class="section">
+        <div class="section-title">Custom X and Y Values</div>
+        <div class="custom-values" id="customValues">
+        </div>
+        <button class="add-button" onclick="addCustomValue()">+</button>
+      </div>
+      <div class="section">
+        <div class="section-title">Custom Units</div>
+        <div class="input-group">
+          <label for="customUnitX">X-Axis Unit:</label>
+          <select id="customUnitX" onchange="toggleCustomUnit('X')">
+            <option value="g">g</option>
+            <option value="ml">ml</option>
+            <option value="l">l</option>
+            <option value="kg">kg</option>
+            <option value="custom">Custom</option>
+          </select>
+          <input type="text" id="customUnitXText" placeholder="Enter custom unit" style="display:none; margin-top:10px;" oninput="drawGraph()">
+        </div>
+        <div class="input-group">
+          <label for="customUnitY">Y-Axis Unit:</label>
+          <select id="customUnitY" onchange="toggleCustomUnit('Y')">
+            <option value="g">g</option>
+            <option value="ml">ml</option>
+            <option value="l">l</option>
+            <option value="kg">kg</option>
+            <option value="custom">Custom</option>
+          </select>
+          <input type="text" id="customUnitYText" placeholder="Enter custom unit" style="display:none; margin-top:10px;" oninput="drawGraph()">
+        </div>
+      </div>
+      <button class="average-button" onclick="drawAverageLine()">Draw Average Line</button>
+    </div>
+    <canvas id="graph"></canvas>
+    <div id="scale-info">
+      <div class="scale-section-title">Draw Helper</div>
+      <div class="scale-values">
+        <div>
+          <h3>X-Axis</h3>
+          <div id="xScaleList" class="scale-list">
+          </div>
+        </div>
+        <div>
+          <h3>Y-Axis</h3>
+          <div id="yScaleList" class="scale-list">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let customValuesCount = 0;
+    let customValues = JSON.parse(localStorage.getItem('customValues')) || [];
+    let graphWidth = parseFloat(localStorage.getItem('graphWidth')) || 27;
+    let graphHeight = parseFloat(localStorage.getItem('graphHeight')) || 17;
+
+    document.getElementById('graphWidth').value = graphWidth;
+    document.getElementById('graphHeight').value = graphHeight;
+
+    function toggleCustomUnit(axis) {
+      const unitSelect = document.getElementById(`customUnit${axis}`);
+      const customUnitText = document.getElementById(`customUnit${axis}Text`);
+      if (unitSelect.value === 'custom') {
+        customUnitText.style.display = 'block';
+      } else {
+        customUnitText.style.display = 'none';
+        customUnitText.value = '';
+      }
+      drawGraph();
+      saveValues();
+    }
+
+    function addCustomValue(x = '', y = '') {
+      customValuesCount++;
+      const customValuesContainer = document.getElementById('customValues');
+      const valuePairDiv = document.createElement('div');
+      valuePairDiv.className = 'value-pair';
+      valuePairDiv.id = `value-pair-${customValuesCount}`;
+      valuePairDiv.style.display = 'flex';
+      valuePairDiv.style.alignItems = 'center';
+
+      const xInput = document.createElement('input');
+      xInput.type = 'number';
+      xInput.placeholder = `X-Value ${customValuesCount}`;
+      xInput.id = `xValue-${customValuesCount}`;
+      xInput.value = x;
+      xInput.onblur = autoFillValue;
+      xInput.oninput = saveValues;
+
+      const yInput = document.createElement('input');
+      yInput.type = 'number';
+      yInput.placeholder = `Y-Value ${customValuesCount}`;
+      yInput.id = `yValue-${customValuesCount}`;
+      yInput.value = y;
+      yInput.onblur = autoFillValue;
+      yInput.oninput = saveValues;
+
+      const removeButton = document.createElement('button');
+      removeButton.textContent = '-';
+      removeButton.className = 'remove-button';
+      removeButton.onclick = function() {
+        customValuesContainer.removeChild(valuePairDiv);
+        saveValues();
+      };
+
+      valuePairDiv.appendChild(xInput);
+      valuePairDiv.appendChild(yInput);
+      valuePairDiv.appendChild(removeButton);
+      customValuesContainer.appendChild(valuePairDiv);
+
+      valuePairDiv.style.opacity = '0';
+      valuePairDiv.style.transform = 'translateY(20px)';
+      setTimeout(() => {
+        valuePairDiv.style.transition = 'opacity 0.5s, transform 0.5s';
+        valuePairDiv.style.opacity = '1';
+        valuePairDiv.style.transform = 'translateY(0)';
+      }, 100);
+
+      saveValues();
+    }
+
+    function saveValues() {
+      customValues = [];
+      const customValuesContainer = document.getElementById('customValues');
+      const valuePairs = customValuesContainer.getElementsByClassName('value-pair');
+      for (let i = 0; i < valuePairs.length; i++) {
+        const xInput = valuePairs[i].querySelector('input[id^="xValue-"]');
+        const yInput = valuePairs[i].querySelector('input[id^="yValue-"]');
+        const xValue = parseFloat(xInput.value);
+        const yValue = parseFloat(yInput.value);
+        if (!isNaN(xValue) && !isNaN(yValue)) {
+          customValues.push({ x: xValue, y: yValue });
+        }
+      }
+      localStorage.setItem('customValues', JSON.stringify(customValues));
+      localStorage.setItem('graphWidth', document.getElementById('graphWidth').value);
+      localStorage.setItem('graphHeight', document.getElementById('graphHeight').value);
+      drawGraph();
+    }
+
+    function autoFillValue() {
+      const xInput = this.parentNode.querySelector('input[id^="xValue-"]');
+      const yInput = this.parentNode.querySelector('input[id^="yValue-"]');
+
+      if (this === xInput && yInput.value === '') {
+        const xVal = parseFloat(xInput.value);
+        if (!isNaN(xVal) && customValues.length >= 2) {
+          const yVal = predictValue(xVal, 'x');
+          if (!isNaN(yVal)) {
+            yInput.value = yVal;
+            saveValues();
+          }
+        }
+      } else if (this === yInput && xInput.value === '') {
+        const yVal = parseFloat(yInput.value);
+        if (!isNaN(yVal) && customValues.length >= 2) {
+          const xVal = predictValue(yVal, 'y');
+          if (!isNaN(xVal)) {
+            xInput.value = xVal;
+            saveValues();
+          }
+        }
+      }
+    }
+
+    function getUnit(selectId, customTextId) {
+      const unitSelect = document.getElementById(selectId);
+      if (unitSelect.value === 'custom') {
+        return document.getElementById(customTextId).value || '';
+      }
+      return unitSelect.value;
+    }
+
+    function drawGraph() {
+      const canvas = document.getElementById('graph');
+      const ctx = canvas.getContext('2d');
+
+      const containerWidth = document.querySelector('.container').clientWidth;
+      const desiredWidth = containerWidth - 60;
+      const scaleFactor = 5;
+      canvas.width = desiredWidth * scaleFactor;
+      canvas.height = (desiredWidth * 0.625) * scaleFactor;
+      canvas.style.width = `${desiredWidth}px`;
+      canvas.style.height = `${(desiredWidth * 0.625)}px`;
+      ctx.scale(scaleFactor, scaleFactor);
+
+      const width = desiredWidth;
+      const height = desiredWidth * 0.625;
+
+      const graphWidthCm = parseFloat(document.getElementById('graphWidth').value);
+      const graphHeightCm = parseFloat(document.getElementById('graphHeight').value);
+
+      const xValues = customValues.map(val => val.x);
+      const yValues = customValues.map(val => val.y);
+
+      ctx.clearRect(0, 0, width, height);
+
+      if (xValues.length === 0 || yValues.length === 0) {
+        return;
+      }
+
+      const xMin = Math.min(...xValues);
+      const xMax = Math.max(...xValues);
+      const yMin = Math.min(...yValues);
+      const yMax = Math.max(...yValues);
+
+      const marginLeft = 60;
+      const marginRight = 20;
+      const marginTop = 40;
+      const marginBottom = 60;
+
+      
+      ctx.strokeStyle = '#777';
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i <= graphWidthCm * 5; i++) {
+        const x = marginLeft + (i * (width - marginLeft - marginRight) / (graphWidthCm * 5));
+        ctx.beginPath();
+        ctx.moveTo(x, marginTop);
+        ctx.lineTo(x, height - marginBottom);
+        ctx.stroke();
+      }
+
+      for (let i = 0; i <= graphHeightCm * 5; i++) {
+        const y = height - marginBottom - (i * (height - marginTop - marginBottom) / (graphHeightCm * 5));
+        ctx.beginPath();
+        ctx.moveTo(marginLeft, y);
+        ctx.lineTo(width - marginRight, y);
+        ctx.stroke();
+      }
+
+      
+      ctx.strokeStyle = '#ffc4c4'; 
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= graphWidthCm; i++) {
+        const x = marginLeft + (i * (width - marginLeft - marginRight) / graphWidthCm);
+        ctx.beginPath();
+        ctx.moveTo(x, marginTop);
+        ctx.lineTo(x, height - marginBottom);
+        ctx.stroke();
+      }
+
+      for (let i = 0; i <= graphHeightCm; i++) {
+        const y = height - marginBottom - (i * (height - marginTop - marginBottom) / graphHeightCm);
+        ctx.beginPath();
+        ctx.moveTo(marginLeft, y);
+        ctx.lineTo(width - marginRight, y);
+        ctx.stroke();
+      }
+
+      
+      ctx.fillStyle = '#ff5722';
+      ctx.strokeStyle = '#ffc4c4'; 
+      ctx.lineWidth = 2;
+
+      xValues.forEach((xVal, index) => {
+        const yVal = yValues[index];
+        const xPos = marginLeft + ((xVal - xMin) / (xMax - xMin)) * (width - marginLeft - marginRight);
+        const yPos = height - marginBottom - ((yVal - yMin) / (yMax - yMin)) * (height - marginTop - marginBottom);
+
+        ctx.beginPath();
+        ctx.arc(xPos, yPos, 4, 0, 2 * Math.PI); 
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#d3d3d3';
+        ctx.font = '12px Poppins';
+        const xLabel = `${xVal} ${getUnit('customUnitX', 'customUnitXText')}`;
+        ctx.fillText(xLabel, xPos - 20, height - marginBottom + 20);
+
+        const yLabel = `${yVal} ${getUnit('customUnitY', 'customUnitYText')}`;
+        ctx.fillText(yLabel, 10, yPos + 5);
+
+        ctx.fillStyle = '#ff5722';
+      });
+
+      
+      ctx.strokeStyle = '#a9a9a9';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(marginLeft, marginTop);
+      ctx.lineTo(width - marginRight, marginTop);
+      ctx.lineTo(width - marginRight, height - marginBottom);
+      ctx.lineTo(marginLeft, height - marginBottom);
+      ctx.closePath();
+      ctx.stroke();
+
+      updateScaleInfo(xValues, yValues, xMin, xMax, yMin, yMax);
+    }
+
+    function updateScaleInfo(xValues, yValues, xMin, xMax, yMin, yMax) {
+      const xScaleList = document.getElementById('xScaleList');
+      const yScaleList = document.getElementById('yScaleList');
+      xScaleList.innerHTML = '';
+      yScaleList.innerHTML = '';
+
+      xValues.forEach((xVal, index) => {
+        const yVal = yValues[index];
+        const xPosCm = ((xVal - xMin) / (xMax - xMin)) * parseFloat(document.getElementById('graphWidth').value);
+        const yPosCm = ((yVal - yMin) / (yMax - yMin)) * parseFloat(document.getElementById('graphHeight').value);
+
+        const xScaleItem = document.createElement('div');
+        xScaleItem.textContent = `${xVal} ${getUnit('customUnitX', 'customUnitXText')} - ${xPosCm.toFixed(2)} cm`;
+        xScaleList.appendChild(xScaleItem);
+
+        const yScaleItem = document.createElement('div');
+        yScaleItem.textContent = `${yVal} ${getUnit('customUnitY', 'customUnitYText')} - ${yPosCm.toFixed(2)} cm`;
+        yScaleList.appendChild(yScaleItem);
+      });
+    }
+
+    function drawAverageLine() {
+      if (customValues.length < 2) {
+        alert('At least two data points are required to draw an average line.');
+        return;
+      }
+
+      const canvas = document.getElementById('graph');
+      const ctx = canvas.getContext('2d');
+
+      const desiredWidth = canvas.width / 5;
+      const desiredHeight = canvas.height / 5;
+
+      const graphWidthCm = parseFloat(document.getElementById('graphWidth').value);
+      const graphHeightCm = parseFloat(document.getElementById('graphHeight').value);
+
+      const xValues = customValues.map(val => val.x);
+      const yValues = customValues.map(val => val.y);
+
+      const xMin = Math.min(...xValues);
+      const xMax = Math.max(...xValues);
+      const yMin = Math.min(...yValues);
+      const yMax = Math.max(...yValues);
+
+      const marginLeft = 60;
+      const marginRight = 20;
+      const marginTop = 40;
+      const marginBottom = 60;
+
+      const xDifferences = xValues.map(x => x - xMin);
+      const yDifferences = yValues.map(y => y - yMin);
+      const numerator = xDifferences.reduce((sum, xDiff, i) => sum + xDiff * yDifferences[i], 0);
+      const denominator = xDifferences.reduce((sum, xDiff) => sum + xDiff * xDiff, 0);
+
+      if (denominator === 0) {
+        alert('Cannot compute average line due to zero variance in X values.');
+        return;
+      }
+
+      const m = numerator / denominator;
+      const b = yMin - m * xMin;
+
+      const x1Value = xMin;
+      const y1Value = m * x1Value + b;
+      const x2Value = xMax;
+      const y2Value = m * x2Value + b;
+
+      const x1 = marginLeft + ((x1Value - xMin) / (xMax - xMin)) * (desiredWidth - marginLeft - marginRight);
+      const y1 = desiredHeight - marginBottom - ((y1Value - yMin) / (yMax - yMin)) * (desiredHeight - marginTop - marginBottom);
+      const x2 = marginLeft + ((x2Value - xMin) / (xMax - xMin)) * (desiredWidth - marginLeft - marginRight);
+      const y2 = desiredHeight - marginBottom - ((y2Value - yMin) / (yMax - yMin)) * (desiredHeight - marginTop - marginBottom);
+
+      ctx.strokeStyle = '#a9a9a9';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+
+      updateScaleInfo(xValues, yValues, xMin, xMax, yMin, yMax);
+    }
+
+    function predictValue(value, axis) {
+      if (customValues.length < 2) {
+        return NaN;
+      }
+
+      const xValues = customValues.map(val => val.x);
+      const yValues = customValues.map(val => val.y);
+
+      const xMin = Math.min(...xValues);
+      const yMin = Math.min(...yValues);
+
+      const xDifferences = xValues.map(x => x - xMin);
+      const yDifferences = yValues.map(y => y - yMin);
+
+      const numerator = xDifferences.reduce((sum, xDiff, i) => sum + xDiff * yDifferences[i], 0);
+      const denominator = xDifferences.reduce((sum, xDiff) => sum + xDiff * xDiff, 0);
+
+      if (denominator === 0) {
+        return NaN;
+      }
+
+      const m = numerator / denominator;
+      const b = yMin - m * xMin;
+
+      if (axis === 'x') {
+        return m * value + b;
+      } else if (axis === 'y') {
+        if (m === 0) {
+          return NaN;
+        }
+        return (value - b) / m;
+      }
+
+      return NaN;
+    }
+
+    if (customValues.length > 0) {
+      customValues.forEach(val => addCustomValue(val.x, val.y));
+    } else {
+      addCustomValue();
+    }
+
+    drawGraph();
+
+    window.addEventListener('resize', () => {
+      debounce(drawGraph, 300)();
+    });
+
+    function debounce(func, wait) {
+      let timeout;
+      return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+      };
+    }
+  </script>
+</body>
+</html>
