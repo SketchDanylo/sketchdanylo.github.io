@@ -6,9 +6,7 @@
   <title>Nomenclature Tool</title>
   <style>
     * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+      margin: 0; padding: 0; box-sizing: border-box;
       user-select: none;
     }
     body {
@@ -23,1481 +21,896 @@
       transition: background 0.5s ease;
     }
     .container {
-      background-color: rgba(30, 30, 30, 0.95);
+      background-color: rgba(30,30,30,0.95);
       border-radius: 15px;
       padding: 20px;
-      max-width: 900px;
-      width: 100%;
-      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+      max-width: 900px; width: 100%;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.4);
       backdrop-filter: blur(10px);
       position: relative;
       transition: transform 0.5s ease;
     }
     h1 {
-      text-align: center;
-      font-size: 3rem;
-      color: #f1f1f1;
-      margin-bottom: 20px;
-      letter-spacing: 2px;
-      font-weight: bold;
+      text-align: center; font-size: 2.5rem;
+      color: #f1f1f1; margin-bottom: 20px;
+      letter-spacing: 2px; font-weight: bold;
       transition: color 0.5s ease;
     }
     .toolbar {
-      display: flex;
-      flex-wrap: wrap;
+      display: flex; flex-wrap: wrap;
       justify-content: center;
-      margin-bottom: 15px;
-      gap: 10px;
+      margin-bottom: 15px; gap: 10px;
     }
     .toolbar button {
-      background-color: #444;
-      border: none;
-      border-radius: 8px;
-      padding: 10px 15px;
-      cursor: pointer;
-      color: #f1f1f1;
-      font-size: 1rem;
-      transition: background-color 0.3s ease, transform 0.2s ease,
-        box-shadow 0.3s ease, color 0.3s ease;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 5px;
-      min-width: 40px;
-      font-weight: bold;
+      background-color: #444; border: none;
+      border-radius: 8px; padding: 10px 15px;
+      cursor: pointer; color: #f1f1f1;
+      font-size: 1rem; font-weight: bold;
+      display: flex; align-items: center; justify-content: center;
+      gap: 5px; min-width: 40px;
+      transition: background-color 0.3s, transform 0.2s,
+                  box-shadow 0.3s, color 0.3s;
     }
     .toolbar button:hover {
       background-color: #555;
       transform: scale(1.05);
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
       color: #fff;
     }
-    .toolbar button:active {
-      transform: translateY(0);
-    }
-    .toolbar button .icon {
-      width: 20px;
-      height: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.2rem;
-      font-weight: bold;
-    }
+    .toolbar button:active { transform: translateY(0); }
     .toolbar button.active {
       background-color: #2ecc71;
-      box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5);
+      box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
     }
     #atomCounts {
-      text-align: center;
-      margin-bottom: 10px;
-      font-size: 1.1rem;
-      animation: fadeIn 0.5s ease;
-      transition: opacity 0.3s ease, pointer-events 0.3s ease;
-      background-color: rgba(50, 50, 50, 0.8);
-      padding: 10px;
-      border-radius: 8px;
-      display: flex;
-      justify-content: center;
-      gap: 15px;
-      font-weight: bold;
-    }
-    #atomCounts span:hover {
-      text-shadow: 0 0 5px #fff;
-      transform: scale(1.1);
-      transition: transform 0.2s ease, text-shadow 0.3s ease;
+      text-align: center; margin-bottom: 10px;
+      font-size: 1.1rem; font-weight: bold;
+      background-color: rgba(50,50,50,0.8);
+      padding: 10px; border-radius: 8px;
+      display: flex; justify-content: center; gap: 15px;
     }
     #canvasContainer {
-      border: 2px solid;
-      width: 800px;
-      height: 600px;
-      position: relative;
-      margin: 0 auto 20px auto;
+      border: 2px solid; width: 800px; height: 600px;
+      position: relative; margin: 0 auto 20px auto;
       border-radius: 10px;
       background-color: #1e1e1e;
-      box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
-      transition: border 0.3s ease;
-    }
-    #canvasContainer:hover {
-      border: 2px solid #2ecc71;
-    }
-    canvas {
-      border-radius: 10px;
-      cursor: crosshair;
-      transition: transform 0.5s ease;
-    }
-    canvas.adding-atom {
-      cursor: pointer;
-    }
-    canvas.drawing-bond {
-      cursor: cell;
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
     }
     .context-menu {
       position: absolute;
-      background: rgba(50, 50, 50, 0.95);
-      color: #f1f1f1;
-      display: none;
-      border: 1px solid #555;
-      border-radius: 10px;
-      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+      background: rgba(50,50,50,0.95);
+      color: #f1f1f1; display: none;
+      border: 1px solid #555; border-radius: 10px;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.4);
       z-index: 1000;
-      animation: fadeIn 0.3s ease;
-      transition: opacity 0.3s ease;
     }
     .context-menu div {
-      padding: 10px 15px;
-      cursor: pointer;
-      transition: background-color 0.3s ease;
-      font-weight: bold;
-      display: flex;
-      align-items: center;
-      gap: 5px;
+      padding: 10px 15px; cursor: pointer;
+      font-weight: bold; display: flex; gap: 5px;
     }
     .context-menu div:hover {
       background-color: #555;
     }
     .no-name {
-      background-color: #555;
-      border-left: 4px solid #e74c3c;
-      padding: 15px;
-      margin: 10px 0;
-      font-weight: bold;
-      border-radius: 5px;
-      animation: fadeIn 0.5s ease;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      transition: background-color 0.3s ease, border-left-color 0.3s ease;
+      background-color: #555; border-left: 4px solid #e74c3c;
+      padding: 15px; margin: 10px 0; font-weight: bold;
+      border-radius: 5px; display: flex; gap: 10px;
     }
     .name-result {
-      background-color: #555;
-      border-left: 4px solid #2ecc71;
-      padding: 15px;
-      margin: 10px 0;
-      border-radius: 5px;
-      animation: fadeIn 0.5s ease;
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-      transition: background-color 0.3s ease, border-left-color 0.3s ease;
+      background-color: #555; border-left: 4px solid #2ecc71;
+      padding: 15px; margin: 10px 0;
+      border-radius: 5px; display: flex; flex-direction: column; gap: 5px;
     }
-    .name-result:hover {
-      background-color: #666;
+    @media (max-width:900px) {
+      #canvasContainer { width:100%; height:400px; }
+      h1 { font-size: 2rem; }
     }
-    .hidden {
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.3s ease, pointer-events 0.3s ease;
+    @media (max-width:600px) {
+      h1 { font-size: 1.5rem; }
+      .toolbar button { padding: 8px 10px; font-size:0.9rem; }
+      #atomCounts { font-size: 0.9rem; }
+      #canvasContainer { height:300px; }
     }
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(-10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-    @media screen and (max-width: 900px) {
-      #canvasContainer {
-        width: 100%;
-        height: 400px;
-      }
-      h1 {
-        font-size: 2.5rem;
-      }
-    }
-    @media screen and (max-width: 600px) {
-      h1 {
-        font-size: 2rem;
-      }
-      .toolbar button {
-        padding: 8px 10px;
-        font-size: 0.9rem;
-      }
-      #atomCounts {
-        font-size: 1rem;
-      }
-      #canvasContainer {
-        height: 300px;
-      }
-    }
-    .modal-backdrop {
-      position: fixed;
-      top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.6);
-      display: none;
-      justify-content: center;
-      align-items: center;
-      z-index: 2000;
-    }
-    .modal-backdrop.show {
-      display: flex;
-    }
-    .modal-content {
-      background: #2e2e2e;
-      border-radius: 10px;
-      padding: 20px;
-      width: 400px;
-      color: #f1f1f1;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-      position: relative;
-    }
-    .modal-content h2 {
-      margin-bottom: 15px;
-    }
-    .modal-content label {
-      display: block;
-      margin-bottom: 5px;
-      font-weight: bold;
-    }
-    .modal-content input[type="number"],
-    .modal-content select,
-    .modal-content input[type="text"] {
-      width: 100%;
-      margin-bottom: 10px;
-      padding: 5px;
-      border-radius: 5px;
-      border: none;
-      background: #444;
-      color: #f1f1f1;
-    }
-    .modal-content button {
-      margin-top: 10px;
-      padding: 10px;
-      border-radius: 5px;
-      border: none;
-      cursor: pointer;
-      font-weight: bold;
-      background: #555;
-      color: #fff;
-    }
-    .modal-content button:hover {
-      background: #666;
-    }
-    .close-modal {
-      position: absolute;
-      top: 10px; right: 10px;
-      background: transparent;
-      color: #aaa;
-      font-size: 1.2rem;
-      border: none;
-      cursor: pointer;
-    }
-    .close-modal:hover {
-      color: #fff;
-    }
-
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Danylo's Nomenclature Engine</h1>
+<div class="container">
+  <h1>Danylo's Nomenclature Engine</h1>
 
-    <!-- Atom Counts -->
-    <div id="atomCounts">
-      <span style="color: #ebdfac;">C: 0</span> |
-      <span style="color: #4a9dcf;">H: 0</span> |
-      <span style="color: #fa5e5c;">O: 0</span> |
-      <span style="color: #078f00;">N: 0</span>
-    </div>
-
-    <!-- Toolbar -->
-    <div class="toolbar">
-      <button id="addC" title="Add Carbon" aria-label="Add Carbon">
-        <span class="icon" style="color: #ebdfac;">C</span>
-      </button>
-      <button id="addH" title="Add Hydrogen" aria-label="Add Hydrogen">
-        <span class="icon" style="color: #4a9dcf;">H</span>
-      </button>
-      <button id="addO" title="Add Oxygen" aria-label="Add Oxygen">
-        <span class="icon" style="color: #fa5e5c;">O</span>
-      </button>
-      <button id="addN" title="Add Nitrogen" aria-label="Add Nitrogen">
-        <span class="icon" style="color: #078f00;">N</span>
-      </button>
-      <button id="bondSingle" title="Single Bond" aria-label="Single Bond">
-        <span class="icon" style="color: #f1f1f1;">-</span>
-      </button>
-      <button id="autoHBtn" title="Auto Fill Hydrogens" aria-label="Auto Fill Hydrogens">
-        <span class="icon" style="color: #f1f1f1;">🪄</span>
-      </button>
-      <button id="undoBtn" title="Undo" aria-label="Undo">
-        <span class="icon" style="color: #f1f1f1;">↩️</span>
-      </button>
-      <button id="redoBtn" title="Redo" aria-label="Redo">
-        <span class="icon" style="color: #f1f1f1;">↪️</span>
-      </button>
-      <button id="clearBtn" title="Clear All" aria-label="Clear All">
-        <span class="icon" style="color: #f1f1f1;">🗑️</span>
-      </button>
-      <button id="namingBtn" title="Generate Name" aria-label="Generate Name">
-        <span class="icon" style="color: #f1f1f1;">🔎</span>
-      </button>
-      <button id="openSettingsBtn" title="Open Random/Name Settings" aria-label="Open Settings">
-        <span class="icon" style="color: #f1f1f1;">⚙️</span>
-      </button>
-    </div>
-
-    <!-- Canvas -->
-    <div id="canvasContainer">
-      <canvas id="molCanvas" width="800" height="600"></canvas>
-    </div>
-
-    <!-- Results / Suggestions -->
-    <div id="namingResults"></div>
-    <div id="suggestions"></div>
+  <div id="atomCounts">
+    <span style="color: #ebdfac;">C: 0</span> |
+    <span style="color: #4a9dcf;">H: 0</span> |
+    <span style="color: #fa5e5c;">O: 0</span> |
+    <span style="color: #078f00;">N: 0</span>
   </div>
 
-  <!-- Context Menu -->
-  <div class="context-menu" id="contextMenu">
-    <div id="deleteAtomItem" style="display: none;">🗑️ Delete Atom</div>
-    <div id="addPositiveCharge" style="display: none;">➕ Positive</div>
-    <div id="addNegativeCharge" style="display: none;">➖ Negative</div>
-    <div id="addNeutralCharge" style="display: none;">⚪️ Neutral</div>
-    <div id="deleteBondItem" style="display: none;">🗑️ Delete Bond</div>
-    <div id="bondDoubleItem" style="display: none;">|| Bond</div>
-    <div id="bondTripleItem" style="display: none;">||| Bond</div>
-    <div id="cancelItem">❌ Cancel</div>
+  <div class="toolbar">
+    <button id="addC" title="Add Carbon" aria-label="Add Carbon">
+      <span style="color: #ebdfac;">C</span>
+    </button>
+    <button id="addH" title="Add Hydrogen" aria-label="Add Hydrogen">
+      <span style="color: #4a9dcf;">H</span>
+    </button>
+    <button id="bondSingle" title="Single Bond" aria-label="Single Bond">
+      <span style="color: #f1f1f1;">-</span>
+    </button>
+    <button id="autoHBtn" title="Auto Fill Hydrogens" aria-label="Auto Fill Hydrogens">
+      <span style="color: #f1f1f1;">🪄</span>
+    </button>
+    <button id="undoBtn" title="Undo" aria-label="Undo">
+      <span style="color: #f1f1f1;">↩️</span>
+    </button>
+    <button id="redoBtn" title="Redo" aria-label="Redo">
+      <span style="color: #f1f1f1;">↪️</span>
+    </button>
+    <button id="clearBtn" title="Clear All" aria-label="Clear All">
+      <span style="color: #f1f1f1;">🗑️</span>
+    </button>
+    <button id="namingBtn" title="Generate Name" aria-label="Generate Name">
+      <span style="color: #f1f1f1;">🔎</span>
+    </button>
   </div>
 
-  <!-- Modal Backdrop -->
-  <div class="modal-backdrop" id="settingsModal">
-    <div class="modal-content">
-      <button class="close-modal" id="closeModalBtn">✖</button>
-      <h2>Addons</h2>
-      <label for="nameInput">Build from Name <span style="color: red;">(BETA)</span></label>
-    
-      <input type="text" id="nameInput" placeholder="e.g. 3-Ethyl-2-methylpentan"/>
-      <button id="buildFromNameBtn">Build This Structure</button>
-      <hr style="margin: 15px 0; border: none; border-bottom: 1px solid #555;" />
-      <label for="numCarbons">Number of Carbons</label>
-      <input type="number" id="numCarbons" min="1" max="30" value="5"/>
-      <label for="numSubstituents">Max Substituents <span style="color: red;">(BETA)</span></label>
-      <input type="number" id="numSubstituents" min="0" max="10" value="2"/>
-      <label for="bondType">Bond Type (main chain)</label>
-      <select id="bondType">
-        <option value="single" selected>Single</option>
-        <option value="double">Double</option>
-        <option value="triple">Triple</option>
-      </select>
-      <button id="generateRandomBtn">Generate Random Structure</button>
-    </div>
+  <div id="canvasContainer">
+    <canvas id="molCanvas" width="800" height="600"></canvas>
   </div>
 
-  <script>
-    /**************************************************
-     * Global Variables & Setup
-     **************************************************/
-    const canvas = document.getElementById("molCanvas");
-    const ctx = canvas.getContext("2d");
-    let currentTool = "atom";
-    let currentAtom = "C";
-    let currentBondType = "single";
-    let atoms = [];
-    let bonds = [];
-    let bondStart = -1;
-    let mainChainIndices = [];
-    const historyStack = [];
-    const redoStack = [];
+  <div id="namingResults"></div>
+</div>
 
-    const contextMenu = document.getElementById("contextMenu");
-    const namingResults = document.getElementById("namingResults");
-    const suggestionsBox = document.getElementById("suggestions");
-    const atomCountsDisplay = document.getElementById("atomCounts");
+<div class="context-menu" id="contextMenu">
+  <div id="deleteAtomItem" style="display:none;">🗑️ Delete Atom</div>
+  <div id="deleteBondItem" style="display:none;">🗑️ Delete Bond</div>
+  <div id="bondDoubleItem" style="display:none;">|| Bond</div>
+  <div id="bondTripleItem" style="display:none;">||| Bond</div>
+  <div id="cancelItem">❌ Cancel</div>
+</div>
 
-    let isDraggingAtom = false;
-    let dragAtomIndex = -1;
+<script>
 
-    const atomColors = { C: "#ebdfac", H: "#4a9dcf", O: "#fa5e5c", N: "#078f00" };
-    const chainColor = "#90ee90";
+const canvas = document.getElementById("molCanvas");
+const ctx = canvas.getContext("2d");
+let currentTool = "atom";
+let currentAtom = "C";
+let currentBondType = "single";
+let atoms = [];
+let bonds = [];
+let bondStart = -1;
+let isDraggingAtom = false;
+let dragAtomIndex = -1;
 
-    // Extend your known prefix dictionary to up to 11 at least
-    const alkylPrefixes = {
-      1:  { en: "meth",   de: "meth",    uk: "мет"    },
-      2:  { en: "eth",    de: "eth",     uk: "ет"     },
-      3:  { en: "prop",   de: "prop",    uk: "проп"   },
-      4:  { en: "but",    de: "but",     uk: "бут"    },
-      5:  { en: "pent",   de: "pent",    uk: "пент"   },
-      6:  { en: "hex",    de: "hex",     uk: "гекс"   },
-      7:  { en: "hept",   de: "hept",    uk: "гепт"   },
-      8:  { en: "oct",    de: "oct",     uk: "окт"    },
-      9:  { en: "non",    de: "non",     uk: "нон"    },
-      10: { en: "dec",    de: "dec",     uk: "дек"    },
-      11: { en: "undec",  de: "undec",   uk: "ундек"  }
-      // ... up to 30 if desired ...
-    };
+const historyStack = [];
+const redoStack = [];
 
-    const suffixes = {
-      en: { single: "ane", double: "ene", triple: "yne" },
-      de: { single: "an",  double: "en",  triple: "in"  },
-      uk: { single: "ан",  double: "ен",  triple: "ін"  }
-    };
+const contextMenu = document.getElementById("contextMenu");
+const namingResults = document.getElementById("namingResults");
+const atomCountsDisplay = document.getElementById("atomCounts");
 
-    // Known strings for fuzzy suggestions
-    const knownNamesForFuzzy = [
-      "methane","ethane","propane","propan","butan","butane",
-      "pentan","pentane","hexan","hexane","undecan","undecane",
-      "3-ethyl-2-methylpentan","2-methylpentan",
-      "propen","propin","buten","butin","penten","pentin"
-    ];
+const chainColor = "#90ee90";
+const pinkColor  = "#ff69b4"; 
+let mainChainIndices = [];  
+let highlightAtoms = new Set(); 
 
-    // For demonstration: substituent lengths
-    const substituentLengths = {
-      "methyl": 1,
-      "ethyl": 2,
-      "propyl": 3,
-      "butyl": 4,
-      "pentyl": 5,
-      "hexyl": 6
-      // etc.
-    };
+const atomColors = {
+  C: "#ebdfac",
+  H: "#4a9dcf"
+};
 
-    /**************************************************
-     * History
-     **************************************************/
-    function pushHistory() {
-      redoStack.length = 0;
-      const state = JSON.stringify({ atoms, bonds });
-      historyStack.push(state);
+
+const alkylPrefixes = {
+  1:  { en: "meth",  de: "meth" },
+  2:  { en: "eth",   de: "eth"  },
+  3:  { en: "prop",  de: "prop" },
+  4:  { en: "but",   de: "but"  },
+  5:  { en: "pent",  de: "pent" },
+  6:  { en: "hex",   de: "hex"  },
+  7:  { en: "hept",  de: "hept" },
+  8:  { en: "oct",   de: "oct"  },
+  9:  { en: "non",   de: "non"  },
+  10: { en: "dec",   de: "dec"  },
+  11: { en: "undec", de: "undec" },
+  12: { en: "dodec",  de: "dodec"  },
+  13: { en: "tridec", de: "tridec" },
+  14: { en: "tetradec", de: "tetradec" },
+  15: { en: "pentadec", de: "pentadec" },
+  16: { en: "hexadec",  de: "hexadec"  },
+  17: { en: "heptadec", de: "heptadec" },
+  18: { en: "octadec",  de: "octadec"  },
+  19: { en: "nonadec",  de: "nonadec"  },
+  20: { en: "icos",     de: "icos"     },
+  21: { en: "henicos",  de: "henicos"  },
+  22: { en: "docos",    de: "docos"    },
+  23: { en: "tricos",   de: "tricos"   },
+  24: { en: "tetracos", de: "tetracos" },
+  25: { en: "pentacos", de: "pentacos" },
+  26: { en: "hexacos",  de: "hexacos"  },
+  27: { en: "heptacos", de: "heptacos" },
+  28: { en: "octacos",  de: "octacos"  },
+  29: { en: "nonacos",  de: "nonacos"  },
+  30: { en: "triacont", de: "triacont" }
+};
+
+const suffixes = {
+  en: { single: "ane", double: "ene", triple: "yne" },
+  de: { single: "an",  double: "en",  triple: "in"  }
+};
+
+
+function pushHistory(){
+  redoStack.length=0;
+  const state= JSON.stringify({atoms,bonds});
+  historyStack.push(state);
+}
+function undo(){
+  if(historyStack.length>1){
+    const curr= historyStack.pop();
+    redoStack.push(curr);
+    const prev= historyStack[historyStack.length-1];
+    const s= JSON.parse(prev);
+    atoms=s.atoms; bonds=s.bonds;
+    redraw(); updateAtomCounts();
+  }
+}
+function redo(){
+  if(redoStack.length>0){
+    const next= redoStack.pop();
+    historyStack.push(next);
+    const s= JSON.parse(next);
+    atoms=s.atoms; bonds=s.bonds;
+    redraw(); updateAtomCounts();
+  }
+}
+
+
+function updateAtomCounts(){
+  const counts={C:0,H:0,O:0,N:0};
+  atoms.forEach(a=>{
+    if(counts[a.atom]!==undefined) counts[a.atom]++;
+  });
+  atomCountsDisplay.innerHTML=`
+    <span style="color:#ebdfac;">C: ${counts["C"]}</span> |
+    <span style="color:#4a9dcf;">H: ${counts["H"]}</span> |
+    <span style="color:#fa5e5c;">O: ${counts["O"]}</span> |
+    <span style="color:#078f00;">N: ${counts["N"]}</span>
+  `;
+}
+function redraw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  
+  bonds.forEach(b=>{
+    const a1= atoms[b.from], a2= atoms[b.to];
+    if(!a1||!a2) return;
+    ctx.lineWidth=2;
+    let strokeStyle="#aaa";
+    if(mainChainIndices.includes(b.from) && mainChainIndices.includes(b.to)){
+      strokeStyle= chainColor;
     }
-    function undo() {
-      if (historyStack.length > 1) {
-        const current = historyStack.pop();
-        redoStack.push(current);
-        const prev = historyStack[historyStack.length - 1];
-        const s = JSON.parse(prev);
-        atoms = s.atoms;
-        bonds = s.bonds;
-        redraw();
-        updateAtomCounts();
-      }
-    }
-    function redo() {
-      if (redoStack.length > 0) {
-        const next = redoStack.pop();
-        historyStack.push(next);
-        const s = JSON.parse(next);
-        atoms = s.atoms;
-        bonds = s.bonds;
-        redraw();
-        updateAtomCounts();
-      }
-    }
+    ctx.strokeStyle= strokeStyle;
+    ctx.beginPath();
+    ctx.moveTo(a1.x,a1.y);
+    ctx.lineTo(a2.x,a2.y);
+    ctx.stroke();
+  });
+  
+  atoms.forEach((atom,i)=>{
+    let color= atomColors[atom.atom]||"#fff";
+    if(highlightAtoms.has(i)) color= pinkColor;
+    else if(mainChainIndices.includes(i) && atom.atom==="C") color= chainColor;
 
-    /**************************************************
-     * Update & Redraw
-     **************************************************/
-    function updateAtomCounts() {
-      const counts = { C: 0, H: 0, O: 0, N: 0 };
-      atoms.forEach((atom) => {
-        if (counts.hasOwnProperty(atom.atom)) {
-          counts[atom.atom]++;
-        }
-      });
-      atomCountsDisplay.innerHTML = `
-        <span style="color: #ebdfac;">C: ${counts["C"]}</span> |
-        <span style="color: #4a9dcf;">H: ${counts["H"]}</span> |
-        <span style="color: #fa5e5c;">O: ${counts["O"]}</span> |
-        <span style="color: #078f00;">N: ${counts["N"]}</span>
-      `;
+    ctx.beginPath();
+    ctx.fillStyle=color;
+    ctx.arc(atom.x,atom.y,15,0,2*Math.PI);
+    ctx.fill();
+    ctx.strokeStyle="#000";
+    ctx.lineWidth=1;
+    ctx.stroke();
+
+    ctx.fillStyle="#000"; ctx.font="bold 16px Poppins";
+    const label= atom.atom;
+    const tw= ctx.measureText(label).width;
+    ctx.fillText(label, atom.x- tw/2, atom.y+6);
+  });
+}
+
+
+canvas.addEventListener("contextmenu",(e)=>{
+  e.preventDefault();
+  const rect= canvas.getBoundingClientRect();
+  const x= e.clientX - rect.left;
+  const y= e.clientY - rect.top;
+  const a= findAtom(x,y);
+  const bd= findBond(x,y);
+  showContextMenu(e.clientX,e.clientY,a,bd);
+});
+
+canvas.addEventListener("mousedown",(e)=>{
+  if(e.button===2) return;
+  const rect= canvas.getBoundingClientRect();
+  const x= e.clientX - rect.left;
+  const y= e.clientY - rect.top;
+
+  if(currentTool==="atom"){
+    const clicked= findAtom(x,y);
+    if(clicked>=0){
+      isDraggingAtom=true; dragAtomIndex= clicked;
+    } else {
+      addAtomWithNearestBond(currentAtom,x,y);
     }
-    function redraw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Draw bonds
-      bonds.forEach((bond) => {
-        const a1 = atoms[bond.from];
-        const a2 = atoms[bond.to];
-        if (!a1 || !a2) return;
-        const gradient = ctx.createLinearGradient(a1.x, a1.y, a2.x, a2.y);
-        gradient.addColorStop(0, getAtomDrawColor(bond.from));
-        gradient.addColorStop(1, getAtomDrawColor(bond.to));
-        ctx.strokeStyle = gradient;
-        ctx.lineWidth = 2;
-        const dx = a2.x - a1.x;
-        const dy = a2.y - a1.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        let offx = 0, offy = 0;
-        if (bond.type === "double") {
-          offx = (-dy / dist) * 3;
-          offy = (dx / dist) * 3;
-        } else if (bond.type === "triple") {
-          offx = (-dy / dist) * 6;
-          offy = (dx / dist) * 6;
-        }
-        if (bond.type === "double" || bond.type === "triple") {
-          ctx.beginPath();
-          ctx.moveTo(a1.x + offx, a1.y + offy);
-          ctx.lineTo(a2.x + offx, a2.y + offy);
-          ctx.stroke();
-
-          ctx.beginPath();
-          ctx.moveTo(a1.x - offx, a1.y - offy);
-          ctx.lineTo(a2.x - offx, a2.y - offy);
-          ctx.stroke();
-
-          if (bond.type === "triple") {
-            ctx.beginPath();
-            ctx.moveTo(a1.x, a1.y);
-            ctx.lineTo(a2.x, a2.y);
-            ctx.stroke();
-          }
-        } else {
-          ctx.beginPath();
-          ctx.moveTo(a1.x, a1.y);
-          ctx.lineTo(a2.x, a2.y);
-          ctx.stroke();
-        }
-      });
-
-      // Draw atoms
-      atoms.forEach((atom, index) => {
-        const color = getAtomDrawColor(index);
-        ctx.beginPath();
-        ctx.fillStyle = color;
-        ctx.strokeStyle = "#000000";
-        ctx.lineWidth = 1;
-        ctx.arc(atom.x, atom.y, 15, 0, 2 * Math.PI);
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = "#000000";
-        ctx.font = "bold 16px Poppins, sans-serif";
-        const label = atom.atom + (atom.charge === 1 ? "+" : atom.charge === -1 ? "-" : "");
-        const textWidth = ctx.measureText(label).width;
-        ctx.fillText(label, atom.x - textWidth / 2, atom.y + 6);
-      });
-    }
-    function getAtomDrawColor(idx) {
-      const a = atoms[idx];
-      if (a.atom === "C") {
-        if (mainChainIndices.includes(idx)) {
-          return chainColor;
-        }
-        return atomColors["C"];
-      }
-      return atomColors[a.atom] || "#ffffff";
-    }
-
-    /**************************************************
-     * Geometry Helpers
-     **************************************************/
-    function findAtom(x, y) {
-      for (let i = atoms.length - 1; i >= 0; i--) {
-        const A = atoms[i];
-        const dx = A.x - x;
-        const dy = A.y - y;
-        if (dx * dx + dy * dy < 225) return i;
-      }
-      return -1;
-    }
-    function linePointDist(x1, y1, x2, y2, px, py) {
-      const A = px - x1;
-      const B = py - y1;
-      const C = x2 - x1;
-      const D = y2 - y1;
-      const dot = A * C + B * D;
-      const lenSq = C * C + D * D;
-      const param = dot / lenSq;
-      let xx, yy;
-      if (param < 0) {
-        xx = x1; yy = y1;
-      } else if (param > 1) {
-        xx = x2; yy = y2;
+  } else if(currentTool==="bond"){
+    const clicked= findAtom(x,y);
+    if(clicked>=0){
+      if(bondStart<0){
+        bondStart= clicked;
       } else {
-        xx = x1 + param * C;
-        yy = y1 + param * D;
-      }
-      const dx = px - xx;
-      const dy = py - yy;
-      return Math.sqrt(dx * dx + dy * dy);
-    }
-    function findBond(x, y) {
-      for (let i = 0; i < bonds.length; i++) {
-        const bond = bonds[i];
-        const a1 = atoms[bond.from];
-        const a2 = atoms[bond.to];
-        if (!a1 || !a2) continue;
-        const dist = linePointDist(a1.x, a1.y, a2.x, a2.y, x, y);
-        if (dist < 5) return i;
-      }
-      return -1;
-    }
-
-    /**************************************************
-     * Context Menu (Delete, Charges, Bond changes)
-     **************************************************/
-    function hideContextMenu() {
-      contextMenu.style.display = "none";
-      delete contextMenu.dataset.atom;
-      delete contextMenu.dataset.bond;
-    }
-    function showContextMenu(absX, absY, atomIndex, bondIndex) {
-      document.getElementById("deleteAtomItem").style.display = "none";
-      document.getElementById("addPositiveCharge").style.display = "none";
-      document.getElementById("addNegativeCharge").style.display = "none";
-      document.getElementById("addNeutralCharge").style.display = "none";
-      document.getElementById("deleteBondItem").style.display = "none";
-      document.getElementById("bondDoubleItem").style.display = "none";
-      document.getElementById("bondTripleItem").style.display = "none";
-
-      contextMenu.dataset.atom = atomIndex >= 0 ? atomIndex : "";
-      contextMenu.dataset.bond = bondIndex >= 0 ? bondIndex : "";
-
-      if (atomIndex >= 0) {
-        document.getElementById("deleteAtomItem").style.display = "flex";
-        document.getElementById("addPositiveCharge").style.display = "flex";
-        document.getElementById("addNegativeCharge").style.display = "flex";
-        document.getElementById("addNeutralCharge").style.display = "flex";
-      } else if (bondIndex >= 0) {
-        document.getElementById("deleteBondItem").style.display = "flex";
-        document.getElementById("bondDoubleItem").style.display = "flex";
-        document.getElementById("bondTripleItem").style.display = "flex";
-      }
-      contextMenu.style.left = absX + "px";
-      contextMenu.style.top = absY + "px";
-      contextMenu.style.display = "block";
-    }
-    document.addEventListener("click", (e) => {
-      if (!contextMenu.contains(e.target) && e.target !== contextMenu) {
-        hideContextMenu();
-      } else {
-        const aIdx = contextMenu.dataset.atom;
-        const bIdx = contextMenu.dataset.bond;
-        if (e.target.id === "deleteAtomItem" && aIdx !== "") {
-          deleteAtomFunc(parseInt(aIdx));
-          hideContextMenu();
-        } else if (e.target.id === "addPositiveCharge" && aIdx !== "") {
-          addChargeToAtom(parseInt(aIdx), 1);
-          hideContextMenu();
-        } else if (e.target.id === "addNegativeCharge" && aIdx !== "") {
-          addChargeToAtom(parseInt(aIdx), -1);
-          hideContextMenu();
-        } else if (e.target.id === "addNeutralCharge" && aIdx !== "") {
-          addChargeToAtom(parseInt(aIdx), 0);
-          hideContextMenu();
-        } else if (e.target.id === "deleteBondItem" && bIdx !== "") {
-          deleteBondFunc(parseInt(bIdx));
-          hideContextMenu();
-        } else if (e.target.id === "bondDoubleItem" && bIdx !== "") {
-          changeBondType(parseInt(bIdx), "double");
-          hideContextMenu();
-        } else if (e.target.id === "bondTripleItem" && bIdx !== "") {
-          changeBondType(parseInt(bIdx), "triple");
-          hideContextMenu();
-        } else if (e.target.id === "cancelItem") {
-          hideContextMenu();
-        }
-      }
-    });
-
-    function deleteAtomFunc(idx) {
-      bonds = bonds.filter((b) => b.from !== idx && b.to !== idx);
-      atoms.splice(idx, 1);
-      bonds.forEach((bond) => {
-        if (bond.from > idx) bond.from--;
-        if (bond.to > idx) bond.to--;
-      });
-      pushHistory();
-      redraw();
-      updateAtomCounts();
-    }
-    function deleteBondFunc(idx) {
-      bonds.splice(idx, 1);
-      pushHistory();
-      redraw();
-      updateAtomCounts();
-    }
-    function addChargeToAtom(idx, charge) {
-      atoms[idx].charge = charge;
-      pushHistory();
-      redraw();
-      updateAtomCounts();
-    }
-    function changeBondType(bondIndex, type) {
-      if (bonds[bondIndex]) {
-        bonds[bondIndex].type = type;
-        pushHistory();
-        redraw();
-        updateAtomCounts();
-      }
-    }
-
-    /**************************************************
-     * Tools: Add Atom, Add Bond, Drag, etc.
-     **************************************************/
-    const toolbarButtons = document.querySelectorAll(".toolbar button");
-    toolbarButtons.forEach((button) => {
-      button.addEventListener("click", function () {
-        toolbarButtons.forEach(btn => btn.classList.remove("active"));
-        if (this.tagName.toLowerCase() === "button") {
-          this.classList.add("active");
-          if (this.id.startsWith("add")) {
-            canvas.classList.remove("drawing-bond");
-            canvas.classList.add("adding-atom");
-          } else if (this.id.startsWith("bond")) {
-            canvas.classList.remove("adding-atom");
-            canvas.classList.add("drawing-bond");
-          } else {
-            canvas.classList.remove("adding-atom", "drawing-bond");
-          }
-        }
-      });
-    });
-    document.getElementById("addC").addEventListener("click", () => {
-      currentTool = "atom"; currentAtom = "C";
-    });
-    document.getElementById("addH").addEventListener("click", () => {
-      currentTool = "atom"; currentAtom = "H";
-    });
-    document.getElementById("addO").addEventListener("click", () => {
-      currentTool = "atom"; currentAtom = "O";
-    });
-    document.getElementById("addN").addEventListener("click", () => {
-      currentTool = "atom"; currentAtom = "N";
-    });
-    document.getElementById("bondSingle").addEventListener("click", () => {
-      currentTool = "bond"; currentBondType = "single";
-    });
-    document.getElementById("undoBtn").addEventListener("click", undo);
-    document.getElementById("redoBtn").addEventListener("click", redo);
-    document.getElementById("clearBtn").addEventListener("click", () => {
-      atoms = [];
-      bonds = [];
-      bondStart = -1;
-      mainChainIndices = [];
-      pushHistory();
-      redraw();
-      updateAtomCounts();
-    });
-
-    // Add & move atoms
-    canvas.addEventListener("contextmenu", (e) => {
-      e.preventDefault();
-      const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      const a = findAtom(x, y);
-      const bd = findBond(x, y);
-      showContextMenu(e.clientX, e.clientY, a, bd);
-    });
-    canvas.addEventListener("mousedown", (e) => {
-      if (e.button === 2) return;
-      const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      if (currentTool === "atom") {
-        const clickedAtom = findAtom(x, y);
-        if (clickedAtom >= 0) {
-          isDraggingAtom = true;
-          dragAtomIndex = clickedAtom;
+        if(bondStart!== clicked){
+          bonds.push({ from: bondStart, to:clicked, type: currentBondType });
+          bondStart=-1; pushHistory(); redraw(); updateAtomCounts();
         } else {
-          addAtomWithNearestBond(currentAtom, x, y);
-        }
-      } else if (currentTool === "bond") {
-        const clickedAtom = findAtom(x, y);
-        if (clickedAtom >= 0) {
-          if (bondStart < 0) {
-            bondStart = clickedAtom;
-          } else {
-            if (bondStart !== clickedAtom) {
-              bonds.push({ from: bondStart, to: clickedAtom, type: currentBondType });
-              bondStart = -1;
-              pushHistory();
-              redraw();
-              updateAtomCounts();
-            } else {
-              bondStart = -1;
-            }
-          }
+          bondStart=-1;
         }
       }
-    });
-    canvas.addEventListener("mousemove", (e) => {
-      if (isDraggingAtom && dragAtomIndex >= 0) {
-        const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        atoms[dragAtomIndex].x = x;
-        atoms[dragAtomIndex].y = y;
-        redraw();
-      }
-    });
-    canvas.addEventListener("mouseup", () => {
-      if (isDraggingAtom && dragAtomIndex >= 0) {
-        pushHistory();
-        redraw();
-      }
-      isDraggingAtom = false;
-      dragAtomIndex = -1;
-    });
-
-    /**************************************************
-     * Auto-fill Hydrogens
-     **************************************************/
-    function autoFillHydrogens() {
-      const valenceMap = { C: 4, N: 3, O: 2, H: 1 };
-      atoms.forEach((A, i) => {
-        if (A.atom in valenceMap) {
-          const needed = valenceMap[A.atom];
-          let currentCount = 0;
-          bonds.forEach((bond) => {
-            if (bond.from === i || bond.to === i) {
-              const t = bond.type;
-              const val = t === "double" ? 2 : t === "triple" ? 3 : 1;
-              currentCount += val;
-            }
-          });
-          const atomVal = A.atom === "H" ? 1 : 0;
-          const missing = needed - currentCount - atomVal;
-          if (missing > 0 && A.atom !== "H") {
-            let attempts = 0;
-            let placed = 0;
-            while (placed < missing && attempts < 2000) {
-              const angle = Math.random() * Math.PI * 2;
-              const hx = A.x + 60 * Math.cos(angle);
-              const hy = A.y + 60 * Math.sin(angle);
-              let overlap = false;
-              for (let k = 0; k < atoms.length; k++) {
-                const dx = atoms[k].x - hx;
-                const dy = atoms[k].y - hy;
-                if (dx * dx + dy * dy < 2025) {
-                  overlap = true;
-                  break;
-                }
-              }
-              if (!overlap) {
-                atoms.push({ atom: "H", charge: 0, x: hx, y: hy });
-                const hIndex = atoms.length - 1;
-                bonds.push({ from: i, to: hIndex, type: "single" });
-                placed++;
-              }
-              attempts++;
-            }
-          }
-        }
-      });
-      pushHistory();
-      redraw();
-      updateAtomCounts();
     }
-    document.getElementById("autoHBtn").addEventListener("click", autoFillHydrogens);
-
-    /**************************************************
-     * Add Atom With Nearest Bond
-     **************************************************/
-    function addAtomWithNearestBond(atomSymbol, x, y) {
-      atoms.push({ atom: atomSymbol, charge: 0, x: x, y: y });
-      const newIndex = atoms.length - 1;
-      if (atoms.length > 1) {
-        let closestDist = Infinity;
-        let closestIndex = -1;
-        for (let i = 0; i < atoms.length - 1; i++) {
-          const dx = atoms[i].x - x;
-          const dy = atoms[i].y - y;
-          const dist = dx * dx + dy * dy;
-          if (dist < closestDist) {
-            closestDist = dist;
-            closestIndex = i;
-          }
-        }
-        if (closestIndex >= 0) {
-          bonds.push({ from: closestIndex, to: newIndex, type: "single" });
-        }
-      }
-      pushHistory();
-      updateAtomCounts();
-      redraw();
-    }
-
-    /**************************************************
-     * Nomenclature
-     **************************************************/
-    function hasOnlyCH() {
-      return atoms.every(a => a.atom === "C" || a.atom === "H");
-    }
-    function generateNomenclature() {
-      namingResults.innerHTML = "";
-      if (!hasOnlyCH()) {
-        const noDiv = document.createElement("div");
-        noDiv.className = "no-name";
-        noDiv.innerText = "Naming supports only C/H alkanes/alkenes/alkynes currently.";
-        namingResults.appendChild(noDiv);
-        mainChainIndices = [];
-        redraw();
-        return;
-      }
-      const chain = findLongestCarbonChain();
-      if (chain.length === 0) {
-        const div = document.createElement("div");
-        div.className = "no-name";
-        div.innerText = "No carbon chain found. Draw some carbons!";
-        namingResults.appendChild(div);
-        mainChainIndices = [];
-        redraw();
-        return;
-      }
-      mainChainIndices = chain;
-      redraw();
-      const subList = findSubstituentsDetailed(chain);
-      const names = buildNameMultiLang(chain, subList);
-      const resultDiv = document.createElement("div");
-      resultDiv.className = "name-result";
-      resultDiv.innerHTML = `
-        <strong>Proposed name:</strong><br/>
-        <span>🇬🇧 ${names.en}</span><br/>
-        <span>🇩🇪 ${names.de}</span><br/>
-        <span>🇺🇦 ${names.uk}</span>
-      `;
-      namingResults.appendChild(resultDiv);
-    }
-    document.getElementById("namingBtn").addEventListener("click", generateNomenclature);
-
-    // Utility for nomenclature
-    function getCarbonAdjList() {
-      const adj = new Map();
-      atoms.forEach((atom, i) => {
-        if (atom.atom === "C") {
-          adj.set(i, []);
-        }
-      });
-      bonds.forEach((bond) => {
-        const { from, to } = bond;
-        if (atoms[from]?.atom === "C" && atoms[to]?.atom === "C") {
-          adj.get(from).push({ partner: to, type: bond.type });
-          adj.get(to).push({ partner: from, type: bond.type });
-        }
-      });
-      return adj;
-    }
-    function findLongestCarbonChain() {
-      const adj = getCarbonAdjList();
-      let bestPath = [];
-      function dfs(path, visited) {
-        const node = path[path.length - 1];
-        const neighbors = adj.get(node) || [];
-        let extended = false;
-        neighbors.forEach((n) => {
-          if (!visited.has(n.partner)) {
-            visited.add(n.partner);
-            dfs([...path, n.partner], visited);
-            visited.delete(n.partner);
-            extended = true;
-          }
-        });
-        if (!extended && path.length > bestPath.length) {
-          bestPath = path;
-        }
-      }
-      for (let cIdx of adj.keys()) {
-        const visited = new Set([cIdx]);
-        dfs([cIdx], visited);
-      }
-      return bestPath;
-    }
-    function findDoubleTriplePosition(chain) {
-      let firstDouble = -1;
-      let firstTriple = -1;
-      for (let i = 0; i < chain.length - 1; i++) {
-        const from = chain[i];
-        const to = chain[i + 1];
-        const bond = bonds.find(b =>
-          (b.from === from && b.to === to) ||
-          (b.from === to && b.to === from)
-        );
-        if (bond) {
-          if (bond.type === "double" && firstDouble < 0 && firstTriple < 0) {
-            firstDouble = i + 1;
-          } else if (bond.type === "triple" && firstTriple < 0 && firstDouble < 0) {
-            firstTriple = i + 1;
-          }
-        }
-      }
-      return { doublePos: firstDouble, triplePos: firstTriple };
-    }
-    function findSubstituentsDetailed(chainArray) {
-      const cMap = chainIndexMap(chainArray);
-      const chainSet = new Set(chainArray);
-      const adj = getCarbonAdjList();
-      const subs = [];
-      chainArray.forEach((chainAtomIdx) => {
-        const chainPos = cMap[chainAtomIdx];
-        const neighbors = adj.get(chainAtomIdx) || [];
-        neighbors.forEach((n) => {
-          if (!chainSet.has(n.partner)) {
-            const branch = gatherBranchAtoms(n.partner, chainSet, adj);
-            subs.push({ position: chainPos, length: branch.length });
-          }
-        });
-      });
-      return subs;
-    }
-    function gatherBranchAtoms(startIdx, chainSet, adj) {
-      let branch = [];
-      const queue = [startIdx];
-      const visited = new Set([startIdx]);
-      while (queue.length) {
-        const current = queue.shift();
-        branch.push(current);
-        (adj.get(current) || []).forEach((nx) => {
-          if (!chainSet.has(nx.partner) && !visited.has(nx.partner)) {
-            visited.add(nx.partner);
-            queue.push(nx.partner);
-          }
-        });
-      }
-      return branch;
-    }
-    function chainIndexMap(chainArray) {
-      const map = {};
-      chainArray.forEach((atomIdx, i) => {
-        map[atomIdx] = i + 1;
-      });
-      return map;
-    }
-    function sumPositions(list) {
-      return list.reduce((acc, s) => acc + s.position, 0);
-    }
-    function buildNameMultiLang(chain, subList) {
-      const rawEn = buildNameForLang(chain, subList, "en");
-      const rawDe = buildNameForLang(chain, subList, "de");
-      const rawUk = buildNameForLang(chain, subList, "uk");
-      const nameEn = capitalizeFirstRealLetter(rawEn);
-      const nameDe = capitalizeFirstRealLetter(rawDe);
-      const nameUk = capitalizeFirstRealLetter(rawUk);
-      return { en: nameEn, de: nameDe, uk: nameUk };
-    }
-    function buildNameForLang(chain, subList, lang) {
-      const chainLen = chain.length;
-      if (chainLen === 0) return "NoCarbons";
-      const { doublePos, triplePos } = findDoubleTriplePosition(chain);
-      let bondType = "single";
-      let bondPos = -1;
-      if (doublePos > 0 && triplePos < 0) {
-        bondType = "double";
-        bondPos = doublePos;
-      } else if (triplePos > 0 && doublePos < 0) {
-        bondType = "triple";
-        bondPos = triplePos;
-      }
-      // If no substituents
-      if (subList.length === 0) {
-        const prefix = chainLengthPrefix(chainLen, lang);
-        const suffix = parentSuffix(bondType, lang);
-        if (bondType === "single") {
-          return prefix + suffix;
-        } else {
-          return prefix + "-" + bondPos + "-" + suffix;
-        }
-      }
-      // If substituents exist
-      const forward = subList.map(s => ({ ...s }));
-      const reverse = subList.map(s => ({
-        position: chainLen + 1 - s.position,
-        length: s.length
-      }));
-      const fSum = sumPositions(forward);
-      const rSum = sumPositions(reverse);
-      let finalSubs = (rSum < fSum) ? reverse : forward;
-      const map = {};
-      finalSubs.forEach((s) => {
-        const key = s.length;
-        if (!map[key]) map[key] = [];
-        map[key].push(s.position);
-      });
-      let subItems = [];
-      for (let lenKey in map) {
-        const positions = map[lenKey].sort((a, b) => a - b);
-        const count = positions.length;
-        let prefixMult = "";
-        switch (count) {
-          case 1: prefixMult = ""; break;
-          case 2: prefixMult = "di"; break;
-          case 3: prefixMult = "tri"; break;
-          case 4: prefixMult = "tetra"; break;
-          default: prefixMult = count + "-";
-        }
-        const subName = substituentName(parseInt(lenKey, 10), lang);
-        const item = positions.join(",") + "-" + prefixMult + subName;
-        subItems.push(item);
-      }
-      subItems = sortSubstituentsAlpha(subItems);
-      const subPart = subItems.join("-");
-      const mainPrefix = chainLengthPrefix(chainLen, lang);
-      const mainSuffix = parentSuffix(bondType, lang);
-      if (bondType === "single") {
-        return subPart + mainPrefix + mainSuffix;
-      } else {
-        return subPart + mainPrefix + "-" + bondPos + "-" + mainSuffix;
-      }
-    }
-    function chainLengthPrefix(len, lang) {
-      const data = alkylPrefixes[len] || null;
-      if (!data) {
-        return "mega";
-      }
-      return data[lang] || data.en;
-    }
-    function parentSuffix(numBonds, lang) {
-      if (numBonds === "double") {
-        return suffixes[lang].double;
-      } else if (numBonds === "triple") {
-        return suffixes[lang].triple;
-      }
-      return suffixes[lang].single;
-    }
-    function substituentName(len, lang) {
-      return chainLengthPrefix(len, lang) + "yl";
-    }
-    function sortSubstituentsAlpha(subItems) {
-      function baseSubstName(s) {
-        const dashIndex = s.lastIndexOf("-");
-        let namePart = (dashIndex >= 0) ? s.slice(dashIndex + 1).toLowerCase() : s;
-        // remove multiplier prefixes from the front
-        namePart = namePart.replace(/^(di|tri|tetra|penta|hexa)\b/, "");
-        return namePart;
-      }
-      subItems.sort((a, b) => {
-        const aBase = baseSubstName(a);
-        const bBase = baseSubstName(b);
-        if (aBase < bBase) return -1;
-        if (aBase > bBase) return 1;
-        return 0;
-      });
-      return subItems;
-    }
-    function capitalizeFirstRealLetter(str) {
-      if (!str) return str;
-      let i = 0;
-      while (i < str.length && /[0-9,\-]/.test(str[i])) {
-        i++;
-      }
-      if (i < str.length) {
-        return (
-          str.slice(0, i) +
-          str[i].toUpperCase() +
-          str.slice(i + 1).toLowerCase()
-        );
-      }
-      return str;
-    }
-
-    /**************************************************
-     * Parsing Substituents from User Name
-     **************************************************/
-    function parseChainLengthFromName(str) {
-      for (let i = 1; i <= 30; i++) {
-        if (!alkylPrefixes[i]) continue;
-        const testPrefix = alkylPrefixes[i].en;
-        if (str.includes(testPrefix)) {
-          return i;
-        }
-      }
-      return 0; // not found
-    }
-    function parseIupacName(str) {
-      const lower = str.toLowerCase().replace(/\s+/g, "");
-      let chainLen = parseChainLengthFromName(lower);
-      if (chainLen < 1) chainLen = 3; // fallback
-
-      const subRegex = /(\d+(?:,\d+)*)-?(di|tri|tetra)?(methyl|ethyl|propyl|butyl|pentyl|hexyl)/g;
-      const substituents = [];
-
-      let match;
-      while ((match = subRegex.exec(lower)) !== null) {
-        const posStr = match[1];          // e.g. "6,7"
-        const multiplier = match[2] || ""; // e.g. "di"
-        const subName = match[3];         // e.g. "propyl"
-
-        const positions = posStr.split(",").map(x => parseInt(x));
-        let subCount = 1;
-        if (multiplier === "di") subCount = 2;
-        if (multiplier === "tri") subCount = 3;
-        if (multiplier === "tetra") subCount = 4;
-
-        const lengthOfSub = substituentLengths[subName] || 1;
-
-        // We store them as a single object with multiple positions
-        // Each position will attach the same length substituent
-        substituents.push({
-          positions,
-          length: lengthOfSub
-        });
-      }
-      return {
-        chainLength: chainLen,
-        substituents
-      };
-    }
-
-    /**************************************************
-     * Building from Parsed (Main chain + substituents)
-     **************************************************/
-    function buildStructureFromParsed(parsed) {
-      const { chainLength, substituents } = parsed;
-
-      // 1) Main chain
-      const startX = 200, startY = 200, gap = 80;
-      for (let i = 0; i < chainLength; i++) {
-        atoms.push({ atom: "C", charge: 0, x: startX + i * gap, y: startY });
-        if (i > 0) {
-          bonds.push({ from: i - 1, to: i, type: "single" });
-        }
-      }
-
-      // 2) Attach substituents
-      substituents.forEach(sub => {
-        const { positions, length } = sub;
-        positions.forEach(pos => {
-          if (pos < 1 || pos > chainLength) return;
-          const mainIdx = pos - 1; // zero-based
-          // Just demonstrate a quick approach: “above” the chain
-          // For each carbon, we place them in a row
-          const baseX = atoms[mainIdx].x;
-          const baseY = atoms[mainIdx].y - 80; // up
-
-          let lastIdx = -1;
-          for (let c = 0; c < length; c++) {
-            const newAtomIdx = atoms.length;
-            atoms.push({
-              atom: "C",
-              charge: 0,
-              x: baseX + c * 50,
-              y: baseY - c * 10
-            });
-            if (c === 0) {
-              bonds.push({ from: mainIdx, to: newAtomIdx, type: "single" });
-            } else {
-              bonds.push({ from: lastIdx, to: newAtomIdx, type: "single" });
-            }
-            lastIdx = newAtomIdx;
-          }
-        });
-      });
-    }
-
-    /**************************************************
-     * Fuzzy Matching
-     **************************************************/
-    function getEditDistance(a, b) {
-      const dp = [];
-      for (let i = 0; i <= a.length; i++) {
-        dp[i] = [i];
-      }
-      for (let j = 0; j <= b.length; j++) {
-        dp[0][j] = j;
-      }
-      for (let i = 1; i <= a.length; i++) {
-        for (let j = 1; j <= b.length; j++) {
-          if (a[i - 1] === b[j - 1]) {
-            dp[i][j] = dp[i - 1][j - 1];
-          } else {
-            dp[i][j] = 1 + Math.min(
-              dp[i - 1][j],    // delete
-              dp[i][j - 1],    // insert
-              dp[i - 1][j - 1] // replace
-            );
-          }
-        }
-      }
-      return dp[a.length][b.length];
-    }
-    function getClosestMatches(input, knownList, maxDistance = 2) {
-      const results = [];
-      knownList.forEach(k => {
-        const dist = getEditDistance(input, k);
-        if (dist <= maxDistance) {
-          results.push(k);
-        }
-      });
-      return results;
-    }
-
-    /**************************************************
-     * Build from Name
-     **************************************************/
-    function buildStructureFromName(userInput) {
-      // Clear old
-      atoms = [];
-      bonds = [];
-      mainChainIndices = [];
-      suggestionsBox.innerHTML = "";
-
-      if (!userInput) {
-        alert("Please enter a name to build from!");
-        return;
-      }
-      const lower = userInput.toLowerCase().replace(/\s+/g, "");
-
-      // Check some known examples quickly...
-      if (lower.includes("3ethyl2methylpentan")) {
-        
-        const startX = 200, startY = 200, gap = 80;
-        for (let i = 0; i < 5; i++) {
-          atoms.push({ atom: "C", charge: 0, x: startX + i * gap, y: startY });
-        }
-        atoms.push({ atom: "C", charge: 0, x: startX + gap,   y: startY - 80 });
-        atoms.push({ atom: "C", charge: 0, x: startX + 2*gap, y: startY - 80 });
-        for (let i = 0; i < 4; i++) {
-          bonds.push({ from: i, to: i + 1, type: "single" });
-        }
-        bonds.push({ from: 1, to: 5, type: "single" });
-        bonds.push({ from: 2, to: 6, type: "single" });
-      }
-      else if (lower.includes("2methylpentan")) {
-        
-        const startX = 200, startY = 200, gap = 80;
-        for (let i = 0; i < 5; i++) {
-          atoms.push({ atom: "C", charge: 0, x: startX + i * gap, y: startY });
-        }
-        atoms.push({ atom: "C", charge: 0, x: startX + gap, y: startY - 80 });
-        for (let i = 0; i < 4; i++) {
-          bonds.push({ from: i, to: i + 1, type: "single" });
-        }
-        bonds.push({ from: 1, to: 5, type: "single" });
-      }
-      else if (lower.includes("butan") || lower.includes("buten") || lower.includes("butin")) {
-        const n = 4;
-        const startX = 200, startY = 200, gap = 80;
-        for (let i = 0; i < n; i++) {
-          atoms.push({ atom: "C", charge: 0, x: startX + i * gap, y: startY });
-          if (i > 0) {
-            bonds.push({ from: i - 1, to: i, type: "single" });
-          }
-        }
-      }
-      else if (lower.includes("propan") || lower.includes("propen") || lower.includes("propin")) {
-        const n = 3;
-        const startX = 200, startY = 200, gap = 80;
-        for (let i = 0; i < n; i++) {
-          atoms.push({ atom: "C", charge: 0, x: startX + i * gap, y: startY });
-          if (i > 0) {
-            bonds.push({ from: i - 1, to: i, type: "single" });
-          }
-        }
-      }
-      else if (lower.includes("pentan") || lower.includes("penten") || lower.includes("pentin")) {
-        const n = 5;
-        const startX = 200, startY = 200, gap = 80;
-        for (let i = 0; i < n; i++) {
-          atoms.push({ atom: "C", charge: 0, x: startX + i * gap, y: startY });
-          if (i > 0) {
-            bonds.push({ from: i - 1, to: i, type: "single" });
-          }
-        }
-      }
-      else {
-        
-        const parsed = parseIupacName(userInput);
-
-        
-        if (parsed.chainLength === 3 && parsed.substituents.length === 0) {
-          const fuzzies = getClosestMatches(lower, knownNamesForFuzzy, 2);
-          if (fuzzies.length > 0) {
-            suggestionsBox.innerHTML = `
-              <div class="no-name"><strong>Possible corrections:</strong></div>
-            `;
-            fuzzies.forEach(f => {
-              const sp = document.createElement("span");
-              sp.innerText = f;
-              sp.addEventListener("click", () => {
-                const inputField = document.getElementById("nameInput");
-                inputField.value = f;
-                buildStructureFromName(f);
-              });
-              suggestionsBox.appendChild(sp);
-            });
-          }
-        }
-
-        
-        buildStructureFromParsed(parsed);
-      }
-
-      
-      pushHistory();
-      redraw();
-      updateAtomCounts();
-      autoFillHydrogens();
-    }
-
-    /**************************************************
-     * Random Generator
-     **************************************************/
-    function generateRandomStructure(settings) {
-      atoms = [];
-      bonds = [];
-      mainChainIndices = [];
-
-      const numCarbons = parseInt(settings.numCarbons);
-      const maxSubs = parseInt(settings.numSubstituents);
-      const startX = 200, startY = 200, gap = 70;
-      for (let i = 0; i < numCarbons; i++) {
-        atoms.push({ atom: "C", charge: 0, x: startX + i * gap, y: startY });
-        if (i > 0) {
-          bonds.push({ from: i - 1, to: i, type: settings.bondType });
-        }
-      }
-      const actualSubs = Math.floor(Math.random() * (maxSubs + 1));
-      for (let s = 0; s < actualSubs; s++) {
-        const cIdx = Math.floor(Math.random() * numCarbons);
-        const offsetDir = (Math.random() > 0.5) ? 1 : -1;
-        const subLen = 1 + Math.floor(Math.random() * 3);
-        let lastIdx = cIdx;
-        for (let chainC = 0; chainC < subLen; chainC++) {
-          const x0 = atoms[lastIdx].x;
-          const y0 = atoms[lastIdx].y;
-          const subX = x0;
-          const subY = y0 + (offsetDir * 80 * (chainC + 1));
-          const subIdx = atoms.length;
-          atoms.push({ atom: "C", charge: 0, x: subX, y: subY });
-          bonds.push({ from: lastIdx, to: subIdx, type: "single" });
-          lastIdx = subIdx;
-        }
-      }
-      pushHistory();
-      redraw();
-      updateAtomCounts();
-      autoFillHydrogens();
-    }
-
-    /**************************************************
-     * Settings Modal
-     **************************************************/
-    const settingsModal = document.getElementById("settingsModal");
-    const openSettingsBtn = document.getElementById("openSettingsBtn");
-    const closeModalBtn = document.getElementById("closeModalBtn");
-    openSettingsBtn.addEventListener("click", () => {
-      settingsModal.classList.add("show");
-    });
-    closeModalBtn.addEventListener("click", () => {
-      settingsModal.classList.remove("show");
-    });
-
-    
-    document.getElementById("buildFromNameBtn").addEventListener("click", () => {
-      const nameStr = document.getElementById("nameInput").value.trim();
-      buildStructureFromName(nameStr);
-      settingsModal.classList.remove("show");
-    });
-    
-    document.getElementById("generateRandomBtn").addEventListener("click", () => {
-      const numCarbons = document.getElementById("numCarbons").value.trim();
-      const numSubstituents = document.getElementById("numSubstituents").value.trim();
-      const bondType = document.getElementById("bondType").value;
-      generateRandomStructure({
-        numCarbons,
-        numSubstituents,
-        bondType
-      });
-      settingsModal.classList.remove("show");
-    });
-    pushHistory();
+  }
+});
+canvas.addEventListener("mousemove",(e)=>{
+  if(isDraggingAtom && dragAtomIndex>=0){
+    const rect=canvas.getBoundingClientRect();
+    const x= e.clientX- rect.left, y=e.clientY-rect.top;
+    atoms[dragAtomIndex].x=x; atoms[dragAtomIndex].y=y;
     redraw();
-    updateAtomCounts();
-  </script>
+  }
+});
+canvas.addEventListener("mouseup",(e)=>{
+  if(isDraggingAtom && dragAtomIndex>=0){
+    pushHistory(); redraw();
+  }
+  isDraggingAtom=false; dragAtomIndex=-1;
+});
+function findAtom(x,y){
+  for(let i= atoms.length-1; i>=0; i--){
+    const dx= atoms[i].x - x;
+    const dy= atoms[i].y - y;
+    if(dx*dx + dy*dy < 225) return i; 
+  }
+  return -1;
+}
+function linePointDist(x1,y1,x2,y2,px,py){
+  const A= px- x1, B= py- y1;
+  const C= x2- x1, D= y2- y1;
+  const dot= A*C + B*D;
+  const lenSq= C*C + D*D;
+  const param= dot/ lenSq;
+  let xx, yy;
+  if(param<0){ xx= x1; yy= y1; }
+  else if(param>1){ xx= x2; yy= y2; }
+  else { xx= x1+ param*C; yy= y1+ param*D; }
+  const dx= px- xx, dy= py- yy;
+  return Math.sqrt(dx*dx + dy*dy);
+}
+function findBond(x,y){
+  for(let i=0;i<bonds.length;i++){
+    const b=bonds[i];
+    const a1= atoms[b.from], a2= atoms[b.to];
+    if(!a1||!a2) continue;
+    const dist= linePointDist(a1.x,a1.y,a2.x,a2.y,x,y);
+    if(dist<5) return i;
+  }
+  return -1;
+}
+
+
+function showContextMenu(absX,absY,atomIndex,bondIndex){
+  hideContextMenu();
+  contextMenu.dataset.atom= atomIndex>=0? atomIndex:"";
+  contextMenu.dataset.bond= bondIndex>=0? bondIndex:"";
+
+  if(atomIndex>=0){
+    document.getElementById("deleteAtomItem").style.display="flex";
+  } else if(bondIndex>=0){
+    document.getElementById("deleteBondItem").style.display="flex";
+    document.getElementById("bondDoubleItem").style.display="flex";
+    document.getElementById("bondTripleItem").style.display="flex";
+  }
+  contextMenu.style.left= absX+"px";
+  contextMenu.style.top = absY+"px";
+  contextMenu.style.display="block";
+}
+function hideContextMenu(){
+  contextMenu.style.display="none";
+  document.getElementById("deleteAtomItem").style.display="none";
+  document.getElementById("deleteBondItem").style.display="none";
+  document.getElementById("bondDoubleItem").style.display="none";
+  document.getElementById("bondTripleItem").style.display="none";
+}
+document.addEventListener("click",(e)=>{
+  if(!contextMenu.contains(e.target) && e.target!== contextMenu){
+    hideContextMenu();
+  } else {
+    const aIdx= parseInt(contextMenu.dataset.atom||"-1");
+    const bIdx= parseInt(contextMenu.dataset.bond||"-1");
+
+    if(e.target.id==="deleteAtomItem" && aIdx>=0){
+      deleteAtom(aIdx); hideContextMenu();
+    } else if(e.target.id==="deleteBondItem" && bIdx>=0){
+      deleteBond(bIdx); hideContextMenu();
+    } else if(e.target.id==="bondDoubleItem" && bIdx>=0){
+      setBondType(bIdx,"double"); hideContextMenu();
+    } else if(e.target.id==="bondTripleItem" && bIdx>=0){
+      setBondType(bIdx,"triple"); hideContextMenu();
+    } else if(e.target.id==="cancelItem"){
+      hideContextMenu();
+    }
+  }
+});
+function deleteAtom(idx){
+  bonds= bonds.filter(b=> b.from!==idx && b.to!== idx);
+  atoms.splice(idx,1);
+  bonds.forEach(b=>{
+    if(b.from> idx) b.from--;
+    if(b.to> idx)   b.to--;
+  });
+  pushHistory(); redraw(); updateAtomCounts();
+}
+function deleteBond(idx){
+  bonds.splice(idx,1);
+  pushHistory(); redraw(); updateAtomCounts();
+}
+function setBondType(bi,t){
+  if(bonds[bi]) bonds[bi].type= t;
+  pushHistory(); redraw(); updateAtomCounts();
+}
+
+
+const toolbarBtns= document.querySelectorAll(".toolbar button");
+toolbarBtns.forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    toolbarBtns.forEach(x=> x.classList.remove("active"));
+    btn.classList.add("active");
+    if(btn.id==="addC"){ currentTool="atom"; currentAtom="C"; }
+    else if(btn.id==="addH"){ currentTool="atom"; currentAtom="H"; }
+    else if(btn.id==="bondSingle"){ currentTool="bond"; currentBondType="single"; }
+    else if(btn.id==="undoBtn"){ undo(); return; }
+    else if(btn.id==="redoBtn"){ redo(); return; }
+    else if(btn.id==="clearBtn"){
+      atoms=[]; bonds=[]; bondStart=-1;
+      mainChainIndices=[];
+      highlightAtoms.clear();
+      pushHistory(); redraw(); updateAtomCounts();
+      return;
+    }
+    else if(btn.id==="namingBtn"){ generateName(); return; }
+  });
+});
+document.getElementById("autoHBtn").addEventListener("click", autoFillH);
+
+function addAtomWithNearestBond(atomSym,x,y){
+  atoms.push({ atom: atomSym, x, y });
+  const newIdx= atoms.length-1;
+  if(atoms.length>1){
+    let closestDist= Infinity, cIdx=-1;
+    for(let i=0;i<atoms.length-1;i++){
+      const dx= atoms[i].x - x, dy= atoms[i].y - y;
+      const dist= dx*dx + dy*dy;
+      if(dist<closestDist){ closestDist= dist; cIdx=i; }
+    }
+    if(cIdx>=0){
+      bonds.push({ from:cIdx, to:newIdx, type:"single" });
+    }
+  }
+  pushHistory(); updateAtomCounts(); redraw();
+}
+
+
+function autoFillH(){
+  const valMap={ C:4, H:1 };
+  atoms.forEach((A,i)=>{
+    if(valMap[A.atom]){
+      let needed= valMap[A.atom];
+      let curr=0;
+      bonds.forEach(b=>{
+        if(b.from===i || b.to===i){
+          curr+= (b.type==="double"?2 : b.type==="triple"?3 :1);
+        }
+      });
+      if(A.atom==="H") curr++;
+      let missing= needed - curr;
+      if(A.atom!=="H" && missing>0){
+        let tries=0, placed=0;
+        while(placed<missing && tries<500){
+          tries++;
+          const angle= Math.random()*2*Math.PI;
+          const hx= A.x + 60*Math.cos(angle);
+          const hy= A.y + 60*Math.sin(angle);
+          let overlap=false;
+          for(let k=0;k<atoms.length;k++){
+            const dx= atoms[k].x - hx, dy= atoms[k].y - hy;
+            if(dx*dx+ dy*dy < 45*45){ overlap=true; break; }
+          }
+          if(!overlap){
+            atoms.push({ atom:"H", x: hx, y: hy });
+            const hi= atoms.length-1;
+            bonds.push({ from:i,to:hi,type:"single" });
+            placed++;
+          }
+        }
+      }
+    }
+  });
+  pushHistory(); redraw(); updateAtomCounts();
+}
+
+
+function generateName(){
+  namingResults.innerHTML="";
+  highlightAtoms.clear();
+  mainChainIndices=[];
+  
+  if(!atoms.every(a=> a.atom==="C"|| a.atom==="H")){
+    const nd= document.createElement("div");
+    nd.className="no-name";
+    nd.innerText="Only C/H alkanes supported in this demo.";
+    namingResults.appendChild(nd);
+    redraw();
+    return;
+  }
+  
+  const chain= findLongestChainWholeMolecule();
+  if(chain.length<1){
+    const nd= document.createElement("div");
+    nd.className="no-name";
+    nd.innerText="No carbon chain found.";
+    namingResults.appendChild(nd);
+    redraw();
+    return;
+  }
+  mainChainIndices= chain; 
+  
+  
+  const subData= findSubstituents(chain);
+
+  
+  const nameEN= buildNameForLang(chain, subData, "en");
+  const nameDE= buildNameForLang(chain, subData, "de");
+
+  const div= document.createElement("div");
+  div.className="name-result";
+  div.innerHTML= `
+    <strong>Proposed name:</strong><br/>
+    <span>🇬🇧: ${nameEN}</span><br/>
+    <span>🇩🇪: ${nameDE}</span>
+  `;
+  namingResults.appendChild(div);
+  redraw();
+}
+
+
+function findLongestChainWholeMolecule(){
+  const adj= getCarbonAdj();
+  let bestPath=[];
+  function dfs(path, visited){
+    const node= path[path.length-1];
+    const neigh= adj.get(node)||[];
+    let extended=false;
+    neigh.forEach(n=>{
+      if(!visited.has(n.partner)){
+        visited.add(n.partner);
+        dfs([...path,n.partner],visited);
+        visited.delete(n.partner);
+        extended=true;
+      }
+    });
+    if(!extended && path.length> bestPath.length){
+      bestPath= path;
+    }
+  }
+  for(let cIdx of adj.keys()){
+    const visited=new Set([cIdx]);
+    dfs([cIdx], visited);
+  }
+  return bestPath;
+}
+
+
+function getCarbonAdj(){
+  const map= new Map();
+  atoms.forEach((a,i)=>{
+    if(a.atom==="C") map.set(i,[]);
+  });
+  bonds.forEach(b=>{
+    if(atoms[b.from]?.atom==="C" && atoms[b.to]?.atom==="C"){
+      map.get(b.from).push({partner: b.to, type: b.type});
+      map.get(b.to).push({partner: b.from, type: b.type});
+    }
+  });
+  return map;
+}
+
+
+function findSubstituents(chainArr){
+  const chainSet= new Set(chainArr);
+  const adj= getCarbonAdj();
+  const cMap= {};
+  chainArr.forEach((aIdx,i)=>{ cMap[aIdx]= i+1; }); 
+
+  let subList=[];
+
+  chainArr.forEach(chainAtomIdx=>{
+    const neighbors= adj.get(chainAtomIdx)||[];
+    neighbors.forEach(n=>{
+      if(!chainSet.has(n.partner)){
+        
+        const cluster= gatherSubstituentCluster(n.partner, chainSet, adj);
+        
+        const subObj= nameSubstituentRecursively(cluster, chainAtomIdx);
+        
+        subList.push({ position: cMap[chainAtomIdx], subName: subObj.subName, subAtoms: cluster });
+        
+        subObj.allAtomsInSub.forEach(aID=> highlightAtoms.add(aID));
+      }
+    });
+  });
+  return subList;
+}
+
+
+function gatherSubstituentCluster(startIdx, chainSet, adj){
+  const queue=[startIdx];
+  const visited= new Set([startIdx]);
+  while(queue.length){
+    const curr= queue.shift();
+    (adj.get(curr)||[]).forEach(n=>{
+      if(!chainSet.has(n.partner) && !visited.has(n.partner)){
+        visited.add(n.partner);
+        queue.push(n.partner);
+      }
+    });
+  }
+  return [...visited];
+}
+
+
+function nameSubstituentRecursively(clusterArr, attachAtomIdx){
+  
+  
+  
+
+  
+  const adj= buildAdjForCluster(clusterArr);
+  
+  
+  
+  
+  const bestChain= findLongestChainInCluster(clusterArr, adj);
+  
+  
+  const chainSet= new Set(bestChain);
+  const subSubs= [];
+  bestChain.forEach(bC=>{
+    
+    const neighbors= adj.get(bC)||[];
+    neighbors.forEach(n=>{
+      if(!chainSet.has(n.partner)){
+        
+        const subsub= gatherClusterFrom(bC, n.partner, chainSet, adj);
+        
+        const subObj= nameSubstituentRecursively(subsub, bC);
+        
+        const pos= bestChain.indexOf(bC)+1; 
+        subSubs.push({ position: pos, subName: subObj.subName, subAtoms: subObj.allAtomsInSub });
+      }
+    });
+  });
+
+  
+  const rawName= buildSubstituentName(bestChain.length, subSubs);
+  
+  
+  const out= {
+    subName: rawName,
+    allAtomsInSub: clusterArr
+  };
+  return out;
+}
+
+
+function buildAdjForCluster(clusterArr){
+  const setC= new Set(clusterArr);
+  const map= new Map();
+  clusterArr.forEach(cid=> map.set(cid,[]));
+  bonds.forEach(b=>{
+    if(setC.has(b.from) && setC.has(b.to)){
+      map.get(b.from).push({partner:b.to});
+      map.get(b.to).push({partner:b.from});
+    }
+  });
+  return map;
+}
+
+
+function findLongestChainInCluster(clusterArr, adj){
+  let bestPath=[];
+  function dfs(path, visited){
+    const node= path[path.length-1];
+    const neigh= adj.get(node)||[];
+    let extended=false;
+    neigh.forEach(n=>{
+      if(!visited.has(n.partner)){
+        visited.add(n.partner);
+        dfs([...path,n.partner], visited);
+        visited.delete(n.partner);
+        extended=true;
+      }
+    });
+    if(!extended && path.length>bestPath.length){
+      bestPath= path;
+    }
+  }
+  clusterArr.forEach(c=>{
+    const visited= new Set([c]);
+    dfs([c], visited);
+  });
+  return bestPath;
+}
+
+
+function gatherClusterFrom(originIdx, startIdx, chainSet, adj){
+  
+  
+  const queue=[startIdx];
+  const visited= new Set([startIdx]);
+  while(queue.length){
+    const c= queue.shift();
+    (adj.get(c)||[]).forEach(n=>{
+      if(!chainSet.has(n.partner) && n.partner!==originIdx && !visited.has(n.partner)){
+        visited.add(n.partner);
+        queue.push(n.partner);
+      }
+    });
+  }
+  return [...visited];
+}
+
+
+function buildSubstituentName(lengthOfChain, subSubs){
+  
+  
+  
+  const prefix= chainLengthPrefix(lengthOfChain,"en"); 
+  const base= prefix + "yl"; 
+
+  if(subSubs.length<1){
+    return base;
+  }
+  
+  
+  
+  
+  
+  let forward= subSubs.map(x=>({...x}));
+  
+  
+  const maxPos= lengthOfChain; 
+  let reverse= subSubs.map(s=>{
+    return {
+      position: (maxPos+1 - s.position),
+      subName: s.subName,
+      subAtoms: s.subAtoms
+    };
+  });
+  let fSum= forward.reduce((a,c)=> a+c.position,0);
+  let rSum= reverse.reduce((a,c)=> a+c.position,0);
+  let finalList= (rSum< fSum)? reverse : forward;
+
+  
+  let grouping={};
+  finalList.forEach(s=>{
+    let key= s.subName;
+    if(!grouping[key]) grouping[key]= [];
+    grouping[key].push(s.position);
+  });
+  let items=[];
+  for(let k in grouping){
+    const positions= grouping[k].sort((a,b)=> a-b);
+    const count= positions.length;
+    let prefixMult="";
+    switch(count){
+      case 2: prefixMult="di"; break;
+      case 3: prefixMult="tri"; break;
+      case 4: prefixMult="tetra"; break;
+      default: prefixMult=""; break;
+    }
+    let posStr= positions.join(",");
+    items.push(posStr+ "-"+ prefixMult + k);
+  }
+  items.sort(); 
+  let subPart= items.join("-");
+
+  let finalName= subPart+ base; 
+  
+  
+  
+  
+  
+  finalName= "("+ finalName +")";
+  return finalName;
+}
+
+
+function buildNameForLang(chain, subs, lang){
+  
+  
+  if(chain.length<1) return "NoCarbons";
+  
+  let chainLen= chain.length;
+  let subItems=[];
+  subs.forEach(s=>{
+    subItems.push({
+      position: s.position,
+      name: s.subName
+    });
+  });
+  if(subItems.length<1){
+    
+    let pref= chainLengthPrefix(chainLen, lang);
+    return pref + suffixes[lang].single; 
+  }
+  
+  
+  let forward= subItems.map(x=>({...x}));
+  let reverse= subItems.map(x=>({
+    position: chainLen+1 - x.position,
+    name: x.name
+  }));
+  let fSum= forward.reduce((a,c)=> a+c.position,0);
+  let rSum= reverse.reduce((a,c)=> a+c.position,0);
+  let finalSubs= (rSum< fSum)? reverse: forward;
+
+  
+  let grouping={};
+  finalSubs.forEach(x=>{
+    if(!grouping[x.name]) grouping[x.name]= [];
+    grouping[x.name].push(x.position);
+  });
+  let items=[];
+  for(let nm in grouping){
+    const positions= grouping[nm].sort((a,b)=> a-b);
+    const count= positions.length;
+    let prefixMult="";
+    if (count === 2) prefixMult = "di";
+    else if (count === 3) prefixMult = "tri";
+    else if (count === 4) prefixMult = "tetra";
+    else if (count === 5) prefixMult = "penta";
+    else if (count === 6) prefixMult = "hexa";
+    else if (count === 7) prefixMult = "hepta";
+    else if (count === 8) prefixMult = "octa";
+    else if (count === 9) prefixMult = "nona";
+    else if (count === 10) prefixMult = "deca";
+    let posStr= positions.join(",");
+    let item= posStr+"-"+ prefixMult+ nm;
+    items.push(item);
+  }
+  
+  items.sort();
+  
+  let subPart= items.join("-");
+  
+  let mainPrefix= chainLengthPrefix(chainLen, lang);
+  let mainSuffix= suffixes[lang].single; 
+  return subPart + mainPrefix + mainSuffix;
+}
+
+function chainLengthPrefix(len, lang){
+  const data= alkylPrefixes[len];
+  if(!data) return "mega"; 
+  return data[lang]|| data.en;
+}
+
+
+pushHistory();
+redraw();
+updateAtomCounts();
+</script>
 </body>
 </html>
-
 
