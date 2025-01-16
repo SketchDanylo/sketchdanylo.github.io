@@ -131,7 +131,6 @@ h1 {
     <button id="addH" title="Add Hydrogen" aria-label="Add Hydrogen">
       <span style="color: #4a9dcf;">H</span>
     </button>
-    <!-- New for O and N atoms -->
     <button id="addO" title="Add Oxygen" aria-label="Add Oxygen">
       <span style="color: #fa5e5c;">O</span>
     </button>
@@ -194,7 +193,7 @@ const atomColors = {
   N:"#078f00"
 };
 
-// For cyclo naming
+// Additional cyclo naming
 const cycloNames = {
   3: "cycloprop",
   4: "cyclobut",
@@ -249,7 +248,6 @@ function pushHistory(){
   const state = JSON.stringify({ atoms, bonds });
   historyStack.push(state);
 }
-
 function undo(){
   if(historyStack.length>1){
     const curr = historyStack.pop();
@@ -262,7 +260,6 @@ function undo(){
     updateAtomCounts();
   }
 }
-
 function redo(){
   if(redoStack.length>0){
     const next = redoStack.pop();
@@ -274,7 +271,6 @@ function redo(){
     updateAtomCounts();
   }
 }
-
 function updateAtomCounts(){
   const counts = { C:0, H:0, O:0, N:0 };
   atoms.forEach(a=>{
@@ -287,7 +283,6 @@ function updateAtomCounts(){
     <span style="color:#078f00;">N: ${counts["N"]}</span>
   `;
 }
-
 function redraw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   bonds.forEach(b=>{
@@ -362,7 +357,6 @@ function redraw(){
     ctx.fillText(label, atom.x- tw/2, atom.y+6);
   });
 }
-
 let touchTimer = null;
 let touchX = 0, touchY = 0;
 
@@ -377,31 +371,26 @@ canvas.addEventListener("touchstart",(e)=>{
     },500);
   }
 });
-
 canvas.addEventListener("touchend",()=>{
   if(touchTimer){
     clearTimeout(touchTimer);
     touchTimer=null;
   }
 });
-
 canvas.addEventListener("touchmove",()=>{
   if(touchTimer){
     clearTimeout(touchTimer);
     touchTimer=null;
   }
 });
-
 canvas.addEventListener("contextmenu",(e)=>{
   e.preventDefault();
 });
-
 canvas.addEventListener("mousedown",(e)=>{
   if(e.button===2) return;
   const rect= canvas.getBoundingClientRect();
   const x= e.clientX - rect.left;
   const y= e.clientY - rect.top;
-
   if(currentTool==="atom"){
     const clicked= findAtom(x,y);
     if(clicked>=0){
@@ -430,18 +419,16 @@ canvas.addEventListener("mousedown",(e)=>{
     }
   }
 });
-
 canvas.addEventListener("mousemove",(e)=>{
   if(isDraggingAtom && dragAtomIndex>=0){
     const rect=canvas.getBoundingClientRect();
-    const x= e.clientX - rect.left;
-    const y= e.clientY - rect.top;
+    const x= e.clientX-rect.left;
+    const y= e.clientY-rect.top;
     atoms[dragAtomIndex].x= x;
     atoms[dragAtomIndex].y= y;
     redraw();
   }
 });
-
 canvas.addEventListener("mouseup",()=>{
   if(isDraggingAtom && dragAtomIndex>=0){
     pushHistory(); redraw();
@@ -449,7 +436,6 @@ canvas.addEventListener("mouseup",()=>{
   isDraggingAtom=false; 
   dragAtomIndex=-1;
 });
-
 function findAtom(x,y){
   for(let i= atoms.length-1; i>=0; i--){
     const dx= atoms[i].x - x;
@@ -458,7 +444,6 @@ function findAtom(x,y){
   }
   return -1;
 }
-
 function linePointDist(x1,y1,x2,y2,px,py){
   const A= px- x1, B= py- y1;
   const C= x2- x1, D= y2- y1;
@@ -472,7 +457,6 @@ function linePointDist(x1,y1,x2,y2,px,py){
   const dx= px- xx, dy= py- yy;
   return Math.sqrt(dx*dx + dy*dy);
 }
-
 function findBond(x,y){
   for(let i=0; i<bonds.length; i++){
     const b= bonds[i];
@@ -483,7 +467,6 @@ function findBond(x,y){
   }
   return -1;
 }
-
 function showContextMenu(absX,absY,atomIndex,bondIndex){
   hideContextMenu();
   contextMenu.dataset.atom= atomIndex>=0? atomIndex:"";
@@ -499,7 +482,6 @@ function showContextMenu(absX,absY,atomIndex,bondIndex){
   contextMenu.style.top = absY+"px";
   contextMenu.style.display="block";
 }
-
 function hideContextMenu(){
   contextMenu.style.display="none";
   document.getElementById("deleteAtomItem").style.display="none";
@@ -507,14 +489,12 @@ function hideContextMenu(){
   document.getElementById("bondDoubleItem").style.display="none";
   document.getElementById("bondTripleItem").style.display="none";
 }
-
 document.addEventListener("click",(e)=>{
   if(!contextMenu.contains(e.target) && e.target!==contextMenu){
     hideContextMenu();
   } else {
     const aIdx= parseInt(contextMenu.dataset.atom||"-1");
     const bIdx= parseInt(contextMenu.dataset.bond||"-1");
-
     if(e.target.id==="deleteAtomItem" && aIdx>=0){
       deleteAtom(aIdx); hideContextMenu();
     }
@@ -532,7 +512,6 @@ document.addEventListener("click",(e)=>{
     }
   }
 });
-
 function deleteAtom(idx){
   bonds= bonds.filter(b=> b.from!==idx && b.to!==idx);
   atoms.splice(idx,1);
@@ -542,17 +521,14 @@ function deleteAtom(idx){
   });
   pushHistory(); redraw(); updateAtomCounts();
 }
-
 function deleteBond(idx){
   bonds.splice(idx,1);
   pushHistory(); redraw(); updateAtomCounts();
 }
-
 function setBondType(bi,t){
   if(bonds[bi]) bonds[bi].type= t;
   pushHistory(); redraw(); updateAtomCounts();
 }
-
 const toolbarBtns= document.querySelectorAll(".toolbar button");
 toolbarBtns.forEach(btn=>{
   btn.addEventListener("click",()=>{
@@ -599,9 +575,7 @@ toolbarBtns.forEach(btn=>{
     }
   });
 });
-
 document.getElementById("autoHBtn").addEventListener("click", autoFillH);
-
 function addAtomWithNearestBond(atomSym,x,y){
   atoms.push({ atom: atomSym, x, y });
   const newIdx= atoms.length-1;
@@ -621,7 +595,6 @@ function addAtomWithNearestBond(atomSym,x,y){
   }
   pushHistory(); updateAtomCounts(); redraw();
 }
-
 function autoFillH(){
   const valMap={ C:4, H:1, O:2, N:3 };
   atoms.forEach((A,i)=>{
@@ -635,7 +608,7 @@ function autoFillH(){
       });
       if(A.atom==="H") curr++;
       let missing= needed - curr;
-      if(A.atom!=="H"&& missing>0){
+      if(A.atom!=="H" && missing>0){
         let tries=0, placed=0;
         while(placed<missing && tries<500){
           tries++;
@@ -659,8 +632,7 @@ function autoFillH(){
   });
   pushHistory(); redraw(); updateAtomCounts();
 }
-
-// Creates a simple ring from all existing atoms (for demonstration).
+// Simple ring
 function createRing(){
   if(atoms.length<3) return;
   let cIndices= atoms.map((_,idx)=> idx);
@@ -668,31 +640,24 @@ function createRing(){
     for(let i=0; i<cIndices.length-1; i++){
       let i1=cIndices[i], i2=cIndices[i+1];
       if(!bonds.some(b=>
-        (b.from===i1&&b.to===i2)||(b.from===i2&&b.to===i1))){
+        (b.from===i1 && b.to===i2) || (b.from===i2 && b.to===i1))){
         bonds.push({ from:i1, to:i2, type:"single" });
       }
     }
     let first=cIndices[0], last=cIndices[cIndices.length-1];
     if(!bonds.some(b=>
-      (b.from===first&&b.to===last)||(b.from===last&&b.to===first))){
+      (b.from===first && b.to===last)||(b.from===last && b.to===first))){
       bonds.push({ from:last, to:first, type:"single" });
     }
     pushHistory(); redraw(); updateAtomCounts();
   }
 }
-
-// Nomenclature
-
+// *** Nomenclature ***
+// We add a small functional-group detection for OH/amine in the main chain
 function generateName(){
   namingResults.innerHTML="";
   highlightAtoms.clear();
   mainChainIndices=[];
-  
-  // Quick check for now: only handle C/H as main skeleton
-  // but allow O/N as substituents or functional groups
-  // (A full IUPAC engine is much more complicated.)
-  
-  // Check if we have at least one carbon
   if(!atoms.some(a=> a.atom==="C")){
     const nd= document.createElement("div");
     nd.className="no-name";
@@ -701,23 +666,13 @@ function generateName(){
     redraw();
     return;
   }
-  // Find if we have a ring
   let ringInfo= detectRing();
-  
-  // If ring is found, let's handle it simply:
-  // Count carbons in ring -> cyclo name
   if(ringInfo.isRing && ringInfo.ringAtoms.length>=3){
     let ringSize= ringInfo.ringAtoms.length;
-    let ringName= (cycloNames[ringSize] || ("cyclo(" + ringSize + ")")) + suffixes.en.single; 
-    // We won't handle double/triple in ring for simplicity, etc.
-    
-    // But let's also handle if we have OH or NH2, etc. on ring
-    // We'll highlight them
+    let ringName= (cycloNames[ringSize] || ("cyclo(" + ringSize + ")")) + suffixes.en.single;
     ringInfo.ringAtoms.forEach(i=> highlightAtoms.add(i));
-    
     const ringSubs= findRingSubstituents(ringInfo.ringAtoms);
     const ringNameWithSubs= ringSubs.length>0 ? buildRingNameWithSubs(ringName, ringSubs) : ringName;
-    
     const nd= document.createElement("div");
     nd.className="name-result";
     nd.innerHTML= `
@@ -728,8 +683,6 @@ function generateName(){
     redraw();
     return;
   }
-  
-  // Else do original chain detection
   const chain= findLongestChainWholeMolecule();
   if(chain.length<1){
     const nd= document.createElement("div");
@@ -740,11 +693,11 @@ function generateName(){
     return;
   }
   mainChainIndices= chain;
-
-  // Normal substituent logic
   const subData= findSubstituents(chain);
-  const nameEN= buildNameForLang(chain, subData, "en");
-  const nameDE= buildNameForLang(chain, subData, "de");
+  // *** Detect if main chain has OH or NH2 => -ol or -amine suffix
+  const mainFG= detectMainFunctionalGroup(chain);
+  const nameEN= buildNameForLang(chain, subData, "en", mainFG);
+  const nameDE= buildNameForLang(chain, subData, "de", mainFG);
 
   const div= document.createElement("div");
   div.className= "name-result";
@@ -756,17 +709,13 @@ function generateName(){
   namingResults.appendChild(div);
   redraw();
 }
-
-// Very basic ring detection: if there's a cycle of carbons
+// Quick cycle detection
 function detectRing(){
   let cIndices= atoms.map((a,i)=> (a.atom==="C"? i : -1)).filter(x=> x>=0);
   if(cIndices.length<3) return { isRing:false, ringAtoms:[] };
-  
-  // BFS or DFS approach to find any cycle of length >= 3
-  const adj= getCarbonAdj(); 
+  const adj= getCarbonAdj();
   let visited= new Set();
   let ringFound= false, ringNodes=[];
-  
   function dfsRing(node, parent, path){
     if(visited.has(node)) return false;
     visited.add(node);
@@ -774,29 +723,23 @@ function detectRing(){
     for(let n of (adj.get(node)||[])){
       if(n.partner===parent) continue;
       if(path.includes(n.partner)){
-        // We found a cycle
         let cycStart= path.indexOf(n.partner);
         ringNodes= path.slice(cycStart);
         ringFound= true;
         return true;
       }
-      if(dfsRing(n.partner, node, path)) return true;
+      if(dfsRing(n.partner,node,path)) return true;
     }
     path.pop();
     return false;
   }
-  
   for(let c of cIndices){
     if(!visited.has(c)){
-      if(dfsRing(c, -1, [])){
-        break;
-      }
+      if(dfsRing(c,-1,[])) break;
     }
   }
-  
   return { isRing:ringFound, ringAtoms:ringNodes };
 }
-
 function findRingSubstituents(ringArr){
   const ringSet= new Set(ringArr);
   const adj= getCarbonAdj();
@@ -805,7 +748,6 @@ function findRingSubstituents(ringArr){
     const neigh= adj.get(rC)||[];
     neigh.forEach(n=>{
       if(!ringSet.has(n.partner)){
-        // A substituent from ring carbon rC
         subs.push({ ringAtom: rC, subAtom: n.partner });
       }
     });
@@ -813,20 +755,14 @@ function findRingSubstituents(ringArr){
   return subs;
 }
 function buildRingNameWithSubs(baseRingName, ringSubs){
-  // For now, just mention the substituents by their element
-  // If one is an OH group (O attached to an H?), we might call it "hydroxy"...
-  // This is quite simplified.
   let counts={}; 
   ringSubs.forEach(s=>{
     let subSym= atoms[s.subAtom].atom;
-    // e.g. "O" => "hydroxy" if singly bonded to a carbon (super simplified)
-    // "N" => "amino"
-    // "C" => alkyl substituent? 
-    // We'll do a minimal approach, but real logic is more complex
-    let subName= "";
+    let subName="";
     if(subSym==="O"){
-      // check if it's single-bond to exactly one carbon => "hydroxy"
-      let bondedCs= bonds.filter(b=>(b.from===s.subAtom && atoms[b.to].atom==="C") || (b.to===s.subAtom && atoms[b.from].atom==="C"));
+      let bondedCs= bonds.filter(b=>
+        (b.from===s.subAtom && atoms[b.to].atom==="C") ||
+        (b.to===s.subAtom && atoms[b.from].atom==="C"));
       if(bondedCs.length===1) subName="hydroxy";
       else subName="oxo";
     }
@@ -834,7 +770,7 @@ function buildRingNameWithSubs(baseRingName, ringSubs){
       subName="amino";
     }
     else if(subSym==="C"){
-      subName="alkyl"; 
+      subName="alkyl";
     }
     else {
       subName=subSym;
@@ -848,8 +784,7 @@ function buildRingNameWithSubs(baseRingName, ringSubs){
   }
   return baseRingName;
 }
-
-// Original chain-finding
+// Original chain logic
 function findLongestChainWholeMolecule(){
   const adj= getCarbonAdj();
   let bestPath=[];
@@ -875,7 +810,6 @@ function findLongestChainWholeMolecule(){
   }
   return bestPath;
 }
-
 function getCarbonAdj(){
   const map= new Map();
   atoms.forEach((a,i)=>{
@@ -889,7 +823,6 @@ function getCarbonAdj(){
   });
   return map;
 }
-
 function findSubstituents(chainArr){
   const chainSet= new Set(chainArr);
   const adj= getCarbonAdj();
@@ -913,7 +846,6 @@ function findSubstituents(chainArr){
   });
   return subList;
 }
-
 function gatherSubstituentCluster(startIdx, chainSet, adj){
   const queue=[startIdx];
   const visited= new Set([startIdx]);
@@ -928,8 +860,6 @@ function gatherSubstituentCluster(startIdx, chainSet, adj){
   }
   return [...visited];
 }
-
-// Very simplified approach to naming substituent clusters
 function nameSubstituentRecursively(clusterArr, attachAtomIdx){
   const adj= buildAdjForCluster(clusterArr);
   const bestChain= findLongestChainInCluster(clusterArr, adj);
@@ -956,7 +886,6 @@ function nameSubstituentRecursively(clusterArr, attachAtomIdx){
     allAtomsInSub: clusterArr
   };
 }
-
 function buildAdjForCluster(clusterArr){
   const setC= new Set(clusterArr);
   const map= new Map();
@@ -969,7 +898,6 @@ function buildAdjForCluster(clusterArr){
   });
   return map;
 }
-
 function findLongestChainInCluster(clusterArr, adj){
   let bestPath=[];
   function dfs(path, visited){
@@ -994,7 +922,6 @@ function findLongestChainInCluster(clusterArr, adj){
   });
   return bestPath;
 }
-
 function gatherClusterFrom(originIdx, startIdx, chainSet, adj){
   const queue=[startIdx];
   const visited=new Set([startIdx]);
@@ -1009,10 +936,8 @@ function gatherClusterFrom(originIdx, startIdx, chainSet, adj){
   }
   return [...visited];
 }
-
-// Substituent name building
 function buildSubstituentName(lengthOfChain, subSubs){
-  const prefix= chainLengthPrefix(lengthOfChain, "en"); 
+  const prefix= chainLengthPrefix(lengthOfChain, "en");
   const base= prefix + "yl";
   if(subSubs.length<1){
     return base;
@@ -1054,8 +979,35 @@ function buildSubstituentName(lengthOfChain, subSubs){
   finalName= "("+ finalName +")";
   return finalName;
 }
-
-function buildNameForLang(chain, subs, lang){
+// *** Minimal function-group detection in main chain ***
+function detectMainFunctionalGroup(chain){
+  // We'll see if there's an oxygen or nitrogen in the chain:
+  // - If there's an O attached to exactly 1 carbon => treat as OH => -ol
+  // - If there's N in chain => -amine
+  // (Of course real nomenclature is more complex.)
+  let hasOH=false, hasNH2=false;
+  chain.forEach(ci=>{
+    // find if atoms[ci].atom=== "O" => check single bond => OH
+    // or if atoms[ci].atom=== "N" => amine
+    const at= atoms[ci];
+    if(at.atom==="O"){
+      // check how many bonds to carbon
+      let cBonds= bonds.filter(b= b.from===ci || b.to===ci);
+      // If exactly 1 bond => treat as OH
+      if(cBonds.length===1){
+        hasOH=true;
+      }
+    } 
+    else if(at.atom==="N"){
+      hasNH2=true;
+    }
+  });
+  // We'll just pick one to name if both exist, for demonstration
+  if(hasOH) return "ol";
+  if(hasNH2) return "amine";
+  return "alkane";
+}
+function buildNameForLang(chain, subs, lang, mainFG="alkane"){
   if(chain.length<1) return "NoCarbons";
   let chainLen= chain.length;
   let subItems=[];
@@ -1065,10 +1017,6 @@ function buildNameForLang(chain, subs, lang){
       name: s.subName
     });
   });
-  if(subItems.length<1){
-    let pref= chainLengthPrefix(chainLen, lang);
-    return pref + suffixes[lang].single; 
-  }
   let forward= subItems.map(x=>({...x}));
   let reverse= subItems.map(x=>({
     position: chainLen+1 - x.position,
@@ -1102,19 +1050,25 @@ function buildNameForLang(chain, subs, lang){
   }
   items.sort();
   let subPart= items.join("-");
-  // If we ignore double/triple for chain suffix for now
-  // We do single
+  // Determine suffix from mainFG
+  let suffix="";
+  if(mainFG==="ol"){
+    suffix="ol";   // e.g. "ethanol"
+  }
+  else if(mainFG==="amine"){
+    suffix="amine"; // e.g. "ethanamine"
+  }
+  else {
+    suffix= suffixes[lang].single;  // "ane"
+  }
   let mainPrefix= chainLengthPrefix(chainLen, lang);
-  let mainSuffix= suffixes[lang].single; 
-  return subPart + mainPrefix + mainSuffix;
+  return subPart + mainPrefix + suffix;
 }
-
 function chainLengthPrefix(len, lang){
   const data= alkylPrefixes[len];
   if(!data) return "mega";
   return data[lang]|| data.en;
 }
-
 pushHistory();
 redraw();
 updateAtomCounts();
