@@ -193,7 +193,6 @@ const atomColors = {
   N:"#078f00"
 };
 
-// Additional cyclo naming
 const cycloNames = {
   3: "cycloprop",
   4: "cyclobut",
@@ -608,7 +607,7 @@ function autoFillH(){
       });
       if(A.atom==="H") curr++;
       let missing= needed - curr;
-      if(A.atom!=="H" && missing>0){
+      if(A.atom!=="H"&& missing>0){
         let tries=0, placed=0;
         while(placed<missing && tries<500){
           tries++;
@@ -632,7 +631,6 @@ function autoFillH(){
   });
   pushHistory(); redraw(); updateAtomCounts();
 }
-// Simple ring
 function createRing(){
   if(atoms.length<3) return;
   let cIndices= atoms.map((_,idx)=> idx);
@@ -652,12 +650,13 @@ function createRing(){
     pushHistory(); redraw(); updateAtomCounts();
   }
 }
-// *** Nomenclature ***
-// We add a small functional-group detection for OH/amine in the main chain
+// *** Nomenclature logic ***
+// Added: check for real OH group => O single-bonded to 1 carbon, 1 hydrogen
 function generateName(){
   namingResults.innerHTML="";
   highlightAtoms.clear();
   mainChainIndices=[];
+
   if(!atoms.some(a=> a.atom==="C")){
     const nd= document.createElement("div");
     nd.className="no-name";
@@ -666,6 +665,7 @@ function generateName(){
     redraw();
     return;
   }
+
   let ringInfo= detectRing();
   if(ringInfo.isRing && ringInfo.ringAtoms.length>=3){
     let ringSize= ringInfo.ringAtoms.length;
@@ -683,6 +683,7 @@ function generateName(){
     redraw();
     return;
   }
+
   const chain= findLongestChainWholeMolecule();
   if(chain.length<1){
     const nd= document.createElement("div");
@@ -694,8 +695,10 @@ function generateName(){
   }
   mainChainIndices= chain;
   const subData= findSubstituents(chain);
-  // *** Detect if main chain has OH or NH2 => -ol or -amine suffix
-  const mainFG= detectMainFunctionalGroup(chain);
+
+  // Check if chain has a real OH group: O single-bonded to exactly 1 carbon from chain, and exactly 1 H
+  const mainFG= detectMainFunctionalGroupWithRealOH(chain);
+
   const nameEN= buildNameForLang(chain, subData, "en", mainFG);
   const nameDE= buildNameForLang(chain, subData, "de", mainFG);
 
@@ -709,10 +712,11 @@ function generateName(){
   namingResults.appendChild(div);
   redraw();
 }
-// Quick cycle detection
+
 function detectRing(){
   let cIndices= atoms.map((a,i)=> (a.atom==="C"? i : -1)).filter(x=> x>=0);
   if(cIndices.length<3) return { isRing:false, ringAtoms:[] };
+
   const adj= getCarbonAdj();
   let visited= new Set();
   let ringFound= false, ringNodes=[];
@@ -784,7 +788,6 @@ function buildRingNameWithSubs(baseRingName, ringSubs){
   }
   return baseRingName;
 }
-// Original chain logic
 function findLongestChainWholeMolecule(){
   const adj= getCarbonAdj();
   let bestPath=[];
@@ -979,34 +982,48 @@ function buildSubstituentName(lengthOfChain, subSubs){
   finalName= "("+ finalName +")";
   return finalName;
 }
-// *** Minimal function-group detection in main chain ***
-function detectMainFunctionalGroup(chain){
-  // We'll see if there's an oxygen or nitrogen in the chain:
-  // - If there's an O attached to exactly 1 carbon => treat as OH => -ol
-  // - If there's N in chain => -amine
-  // (Of course real nomenclature is more complex.)
+
+// *** This function specifically checks for O with 1 bond to chain-C + 1 bond to H => real -OH
+function detectMainFunctionalGroupWithRealOH(chain){
   let hasOH=false, hasNH2=false;
-  chain.forEach(ci=>{
-    // find if atoms[ci].atom=== "O" => check single bond => OH
-    // or if atoms[ci].atom=== "N" => amine
-    const at= atoms[ci];
-    if(at.atom==="O"){
-      // check how many bonds to carbon
-      let cBonds= bonds.filter(b= b.from===ci || b.to===ci);
-      // If exactly 1 bond => treat as OH
-      if(cBonds.length===1){
-        hasOH=true;
+
+  // We'll walk through each carbon in the chain
+  chain.forEach(cIdx=>{
+    // Then see what it's bonded to
+    let cBonds= bonds.filter(b=> b.from===cIdx || b.to===cIdx);
+    cBonds.forEach(b=>{
+      const otherAtomIdx= (b.from===cIdx? b.to: b.from);
+      const otherAtom= atoms[otherAtomIdx];
+
+      // If we see "O", check if that O has exactly one bond to a chain carbon (which is cIdx)
+      // and exactly one bond to a hydrogen
+      if(otherAtom.atom==="O"){
+        let oBonds= bonds.filter(x=> x.from===otherAtomIdx|| x.to===otherAtomIdx);
+        if(oBonds.length===2){ 
+          // Count how many H among those 2 bonds
+          let countH=0, countC=0;
+          oBonds.forEach(ob=>{
+            let partner= (ob.from===otherAtomIdx? ob.to: ob.from);
+            if(atoms[partner].atom==="H") countH++;
+            if(atoms[partner].atom==="C") countC++;
+          });
+          // If exactly 1 H and 1 C => real OH
+          if(countH===1 && countC===1){
+            hasOH= true;
+          }
+        }
       }
-    } 
-    else if(at.atom==="N"){
-      hasNH2=true;
-    }
+      else if(otherAtom.atom==="N"){
+        hasNH2= true; 
+      }
+    });
   });
-  // We'll just pick one to name if both exist, for demonstration
+  // If we detect an OH, we pick that. If not, but we see an N, we pick amine
   if(hasOH) return "ol";
   if(hasNH2) return "amine";
   return "alkane";
 }
+
 function buildNameForLang(chain, subs, lang, mainFG="alkane"){
   if(chain.length<1) return "NoCarbons";
   let chainLen= chain.length;
@@ -1050,16 +1067,15 @@ function buildNameForLang(chain, subs, lang, mainFG="alkane"){
   }
   items.sort();
   let subPart= items.join("-");
-  // Determine suffix from mainFG
   let suffix="";
   if(mainFG==="ol"){
-    suffix="ol";   // e.g. "ethanol"
+    suffix="ol";      // e.g. "propanol"
   }
   else if(mainFG==="amine"){
-    suffix="amine"; // e.g. "ethanamine"
+    suffix="amine";   // e.g. "propanamine"
   }
   else {
-    suffix= suffixes[lang].single;  // "ane"
+    suffix= suffixes[lang].single; // "ane"
   }
   let mainPrefix= chainLengthPrefix(chainLen, lang);
   return subPart + mainPrefix + suffix;
