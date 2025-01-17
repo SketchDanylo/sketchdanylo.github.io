@@ -1,127 +1,127 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Nomenclature Tool</title>
-<style>
-* {
-  margin:0; padding:0; box-sizing:border-box;
-  user-select:none;
-}
-body {
-  font-family:'Poppins',sans-serif;
-  background:linear-gradient(135deg,#2a2a2a,#333333);
-  color:#f1f1f1;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  min-height:100vh;
-  padding:20px;
-  transition:background .5s ease;
-}
-.container {
-  background-color:rgba(30,30,30,0.95);
-  border-radius:15px;
-  padding:20px;
-  max-width:900px; width:100%;
-  box-shadow:0 8px 25px rgba(0,0,0,0.4);
-  backdrop-filter:blur(10px);
-  position:relative;
-  transition:transform .5s ease;
-}
-h1 {
-  text-align:center; font-size:2.5rem;
-  color:#f1f1f1; margin-bottom:20px;
-  letter-spacing:2px; font-weight:bold;
-  transition:color .5s ease;
-}
-.toolbar {
-  display:flex; flex-wrap:wrap;
-  justify-content:center;
-  margin-bottom:15px; gap:10px;
-}
-.toolbar button {
-  background-color:#444; border:none;
-  border-radius:8px; padding:10px 15px;
-  cursor:pointer; color:#f1f1f1;
-  font-size:1rem; font-weight:bold;
-  display:flex; align-items:center; justify-content:center;
-  gap:5px; min-width:40px;
-  transition:background-color .3s,transform .2s,
-             box-shadow .3s,color .3s;
-}
-.toolbar button:hover {
-  background-color:#555;
-  transform:scale(1.05);
-  box-shadow:0 4px 8px rgba(0,0,0,0.3);
-  color:#fff;
-}
-.toolbar button:active { transform:translateY(0); }
-.toolbar button.active {
-  background-color:#2ecc71;
-  box-shadow:inset 0 0 5px rgba(0,0,0,0.5);
-}
-#atomCounts {
-  text-align:center; margin-bottom:10px;
-  font-size:1.1rem; font-weight:bold;
-  background-color:rgba(50,50,50,0.8);
-  padding:10px; border-radius:8px;
-  display:flex; justify-content:center; gap:15px;
-}
-#canvasContainer {
-  border:2px solid; width:800px; height:600px;
-  position:relative; margin:0 auto 20px auto;
-  border-radius:10px;
-  background-color:#1e1e1e;
-  box-shadow:inset 0 0 10px rgba(0,0,0,0.5);
-}
-.context-menu {
-  position:absolute;
-  background:rgba(50,50,50,0.95);
-  color:#f1f1f1; display:none;
-  border:1px solid #555; border-radius:10px;
-  box-shadow:0 6px 12px rgba(0,0,0,0.4);
-  z-index:1000;
-}
-.context-menu div {
-  padding:10px 15px; cursor:pointer;
-  font-weight:bold; display:flex; gap:5px;
-}
-.context-menu div:hover {
-  background-color:#555;
-}
-.no-name {
-  background-color:#555; border-left:4px solid #e74c3c;
-  padding:15px; margin:10px 0; font-weight:bold;
-  border-radius:5px; display:flex; gap:10px;
-}
-.name-result {
-  background-color:#555; border-left:4px solid #2ecc71;
-  padding:15px; margin:10px 0;
-  border-radius:5px; display:flex; flex-direction:column; gap:5px;
-}
-@media (max-width:900px) {
-  #canvasContainer { width:100%; height:400px; }
-  h1 { font-size:2rem; }
-}
-@media (max-width:600px) {
-  h1 { font-size:1.5rem; }
-  .toolbar button { padding:8px 10px; font-size:0.9rem; }
-  #atomCounts { font-size:0.9rem; }
-  #canvasContainer { height:300px; }
-}
-</style>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Nomenclature Tool</title>
+  <style>
+    * {
+      margin: 0; padding: 0; box-sizing: border-box;
+      user-select: none;
+    }
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #2a2a2a, #333333);
+      color: #f1f1f1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+      transition: background 0.5s ease;
+    }
+    .container {
+      background-color: rgba(30,30,30,0.95);
+      border-radius: 15px;
+      padding: 20px;
+      max-width: 900px; width: 100%;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+      backdrop-filter: blur(10px);
+      position: relative;
+      transition: transform 0.5s ease;
+    }
+    h1 {
+      text-align: center; font-size: 2.5rem;
+      color: #f1f1f1; margin-bottom: 20px;
+      letter-spacing: 2px; font-weight: bold;
+      transition: color 0.5s ease;
+    }
+    .toolbar {
+      display: flex; flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 15px; gap: 10px;
+    }
+    .toolbar button {
+      background-color: #444; border: none;
+      border-radius: 8px; padding: 10px 15px;
+      cursor: pointer; color: #f1f1f1;
+      font-size: 1rem; font-weight: bold;
+      display: flex; align-items: center; justify-content: center;
+      gap: 5px; min-width: 40px;
+      transition: background-color 0.3s, transform 0.2s,
+                  box-shadow 0.3s, color 0.3s;
+    }
+    .toolbar button:hover {
+      background-color: #555;
+      transform: scale(1.05);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      color: #fff;
+    }
+    .toolbar button:active { transform: translateY(0); }
+    .toolbar button.active {
+      background-color: #2ecc71;
+      box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
+    }
+    #atomCounts {
+      text-align: center; margin-bottom: 10px;
+      font-size: 1.1rem; font-weight: bold;
+      background-color: rgba(50,50,50,0.8);
+      padding: 10px; border-radius: 8px;
+      display: flex; justify-content: center; gap: 15px;
+    }
+    #canvasContainer {
+      border: 2px solid; width: 800px; height: 600px;
+      position: relative; margin: 0 auto 20px auto;
+      border-radius: 10px;
+      background-color: #1e1e1e;
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+    }
+    .context-menu {
+      position: absolute;
+      background: rgba(50,50,50,0.95);
+      color: #f1f1f1; display: none;
+      border: 1px solid #555; border-radius: 10px;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.4);
+      z-index: 1000;
+    }
+    .context-menu div {
+      padding: 10px 15px; cursor: pointer;
+      font-weight: bold; display: flex; gap: 5px;
+    }
+    .context-menu div:hover {
+      background-color: #555;
+    }
+    .no-name {
+      background-color: #555; border-left: 4px solid #e74c3c;
+      padding: 15px; margin: 10px 0; font-weight: bold;
+      border-radius: 5px; display: flex; gap: 10px;
+    }
+    .name-result {
+      background-color: #555; border-left: 4px solid #2ecc71;
+      padding: 15px; margin: 10px 0;
+      border-radius: 5px; display: flex; flex-direction: column; gap: 5px;
+    }
+    @media (max-width:900px) {
+      #canvasContainer { width:100%; height:400px; }
+      h1 { font-size: 2rem; }
+    }
+    @media (max-width:600px) {
+      h1 { font-size: 1.5rem; }
+      .toolbar button { padding: 8px 10px; font-size:0.9rem; }
+      #atomCounts { font-size: 0.9rem; }
+      #canvasContainer { height:300px; }
+    }
+  </style>
 </head>
 <body>
 <div class="container">
   <h1>Danylo's Nomenclature Engine</h1>
 
   <div id="atomCounts">
-    <span style="color:#ebdfac;">C: 0</span> |
-    <span style="color:#4a9dcf;">H: 0</span> |
-    <span style="color:#fa5e5c;">O: 0</span> |
-    <span style="color:#078f00;">N: 0</span>
+    <span style="color: #ebdfac;">C: 0</span> |
+    <span style="color: #4a9dcf;">H: 0</span> |
+    <span style="color: #fa5e5c;">O: 0</span> |
+    <span style="color: #078f00;">N: 0</span>
   </div>
 
   <div class="toolbar">
@@ -131,20 +131,24 @@ h1 {
     <button id="addH" title="Add Hydrogen" aria-label="Add Hydrogen">
       <span style="color: #4a9dcf;">H</span>
     </button>
-    <button id="addO" title="Add Oxygen" aria-label="Add Oxygen">
-      <span style="color: #fa5e5c;">O</span>
+    <button id="bondSingle" title="Single Bond" aria-label="Single Bond">
+      <span style="color: #f1f1f1;">-</span>
     </button>
-    <button id="addN" title="Add Nitrogen" aria-label="Add Nitrogen">
-      <span style="color: #078f00;">N</span>
+    <button id="autoHBtn" title="Auto Fill Hydrogens" aria-label="Auto Fill Hydrogens">
+      <span style="color: #f1f1f1;">🪄</span>
     </button>
-
-    <button id="bondSingle" title="Single Bond" aria-label="Single Bond">-</button>
-    <button id="autoHBtn" title="Auto Fill Hydrogens" aria-label="Auto Fill Hydrogens">🪄</button>
-    <button id="undoBtn" title="Undo" aria-label="Undo">↩️</button>
-    <button id="redoBtn" title="Redo" aria-label="Redo">↪️</button>
-    <button id="clearBtn" title="Clear All" aria-label="Clear All">🗑️</button>
-    <button id="namingBtn" title="Generate Name" aria-label="Generate Name">🔎</button>
-    <button id="cycleBtn" title="Create Ring (cyclic)" aria-label="Create Ring">🔃</button>
+    <button id="undoBtn" title="Undo" aria-label="Undo">
+      <span style="color: #f1f1f1;">↩️</span>
+    </button>
+    <button id="redoBtn" title="Redo" aria-label="Redo">
+      <span style="color: #f1f1f1;">↪️</span>
+    </button>
+    <button id="clearBtn" title="Clear All" aria-label="Clear All">
+      <span style="color: #f1f1f1;">🗑️</span>
+    </button>
+    <button id="namingBtn" title="Generate Name" aria-label="Generate Name">
+      <span style="color: #f1f1f1;">🔎</span>
+    </button>
   </div>
 
   <div id="canvasContainer">
@@ -163,6 +167,7 @@ h1 {
 </div>
 
 <script>
+
 const canvas = document.getElementById("molCanvas");
 const ctx = canvas.getContext("2d");
 let currentTool = "atom";
@@ -187,22 +192,10 @@ let mainChainIndices = [];
 let highlightAtoms = new Set(); 
 
 const atomColors = {
-  C:"#ebdfac",
-  H:"#4a9dcf",
-  O:"#fa5e5c",
-  N:"#078f00"
+  C: "#ebdfac",
+  H: "#4a9dcf"
 };
 
-const cycloNames = {
-  3: "cycloprop",
-  4: "cyclobut",
-  5: "cyclopent",
-  6: "cyclohex",
-  7: "cyclohept",
-  8: "cyclooct",
-  9: "cyclonon",
-  10:"cyclodec"
-};
 
 const alkylPrefixes = {
   1:  { en: "meth",  de: "meth" },
@@ -216,7 +209,7 @@ const alkylPrefixes = {
   9:  { en: "non",   de: "non"  },
   10: { en: "dec",   de: "dec"  },
   11: { en: "undec", de: "undec" },
-  12: { en: "dodec", de: "dodec" },
+  12: { en: "dodec",  de: "dodec"  },
   13: { en: "tridec", de: "tridec" },
   14: { en: "tetradec", de: "tetradec" },
   15: { en: "pentadec", de: "pentadec" },
@@ -242,40 +235,39 @@ const suffixes = {
   de: { single: "an",  double: "en",  triple: "in"  }
 };
 
+
 function pushHistory(){
-  redoStack.length = 0;
-  const state = JSON.stringify({ atoms, bonds });
+  redoStack.length=0;
+  const state= JSON.stringify({atoms,bonds});
   historyStack.push(state);
 }
 function undo(){
   if(historyStack.length>1){
-    const curr = historyStack.pop();
+    const curr= historyStack.pop();
     redoStack.push(curr);
-    const prev = historyStack[historyStack.length-1];
-    const s = JSON.parse(prev);
-    atoms = s.atoms; 
-    bonds = s.bonds;
-    redraw();
-    updateAtomCounts();
+    const prev= historyStack[historyStack.length-1];
+    const s= JSON.parse(prev);
+    atoms=s.atoms; bonds=s.bonds;
+    redraw(); updateAtomCounts();
   }
 }
 function redo(){
   if(redoStack.length>0){
-    const next = redoStack.pop();
+    const next= redoStack.pop();
     historyStack.push(next);
-    const s = JSON.parse(next);
-    atoms = s.atoms; 
-    bonds = s.bonds;
-    redraw();
-    updateAtomCounts();
+    const s= JSON.parse(next);
+    atoms=s.atoms; bonds=s.bonds;
+    redraw(); updateAtomCounts();
   }
 }
+
+
 function updateAtomCounts(){
-  const counts = { C:0, H:0, O:0, N:0 };
+  const counts={C:0,H:0,O:0,N:0};
   atoms.forEach(a=>{
-    if(counts[a.atom] !== undefined) counts[a.atom]++;
+    if(counts[a.atom]!==undefined) counts[a.atom]++;
   });
-  atomCountsDisplay.innerHTML = `
+  atomCountsDisplay.innerHTML=`
     <span style="color:#ebdfac;">C: ${counts["C"]}</span> |
     <span style="color:#4a9dcf;">H: ${counts["H"]}</span> |
     <span style="color:#fa5e5c;">O: ${counts["O"]}</span> |
@@ -284,133 +276,76 @@ function updateAtomCounts(){
 }
 function redraw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  
   bonds.forEach(b=>{
-    const a1 = atoms[b.from], a2 = atoms[b.to];
+    const a1= atoms[b.from], a2= atoms[b.to];
     if(!a1||!a2) return;
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "#aaa";
+    ctx.lineWidth=2;
+    let strokeStyle="#aaa";
     if(mainChainIndices.includes(b.from) && mainChainIndices.includes(b.to)){
-      ctx.strokeStyle = chainColor;
+      strokeStyle= chainColor;
     }
-    if(b.type==="single"){
-      ctx.beginPath();
-      ctx.moveTo(a1.x,a1.y);
-      ctx.lineTo(a2.x,a2.y);
-      ctx.stroke();
-    }
-    else if(b.type==="double" || b.type==="triple"){
-      let offset=4;
-      let dx=a2.y - a1.y;
-      let dy=a1.x - a2.x;
-      const len=Math.sqrt(dx*dx + dy*dy);
-      if(len>0){
-        dx /= len; 
-        dy /= len; 
-        dx *= offset; 
-        dy *= offset; 
-      }
-      if(b.type==="double"){
-        ctx.beginPath();
-        ctx.moveTo(a1.x+dx,a1.y+dy);
-        ctx.lineTo(a2.x+dx,a2.y+dy);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(a1.x-dx,a1.y-dy);
-        ctx.lineTo(a2.x-dx,a2.y-dy);
-        ctx.stroke();
-      }
-      if(b.type==="triple"){
-        // middle
-        ctx.beginPath();
-        ctx.moveTo(a1.x,a1.y);
-        ctx.lineTo(a2.x,a2.y);
-        ctx.stroke();
-        // offsets
-        ctx.beginPath();
-        ctx.moveTo(a1.x+dx,a1.y+dy);
-        ctx.lineTo(a2.x+dx,a2.y+dy);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(a1.x-dx,a1.y-dy);
-        ctx.lineTo(a2.x-dx,a2.y-dy);
-        ctx.stroke();
-      }
-    }
+    ctx.strokeStyle= strokeStyle;
+    ctx.beginPath();
+    ctx.moveTo(a1.x,a1.y);
+    ctx.lineTo(a2.x,a2.y);
+    ctx.stroke();
   });
+  
   atoms.forEach((atom,i)=>{
-    let color = atomColors[atom.atom] || "#fff";
-    if(highlightAtoms.has(i)) color = pinkColor;
-    else if(mainChainIndices.includes(i) && atom.atom==="C") color = chainColor;
+    let color= atomColors[atom.atom]||"#fff";
+    if(highlightAtoms.has(i)) color= pinkColor;
+    else if(mainChainIndices.includes(i) && atom.atom==="C") color= chainColor;
 
     ctx.beginPath();
-    ctx.fillStyle = color;
+    ctx.fillStyle=color;
     ctx.arc(atom.x,atom.y,15,0,2*Math.PI);
     ctx.fill();
     ctx.strokeStyle="#000";
     ctx.lineWidth=1;
     ctx.stroke();
-    ctx.fillStyle="#000";
-    ctx.font="bold 16px Poppins";
-    const label = atom.atom;
-    const tw = ctx.measureText(label).width;
+
+    ctx.fillStyle="#000"; ctx.font="bold 16px Poppins";
+    const label= atom.atom;
+    const tw= ctx.measureText(label).width;
     ctx.fillText(label, atom.x- tw/2, atom.y+6);
   });
 }
-let touchTimer = null;
-let touchX = 0, touchY = 0;
 
-canvas.addEventListener("touchstart",(e)=>{
-  if(e.touches.length===1){
-    touchX = e.touches[0].clientX - canvas.getBoundingClientRect().left;
-    touchY = e.touches[0].clientY - canvas.getBoundingClientRect().top;
-    touchTimer = setTimeout(()=>{
-      const a = findAtom(touchX,touchY);
-      const bd = findBond(touchX,touchY);
-      showContextMenu(e.touches[0].clientX, e.touches[0].clientY, a, bd);
-    },500);
-  }
-});
-canvas.addEventListener("touchend",()=>{
-  if(touchTimer){
-    clearTimeout(touchTimer);
-    touchTimer=null;
-  }
-});
-canvas.addEventListener("touchmove",()=>{
-  if(touchTimer){
-    clearTimeout(touchTimer);
-    touchTimer=null;
-  }
-});
+
 canvas.addEventListener("contextmenu",(e)=>{
   e.preventDefault();
+  const rect= canvas.getBoundingClientRect();
+  const x= e.clientX - rect.left;
+  const y= e.clientY - rect.top;
+  const a= findAtom(x,y);
+  const bd= findBond(x,y);
+  showContextMenu(e.clientX,e.clientY,a,bd);
 });
+
 canvas.addEventListener("mousedown",(e)=>{
   if(e.button===2) return;
   const rect= canvas.getBoundingClientRect();
   const x= e.clientX - rect.left;
   const y= e.clientY - rect.top;
+
   if(currentTool==="atom"){
     const clicked= findAtom(x,y);
     if(clicked>=0){
-      isDraggingAtom=true; 
-      dragAtomIndex= clicked;
+      isDraggingAtom=true; dragAtomIndex= clicked;
     } else {
       addAtomWithNearestBond(currentAtom,x,y);
     }
-  } 
-  else if(currentTool==="bond"){
-    const clicked=findAtom(x,y);
+  } else if(currentTool==="bond"){
+    const clicked= findAtom(x,y);
     if(clicked>=0){
       if(bondStart<0){
         bondStart= clicked;
       } else {
         if(bondStart!== clicked){
-          bonds.push({ from: bondStart, to: clicked, type: currentBondType });
-          bondStart=-1; 
-          pushHistory(); 
-          redraw(); 
-          updateAtomCounts();
+          bonds.push({ from: bondStart, to:clicked, type: currentBondType });
+          bondStart=-1; pushHistory(); redraw(); updateAtomCounts();
         } else {
           bondStart=-1;
         }
@@ -421,19 +356,16 @@ canvas.addEventListener("mousedown",(e)=>{
 canvas.addEventListener("mousemove",(e)=>{
   if(isDraggingAtom && dragAtomIndex>=0){
     const rect=canvas.getBoundingClientRect();
-    const x= e.clientX-rect.left;
-    const y= e.clientY-rect.top;
-    atoms[dragAtomIndex].x= x;
-    atoms[dragAtomIndex].y= y;
+    const x= e.clientX- rect.left, y=e.clientY-rect.top;
+    atoms[dragAtomIndex].x=x; atoms[dragAtomIndex].y=y;
     redraw();
   }
 });
-canvas.addEventListener("mouseup",()=>{
+canvas.addEventListener("mouseup",(e)=>{
   if(isDraggingAtom && dragAtomIndex>=0){
     pushHistory(); redraw();
   }
-  isDraggingAtom=false; 
-  dragAtomIndex=-1;
+  isDraggingAtom=false; dragAtomIndex=-1;
 });
 function findAtom(x,y){
   for(let i= atoms.length-1; i>=0; i--){
@@ -449,16 +381,16 @@ function linePointDist(x1,y1,x2,y2,px,py){
   const dot= A*C + B*D;
   const lenSq= C*C + D*D;
   const param= dot/ lenSq;
-  let xx,yy;
-  if(param<0){ xx=x1; yy=y1 }
-  else if(param>1){ xx=x2; yy=y2 }
-  else{ xx= x1 + param*C; yy= y1 + param*D }
+  let xx, yy;
+  if(param<0){ xx= x1; yy= y1; }
+  else if(param>1){ xx= x2; yy= y2; }
+  else { xx= x1+ param*C; yy= y1+ param*D; }
   const dx= px- xx, dy= py- yy;
   return Math.sqrt(dx*dx + dy*dy);
 }
 function findBond(x,y){
-  for(let i=0; i<bonds.length; i++){
-    const b= bonds[i];
+  for(let i=0;i<bonds.length;i++){
+    const b=bonds[i];
     const a1= atoms[b.from], a2= atoms[b.to];
     if(!a1||!a2) continue;
     const dist= linePointDist(a1.x,a1.y,a2.x,a2.y,x,y);
@@ -466,10 +398,13 @@ function findBond(x,y){
   }
   return -1;
 }
+
+
 function showContextMenu(absX,absY,atomIndex,bondIndex){
   hideContextMenu();
   contextMenu.dataset.atom= atomIndex>=0? atomIndex:"";
   contextMenu.dataset.bond= bondIndex>=0? bondIndex:"";
+
   if(atomIndex>=0){
     document.getElementById("deleteAtomItem").style.display="flex";
   } else if(bondIndex>=0){
@@ -489,30 +424,27 @@ function hideContextMenu(){
   document.getElementById("bondTripleItem").style.display="none";
 }
 document.addEventListener("click",(e)=>{
-  if(!contextMenu.contains(e.target) && e.target!==contextMenu){
+  if(!contextMenu.contains(e.target) && e.target!== contextMenu){
     hideContextMenu();
   } else {
     const aIdx= parseInt(contextMenu.dataset.atom||"-1");
     const bIdx= parseInt(contextMenu.dataset.bond||"-1");
+
     if(e.target.id==="deleteAtomItem" && aIdx>=0){
       deleteAtom(aIdx); hideContextMenu();
-    }
-    else if(e.target.id==="deleteBondItem" && bIdx>=0){
+    } else if(e.target.id==="deleteBondItem" && bIdx>=0){
       deleteBond(bIdx); hideContextMenu();
-    }
-    else if(e.target.id==="bondDoubleItem" && bIdx>=0){
+    } else if(e.target.id==="bondDoubleItem" && bIdx>=0){
       setBondType(bIdx,"double"); hideContextMenu();
-    }
-    else if(e.target.id==="bondTripleItem" && bIdx>=0){
+    } else if(e.target.id==="bondTripleItem" && bIdx>=0){
       setBondType(bIdx,"triple"); hideContextMenu();
-    }
-    else if(e.target.id==="cancelItem"){
+    } else if(e.target.id==="cancelItem"){
       hideContextMenu();
     }
   }
 });
 function deleteAtom(idx){
-  bonds= bonds.filter(b=> b.from!==idx && b.to!==idx);
+  bonds= bonds.filter(b=> b.from!==idx && b.to!== idx);
   atoms.splice(idx,1);
   bonds.forEach(b=>{
     if(b.from> idx) b.from--;
@@ -528,37 +460,18 @@ function setBondType(bi,t){
   if(bonds[bi]) bonds[bi].type= t;
   pushHistory(); redraw(); updateAtomCounts();
 }
+
+
 const toolbarBtns= document.querySelectorAll(".toolbar button");
 toolbarBtns.forEach(btn=>{
   btn.addEventListener("click",()=>{
     toolbarBtns.forEach(x=> x.classList.remove("active"));
     btn.classList.add("active");
-    if(btn.id==="addC"){
-      currentTool="atom"; 
-      currentAtom="C"; 
-    }
-    else if(btn.id==="addH"){
-      currentTool="atom"; 
-      currentAtom="H"; 
-    }
-    else if(btn.id==="addO"){
-      currentTool="atom";
-      currentAtom="O";
-    }
-    else if(btn.id==="addN"){
-      currentTool="atom";
-      currentAtom="N";
-    }
-    else if(btn.id==="bondSingle"){
-      currentTool="bond"; 
-      currentBondType="single";
-    }
-    else if(btn.id==="undoBtn"){
-      undo(); return;
-    }
-    else if(btn.id==="redoBtn"){
-      redo(); return;
-    }
+    if(btn.id==="addC"){ currentTool="atom"; currentAtom="C"; }
+    else if(btn.id==="addH"){ currentTool="atom"; currentAtom="H"; }
+    else if(btn.id==="bondSingle"){ currentTool="bond"; currentBondType="single"; }
+    else if(btn.id==="undoBtn"){ undo(); return; }
+    else if(btn.id==="redoBtn"){ redo(); return; }
     else if(btn.id==="clearBtn"){
       atoms=[]; bonds=[]; bondStart=-1;
       mainChainIndices=[];
@@ -566,27 +479,20 @@ toolbarBtns.forEach(btn=>{
       pushHistory(); redraw(); updateAtomCounts();
       return;
     }
-    else if(btn.id==="namingBtn"){
-      generateName(); return;
-    }
-    else if(btn.id==="cycleBtn"){
-      createRing(); return;
-    }
+    else if(btn.id==="namingBtn"){ generateName(); return; }
   });
 });
 document.getElementById("autoHBtn").addEventListener("click", autoFillH);
+
 function addAtomWithNearestBond(atomSym,x,y){
   atoms.push({ atom: atomSym, x, y });
   const newIdx= atoms.length-1;
   if(atoms.length>1){
     let closestDist= Infinity, cIdx=-1;
-    for(let i=0; i<atoms.length-1; i++){
+    for(let i=0;i<atoms.length-1;i++){
       const dx= atoms[i].x - x, dy= atoms[i].y - y;
       const dist= dx*dx + dy*dy;
-      if(dist< closestDist){
-        closestDist= dist; 
-        cIdx= i;
-      }
+      if(dist<closestDist){ closestDist= dist; cIdx=i; }
     }
     if(cIdx>=0){
       bonds.push({ from:cIdx, to:newIdx, type:"single" });
@@ -594,20 +500,22 @@ function addAtomWithNearestBond(atomSym,x,y){
   }
   pushHistory(); updateAtomCounts(); redraw();
 }
+
+
 function autoFillH(){
-  const valMap={ C:4, H:1, O:2, N:3 };
+  const valMap={ C:4, H:1 };
   atoms.forEach((A,i)=>{
     if(valMap[A.atom]){
       let needed= valMap[A.atom];
       let curr=0;
       bonds.forEach(b=>{
-        if(b.from===i||b.to===i){
-          curr+=(b.type==="double"?2 : b.type==="triple"?3 :1);
+        if(b.from===i || b.to===i){
+          curr+= (b.type==="double"?2 : b.type==="triple"?3 :1);
         }
       });
       if(A.atom==="H") curr++;
       let missing= needed - curr;
-      if(A.atom!=="H"&& missing>0){
+      if(A.atom!=="H" && missing>0){
         let tries=0, placed=0;
         while(placed<missing && tries<500){
           tries++;
@@ -622,7 +530,7 @@ function autoFillH(){
           if(!overlap){
             atoms.push({ atom:"H", x: hx, y: hy });
             const hi= atoms.length-1;
-            bonds.push({ from:i, to:hi, type:"single" });
+            bonds.push({ from:i,to:hi,type:"single" });
             placed++;
           }
         }
@@ -631,59 +539,22 @@ function autoFillH(){
   });
   pushHistory(); redraw(); updateAtomCounts();
 }
-function createRing(){
-  if(atoms.length<3) return;
-  let cIndices= atoms.map((_,idx)=> idx);
-  if(cIndices.length>=3){
-    for(let i=0; i<cIndices.length-1; i++){
-      let i1=cIndices[i], i2=cIndices[i+1];
-      if(!bonds.some(b=>
-        (b.from===i1 && b.to===i2) || (b.from===i2 && b.to===i1))){
-        bonds.push({ from:i1, to:i2, type:"single" });
-      }
-    }
-    let first=cIndices[0], last=cIndices[cIndices.length-1];
-    if(!bonds.some(b=>
-      (b.from===first && b.to===last)||(b.from===last && b.to===first))){
-      bonds.push({ from:last, to:first, type:"single" });
-    }
-    pushHistory(); redraw(); updateAtomCounts();
-  }
-}
-// *** Nomenclature logic ***
-// Added: check for real OH group => O single-bonded to 1 carbon, 1 hydrogen
+
+
 function generateName(){
   namingResults.innerHTML="";
   highlightAtoms.clear();
   mainChainIndices=[];
-
-  if(!atoms.some(a=> a.atom==="C")){
+  
+  if(!atoms.every(a=> a.atom==="C"|| a.atom==="H")){
     const nd= document.createElement("div");
     nd.className="no-name";
-    nd.innerText= "No carbon chain found (only advanced functional groups?).";
+    nd.innerText="Only C/H alkanes supported in this demo.";
     namingResults.appendChild(nd);
     redraw();
     return;
   }
-
-  let ringInfo= detectRing();
-  if(ringInfo.isRing && ringInfo.ringAtoms.length>=3){
-    let ringSize= ringInfo.ringAtoms.length;
-    let ringName= (cycloNames[ringSize] || ("cyclo(" + ringSize + ")")) + suffixes.en.single;
-    ringInfo.ringAtoms.forEach(i=> highlightAtoms.add(i));
-    const ringSubs= findRingSubstituents(ringInfo.ringAtoms);
-    const ringNameWithSubs= ringSubs.length>0 ? buildRingNameWithSubs(ringName, ringSubs) : ringName;
-    const nd= document.createElement("div");
-    nd.className="name-result";
-    nd.innerHTML= `
-      <strong>Proposed ring name (simple):</strong><br/>
-      <span>${ringNameWithSubs}</span>
-    `;
-    namingResults.appendChild(nd);
-    redraw();
-    return;
-  }
-
+  
   const chain= findLongestChainWholeMolecule();
   if(chain.length<1){
     const nd= document.createElement("div");
@@ -693,17 +564,17 @@ function generateName(){
     redraw();
     return;
   }
-  mainChainIndices= chain;
+  mainChainIndices= chain; 
+  
+  
   const subData= findSubstituents(chain);
 
-  // Check if chain has a real OH group: O single-bonded to exactly 1 carbon from chain, and exactly 1 H
-  const mainFG= detectMainFunctionalGroupWithRealOH(chain);
-
-  const nameEN= buildNameForLang(chain, subData, "en", mainFG);
-  const nameDE= buildNameForLang(chain, subData, "de", mainFG);
+  
+  const nameEN= buildNameForLang(chain, subData, "en");
+  const nameDE= buildNameForLang(chain, subData, "de");
 
   const div= document.createElement("div");
-  div.className= "name-result";
+  div.className="name-result";
   div.innerHTML= `
     <strong>Proposed name:</strong><br/>
     <span>🇬🇧: ${nameEN}</span><br/>
@@ -713,81 +584,7 @@ function generateName(){
   redraw();
 }
 
-function detectRing(){
-  let cIndices= atoms.map((a,i)=> (a.atom==="C"? i : -1)).filter(x=> x>=0);
-  if(cIndices.length<3) return { isRing:false, ringAtoms:[] };
 
-  const adj= getCarbonAdj();
-  let visited= new Set();
-  let ringFound= false, ringNodes=[];
-  function dfsRing(node, parent, path){
-    if(visited.has(node)) return false;
-    visited.add(node);
-    path.push(node);
-    for(let n of (adj.get(node)||[])){
-      if(n.partner===parent) continue;
-      if(path.includes(n.partner)){
-        let cycStart= path.indexOf(n.partner);
-        ringNodes= path.slice(cycStart);
-        ringFound= true;
-        return true;
-      }
-      if(dfsRing(n.partner,node,path)) return true;
-    }
-    path.pop();
-    return false;
-  }
-  for(let c of cIndices){
-    if(!visited.has(c)){
-      if(dfsRing(c,-1,[])) break;
-    }
-  }
-  return { isRing:ringFound, ringAtoms:ringNodes };
-}
-function findRingSubstituents(ringArr){
-  const ringSet= new Set(ringArr);
-  const adj= getCarbonAdj();
-  let subs=[];
-  ringArr.forEach(rC=>{
-    const neigh= adj.get(rC)||[];
-    neigh.forEach(n=>{
-      if(!ringSet.has(n.partner)){
-        subs.push({ ringAtom: rC, subAtom: n.partner });
-      }
-    });
-  });
-  return subs;
-}
-function buildRingNameWithSubs(baseRingName, ringSubs){
-  let counts={}; 
-  ringSubs.forEach(s=>{
-    let subSym= atoms[s.subAtom].atom;
-    let subName="";
-    if(subSym==="O"){
-      let bondedCs= bonds.filter(b=>
-        (b.from===s.subAtom && atoms[b.to].atom==="C") ||
-        (b.to===s.subAtom && atoms[b.from].atom==="C"));
-      if(bondedCs.length===1) subName="hydroxy";
-      else subName="oxo";
-    }
-    else if(subSym==="N"){
-      subName="amino";
-    }
-    else if(subSym==="C"){
-      subName="alkyl";
-    }
-    else {
-      subName=subSym;
-    }
-    if(!counts[subName]) counts[subName]=0;
-    counts[subName]++;
-  });
-  let subString= Object.keys(counts).map(k=> `${counts[k]}x-${k}`).join(", ");
-  if(subString.length>0){
-    return subString + " " + baseRingName;
-  }
-  return baseRingName;
-}
 function findLongestChainWholeMolecule(){
   const adj= getCarbonAdj();
   let bestPath=[];
@@ -798,7 +595,7 @@ function findLongestChainWholeMolecule(){
     neigh.forEach(n=>{
       if(!visited.has(n.partner)){
         visited.add(n.partner);
-        dfs([...path, n.partner], visited);
+        dfs([...path,n.partner],visited);
         visited.delete(n.partner);
         extended=true;
       }
@@ -808,11 +605,13 @@ function findLongestChainWholeMolecule(){
     }
   }
   for(let cIdx of adj.keys()){
-    const visited= new Set([cIdx]);
+    const visited=new Set([cIdx]);
     dfs([cIdx], visited);
   }
   return bestPath;
 }
+
+
 function getCarbonAdj(){
   const map= new Map();
   atoms.forEach((a,i)=>{
@@ -820,35 +619,41 @@ function getCarbonAdj(){
   });
   bonds.forEach(b=>{
     if(atoms[b.from]?.atom==="C" && atoms[b.to]?.atom==="C"){
-      map.get(b.from).push({ partner:b.to, type:b.type });
-      map.get(b.to).push({ partner:b.from, type:b.type });
+      map.get(b.from).push({partner: b.to, type: b.type});
+      map.get(b.to).push({partner: b.from, type: b.type});
     }
   });
   return map;
 }
+
+
 function findSubstituents(chainArr){
   const chainSet= new Set(chainArr);
   const adj= getCarbonAdj();
   const cMap= {};
   chainArr.forEach((aIdx,i)=>{ cMap[aIdx]= i+1; }); 
+
   let subList=[];
+
   chainArr.forEach(chainAtomIdx=>{
     const neighbors= adj.get(chainAtomIdx)||[];
     neighbors.forEach(n=>{
       if(!chainSet.has(n.partner)){
+        
         const cluster= gatherSubstituentCluster(n.partner, chainSet, adj);
+        
         const subObj= nameSubstituentRecursively(cluster, chainAtomIdx);
-        subList.push({
-          position: cMap[chainAtomIdx],
-          subName: subObj.subName,
-          subAtoms: cluster
-        });
+        
+        subList.push({ position: cMap[chainAtomIdx], subName: subObj.subName, subAtoms: cluster });
+        
         subObj.allAtomsInSub.forEach(aID=> highlightAtoms.add(aID));
       }
     });
   });
   return subList;
 }
+
+
 function gatherSubstituentCluster(startIdx, chainSet, adj){
   const queue=[startIdx];
   const visited= new Set([startIdx]);
@@ -863,44 +668,66 @@ function gatherSubstituentCluster(startIdx, chainSet, adj){
   }
   return [...visited];
 }
+
+
 function nameSubstituentRecursively(clusterArr, attachAtomIdx){
+  
+  
+  
+
+  
   const adj= buildAdjForCluster(clusterArr);
+  
+  
+  
+  
   const bestChain= findLongestChainInCluster(clusterArr, adj);
+  
+  
   const chainSet= new Set(bestChain);
   const subSubs= [];
   bestChain.forEach(bC=>{
+    
     const neighbors= adj.get(bC)||[];
     neighbors.forEach(n=>{
       if(!chainSet.has(n.partner)){
+        
         const subsub= gatherClusterFrom(bC, n.partner, chainSet, adj);
+        
         const subObj= nameSubstituentRecursively(subsub, bC);
+        
         const pos= bestChain.indexOf(bC)+1; 
-        subSubs.push({
-          position: pos,
-          subName: subObj.subName,
-          subAtoms: subObj.allAtomsInSub
-        });
+        subSubs.push({ position: pos, subName: subObj.subName, subAtoms: subObj.allAtomsInSub });
       }
     });
   });
+
+  
   const rawName= buildSubstituentName(bestChain.length, subSubs);
-  return {
+  
+  
+  const out= {
     subName: rawName,
     allAtomsInSub: clusterArr
   };
+  return out;
 }
+
+
 function buildAdjForCluster(clusterArr){
   const setC= new Set(clusterArr);
   const map= new Map();
   clusterArr.forEach(cid=> map.set(cid,[]));
   bonds.forEach(b=>{
     if(setC.has(b.from) && setC.has(b.to)){
-      map.get(b.from).push({ partner:b.to });
-      map.get(b.to).push({ partner:b.from });
+      map.get(b.from).push({partner:b.to});
+      map.get(b.to).push({partner:b.from});
     }
   });
   return map;
 }
+
+
 function findLongestChainInCluster(clusterArr, adj){
   let bestPath=[];
   function dfs(path, visited){
@@ -910,7 +737,7 @@ function findLongestChainInCluster(clusterArr, adj){
     neigh.forEach(n=>{
       if(!visited.has(n.partner)){
         visited.add(n.partner);
-        dfs([...path, n.partner], visited);
+        dfs([...path,n.partner], visited);
         visited.delete(n.partner);
         extended=true;
       }
@@ -925,9 +752,13 @@ function findLongestChainInCluster(clusterArr, adj){
   });
   return bestPath;
 }
+
+
 function gatherClusterFrom(originIdx, startIdx, chainSet, adj){
+  
+  
   const queue=[startIdx];
-  const visited=new Set([startIdx]);
+  const visited= new Set([startIdx]);
   while(queue.length){
     const c= queue.shift();
     (adj.get(c)||[]).forEach(n=>{
@@ -939,13 +770,26 @@ function gatherClusterFrom(originIdx, startIdx, chainSet, adj){
   }
   return [...visited];
 }
+
+
 function buildSubstituentName(lengthOfChain, subSubs){
-  const prefix= chainLengthPrefix(lengthOfChain, "en");
-  const base= prefix + "yl";
+  
+  
+  
+  const prefix= chainLengthPrefix(lengthOfChain,"en"); 
+  const base= prefix + "yl"; 
+
   if(subSubs.length<1){
     return base;
   }
+  
+  
+  
+  
+  
   let forward= subSubs.map(x=>({...x}));
+  
+  
   const maxPos= lengthOfChain; 
   let reverse= subSubs.map(s=>{
     return {
@@ -957,6 +801,8 @@ function buildSubstituentName(lengthOfChain, subSubs){
   let fSum= forward.reduce((a,c)=> a+c.position,0);
   let rSum= reverse.reduce((a,c)=> a+c.position,0);
   let finalList= (rSum< fSum)? reverse : forward;
+
+  
   let grouping={};
   finalList.forEach(s=>{
     let key= s.subName;
@@ -972,60 +818,30 @@ function buildSubstituentName(lengthOfChain, subSubs){
       case 2: prefixMult="di"; break;
       case 3: prefixMult="tri"; break;
       case 4: prefixMult="tetra"; break;
+      default: prefixMult=""; break;
     }
     let posStr= positions.join(",");
     items.push(posStr+ "-"+ prefixMult + k);
   }
   items.sort(); 
   let subPart= items.join("-");
+
   let finalName= subPart+ base; 
+  
+  
+  
+  
+  
   finalName= "("+ finalName +")";
   return finalName;
 }
 
-// *** This function specifically checks for O with 1 bond to chain-C + 1 bond to H => real -OH
-function detectMainFunctionalGroupWithRealOH(chain){
-  let hasOH=false, hasNH2=false;
 
-  // We'll walk through each carbon in the chain
-  chain.forEach(cIdx=>{
-    // Then see what it's bonded to
-    let cBonds= bonds.filter(b=> b.from===cIdx || b.to===cIdx);
-    cBonds.forEach(b=>{
-      const otherAtomIdx= (b.from===cIdx? b.to: b.from);
-      const otherAtom= atoms[otherAtomIdx];
-
-      // If we see "O", check if that O has exactly one bond to a chain carbon (which is cIdx)
-      // and exactly one bond to a hydrogen
-      if(otherAtom.atom==="O"){
-        let oBonds= bonds.filter(x=> x.from===otherAtomIdx|| x.to===otherAtomIdx);
-        if(oBonds.length===2){ 
-          // Count how many H among those 2 bonds
-          let countH=0, countC=0;
-          oBonds.forEach(ob=>{
-            let partner= (ob.from===otherAtomIdx? ob.to: ob.from);
-            if(atoms[partner].atom==="H") countH++;
-            if(atoms[partner].atom==="C") countC++;
-          });
-          // If exactly 1 H and 1 C => real OH
-          if(countH===1 && countC===1){
-            hasOH= true;
-          }
-        }
-      }
-      else if(otherAtom.atom==="N"){
-        hasNH2= true; 
-      }
-    });
-  });
-  // If we detect an OH, we pick that. If not, but we see an N, we pick amine
-  if(hasOH) return "ol";
-  if(hasNH2) return "amine";
-  return "alkane";
-}
-
-function buildNameForLang(chain, subs, lang, mainFG="alkane"){
+function buildNameForLang(chain, subs, lang){
+  
+  
   if(chain.length<1) return "NoCarbons";
+  
   let chainLen= chain.length;
   let subItems=[];
   subs.forEach(s=>{
@@ -1034,6 +850,13 @@ function buildNameForLang(chain, subs, lang, mainFG="alkane"){
       name: s.subName
     });
   });
+  if(subItems.length<1){
+    
+    let pref= chainLengthPrefix(chainLen, lang);
+    return pref + suffixes[lang].single; 
+  }
+  
+  
   let forward= subItems.map(x=>({...x}));
   let reverse= subItems.map(x=>({
     position: chainLen+1 - x.position,
@@ -1042,9 +865,11 @@ function buildNameForLang(chain, subs, lang, mainFG="alkane"){
   let fSum= forward.reduce((a,c)=> a+c.position,0);
   let rSum= reverse.reduce((a,c)=> a+c.position,0);
   let finalSubs= (rSum< fSum)? reverse: forward;
+
+  
   let grouping={};
   finalSubs.forEach(x=>{
-    if(!grouping[x.name]) grouping[x.name]=[];
+    if(!grouping[x.name]) grouping[x.name]= [];
     grouping[x.name].push(x.position);
   });
   let items=[];
@@ -1052,39 +877,36 @@ function buildNameForLang(chain, subs, lang, mainFG="alkane"){
     const positions= grouping[nm].sort((a,b)=> a-b);
     const count= positions.length;
     let prefixMult="";
-    if(count===2) prefixMult="di";
-    else if(count===3) prefixMult="tri";
-    else if(count===4) prefixMult="tetra";
-    else if(count===5) prefixMult="penta";
-    else if(count===6) prefixMult="hexa";
-    else if(count===7) prefixMult="hepta";
-    else if(count===8) prefixMult="octa";
-    else if(count===9) prefixMult="nona";
-    else if(count===10) prefixMult="deca";
+    if (count === 2) prefixMult = "di";
+    else if (count === 3) prefixMult = "tri";
+    else if (count === 4) prefixMult = "tetra";
+    else if (count === 5) prefixMult = "penta";
+    else if (count === 6) prefixMult = "hexa";
+    else if (count === 7) prefixMult = "hepta";
+    else if (count === 8) prefixMult = "octa";
+    else if (count === 9) prefixMult = "nona";
+    else if (count === 10) prefixMult = "deca";
     let posStr= positions.join(",");
     let item= posStr+"-"+ prefixMult+ nm;
     items.push(item);
   }
+  
   items.sort();
+  
   let subPart= items.join("-");
-  let suffix="";
-  if(mainFG==="ol"){
-    suffix="ol";      // e.g. "propanol"
-  }
-  else if(mainFG==="amine"){
-    suffix="amine";   // e.g. "propanamine"
-  }
-  else {
-    suffix= suffixes[lang].single; // "ane"
-  }
+  
   let mainPrefix= chainLengthPrefix(chainLen, lang);
-  return subPart + mainPrefix + suffix;
+  let mainSuffix= suffixes[lang].single; 
+  return subPart + mainPrefix + mainSuffix;
 }
+
 function chainLengthPrefix(len, lang){
   const data= alkylPrefixes[len];
-  if(!data) return "mega";
+  if(!data) return "mega"; 
   return data[lang]|| data.en;
 }
+
+
 pushHistory();
 redraw();
 updateAtomCounts();
