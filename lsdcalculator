@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Trip Calculator</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(135deg, #2a2a2a, #333333);
+    color: #f1f1f1;
+    min-height: 100vh;
+    padding: 20px 20px 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .container {
+    background-color: rgba(30, 30, 30, 0.9);
+    border-radius: 15px;
+    padding: 28px 24px;
+    max-width: 600px;
+    width: 100%;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+    backdrop-filter: blur(10px);
+    margin-bottom: 20px;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 2rem;
+    font-weight: 800;
+    color: #f1f1f1;
+    letter-spacing: 4px;
+    margin-bottom: 4px;
+  }
+
+  .subtitle {
+    text-align: center;
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+  }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #aaa;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .divider {
+    height: 1px;
+    background: rgba(255,255,255,0.07);
+    margin: 22px 0;
+  }
+
+  .compound-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 22px;
+  }
+
+  .compound-btn {
+    background: rgba(50,50,50,0.9);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .compound-btn:hover {
+    transform: translateY(-2px);
+    background: rgba(70,70,70,0.9);
+  }
+
+  .compound-btn.active {
+    border-color: rgba(255,255,255,0.35);
+    background: rgba(80,80,80,0.9);
+  }
+
+  .compound-btn .name {
+    font-size: 13px;
+    font-weight: 700;
+    color: #f1f1f1;
+    display: block;
+  }
+
+  .compound-btn .ratio {
+    font-size: 10px;
+    color: #888;
+    display: block;
+    margin-top: 2px;
+  }
+
+  .compound-btn .badge {
+    position: absolute;
+    top: 6px; right: 6px;
+    font-size: 9px;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .badge-rc  { background: rgba(255,255,255,0.08); color: #bbb; }
+  .badge-og  { background: rgba(255,255,255,0.12); color: #f1f1f1; }
+  .badge-new { background: rgba(255,255,255,0.08); color: #ccc; }
+
+  .input-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .input-row label {
+    font-size: 12px;
+    color: #888;
+    min-width: 80px;
+  }
+
+  input[type="number"], input[type="date"], input[type="time"],
+  select {
+    background: #444;
+    border: none;
+    border-radius: 10px;
+    color: #fff;
+    font-family: 'Poppins', sans-serif;
+    font-size: 14px;
+    padding: 10px 14px;
+    flex: 1;
+    outline: none;
+    transition: box-shadow 0.2s;
+    -webkit-appearance: none;
+  }
+
+  input:focus, select:focus {
+    box-shadow: 0 0 10px rgba(255,255,255,0.12);
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.5);
+  }
+
+  .unit {
+    font-size: 11px;
+    color: #888;
+    min-width: 30px;
+  }
+
+  .effective-hint {
+    font-size: 11px;
+    color: #888;
+    margin-bottom: 4px;
+  }
+
+  .effective-hint span {
+    color: #f1f1f1;
+    font-weight: 600;
+  }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0;
+  }
+
+  .toggle-label {
+    font-size: 13px;
+    color: #ccc;
+  }
+
+  .toggle {
+    position: relative;
+    width: 42px;
+    height: 24px;
+  }
+
+  .toggle input { opacity: 0; width: 0; height: 0; }
+
+  .toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.1);
+    border-radius: 24px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 18px; height: 18px;
+    left: 3px; top: 3px;
+    background: #888;
+    border-radius: 50%;
+    transition: transform 0.2s, background 0.2s;
+  }
+
+  .toggle input:checked + .toggle-slider { background: rgba(255,255,255,0.2); }
+  .toggle input:checked + .toggle-slider::before { transform: translateX(18px); background: #f1f1f1; }
+
+  .calc-btn {
+    width: 100%;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 10px;
+    color: #f1f1f1;
+    font-family: 'Poppins', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    padding: 15px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: background 0.2s, transform 0.1s;
+  }
+
+  .calc-btn:hover { background: rgba(255,255,255,0.16); }
+  .calc-btn:active { transform: scale(0.98); }
+
+  .results { display: none; }
+  .results.visible { display: block; }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .stat-card {
+    background: rgba(50,50,50,0.9);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 14px;
+  }
+
+  .stat-label {
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  .stat-value {
+    font-size: 22px;
+    font-weight: 800;
+    color: #f1f1f1;
+  }
+
+  .stat-value span { font-size: 13px; font-weight: 400; color: #aaa; }
+
+  .stat-sub {
+    font-size: 10px;
+    color: #666;
+    margin-top: 3px;
+  }
+
+  .intensity-light    { color: #f1f1f1; }
+  .intensity-moderate { color: #f1f1f1; }
+  .intensity-strong   { color: #ffb74d; }
+  .intensity-vstrong  { color: #ff7043; }
+  .intensity-extreme  { color: #ff1744; }
+
+  .timeline-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #aaa;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  .timeline {
+    position: relative;
+    padding-left: 24px;
+  }
+
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 7px; top: 8px; bottom: 8px;
+    width: 1px;
+    background: rgba(255,255,255,0.12);
+  }
+
+  .tl-item {
+    position: relative;
+    margin-bottom: 18px;
+  }
+
+  .tl-item::before {
+    content: '';
+    position: absolute;
+    left: -20px;
+    top: 6px;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #888;
+    border: 1px solid #2a2a2a;
+  }
+
+  .tl-item.peak::before { background: #f1f1f1; width: 9px; height: 9px; top: 5px; left: -21px; }
+
+  .tl-time {
+    font-size: 13px;
+    font-weight: 700;
+    color: #f1f1f1;
+  }
+
+  .tl-label {
+    font-size: 11px;
+    color: #888;
+    margin-top: 2px;
+    line-height: 1.6;
+  }
+
+  .intensity-bar {
+    height: 3px;
+    border-radius: 2px;
+    margin-top: 6px;
+    background: rgba(255,255,255,0.07);
+    overflow: hidden;
+  }
+
+  .intensity-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.35);
+    transition: width 0.6s cubic-bezier(.22,1,.36,1);
+  }
+
+  .pupil-section {
+    background: rgba(50,50,50,0.9);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 16px;
+  }
+
+  .pupil-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .pupil-row:last-child { margin-bottom: 0; }
+
+  .pupil-time {
+    font-size: 11px;
+    color: #ccc;
+    min-width: 100px;
+    font-weight: 600;
+  }
+
+  .pupil-dot {
+    border-radius: 50%;
+    background: #111;
+    border: 2px solid #333;
+    flex-shrink: 0;
+  }
+
+  .pupil-label {
+    font-size: 11px;
+    color: #888;
+    line-height: 1.4;
+  }
+
+  .warning-box {
+    background: rgba(255,23,68,0.07);
+    border: 1px solid rgba(255,23,68,0.18);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    font-size: 11px;
+    color: #ff6b6b;
+    line-height: 1.7;
+  }
+
+  .weed-note {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 11px;
+    color: #aaa;
+    line-height: 1.7;
+    margin-top: 14px;
+  }
+
+  @media screen and (max-width: 480px) {
+    h1 { font-size: 1.6rem; }
+    .stat-value { font-size: 18px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Trip Calculator</h1>
+  <p class="subtitle">Lysergamide Dose &amp; Timeline Estimator</p>
+
+  <div class="section-label">01 — Select Compound</div>
+  <div class="compound-grid" id="compoundGrid"></div>
+
+  <div class="divider"></div>
+  <div class="section-label">02 — Your Dose</div>
+  <div class="input-row">
+    <label>Amount</label>
+    <input type="number" id="doseInput" placeholder="300" min="1" max="2000">
+    <span class="unit">mcg</span>
+  </div>
+  <div class="effective-hint">Effective LSD-25: <span id="effectiveLsd">—</span></div>
+
+  <div class="divider"></div>
+  <div class="section-label">03 — Last Trip (tolerance)</div>
+  <div class="input-row">
+    <label>Date</label>
+    <input type="date" id="lastDate">
+  </div>
+  <div class="input-row">
+    <label>Dose</label>
+    <input type="number" id="lastDose" placeholder="170" min="0">
+    <span class="unit">mcg</span>
+  </div>
+  <div class="input-row" style="margin-bottom:0;">
+    <label>Compound</label>
+    <select id="lastCompound"></select>
+  </div>
+
+  <div class="divider"></div>
+  <div class="section-label">04 — Dose Time</div>
+  <div class="input-row" style="margin-bottom:14px;">
+    <label>When</label>
+    <input type="time" id="doseTime" value="22:00">
+  </div>
+  <div class="toggle-row">
+    <span class="toggle-label">🌿 Adding weed at peak</span>
+    <label class="toggle">
+      <input type="checkbox" id="weedToggle">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+
+  <div class="divider"></div>
+  <button class="calc-btn" onclick="calculate()">Calculate Trip</button>
+</div>
+
+<div class="container results" id="results">
+  <div class="section-label">Results</div>
+  <div class="stat-grid" id="statGrid"></div>
+
+  <div class="divider"></div>
+  <div class="timeline-title">Trip Timeline</div>
+  <div class="timeline" id="timeline"></div>
+
+  <div class="divider"></div>
+  <div class="timeline-title">Pupil Status</div>
+  <div class="pupil-section" id="pupilSection"></div>
+
+  <div id="warnBox"></div>
+  <div id="weedBox"></div>
+</div>
+
+<script>
+const COMPOUNDS = [
+  { id: 'lsd25',  name: 'LSD-25',  ratio: 1.00, badge: 'og',  badgeText: 'OG',  note: 'baseline',     rc: false },
+  { id: '1p',     name: '1P-LSD',  ratio: 0.97, badge: 'rc',  badgeText: 'RC',  note: '≈97% LSD-25',  rc: true  },
+  { id: '1cp',    name: '1cP-LSD', ratio: 0.95, badge: 'rc',  badgeText: 'RC',  note: '≈95% LSD-25',  rc: true  },
+  { id: '1v',     name: '1V-LSD',  ratio: 0.90, badge: 'rc',  badgeText: 'RC',  note: '≈90% LSD-25',  rc: true  },
+  { id: '1d',     name: '1D-LSD',  ratio: 0.93, badge: 'rc',  badgeText: 'RC',  note: '≈93% LSD-25',  rc: true  },
+  { id: '1s',     name: '1S-LSD',  ratio: 0.71, badge: 'rc',  badgeText: 'RC',  note: '≈71% LSD-25',  rc: true  },
+  { id: '1fe',    name: '1Fe-LSD', ratio: 0.70, badge: 'new', badgeText: 'NEW', note: '≈70% LSD-25',  rc: true  },
+  { id: '1f',     name: '1F-LSD',  ratio: 0.33, badge: 'rc',  badgeText: 'RC',  note: '≈33% LSD-25',  rc: true  },
+  { id: '1t',     name: '1T-LSD',  ratio: 0.13, badge: 'rc',  badgeText: 'RC',  note: '≈13% LSD-25',  rc: true  },
+  { id: 'ethlad', name: 'ETH-LAD', ratio: 1.20, badge: 'rc',  badgeText: 'RC',  note: '≈120% LSD-25', rc: true  },
+  { id: 'allad',  name: 'AL-LAD',  ratio: 0.70, badge: 'rc',  badgeText: 'RC',  note: '≈70% LSD-25',  rc: true  },
+];
+
+let selectedCompound = '1fe';
+
+function renderCompounds() {
+  const grid = document.getElementById('compoundGrid');
+  grid.innerHTML = COMPOUNDS.map(c => `
+    <button class="compound-btn ${c.id === selectedCompound ? 'active' : ''}" onclick="selectCompound('${c.id}')">
+      <span class="name">${c.name}</span>
+      <span class="ratio">${c.note}</span>
+      <span class="badge badge-${c.badge}">${c.badgeText}</span>
+    </button>
+  `).join('');
+
+  const sel = document.getElementById('lastCompound');
+  sel.innerHTML = COMPOUNDS.map(c => `<option value="${c.id}" ${c.id === '1fe' ? 'selected' : ''}>${c.name}</option>`).join('');
+}
+
+function selectCompound(id) {
+  selectedCompound = id;
+  renderCompounds();
+  updateEffective();
+}
+
+function updateEffective() {
+  const dose = parseFloat(document.getElementById('doseInput').value) || 0;
+  const compound = COMPOUNDS.find(c => c.id === selectedCompound);
+  if (dose && compound) {
+    document.getElementById('effectiveLsd').textContent = (dose * compound.ratio).toFixed(0) + ' mcga (pre-tolerance)';
+  } else {
+    document.getElementById('effectiveLsd').textContent = '—';
+  }
+}
+
+document.getElementById('doseInput').addEventListener('input', updateEffective);
+
+function getToleranceFactor(daysSince, lastEffectiveDose) {
+  if (!daysSince || daysSince <= 0) return 0;
+  if (daysSince >= 14) return 1.0;
+  const baseDecay = 1 - Math.exp(-daysSince / 4.5);
+  const doseFactor = Math.min(lastEffectiveDose / 150, 1.0);
+  const toleranceMagnitude = 0.85 * doseFactor + 0.15;
+  return Math.max(0, Math.min(1, 1 - toleranceMagnitude * (1 - baseDecay)));
+}
+
+function addTime(base, minutes) {
+  const d = new Date(base);
+  d.setMinutes(d.getMinutes() + minutes);
+  return d;
+}
+
+function fmt(date) {
+  return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
+function getDoseMessages(mcga) {
+  const d = Math.min(Math.ceil(mcga / 25) * 25, 625);
+  const msgs = {
+    25:  { dose: 'Swallowed. Your stomach doesn\'t even know yet.', onset: 'Maybe a faint something? Or just placebo. Hard to tell.', comeup: 'Slight mood lift, colors seem slightly nicer. That\'s about it.', peak: 'Very subtle threshold — enhanced mood, slight focus, zero visuals. You\'re microdosing basically.', plateau: 'Effects plateauing at almost nothing. Functional.', comedown: 'Already fading. Did you even take anything?', residual: 'Back to baseline. Stimulated but normal.', sleep: 'Sleep fine, maybe slightly harder than usual.' },
+    50:  { dose: 'Swallowed. Nothing for a while.', onset: 'Body warmth, slight tingly energy. Yep, it\'s real.', comeup: 'Colors brighter, slight euphoria, music sounds better. No visuals yet.', peak: 'Threshold+. Mild mood elevation, slight body high, music appreciation through the roof. Still functional.', plateau: 'Gentle head buzz remaining. Pleasant.', comedown: 'Smooth slide down. Still feel good.', residual: 'Afterglow. Slightly energized, reflective.', sleep: 'Can sleep but might take an hour to wind down.' },
+    75:  { dose: 'Down the hatch. 45-90 min till anything.', onset: 'Clear body buzz, slight mental shift. It\'s coming.', comeup: 'Mild visual brightening, surfaces have a faint life to them. Headspace engaging.', peak: 'Light trip. Surfaces breathe faintly, closed-eye has gentle color patterns. Mostly mental — introspective, talkative.', plateau: 'Softening now. Comfortable headspace remains.', comedown: 'Smooth. Clear-headed but enriched.', residual: 'Nice afterglow. Slightly stimulated.', sleep: 'Sleep possible but brain still active.' },
+    100: { dose: 'Taken. Standard "one tab" territory.', onset: 'Unmistakable alerts — pupils starting, energy shifting.', comeup: 'Visual enhancement clear now. Textures alive, colors popping. Headspace deepening.', peak: 'Proper trip. Open-eye visuals with breathing/morphing surfaces. Patterns in textures. Closed-eye has structured geometry. Strong headspace.', plateau: 'Visuals stepping down but still obvious. Thoughts still unusual.', comedown: 'Grounding. Visuals fading but mind still creative.', residual: 'Mostly back. Stimulated and reflective.', sleep: 'Sleep possible after 8-9h from dose. Brain still buzzing.' },
+    125: { dose: 'Decent dose. Respect it.', onset: 'Strong alerts — energy, slight anxiety, anticipation.', comeup: 'Visuals clearly present. Walls showing texture movement. Mood intense.', peak: 'Solid psychedelic experience. Clear geometry on surfaces, good closed-eye fractals in darkness, emotional waves. Lose track of time.', plateau: 'Still tripping but plateau fading. Good headspace window.', comedown: 'Long comedown. Still visual traces.', residual: 'Late-stage alertness. Mind wandering.', sleep: 'Earliest sleep ~9h from dose.' },
+    150: { dose: 'This is real territory. You\'re committed now.', onset: 'Body load notable — heart rate up, jaw slight tension, energy surge.', comeup: 'Pupils blown, visuals obvious. Can\'t act sober easily now.', peak: 'Strong trip — clear open-eye geometry on patterned surfaces, strong CEVs in darkness, emotional intensity, thoughts coming in waves. Time moves weirdly.', plateau: 'Visuals subsiding but headspace still deep.', comedown: 'Long tail. Stimulation prominent.', residual: 'Still slightly not-normal. Thoughtful state.', sleep: 'Sleep window 9-11h from dose.' },
+    175: { dose: 'Higher end. Make sure your setting is locked in.', onset: 'Coming up hard. Body feels electric, slight nausea possible.', comeup: 'Visuals unmistakable. Surfaces alive, colors impossible. Fully altered.', peak: 'Heavy trip. Open-eye fractals on flat surfaces, geometry overlaying vision at times. Strong CEVs. Deep thoughtscapes. Don\'t plan to function.', plateau: 'Still intense on descent. Long plateau.', comedown: 'Slow and long. Visuals leaving gradually.', residual: 'Still altered enough to notice. Mental stimulation high.', sleep: 'Sleep 10-12h from dose minimum.' },
+    200: { dose: 'This is the fractal zone. Set, setting, and intention.', onset: 'Intense body come-up. Nausea possible. Ride it.', comeup: 'Full visual onset. Reality is rearranging. You are very high.', peak: 'Fractals on walls. Geometry covering surfaces. Complex CEVs — landscapes, entities, full scenes. Ego beginning to thin. Profound thoughts feel like revelations.', plateau: 'Still heavy. Visual complexity remains significant.', comedown: 'Long. Visual echoes persist.', residual: 'Thoroughly washed. Thoughts slow and deep.', sleep: 'Sleep only after 11-13h. Don\'t fight it.' },
+    225: { dose: 'You\'re going deep. This isn\'t casual.', onset: 'Body load serious. Breathe.', comeup: 'Full altered state. Sober thoughts feel distant.', peak: 'Strong fractal experience. Walls covered in moving geometry, visual overlay on everything. Closed eyes = full immersive landscapes. Ego very thin — sense of self dissolving at edges.', plateau: 'Still extremely visual. Reality feels constructed.', comedown: 'Takes a long time. Still in the experience.', residual: 'Quiet. Integration happening.', sleep: 'Sleep unlikely before 12h.' },
+    250: { dose: 'High dose. Experienced users only.', onset: 'Body surge. Could be overwhelming — stay still.', comeup: 'Reality significantly altered. Ego structures loosening fast.', peak: 'Intense ego dissolution territory. Fractals absolutely everywhere, sense of self fragmenting, possible mystical/terror states. Profound but challenging. Time is gone.', plateau: 'Intense even coming off peak.', comedown: 'Very long. Processing what happened.', residual: 'Reflective. Slightly shaken or transformed.', sleep: '12-14h minimum.' },
+    275: { dose: 'Brave or reckless. Possibly both.', onset: 'Intense body rush. Anchor yourself.', comeup: 'Fast and overwhelming come-up. Hold something solid.', peak: 'Ego dissolution likely complete. You may forget you took a drug. Fractals are your reality. Could be transcendent or terrifying — no middle ground.', plateau: 'Still in deep water.', comedown: 'Slow emergence. Long integration needed.', residual: 'Thoroughly humbled.', sleep: '13-15h minimum. Rest needed.' },
+    300: { dose: 'This is a lot. You know what you\'re doing, right?', onset: 'Rapid and forceful come-up.', comeup: 'Sober reality is basically gone. You\'re all the way in.', peak: 'Complete ego dissolution. Identity gone. Fractals ARE you. Possible entity encounters. Profoundly disorienting and/or transcendent. Hours may pass feeling like minutes.', plateau: 'Reintegrating slowly.', comedown: 'Long, gentle, necessary.', residual: 'Quiet mind. Lots to process.', sleep: '14h minimum. Take tomorrow off.' },
+    325: { dose: 'Entering genuinely heavy territory.', onset: 'Overwhelming. Don\'t resist.', comeup: 'Completely submerged.', peak: 'Reality as concept is gone. You exist as patterns. Every surface is alive and speaking. Possible synesthesia, time completely absent. Have someone you trust nearby.', plateau: 'Long and slow surfacing.', comedown: 'Extended. May need grounding tools.', residual: 'Exhausted but okay. Probably.', sleep: '15h. Hydrate before sleeping.' },
+    350: { dose: 'Very high. This is a full-day commitment minimum.', onset: 'Immediate and overpowering.', comeup: 'You\'re not coming back quickly.', peak: 'Full mystical dissolution. Boundaries between self and universe gone. Visuals are total reality replacement. Not recreational — this is ceremony territory.', plateau: 'Long and profound.', comedown: 'Multi-hour slow return.', residual: 'Changed. Tired. Need rest.', sleep: 'Not before 15-16h. Your body needs it.' },
+    375: { dose: 'Heroic adjacent. Respect this dose.', onset: 'Slammed.', comeup: 'Complete departure from baseline.', peak: 'Language fails here. Geometry is everything, ego is gone, time is a concept you vaguely remember. Possibly the most intense experience of your life.', plateau: 'Extended depth.', comedown: 'Very long return journey.', residual: 'Profoundly altered baseline. Integration required.', sleep: '16h minimum.' },
+    400: { dose: 'Heroic dose. Clear your next 24 hours.', onset: 'Total sensory takeover.', comeup: 'Conscious mind surrendering.', peak: 'The fractal universe. You are a pattern in an infinite geometry. Ego non-existent. Time looping or meaningless. Intense and potentially traumatic without preparation.', plateau: 'Very extended.', comedown: 'Could take 4-6 hours alone.', residual: 'Exhausted and altered.', sleep: '16-18h minimum. Non-negotiable.' },
+    425: { dose: 'Are you sure? Like, really sure?', onset: 'Brutal come-up. Prepare for the ride.', comeup: 'Gone.', peak: 'Complete reality replacement. This is beyond description in normal language. You will have no frame of reference. Both terrifying and sacred simultaneously.', plateau: 'Extremely prolonged.', comedown: 'Slow emergence from deep.', residual: 'Thoroughly emptied and refilled.', sleep: '18h minimum. Take 2 days off.' },
+    450: { dose: 'This is an extreme dose for any human.', onset: 'Annihilating.', comeup: 'Consciousness barely online.', peak: 'Total dissolution. If you emerge intact, you will have a story to tell for life. Physical nausea, possible temporary psychosis-adjacent states. Not recreational.', plateau: 'Very long.', comedown: 'Multi-hour crawl back.', residual: 'Fundamentally changed. Processing for weeks.', sleep: '18-20h. Don\'t rush.' },
+    475: { dose: 'Getting into genuinely dangerous psychological territory.', onset: 'Complete.', comeup: 'Unconscious processes dominant.', peak: 'Beyond recreational. This is deep shamanic/clinical territory without the safety net. Possible psychotic breaks in predisposed individuals. 10/10 intensity.', plateau: 'Will not feel like coming down.', comedown: 'Very slow.', residual: 'Changed forever, maybe.', sleep: 'Eventually.' },
+    500: { dose: '500mcga. This is extreme. Body load alone is significant.', onset: 'Total overwhelm.', comeup: 'Sober you is not present.', peak: 'Maximum human psychedelic experience territory. Heart racing. World gone. If you\'re reading this later you made it.', plateau: 'Extended massively.', comedown: 'Long crawl.', residual: 'Weeks of integration.', sleep: '20h minimum. Eat something tomorrow.' },
+    525: { dose: 'Approaching the ceiling of what\'s survivable experientially.', onset: 'Instant overwhelm.', comeup: 'Consciousness fragmenting.', peak: 'Not describable. Physical stress significant. Keep someone nearby — not to trip-sit, but in case you need actual help.', plateau: 'Endless feeling.', comedown: 'Very slow.', residual: 'Please journal this.', sleep: 'When your body forces it.' },
+    550: { dose: 'This is genuinely reckless territory.', onset: 'Your nervous system is under siege.', comeup: 'Complete psychic annihilation.', peak: 'Cardiovascular strain real. Reality as concept is a distant memory. This is the edge of what the mind can process without permanent alteration.', plateau: 'Extended suffering or bliss — no guarantee which.', comedown: 'Long and disorienting.', residual: 'Changed. Seek integration support.', sleep: 'Whenever possible.' },
+    575: { dose: 'Strongly advise against this dose.', onset: 'Total system override.', comeup: 'Gone.', peak: 'Physical and psychological extremity. Possible temporary psychosis. Heart rate very high. Stay lying down.', plateau: 'Will not end quickly.', comedown: 'Unknown timeline.', residual: 'See a therapist.', sleep: 'When your body allows.' },
+    600: { dose: '600mcga effective. This is the edge of reasonable human experience.', onset: 'Immediate and total.', comeup: 'You are no longer a person. You are a process.', peak: 'This is not a trip anymore. This is ego death so complete that memory, identity, and time have ceased to exist. Physical stress maximal. If you are reading this post-trip: you survived.', plateau: 'Days may feel like minutes.', comedown: 'Slow emergence over many hours.', residual: 'You will need time. Weeks. Take it.', sleep: 'Your body will sleep when it\'s ready.' },
+    625: { dose: '💀 BUDDY. STOP. You\'re calculating a lethal dose of reality.', onset: 'Your nervous system called and said no.', comeup: 'N/A — you\'re no longer using your brain for reasoning.', peak: 'You are dead. Not physically, but experientially you have ceased to exist as a coherent entity. This dose range has no recreational or spiritual use. It is just harm.', plateau: 'Permanent?', comedown: 'If you come down, call someone.', residual: 'Seek medical attention.', sleep: 'You\'re not sleeping, you\'re being hospitalized.' },
+  };
+
+  if (d >= 625) return msgs[625];
+  if (msgs[d]) return msgs[d];
+  const keys = Object.keys(msgs).map(Number).sort((a,b)=>a-b);
+  const closest = keys.reduce((prev, curr) => Math.abs(curr - mcga) < Math.abs(prev - mcga) ? curr : prev);
+  return msgs[closest];
+}
+
+function calculate() {
+  const dose = parseFloat(document.getElementById('doseInput').value);
+  const compound = COMPOUNDS.find(c => c.id === selectedCompound);
+  const lastDateVal = document.getElementById('lastDate').value;
+  const lastDoseVal = parseFloat(document.getElementById('lastDose').value) || 0;
+  const lastCompoundId = document.getElementById('lastCompound').value;
+  const lastCompound = COMPOUNDS.find(c => c.id === lastCompoundId);
+  const doseTimeVal = document.getElementById('doseTime').value;
+  const weed = document.getElementById('weedToggle').checked;
+
+  if (!dose || !doseTimeVal) { alert('Enter a dose and dose time.'); return; }
+
+  const grossMcga = dose * compound.ratio;
+  let tolFactor = 1.0, daysSince = 0, lastEffMcga = 0;
+
+  if (lastDateVal && lastDoseVal) {
+    const lastDate = new Date(lastDateVal);
+    const today = new Date();
+    daysSince = Math.round((today - lastDate) / (1000 * 60 * 60 * 24));
+    lastEffMcga = lastDoseVal * lastCompound.ratio;
+    tolFactor = getToleranceFactor(daysSince, lastEffMcga);
+  }
+
+  const effectiveMcga = grossMcga * tolFactor;
+  const tolerancePct = Math.round((1 - tolFactor) * 100);
+  const weedMultiplier = weed ? 1.7 : 1.0;
+  const perceivedMcga = effectiveMcga * weedMultiplier;
+
+  const [h, m] = doseTimeVal.split(':').map(Number);
+  const doseDate = new Date();
+  doseDate.setHours(h, m, 0, 0);
+
+  const isRC = compound.rc;
+  const onsetMin = isRC ? 75 : 45;
+  const comeupMin = isRC ? 120 : 90;
+  const peakStartMin = isRC ? 150 : 120;
+  const peakDuration = perceivedMcga > 200 ? 210 : perceivedMcga > 150 ? 180 : 150;
+  const plateauEnd = peakStartMin + peakDuration;
+  const comedownEnd = plateauEnd + 120;
+  const residualEnd = comedownEnd + 90;
+  const sleepMin = residualEnd + 30;
+  const sleepLatest = residualEnd + 90;
+
+  const t = {
+    dose:      doseDate,
+    onset:     addTime(doseDate, onsetMin),
+    comeup:    addTime(doseDate, comeupMin),
+    peak:      addTime(doseDate, peakStartMin),
+    plateau:   addTime(doseDate, plateauEnd),
+    comedown:  addTime(doseDate, comedownEnd),
+    residual:  addTime(doseDate, residualEnd),
+    sleep:     addTime(doseDate, sleepMin),
+    sleepLate: addTime(doseDate, sleepLatest),
+  };
+
+  const intensityClass = perceivedMcga > 250 ? 'intensity-extreme' :
+                          perceivedMcga > 180 ? 'intensity-vstrong' :
+                          perceivedMcga > 130 ? 'intensity-strong' :
+                          perceivedMcga > 80  ? 'intensity-moderate' : 'intensity-light';
+
+  const intensityLabel = perceivedMcga > 250 ? 'VERY STRONG' :
+                          perceivedMcga > 180 ? 'STRONG' :
+                          perceivedMcga > 130 ? 'MODERATE-STRONG' :
+                          perceivedMcga > 80  ? 'MODERATE' : 'LIGHT';
+
+  document.getElementById('statGrid').innerHTML = `
+    <div class="stat-card">
+      <span class="stat-label">Effective Dose</span>
+      <div class="stat-value">${effectiveMcga.toFixed(0)}<span> mcga</span></div>
+      <div class="stat-sub">${grossMcga.toFixed(0)} mcga pre-tolerance</div>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Tolerance</span>
+      <div class="stat-value">${tolerancePct}<span>%</span></div>
+      <div class="stat-sub">${daysSince > 0 ? daysSince + ' days since last' : 'no prior trip'}</div>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Perceived</span>
+      <div class="stat-value ${intensityClass}">${perceivedMcga.toFixed(0)}<span> mcga</span></div>
+      <div class="stat-sub">${weed ? 'incl. weed boost (×1.7)' : 'no weed'}</div>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Intensity</span>
+      <div class="stat-value ${intensityClass}" style="font-size:16px;">${intensityLabel}</div>
+      <div class="stat-sub">${compound.name} · ${(compound.ratio*100).toFixed(0)}% conv.</div>
+    </div>
+  `;
+
+  const doseMessages = getDoseMessages(perceivedMcga);
+
+  const tlItems = [
+    { time: fmt(t.dose),    label: doseMessages.dose,     phase: 'dose',     intensity: 0   },
+    { time: fmt(t.onset),   label: doseMessages.onset,    phase: 'onset',    intensity: 15  },
+    { time: fmt(t.comeup),  label: doseMessages.comeup,   phase: 'comeup',   intensity: 45  },
+    { time: fmt(t.peak),    label: doseMessages.peak,     phase: 'peak',     intensity: 100 },
+    { time: fmt(t.plateau), label: doseMessages.plateau,  phase: 'plateau',  intensity: 70  },
+    { time: fmt(t.comedown),label: doseMessages.comedown, phase: 'comedown', intensity: 35  },
+    { time: fmt(t.residual),label: doseMessages.residual, phase: 'residual', intensity: 15  },
+    { time: fmt(t.sleep) + '–' + fmt(t.sleepLate), label: doseMessages.sleep, phase: 'sleep', intensity: 0 },
+  ];
+
+  document.getElementById('timeline').innerHTML = tlItems.map(item => `
+    <div class="tl-item ${item.phase}">
+      <div class="tl-time">${item.time}</div>
+      <div class="tl-label">${item.label}</div>
+      ${item.intensity > 0 ? `<div class="intensity-bar"><div class="intensity-fill" style="width:${item.intensity}%"></div></div>` : ''}
+    </div>
+  `).join('');
+
+  const pupilFull   = addTime(doseDate, peakStartMin + 30);
+  const pupilHalf   = addTime(doseDate, plateauEnd + 30);
+  const pupilFading = addTime(doseDate, comedownEnd - 30);
+  const pupilAlmost = addTime(doseDate, comedownEnd + 30);
+  const pupilNormal = addTime(doseDate, comedownEnd + 60);
+  const pupilStart  = addTime(doseDate, comeupMin - 20);
+  const pupilNotice = addTime(doseDate, comeupMin + 10);
+  const maxSize = perceivedMcga > 300 ? 32 : perceivedMcga > 200 ? 28 : perceivedMcga > 130 ? 24 : 20;
+
+  const pupilData = [
+    { time: `${fmt(t.dose)}–${fmt(pupilStart)}`,     label: 'Baseline — completely normal, no change',            size: 13, border: '#2a2a2a' },
+    { time: `${fmt(pupilStart)}–${fmt(t.comeup)}`,   label: 'Trace dilation — almost unnoticeable',               size: 15, border: '#333' },
+    { time: `${fmt(t.comeup)}–${fmt(pupilNotice)}`,  label: 'Mild dilation starting — noticeable in normal light', size: 18, border: '#444' },
+    { time: `${fmt(pupilNotice)}–${fmt(t.peak)}`,    label: 'Clear dilation — obvious to anyone who looks',        size: 21, border: '#555' },
+    { time: `${fmt(t.peak)}–${fmt(pupilFull)}`,      label: '⚠ PEAK DILATION — iris barely visible, dead giveaway', size: maxSize, border: '#888' },
+    { time: `${fmt(pupilFull)}–${fmt(t.plateau)}`,   label: 'Maximum sustained — fully blown, stays like this',    size: maxSize, border: '#888' },
+    { time: `${fmt(t.plateau)}–${fmt(pupilHalf)}`,   label: 'Slowly shrinking — still very dilated',               size: Math.round(maxSize * 0.85), border: '#666' },
+    { time: `${fmt(pupilHalf)}–${fmt(t.comedown)}`,  label: 'Noticeably coming down — clearly recovering',         size: Math.round(maxSize * 0.70), border: '#555' },
+    { time: `${fmt(t.comedown)}–${fmt(pupilFading)}`,label: 'Mild dilation remaining — passable in dim light',      size: 17, border: '#444' },
+    { time: `${fmt(pupilFading)}–${fmt(pupilAlmost)}`,label: 'Almost normal — only obvious in very bright light',  size: 15, border: '#383838' },
+    { time: `${fmt(pupilAlmost)}–${fmt(pupilNormal)}`,label: 'Nearly baseline — only you would notice',            size: 14, border: '#2e2e2e' },
+    { time: `${fmt(pupilNormal)}+`,                  label: '✓ Fully normal — safe to go anywhere',               size: 13, border: '#222' },
+  ];
+
+  document.getElementById('pupilSection').innerHTML = pupilData.map(p => `
+    <div class="pupil-row">
+      <span class="pupil-time">${p.time}</span>
+      <div class="pupil-dot" style="width:${p.size}px;height:${p.size}px;border-color:${p.border};background:#111;"></div>
+      <span class="pupil-label">${p.label}</span>
+    </div>
+  `).join('');
+
+  document.getElementById('warnBox').innerHTML = perceivedMcga > 220
+    ? `<div class="warning-box">⚠ ${perceivedMcga.toFixed(0)} mcga is a heavy dose. Ego dissolution likely. Ensure safe setting, no obligations next day, trusted company or solo in familiar space.</div>`
+    : '';
+
+  document.getElementById('weedBox').innerHTML = weed
+    ? `<div class="weed-note">🌿 Weed at peak can 2-3× perceived intensity. Time it to T+${Math.round(peakStartMin/60)}h (around ${fmt(t.peak)}). Take one small hit and wait 15min before more — it stacks harder than expected on psychedelics.</div>`
+    : '';
+
+  document.getElementById('results').classList.add('visible');
+  document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+renderCompounds();
+</script>
+</body>
+</html>
