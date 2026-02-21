@@ -116,9 +116,9 @@
     letter-spacing: 0.5px;
   }
 
-  .badge-rc  { background: rgba(255,255,255,0.08); color: #bbb; }
-  .badge-og  { background: rgba(255,255,255,0.12); color: #f1f1f1; }
-  .badge-new { background: rgba(255,255,255,0.08); color: #ccc; }
+  .badge-rc  { background: rgba(224,64,251,0.18); color: #e87aff; }
+  .badge-og  { background: rgba(0,229,255,0.15);  color: #5de8ff; }
+  .badge-new { background: rgba(0,230,118,0.18);  color: #4dffaa; }
 
   .input-row {
     display: flex;
@@ -292,13 +292,14 @@
 
   .timeline {
     position: relative;
-    padding-left: 24px;
+    padding-left: 28px;
   }
 
-  .timeline::before {
-    content: '';
+  .timeline-line {
     position: absolute;
-    left: 7px; top: 8px; bottom: 8px;
+    left: 7px;
+    top: 10px;
+    bottom: 10px;
     width: 1px;
     background: rgba(255,255,255,0.12);
   }
@@ -308,18 +309,19 @@
     margin-bottom: 18px;
   }
 
-  .tl-item::before {
-    content: '';
+  .tl-dot {
     position: absolute;
-    left: -20px;
-    top: 6px;
-    width: 7px; height: 7px;
+    left: -24px;
+    top: 5px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    background: #888;
-    border: 1px solid #2a2a2a;
+    background: #777;
+    border: 1.5px solid #2a2a2a;
   }
 
-  .tl-item.peak::before { background: #f1f1f1; width: 9px; height: 9px; top: 5px; left: -21px; }
+  .tl-dot.dot-peak  { background: #f1f1f1; width: 10px; height: 10px; top: 4px; left: -25px; }
+  .tl-dot.dot-sleep { background: #4dffaa; }
 
   .tl-time {
     font-size: 13px;
@@ -369,14 +371,19 @@
   .pupil-time {
     font-size: 11px;
     color: #ccc;
-    min-width: 100px;
+    width: 110px;
+    min-width: 110px;
     font-weight: 600;
+    flex-shrink: 0;
   }
 
-  .pupil-dot {
-    border-radius: 50%;
-    background: #111;
-    border: 2px solid #333;
+  .pupil-eye-wrap {
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
   }
 
@@ -384,6 +391,7 @@
     font-size: 11px;
     color: #888;
     line-height: 1.4;
+    flex: 1;
   }
 
   .warning-box {
@@ -417,7 +425,7 @@
 <body>
 
 <div class="container">
-  <h1>Trip Calculator</h1>
+  <h1><span style="background:#000;color:#000;border-radius:3px;padding:0 6px;user-select:none;">Danylo</span>'s Trip Calculator</h1>
   <p class="subtitle">Lysergamide Dose &amp; Timeline Estimator</p>
 
   <div class="section-label">01 — Select Compound</div>
@@ -678,18 +686,19 @@ function calculate() {
   const doseMessages = getDoseMessages(perceivedMcga);
 
   const tlItems = [
-    { time: fmt(t.dose),    label: doseMessages.dose,     phase: 'dose',     intensity: 0   },
-    { time: fmt(t.onset),   label: doseMessages.onset,    phase: 'onset',    intensity: 15  },
-    { time: fmt(t.comeup),  label: doseMessages.comeup,   phase: 'comeup',   intensity: 45  },
-    { time: fmt(t.peak),    label: doseMessages.peak,     phase: 'peak',     intensity: 100 },
-    { time: fmt(t.plateau), label: doseMessages.plateau,  phase: 'plateau',  intensity: 70  },
-    { time: fmt(t.comedown),label: doseMessages.comedown, phase: 'comedown', intensity: 35  },
-    { time: fmt(t.residual),label: doseMessages.residual, phase: 'residual', intensity: 15  },
-    { time: fmt(t.sleep) + '–' + fmt(t.sleepLate), label: doseMessages.sleep, phase: 'sleep', intensity: 0 },
+    { time: fmt(t.dose),    label: doseMessages.dose,     phase: 'dose',     intensity: 0,   dot: '' },
+    { time: fmt(t.onset),   label: doseMessages.onset,    phase: 'onset',    intensity: 15,  dot: '' },
+    { time: fmt(t.comeup),  label: doseMessages.comeup,   phase: 'comeup',   intensity: 45,  dot: '' },
+    { time: fmt(t.peak),    label: doseMessages.peak,     phase: 'peak',     intensity: 100, dot: 'dot-peak' },
+    { time: fmt(t.plateau), label: doseMessages.plateau,  phase: 'plateau',  intensity: 70,  dot: '' },
+    { time: fmt(t.comedown),label: doseMessages.comedown, phase: 'comedown', intensity: 35,  dot: '' },
+    { time: fmt(t.residual),label: doseMessages.residual, phase: 'residual', intensity: 15,  dot: '' },
+    { time: fmt(t.sleep) + ' (earliest)', label: doseMessages.sleep + ' This is the earliest possible sleep window.', phase: 'sleep', intensity: 0, dot: 'dot-sleep' },
   ];
 
-  document.getElementById('timeline').innerHTML = tlItems.map(item => `
+  document.getElementById('timeline').innerHTML = `<div class="timeline-line"></div>` + tlItems.map(item => `
     <div class="tl-item ${item.phase}">
+      <div class="tl-dot ${item.dot}"></div>
       <div class="tl-time">${item.time}</div>
       <div class="tl-label">${item.label}</div>
       ${item.intensity > 0 ? `<div class="intensity-bar"><div class="intensity-fill" style="width:${item.intensity}%"></div></div>` : ''}
@@ -703,27 +712,60 @@ function calculate() {
   const pupilNormal = addTime(doseDate, comedownEnd + 60);
   const pupilStart  = addTime(doseDate, comeupMin - 20);
   const pupilNotice = addTime(doseDate, comeupMin + 10);
+
+  const irisSchemes = [
+    { outer: '#3d6e4e', mid: '#2a5038', inner: '#1a3525', streak: '#5a9966', name: 'green' },
+    { outer: '#7a5520', mid: '#5c3d10', inner: '#3a2508', streak: '#c48830', name: 'brown' },
+    { outer: '#2e5e8a', mid: '#1e4268', inner: '#112840', streak: '#4a88c0', name: 'blue'  },
+    { outer: '#7a5c2a', mid: '#5a4018', inner: '#3a2808', streak: '#b08040', name: 'hazel' },
+    { outer: '#5a5a70', mid: '#3e3e52', inner: '#262635', streak: '#7a7a98', name: 'gray'  },
+  ];
+  const iris = irisSchemes[Math.floor(Math.random() * irisSchemes.length)];
+
+  function drawEye(pupilSize, totalSize) {
+    const cx = totalSize / 2;
+    const cy = totalSize / 2;
+    const irisR = totalSize / 2 - 1;
+    const pupilR = (pupilSize / totalSize) * irisR * 0.9;
+    const streaks = Array.from({length: 16}, (_, i) => {
+      const angle = (i / 16) * Math.PI * 2;
+      const r1 = pupilR + 1;
+      const r2 = irisR * (0.6 + Math.random() * 0.35);
+      return `<line x1="${cx + Math.cos(angle)*r1}" y1="${cy + Math.sin(angle)*r1}" x2="${cx + Math.cos(angle)*r2}" y2="${cy + Math.sin(angle)*r2}" stroke="${iris.streak}" stroke-width="0.6" opacity="0.5"/>`;
+    }).join('');
+    return `<svg width="${totalSize}" height="${totalSize}" viewBox="0 0 ${totalSize} ${totalSize}" style="display:block;">
+      <circle cx="${cx}" cy="${cy}" r="${irisR}" fill="${iris.outer}"/>
+      <circle cx="${cx}" cy="${cy}" r="${irisR * 0.75}" fill="${iris.mid}"/>
+      <circle cx="${cx}" cy="${cy}" r="${irisR * 0.55}" fill="${iris.inner}"/>
+      ${streaks}
+      <circle cx="${cx}" cy="${cy}" r="${pupilR}" fill="#080808"/>
+      <circle cx="${cx + pupilR*0.25}" cy="${cy - pupilR*0.25}" r="${Math.max(1, pupilR*0.18)}" fill="rgba(255,255,255,0.25)"/>
+      <circle cx="${cx}" cy="${cy}" r="${irisR}" fill="none" stroke="rgba(0,0,0,0.7)" stroke-width="1.5"/>
+    </svg>`;
+  }
+
   const maxSize = perceivedMcga > 300 ? 32 : perceivedMcga > 200 ? 28 : perceivedMcga > 130 ? 24 : 20;
+  const eyeSize = 34;
 
   const pupilData = [
-    { time: `${fmt(t.dose)}–${fmt(pupilStart)}`,     label: 'Baseline — completely normal, no change',            size: 13, border: '#2a2a2a' },
-    { time: `${fmt(pupilStart)}–${fmt(t.comeup)}`,   label: 'Trace dilation — almost unnoticeable',               size: 15, border: '#333' },
-    { time: `${fmt(t.comeup)}–${fmt(pupilNotice)}`,  label: 'Mild dilation starting — noticeable in normal light', size: 18, border: '#444' },
-    { time: `${fmt(pupilNotice)}–${fmt(t.peak)}`,    label: 'Clear dilation — obvious to anyone who looks',        size: 21, border: '#555' },
-    { time: `${fmt(t.peak)}–${fmt(pupilFull)}`,      label: '⚠ PEAK DILATION — iris barely visible, dead giveaway', size: maxSize, border: '#888' },
-    { time: `${fmt(pupilFull)}–${fmt(t.plateau)}`,   label: 'Maximum sustained — fully blown, stays like this',    size: maxSize, border: '#888' },
-    { time: `${fmt(t.plateau)}–${fmt(pupilHalf)}`,   label: 'Slowly shrinking — still very dilated',               size: Math.round(maxSize * 0.85), border: '#666' },
-    { time: `${fmt(pupilHalf)}–${fmt(t.comedown)}`,  label: 'Noticeably coming down — clearly recovering',         size: Math.round(maxSize * 0.70), border: '#555' },
-    { time: `${fmt(t.comedown)}–${fmt(pupilFading)}`,label: 'Mild dilation remaining — passable in dim light',      size: 17, border: '#444' },
-    { time: `${fmt(pupilFading)}–${fmt(pupilAlmost)}`,label: 'Almost normal — only obvious in very bright light',  size: 15, border: '#383838' },
-    { time: `${fmt(pupilAlmost)}–${fmt(pupilNormal)}`,label: 'Nearly baseline — only you would notice',            size: 14, border: '#2e2e2e' },
-    { time: `${fmt(pupilNormal)}+`,                  label: '✓ Fully normal — safe to go anywhere',               size: 13, border: '#222' },
+    { time: `${fmt(t.dose)}–${fmt(pupilStart)}`,      label: 'Baseline — completely normal, no change',              pupil: 11, total: eyeSize },
+    { time: `${fmt(pupilStart)}–${fmt(t.comeup)}`,    label: 'Trace dilation — almost unnoticeable',                 pupil: 13, total: eyeSize },
+    { time: `${fmt(t.comeup)}–${fmt(pupilNotice)}`,   label: 'Mild dilation starting — noticeable in normal light',  pupil: 15, total: eyeSize },
+    { time: `${fmt(pupilNotice)}–${fmt(t.peak)}`,     label: 'Clear dilation — obvious to anyone who looks',         pupil: 18, total: eyeSize },
+    { time: `${fmt(t.peak)}–${fmt(pupilFull)}`,       label: '⚠ PEAK DILATION — iris barely visible, dead giveaway', pupil: Math.round(maxSize * 0.88), total: eyeSize },
+    { time: `${fmt(pupilFull)}–${fmt(t.plateau)}`,    label: 'Maximum sustained — fully blown, stays like this',     pupil: Math.round(maxSize * 0.88), total: eyeSize },
+    { time: `${fmt(t.plateau)}–${fmt(pupilHalf)}`,    label: 'Slowly shrinking — still very dilated',                pupil: Math.round(maxSize * 0.72), total: eyeSize },
+    { time: `${fmt(pupilHalf)}–${fmt(t.comedown)}`,   label: 'Noticeably coming down — clearly recovering',          pupil: Math.round(maxSize * 0.55), total: eyeSize },
+    { time: `${fmt(t.comedown)}–${fmt(pupilFading)}`, label: 'Mild dilation remaining — passable in dim light',       pupil: 16, total: eyeSize },
+    { time: `${fmt(pupilFading)}–${fmt(pupilAlmost)}`,label: 'Almost normal — only obvious in very bright light',     pupil: 13, total: eyeSize },
+    { time: `${fmt(pupilAlmost)}–${fmt(pupilNormal)}`,label: 'Nearly baseline — only you would notice',               pupil: 12, total: eyeSize },
+    { time: `${fmt(pupilNormal)}+`,                   label: '✓ Fully normal — safe to go anywhere',                 pupil: 11, total: eyeSize },
   ];
 
   document.getElementById('pupilSection').innerHTML = pupilData.map(p => `
     <div class="pupil-row">
       <span class="pupil-time">${p.time}</span>
-      <div class="pupil-dot" style="width:${p.size}px;height:${p.size}px;border-color:${p.border};background:#111;"></div>
+      <div class="pupil-eye-wrap">${drawEye(p.pupil, p.total)}</div>
       <span class="pupil-label">${p.label}</span>
     </div>
   `).join('');
