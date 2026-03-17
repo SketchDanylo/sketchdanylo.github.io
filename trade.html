@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS2 Trade-Up Calculator</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c0f;
+    --panel: #111318;
+    --border: #1e2530;
+    --accent: #c8ff00;
+    --accent2: #ff6b00;
+    --red: #ff3b3b;
+    --green: #00e676;
+    --text: #e0e8f0;
+    --muted: #4a5568;
+    --mono: 'Share Tech Mono', monospace;
+    --display: 'Barlow Condensed', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: 
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(200,255,0,0.07) 0%, transparent 60%),
+      repeating-linear-gradient(0deg, transparent, transparent 40px, rgba(255,255,255,0.015) 40px, rgba(255,255,255,0.015) 41px),
+      repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(255,255,255,0.015) 40px, rgba(255,255,255,0.015) 41px);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 20px;
+    position: relative;
+    z-index: 1;
+  }
+
+  header {
+    margin-bottom: 40px;
+  }
+
+  .logo {
+    font-family: var(--display);
+    font-weight: 900;
+    font-size: 42px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    line-height: 1;
+    color: var(--accent);
+    text-shadow: 0 0 40px rgba(200,255,0,0.3);
+  }
+
+  .logo span {
+    color: var(--text);
+    opacity: 0.4;
+  }
+
+  .subtitle {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    margin-top: 6px;
+  }
+
+  .input-section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 28px;
+    margin-bottom: 24px;
+    position: relative;
+    clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
+  }
+
+  .input-section::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+  }
+
+  .section-label {
+    font-family: var(--display);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 20px;
+  }
+
+  .input-row {
+    display: flex;
+    gap: 16px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .input-group {
+    flex: 1;
+    min-width: 160px;
+  }
+
+  .input-group label {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .input-group input, .input-group select {
+    width: 100%;
+    background: rgba(0,0,0,0.4);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 20px;
+    padding: 12px 16px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .input-group input:focus, .input-group select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), inset 0 0 20px rgba(200,255,0,0.03);
+  }
+
+  .input-group select option {
+    background: var(--panel);
+  }
+
+  .btn-analyze {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    font-family: var(--display);
+    font-weight: 900;
+    font-size: 16px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 14px 32px;
+    cursor: pointer;
+    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
+    transition: all 0.15s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .btn-analyze:hover {
+    background: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(200,255,0,0.4);
+  }
+
+  .btn-analyze:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 24px;
+    min-height: 44px;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+  }
+
+  .status-dot.active {
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulse 1s infinite;
+  }
+
+  .status-dot.done { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .status-dot.error { background: var(--red); box-shadow: 0 0 8px var(--red); }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .results-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .result-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 20px 24px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s, transform 0.15s;
+    animation: slideIn 0.4s ease both;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .result-card:hover {
+    border-color: rgba(200,255,0,0.3);
+    transform: translateX(4px);
+  }
+
+  .result-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+  }
+
+  .result-card.profit::before { background: var(--green); }
+  .result-card.break::before { background: var(--accent2); }
+  .result-card.loss::before { background: var(--red); }
+
+  .rank-badge {
+    position: absolute;
+    top: 0; right: 0;
+    background: rgba(200,255,0,0.1);
+    border-left: 1px solid rgba(200,255,0,0.2);
+    border-bottom: 1px solid rgba(200,255,0,0.2);
+    font-family: var(--display);
+    font-weight: 900;
+    font-size: 28px;
+    color: rgba(200,255,0,0.2);
+    padding: 4px 14px;
+    line-height: 1;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    gap: 12px;
+  }
+
+  .skin-name {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 22px;
+    letter-spacing: 1px;
+    line-height: 1.1;
+    flex: 1;
+  }
+
+  .rarity-tag {
+    font-size: 9px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border: 1px solid;
+    flex-shrink: 0;
+  }
+
+  .rarity-tag.pink { color: #ff6bcb; border-color: rgba(255,107,203,0.4); }
+  .rarity-tag.red { color: #ff6060; border-color: rgba(255,96,96,0.4); }
+  .rarity-tag.gold { color: var(--accent); border-color: rgba(200,255,0,0.4); }
+
+  .card-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .stat {
+    background: rgba(0,0,0,0.3);
+    padding: 10px 14px;
+  }
+
+  .stat-label {
+    font-size: 9px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+
+  .stat-value {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 20px;
+  }
+
+  .stat-value.green { color: var(--green); }
+  .stat-value.red { color: var(--red); }
+  .stat-value.orange { color: var(--accent2); }
+  .stat-value.yellow { color: var(--accent); }
+
+  .card-desc {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.6;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+
+  .progress-bar {
+    height: 2px;
+    background: var(--border);
+    margin-top: 12px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    transition: width 1s ease;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+  }
+
+  .empty-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.3;
+  }
+
+  .empty-state p {
+    font-size: 12px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+
+  .disclaimer {
+    margin-top: 24px;
+    padding: 16px;
+    border: 1px solid rgba(255,107,0,0.2);
+    background: rgba(255,107,0,0.03);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    line-height: 1.8;
+  }
+
+  .disclaimer strong {
+    color: var(--accent2);
+  }
+
+  .thinking-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .thinking-line {
+    height: 10px;
+    background: var(--border);
+    border-radius: 2px;
+    animation: shimmer 1.5s infinite;
+  }
+
+  @keyframes shimmer {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+
+  .thinking-line:nth-child(1) { width: 80%; animation-delay: 0s; }
+  .thinking-line:nth-child(2) { width: 60%; animation-delay: 0.2s; }
+  .thinking-line:nth-child(3) { width: 75%; animation-delay: 0.4s; }
+
+  .capital-warning {
+    font-size: 10px;
+    color: var(--accent2);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 6px;
+    display: none;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="logo">TRADE<span>UP</span>CALC</div>
+    <div class="subtitle">CS2 // AI-Powered Profit Scanner // Live Prices</div>
+  </header>
+
+  <div class="input-section">
+    <div class="section-label">// Parameters</div>
+    <div class="input-row">
+      <div class="input-group">
+        <label>Starting Capital ($)</label>
+        <input type="number" id="capital" value="100" min="1" max="100000" step="1" placeholder="100">
+        <div class="capital-warning" id="capitalWarning">⚠ Very low — limited options</div>
+      </div>
+      <div class="input-group">
+        <label>Trade-Up Path</label>
+        <select id="tradeupType">
+          <option value="pink_to_red">Pink → Red (10 skins)</option>
+          <option value="red_to_knife">Red → Knife (5 skins)</option>
+          <option value="pink_to_knife">Full Path Pink → Knife</option>
+          <option value="all">All Paths</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <label>Sort By</label>
+        <select id="sortBy">
+          <option value="roi">Best ROI %</option>
+          <option value="profit">Max Profit $</option>
+          <option value="cost">Cheapest Entry</option>
+        </select>
+      </div>
+      <button class="btn-analyze" id="analyzeBtn" onclick="analyze()">SCAN MARKET</button>
+    </div>
+  </div>
+
+  <div class="status-bar">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Ready — enter capital and scan</span>
+  </div>
+
+  <div id="results">
+    <div class="empty-state">
+      <div class="empty-icon">◈</div>
+      <p>Awaiting market scan</p>
+    </div>
+  </div>
+
+  <div class="disclaimer">
+    <strong>⚡ NOTE:</strong> Prices are fetched live via AI web search and may differ slightly from Steam Market at time of viewing. Trade-up outcomes are probabilistic — profit is never guaranteed. Always verify on Steam Market before committing. Steam takes a 15% fee on sales — factored into calculations.
+  </div>
+</div>
+
+<script>
+const capitalInput = document.getElementById('capital');
+const capitalWarning = document.getElementById('capitalWarning');
+
+capitalInput.addEventListener('input', () => {
+  const v = parseFloat(capitalInput.value);
+  capitalWarning.style.display = v < 20 ? 'block' : 'none';
+});
+
+function setStatus(type, text) {
+  const dot = document.getElementById('statusDot');
+  const statusText = document.getElementById('statusText');
+  dot.className = 'status-dot ' + (type === 'loading' ? 'active' : type === 'done' ? 'done' : type === 'error' ? 'error' : '');
+  statusText.textContent = text;
+}
+
+function showLoading() {
+  document.getElementById('results').innerHTML = `
+    <div style="padding: 32px; background: var(--panel); border: 1px solid var(--border);">
+      <div class="section-label">// Scanning market prices...</div>
+      <div class="thinking-lines">
+        <div class="thinking-line"></div>
+        <div class="thinking-line"></div>
+        <div class="thinking-line"></div>
+      </div>
+    </div>
+  `;
+}
+
+function getRarityTag(rarity) {
+  const map = { 'Classified': 'pink', 'Covert': 'red', 'Gold': 'gold', 'Knife': 'gold', 'Gloves': 'gold' };
+  return map[rarity] || 'pink';
+}
+
+function renderCards(items) {
+  if (!items || items.length === 0) {
+    document.getElementById('results').innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">✕</div>
+        <p>No profitable paths found for this capital</p>
+      </div>
+    `;
+    return;
+  }
+
+  const html = items.map((item, i) => {
+    const profitClass = item.expected_profit > 0 ? 'profit' : item.expected_profit > -5 ? 'break' : 'loss';
+    const profitColor = item.expected_profit > 0 ? 'green' : item.expected_profit > -5 ? 'orange' : 'red';
+    const roiColor = item.roi_percent > 0 ? 'green' : item.roi_percent > -10 ? 'orange' : 'red';
+    const fillColor = item.expected_profit > 0 ? '#00e676' : item.expected_profit > -5 ? '#ff6b00' : '#ff3b3b';
+    const fillPct = Math.min(100, Math.max(0, Math.abs(item.roi_percent)));
+
+    return `
+      <div class="result-card ${profitClass}" style="animation-delay: ${i * 0.08}s">
+        <div class="rank-badge">#${i+1}</div>
+        <div class="card-header">
+          <div class="skin-name">${item.input_skin}</div>
+          <div class="rarity-tag ${getRarityTag(item.input_rarity)}">${item.input_rarity}</div>
+        </div>
+        <div class="card-stats">
+          <div class="stat">
+            <div class="stat-label">Entry Cost</div>
+            <div class="stat-value yellow">$${item.total_input_cost.toFixed(2)}</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Avg Output Value</div>
+            <div class="stat-value yellow">$${item.avg_output_value.toFixed(2)}</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Expected Profit</div>
+            <div class="stat-value ${profitColor}">${item.expected_profit >= 0 ? '+' : ''}$${item.expected_profit.toFixed(2)}</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">ROI</div>
+            <div class="stat-value ${roiColor}">${item.roi_percent >= 0 ? '+' : ''}${item.roi_percent.toFixed(1)}%</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Skins Needed</div>
+            <div class="stat-value">${item.skins_needed}×</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Price / Skin</div>
+            <div class="stat-value">$${item.price_per_skin.toFixed(2)}</div>
+          </div>
+        </div>
+        <div class="card-desc">
+          <strong style="color: var(--text)">Possible outputs:</strong> ${item.possible_outputs.join(', ')}
+          <br><span style="color: rgba(255,255,255,0.35); font-size: 10px; margin-top: 4px; display: block;">${item.notes}</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: ${fillPct}%; background: ${fillColor}"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('results').innerHTML = `<div class="results-grid">${html}</div>`;
+}
+
+async function analyze() {
+  const capital = parseFloat(document.getElementById('capital').value);
+  const tradeupType = document.getElementById('tradeupType').value;
+  const sortBy = document.getElementById('sortBy').value;
+
+  if (!capital || capital <= 0) {
+    setStatus('error', 'Enter a valid capital amount');
+    return;
+  }
+
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = true;
+  setStatus('loading', 'Querying live CS2 market prices...');
+  showLoading();
+
+  const systemPrompt = `You are a CS2 skin market analyst. Return ONLY valid JSON, no markdown, no explanation.
+Analyze CS2 trade-up contracts and return the most profitable options.
+
+Rules:
+- Pink (Classified) → Red (Covert): needs 10 skins of same collection
+- Red (Covert) → Knife/Gloves: needs 5 skins of same collection
+- Steam takes 15% fee on all sales — factor this into output value
+- Use realistic current 2026 market prices (field-tested unless noted)
+- Only include skins where total_input_cost <= capital
+- Return array of objects sorted by ${sortBy === 'roi' ? 'roi_percent descending' : sortBy === 'profit' ? 'expected_profit descending' : 'total_input_cost ascending'}
+
+Each object must have exactly these fields:
+{
+  "input_skin": "string (e.g. AK-47 | Ice Coaled FT)",
+  "input_rarity": "Classified or Covert",
+  "skins_needed": number (10 for pink→red, 5 for red→knife),
+  "price_per_skin": number,
+  "total_input_cost": number,
+  "avg_output_value": number (after 15% Steam fee),
+  "expected_profit": number,
+  "roi_percent": number,
+  "possible_outputs": ["array", "of", "output", "skin names"],
+  "notes": "brief strategy note"
+}`;
+
+  const userMsg = `My capital: $${capital}
+Trade-up type: ${tradeupType}
+
+Search for current CS2 skin prices on the Steam Market and popular trading sites (csgostash, buff163, skinport, cs.money).
+
+For the trade-up type "${tradeupType}", find all viable contracts where total_input_cost <= $${capital}.
+
+Include:
+- For pink→red: cheapest classified skins that have coverts above them in their collection
+- For red→knife: cheapest covert skins and which knives they can produce
+- For pink→knife: full paths (cost of getting 5 reds via 50 pinks)
+- For all: include all of the above
+
+Calculate expected profit factoring in:
+1. Probability distribution of outputs (if multiple outputs, average their values)  
+2. 15% Steam marketplace fee on the output
+3. Realistic field-tested prices unless FN is notably cheap
+
+Return 6-10 best options as JSON array. Be realistic with prices — don't make up numbers.`;
+
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1000,
+        tools: [{ type: "web_search_20250305", name: "web_search" }],
+        system: systemPrompt,
+        messages: [{ role: "user", content: userMsg }]
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error?.message || 'API error');
+    }
+
+    const textBlock = data.content.find(b => b.type === 'text');
+    if (!textBlock) throw new Error('No text response from AI');
+
+    let raw = textBlock.text.trim();
+    raw = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+    const start = raw.indexOf('[');
+    const end = raw.lastIndexOf(']');
+    if (start === -1 || end === -1) throw new Error('No JSON array found in response');
+
+    const items = JSON.parse(raw.slice(start, end + 1));
+    const filtered = items.filter(item => item.total_input_cost <= capital);
+
+    if (filtered.length === 0) {
+      setStatus('done', `No contracts found within $${capital} budget`);
+      document.getElementById('results').innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">◈</div>
+          <p>No viable contracts within $${capital} budget — try increasing capital</p>
+        </div>
+      `;
+    } else {
+      setStatus('done', `Found ${filtered.length} viable contracts — prices fetched live`);
+      renderCards(filtered);
+    }
+
+  } catch (err) {
+    setStatus('error', 'Error: ' + err.message);
+    document.getElementById('results').innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">✕</div>
+        <p style="color: var(--red)">Failed to fetch prices — try again</p>
+        <p style="margin-top: 8px; font-size: 10px; opacity: 0.5">${err.message}</p>
+      </div>
+    `;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('capital').addEventListener('keydown', e => {
+  if (e.key === 'Enter') analyze();
+});
+</script>
+</body>
+</html>
