@@ -82,39 +82,11 @@
     overflow: hidden;
   }
 
-  .compound-btn:hover {
-    transform: translateY(-2px);
-    background: rgba(70,70,70,0.9);
-  }
-
-  .compound-btn.active {
-    border-color: rgba(255,255,255,0.35);
-    background: rgba(80,80,80,0.9);
-  }
-
-  .compound-btn .name {
-    font-size: 13px;
-    font-weight: 700;
-    color: #f1f1f1;
-    display: block;
-  }
-
-  .compound-btn .ratio {
-    font-size: 10px;
-    color: #888;
-    display: block;
-    margin-top: 2px;
-  }
-
-  .compound-btn .badge {
-    position: absolute;
-    top: 6px; right: 6px;
-    font-size: 9px;
-    padding: 2px 5px;
-    border-radius: 4px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-  }
+  .compound-btn:hover { transform: translateY(-2px); background: rgba(70,70,70,0.9); }
+  .compound-btn.active { border-color: rgba(255,255,255,0.35); background: rgba(80,80,80,0.9); }
+  .compound-btn .name { font-size: 13px; font-weight: 700; color: #f1f1f1; display: block; }
+  .compound-btn .ratio { font-size: 10px; color: #888; display: block; margin-top: 2px; }
+  .compound-btn .badge { position: absolute; top: 6px; right: 6px; font-size: 9px; padding: 2px 5px; border-radius: 4px; font-weight: 700; letter-spacing: 0.5px; }
 
   .badge-rc  { background: rgba(224,64,251,0.18); color: #e87aff; }
   .badge-og  { background: rgba(0,229,255,0.15);  color: #5de8ff; }
@@ -125,16 +97,17 @@
     align-items: center;
     gap: 12px;
     margin-bottom: 12px;
+    overflow: hidden;
   }
 
   .input-row label {
     font-size: 12px;
     color: #888;
     min-width: 80px;
+    flex-shrink: 0;
   }
 
-  input[type="number"], input[type="date"], input[type="time"],
-  select {
+  input[type="number"], input[type="date"], input[type="time"], select {
     background: #444;
     border: none;
     border-radius: 10px;
@@ -143,24 +116,23 @@
     font-size: 14px;
     padding: 10px 14px;
     flex: 1;
+    min-width: 0;
+    width: 0;
     outline: none;
     transition: box-shadow 0.2s;
     -webkit-appearance: none;
   }
 
-  input:focus, select:focus {
-    box-shadow: 0 0 10px rgba(255,255,255,0.12);
-  }
+  input:focus, select:focus { box-shadow: 0 0 10px rgba(255,255,255,0.12); }
 
   input[type="date"]::-webkit-calendar-picker-indicator,
-  input[type="time"]::-webkit-calendar-picker-indicator {
-    filter: invert(0.5);
-  }
+  input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(0.5); }
 
   .unit {
     font-size: 11px;
     color: #888;
     min-width: 30px;
+    flex-shrink: 0;
   }
 
   .effective-hint {
@@ -169,10 +141,7 @@
     margin-bottom: 4px;
   }
 
-  .effective-hint span {
-    color: #f1f1f1;
-    font-weight: 600;
-  }
+  .effective-hint span { color: #f1f1f1; font-weight: 600; }
 
   .toggle-row {
     display: flex;
@@ -181,17 +150,9 @@
     margin-bottom: 0;
   }
 
-  .toggle-label {
-    font-size: 13px;
-    color: #ccc;
-  }
+  .toggle-label { font-size: 13px; color: #ccc; }
 
-  .toggle {
-    position: relative;
-    width: 42px;
-    height: 24px;
-  }
-
+  .toggle { position: relative; width: 42px; height: 24px; }
   .toggle input { opacity: 0; width: 0; height: 0; }
 
   .toggle-slider {
@@ -235,6 +196,148 @@
   .calc-btn:hover { background: rgba(255,255,255,0.16); }
   .calc-btn:active { transform: scale(0.98); }
 
+  .advanced-toggle-btn {
+    background: none;
+    border: none;
+    color: #666;
+    font-family: 'Poppins', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 8px 0 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: color 0.2s;
+  }
+
+  .advanced-toggle-btn:hover { color: #aaa; }
+
+  .adv-chevron {
+    font-size: 9px;
+    transition: transform 0.25s;
+    display: inline-block;
+  }
+
+  .adv-chevron.open { transform: rotate(180deg); }
+
+  .advanced-panel {
+    display: none;
+    margin-top: 14px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    padding-top: 14px;
+  }
+
+  .advanced-panel.visible { display: block; }
+
+  .adv-section-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #666;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .save-trip-btn {
+    width: 100%;
+    background: rgba(255,255,255,0.05);
+    border: 1px dashed rgba(255,255,255,0.15);
+    border-radius: 10px;
+    color: #aaa;
+    font-family: 'Poppins', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    padding: 11px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    margin-top: 4px;
+  }
+
+  .save-trip-btn:hover {
+    background: rgba(255,255,255,0.09);
+    border-color: rgba(255,255,255,0.28);
+    color: #f1f1f1;
+  }
+
+  .saved-trips-section { margin-top: 16px; }
+
+  .saved-trips-list { display: flex; flex-direction: column; gap: 6px; }
+
+  .no-trips-msg {
+    font-size: 11px;
+    color: #555;
+    font-style: italic;
+    padding: 4px 0;
+  }
+
+  .saved-trip-card {
+    background: rgba(45,45,45,0.8);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 9px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .saved-trip-card:hover {
+    background: rgba(65,65,65,0.8);
+    border-color: rgba(255,255,255,0.18);
+    transform: translateX(2px);
+  }
+
+  .saved-trip-card.loaded {
+    border-color: rgba(255,255,255,0.3);
+    background: rgba(75,75,75,0.8);
+  }
+
+  .trip-card-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    flex-shrink: 0;
+  }
+
+  .trip-card-info { flex: 1; min-width: 0; }
+
+  .trip-card-main {
+    font-size: 13px;
+    font-weight: 700;
+    color: #f1f1f1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .trip-card-sub {
+    font-size: 10px;
+    color: #777;
+    margin-top: 2px;
+  }
+
+  .trip-delete-btn {
+    background: none;
+    border: none;
+    color: #555;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: color 0.15s;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+
+  .trip-delete-btn:hover { color: #ff6b6b; }
+
   .results { display: none; }
   .results.visible { display: block; }
 
@@ -252,28 +355,10 @@
     padding: 14px;
   }
 
-  .stat-label {
-    font-size: 10px;
-    color: #888;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    display: block;
-    margin-bottom: 6px;
-  }
-
-  .stat-value {
-    font-size: 22px;
-    font-weight: 800;
-    color: #f1f1f1;
-  }
-
+  .stat-label { font-size: 10px; color: #888; letter-spacing: 1px; text-transform: uppercase; display: block; margin-bottom: 6px; }
+  .stat-value { font-size: 22px; font-weight: 800; color: #f1f1f1; }
   .stat-value span { font-size: 13px; font-weight: 400; color: #aaa; }
-
-  .stat-sub {
-    font-size: 10px;
-    color: #666;
-    margin-top: 3px;
-  }
+  .stat-sub { font-size: 10px; color: #666; margin-top: 3px; }
 
   .intensity-light    { color: #f1f1f1; }
   .intensity-moderate { color: #f1f1f1; }
@@ -281,40 +366,23 @@
   .intensity-vstrong  { color: #ff7043; }
   .intensity-extreme  { color: #ff1744; }
 
-  .timeline-title {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    color: #aaa;
-    text-transform: uppercase;
-    margin-bottom: 14px;
-  }
+  .timeline-title { font-size: 11px; font-weight: 700; letter-spacing: 2px; color: #aaa; text-transform: uppercase; margin-bottom: 14px; }
 
-  .timeline {
-    position: relative;
-    padding-left: 28px;
-  }
+  .timeline { position: relative; padding-left: 28px; }
 
   .timeline-line {
     position: absolute;
-    left: 7px;
-    top: 10px;
-    bottom: 10px;
+    left: 7px; top: 10px; bottom: 10px;
     width: 1px;
     background: rgba(255,255,255,0.12);
   }
 
-  .tl-item {
-    position: relative;
-    margin-bottom: 18px;
-  }
+  .tl-item { position: relative; margin-bottom: 18px; }
 
   .tl-dot {
     position: absolute;
-    left: -24px;
-    top: 5px;
-    width: 8px;
-    height: 8px;
+    left: -24px; top: 5px;
+    width: 8px; height: 8px;
     border-radius: 50%;
     background: #777;
     border: 1.5px solid #2a2a2a;
@@ -323,18 +391,8 @@
   .tl-dot.dot-peak  { background: #f1f1f1; width: 10px; height: 10px; top: 4px; left: -25px; }
   .tl-dot.dot-sleep { background: #4dffaa; }
 
-  .tl-time {
-    font-size: 13px;
-    font-weight: 700;
-    color: #f1f1f1;
-  }
-
-  .tl-label {
-    font-size: 11px;
-    color: #888;
-    margin-top: 2px;
-    line-height: 1.6;
-  }
+  .tl-time { font-size: 13px; font-weight: 700; color: #f1f1f1; }
+  .tl-label { font-size: 11px; color: #888; margin-top: 2px; line-height: 1.6; }
 
   .intensity-bar {
     height: 3px;
@@ -368,31 +426,15 @@
 
   .pupil-row:last-child { margin-bottom: 0; }
 
-  .pupil-time {
-    font-size: 11px;
-    color: #ccc;
-    width: 110px;
-    min-width: 110px;
-    font-weight: 600;
-    flex-shrink: 0;
-  }
+  .pupil-time { font-size: 11px; color: #ccc; width: 110px; min-width: 110px; font-weight: 600; flex-shrink: 0; }
 
   .pupil-eye-wrap {
-    width: 36px;
-    min-width: 36px;
-    height: 36px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: 42px; min-width: 42px; height: 42px;
+    display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
   }
 
-  .pupil-label {
-    font-size: 11px;
-    color: #888;
-    line-height: 1.4;
-    flex: 1;
-  }
+  .pupil-label { font-size: 11px; color: #888; line-height: 1.4; flex: 1; }
 
   .warning-box {
     background: rgba(255,23,68,0.07);
@@ -414,6 +456,53 @@
     color: #aaa;
     line-height: 1.7;
     margin-top: 14px;
+  }
+
+  .desired-result-box {
+    margin-top: 12px;
+    background: rgba(45,45,45,0.8);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .desired-result-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .desired-result-label {
+    font-size: 10px;
+    color: #777;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+
+  .desired-result-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: #f1f1f1;
+    text-align: right;
+  }
+
+  .desired-result-sub {
+    font-size: 10px;
+    color: #555;
+    margin-top: -4px;
+    text-align: right;
+  }
+
+  .desired-na {
+    font-size: 11px;
+    color: #555;
+    font-style: italic;
+    padding: 4px 0;
   }
 
   @media screen and (max-width: 480px) {
@@ -456,6 +545,29 @@
     <select id="lastCompound"></select>
   </div>
 
+  <button class="advanced-toggle-btn" id="advToggleBtn" onclick="toggleAdvanced()">
+    <span>Advanced</span>
+    <span class="adv-chevron" id="advChevron">▼</span>
+  </button>
+
+  <div class="advanced-panel" id="advancedPanel">
+    <div class="adv-section-label">Precise Timing</div>
+    <div class="input-row" style="margin-bottom:14px;">
+      <label>Time used</label>
+      <input type="time" id="lastTime" value="20:00">
+    </div>
+
+    <div class="saved-trips-section">
+      <div class="adv-section-label" id="savedTripsLabel">Saved Trips</div>
+      <div class="saved-trips-list" id="savedTripsList"></div>
+      <div class="no-trips-msg" id="noTripsMsg">No saved trips yet</div>
+    </div>
+
+    <div style="margin-top: 14px;">
+      <button class="save-trip-btn" onclick="saveTrip()">💾 Save This Trip</button>
+    </div>
+  </div>
+
   <div class="divider"></div>
   <div class="section-label">04 — Dose Time</div>
   <div class="input-row" style="margin-bottom:14px;">
@@ -468,6 +580,21 @@
       <input type="checkbox" id="weedToggle">
       <span class="toggle-slider"></span>
     </label>
+  </div>
+
+  <button class="advanced-toggle-btn" id="doseAdvToggleBtn" onclick="toggleDoseAdvanced()">
+    <span>Advanced</span>
+    <span class="adv-chevron" id="doseAdvChevron">▼</span>
+  </button>
+
+  <div class="advanced-panel" id="doseAdvancedPanel">
+    <div class="adv-section-label">Target Effective Dose</div>
+    <div class="input-row" style="margin-bottom:4px;">
+      <label>Desired</label>
+      <input type="number" id="desiredDose" placeholder="150" min="1" max="600" oninput="updateDesiredCalcs()">
+      <span class="unit">mcga</span>
+    </div>
+    <div id="desiredCalcResults"></div>
   </div>
 
   <div class="divider"></div>
@@ -492,7 +619,7 @@
 
 <script>
 const COMPOUNDS = [
-  { id: 'lsd25',  name: 'LSD-25',  ratio: 1.00, badge: 'og',  badgeText: 'Classsic',  note: 'baseline',     rc: false },
+  { id: 'lsd25',  name: 'LSD-25',  ratio: 1.00, badge: 'og',  badgeText: 'Classic',  note: 'baseline',     rc: false },
   { id: '1p',     name: '1P-LSD',  ratio: 0.97, badge: 'rc',  badgeText: 'RC',  note: '≈97% LSD-25',  rc: true  },
   { id: '1cp',    name: '1cP-LSD', ratio: 0.95, badge: 'rc',  badgeText: 'RC',  note: '≈95% LSD-25',  rc: true  },
   { id: '1v',     name: '1V-LSD',  ratio: 0.90, badge: 'rc',  badgeText: 'RC',  note: '≈90% LSD-25',  rc: true  },
@@ -506,6 +633,117 @@ const COMPOUNDS = [
 ];
 
 let selectedCompound = '1fe';
+let loadedTripId = null;
+
+function getSavedTrips() {
+  try {
+    return JSON.parse(localStorage.getItem('tripHistory') || '[]');
+  } catch { return []; }
+}
+
+function setSavedTrips(trips) {
+  localStorage.setItem('tripHistory', JSON.stringify(trips));
+}
+
+function renderSavedTrips() {
+  const trips = getSavedTrips();
+  const list = document.getElementById('savedTripsList');
+  const noMsg = document.getElementById('noTripsMsg');
+  const label = document.getElementById('savedTripsLabel');
+
+  if (trips.length === 0) {
+    list.innerHTML = '';
+    noMsg.style.display = 'block';
+    label.textContent = 'Saved Trips';
+  } else {
+    noMsg.style.display = 'none';
+    label.textContent = `Saved Trips (${trips.length})`;
+    list.innerHTML = trips.map(trip => {
+      const compound = COMPOUNDS.find(c => c.id === trip.compound);
+      const compoundName = compound ? compound.name : trip.compound;
+      const dateObj = new Date(trip.date + 'T12:00:00');
+      const dateStr = dateObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' });
+      const isLoaded = loadedTripId === trip.id;
+      return `
+        <div class="saved-trip-card ${isLoaded ? 'loaded' : ''}" onclick="loadSavedTrip('${trip.id}')">
+          <div class="trip-card-dot"></div>
+          <div class="trip-card-info">
+            <div class="trip-card-main">${trip.dose}mcg ${compoundName}</div>
+            <div class="trip-card-sub">${dateStr}${trip.time ? ' · ' + trip.time : ''}</div>
+          </div>
+          <button class="trip-delete-btn" onclick="deleteSavedTrip(event, '${trip.id}')">×</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  updateAdvancedToggleLabel();
+}
+
+function saveTrip() {
+  const dateVal = document.getElementById('lastDate').value;
+  const doseVal = parseFloat(document.getElementById('lastDose').value);
+  const compoundVal = document.getElementById('lastCompound').value;
+  const timeVal = document.getElementById('lastTime').value;
+
+  if (!dateVal || !doseVal) {
+    alert('Fill in at least a date and dose to save a trip.');
+    return;
+  }
+
+  const trips = getSavedTrips();
+  const newTrip = {
+    id: String(Date.now()),
+    date: dateVal,
+    dose: doseVal,
+    compound: compoundVal,
+    time: timeVal || null,
+  };
+
+  trips.unshift(newTrip);
+  if (trips.length > 10) trips.pop();
+  setSavedTrips(trips);
+  loadedTripId = newTrip.id;
+  renderSavedTrips();
+}
+
+function loadSavedTrip(id) {
+  const trips = getSavedTrips();
+  const trip = trips.find(t => t.id === id);
+  if (!trip) return;
+
+  document.getElementById('lastDate').value = trip.date;
+  document.getElementById('lastDose').value = trip.dose;
+  document.getElementById('lastCompound').value = trip.compound;
+  if (trip.time) document.getElementById('lastTime').value = trip.time;
+
+  loadedTripId = id;
+  renderSavedTrips();
+}
+
+function deleteSavedTrip(event, id) {
+  event.stopPropagation();
+  let trips = getSavedTrips();
+  trips = trips.filter(t => t.id !== id);
+  setSavedTrips(trips);
+  if (loadedTripId === id) loadedTripId = null;
+  renderSavedTrips();
+}
+
+function updateAdvancedToggleLabel() {
+  const trips = getSavedTrips();
+  const btn = document.getElementById('advToggleBtn');
+  const isOpen = document.getElementById('advancedPanel').classList.contains('visible');
+  const tripPart = trips.length > 0 ? ` · ${trips.length} saved` : '';
+  btn.querySelector('span:first-child').textContent = `Advanced${tripPart}`;
+  document.getElementById('advChevron').className = `adv-chevron ${isOpen ? 'open' : ''}`;
+}
+
+function toggleAdvanced() {
+  const panel = document.getElementById('advancedPanel');
+  panel.classList.toggle('visible');
+  updateAdvancedToggleLabel();
+}
 
 function renderCompounds() {
   const grid = document.getElementById('compoundGrid');
@@ -595,6 +833,92 @@ function getDoseMessages(mcga) {
   return msgs[closest];
 }
 
+function toggleDoseAdvanced() {
+  const panel = document.getElementById('doseAdvancedPanel');
+  panel.classList.toggle('visible');
+  const isOpen = panel.classList.contains('visible');
+  document.getElementById('doseAdvChevron').className = `adv-chevron ${isOpen ? 'open' : ''}`;
+  if (isOpen) updateDesiredCalcs();
+}
+
+function computeTolFactor() {
+  const lastDateVal = document.getElementById('lastDate').value;
+  const lastDoseVal = parseFloat(document.getElementById('lastDose').value) || 0;
+  const lastCompoundId = document.getElementById('lastCompound').value;
+  const lastCompound = COMPOUNDS.find(c => c.id === lastCompoundId);
+  const advOpen = document.getElementById('advancedPanel').classList.contains('visible');
+  const lastTimeVal = advOpen ? document.getElementById('lastTime').value : null;
+
+  if (!lastDateVal || !lastDoseVal) return { tolFactor: 1.0, daysSince: 0, lastEffMcga: 0, hoursSince: 0 };
+
+  const lastDate = new Date(lastDateVal + 'T12:00:00');
+  if (lastTimeVal) {
+    const [lh, lm] = lastTimeVal.split(':').map(Number);
+    lastDate.setHours(lh, lm, 0, 0);
+  }
+  const now = new Date();
+  const hoursSince = (now - lastDate) / (1000 * 60 * 60);
+  const daysSince = hoursSince / 24;
+  const lastEffMcga = lastDoseVal * lastCompound.ratio;
+  const tolFactor = getToleranceFactor(daysSince, lastEffMcga);
+  return { tolFactor, daysSince, lastEffMcga, hoursSince };
+}
+
+function updateDesiredCalcs() {
+  const desired = parseFloat(document.getElementById('desiredDose').value);
+  const resultBox = document.getElementById('desiredCalcResults');
+  if (!desired || desired <= 0) { resultBox.innerHTML = ''; return; }
+
+  const dose = parseFloat(document.getElementById('doseInput').value);
+  const compound = COMPOUNDS.find(c => c.id === selectedCompound);
+  const { tolFactor, lastEffMcga, daysSince } = computeTolFactor();
+
+  let html = '<div class="desired-result-box">';
+
+  if (compound) {
+    const rawNeeded = desired / (compound.ratio * tolFactor);
+    html += `<div class="desired-result-row">
+      <span class="desired-result-label">Take today</span>
+      <span class="desired-result-value">${rawNeeded.toFixed(0)} mcg ${compound.name}</span>
+    </div>
+    <div class="desired-result-sub">→ reaches ${desired} mcga effective at current tolerance (${Math.round((1-tolFactor)*100)}% reduction)</div>`;
+  }
+
+  if (dose && compound && lastEffMcga > 0) {
+    const grossMcga = dose * compound.ratio;
+    if (grossMcga < desired) {
+      html += `<div class="desired-result-row" style="margin-top:6px;">
+        <span class="desired-result-label">With step 2 dose</span>
+        <span class="desired-result-value" style="color:#ff6b6b;">Unreachable</span>
+      </div>
+      <div class="desired-result-sub">${grossMcga.toFixed(0)} mcga max (even at full tolerance)</div>`;
+    } else {
+      let targetDays = null;
+      for (let d = 0; d <= 14; d += 0.1) {
+        if (grossMcga * getToleranceFactor(d, lastEffMcga) >= desired) { targetDays = d; break; }
+      }
+      if (targetDays === null) { targetDays = 14; }
+      const targetDate = new Date();
+      targetDate.setDate(targetDate.getDate() + Math.ceil(targetDays));
+      const dateStr = targetDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+      const daysFromNow = Math.ceil(targetDays - daysSince);
+      const waitStr = daysFromNow <= 0 ? 'now' : `in ${daysFromNow}d`;
+      html += `<div class="desired-result-row" style="margin-top:6px;">
+        <span class="desired-result-label">Take ${dose}mcg on</span>
+        <span class="desired-result-value">${dateStr} (${waitStr})</span>
+      </div>
+      <div class="desired-result-sub">tolerance recovers enough to reach ${desired} mcga</div>`;
+    }
+  } else if (!dose || !compound) {
+    html += `<div class="desired-na" style="margin-top:6px;">Enter Step 2 dose to see date suggestion</div>`;
+  } else if (lastEffMcga === 0) {
+    html += `<div class="desired-na" style="margin-top:6px;">Enter Step 3 data to see wait time</div>`;
+  }
+
+  html += '</div>';
+  resultBox.innerHTML = html;
+}
+
 function calculate() {
   const dose = parseFloat(document.getElementById('doseInput').value);
   const compound = COMPOUNDS.find(c => c.id === selectedCompound);
@@ -608,20 +932,21 @@ function calculate() {
   if (!dose || !doseTimeVal) { alert('Enter a dose and dose time.'); return; }
 
   const grossMcga = dose * compound.ratio;
-  let tolFactor = 1.0, daysSince = 0, lastEffMcga = 0;
-
-  if (lastDateVal && lastDoseVal) {
-    const lastDate = new Date(lastDateVal);
-    const today = new Date();
-    daysSince = Math.round((today - lastDate) / (1000 * 60 * 60 * 24));
-    lastEffMcga = lastDoseVal * lastCompound.ratio;
-    tolFactor = getToleranceFactor(daysSince, lastEffMcga);
-  }
+  const { tolFactor, daysSince, lastEffMcga, hoursSince } = computeTolFactor();
 
   const effectiveMcga = grossMcga * tolFactor;
   const tolerancePct = Math.round((1 - tolFactor) * 100);
   const weedMultiplier = weed ? 1.7 : 1.0;
   const perceivedMcga = effectiveMcga * weedMultiplier;
+
+  let daysSinceDisplay = '';
+  if (hoursSince > 0) {
+    if (hoursSince < 48) {
+      daysSinceDisplay = `${Math.round(hoursSince)}h since last`;
+    } else {
+      daysSinceDisplay = `${daysSince.toFixed(1)}d since last`;
+    }
+  }
 
   const [h, m] = doseTimeVal.split(':').map(Number);
   const doseDate = new Date();
@@ -669,7 +994,7 @@ function calculate() {
     <div class="stat-card">
       <span class="stat-label">Tolerance</span>
       <div class="stat-value">${tolerancePct}<span>%</span></div>
-      <div class="stat-sub">${daysSince > 0 ? daysSince + ' days since last' : 'no prior trip'}</div>
+      <div class="stat-sub">${daysSince > 0 ? daysSinceDisplay : 'no prior trip'}</div>
     </div>
     <div class="stat-card">
       <span class="stat-label">Perceived</span>
@@ -714,58 +1039,57 @@ function calculate() {
   const pupilNotice = addTime(doseDate, comeupMin + 10);
 
   const irisSchemes = [
-    { outer: '#3d6e4e', mid: '#2a5038', inner: '#1a3525', streak: '#5a9966', name: 'green' },
-    { outer: '#7a5520', mid: '#5c3d10', inner: '#3a2508', streak: '#c48830', name: 'brown' },
-    { outer: '#2e5e8a', mid: '#1e4268', inner: '#112840', streak: '#4a88c0', name: 'blue'  },
-    { outer: '#7a5c2a', mid: '#5a4018', inner: '#3a2808', streak: '#b08040', name: 'hazel' },
-    { outer: '#5a5a70', mid: '#3e3e52', inner: '#262635', streak: '#7a7a98', name: 'gray'  },
+    { outer: '#4e9462', mid: '#356648', inner: '#1e4028', streak: '#80d898', name: 'green' },
+    { outer: '#b07828', mid: '#8a5a14', inner: '#543208', streak: '#e8b84a', name: 'brown' },
+    { outer: '#4488cc', mid: '#2e62a0', inner: '#183a68', streak: '#74b8f0', name: 'blue'  },
+    { outer: '#b08835', mid: '#8a6418', inner: '#543a08', streak: '#e0bc60', name: 'hazel' },
+    { outer: '#7878a0', mid: '#585875', inner: '#343450', streak: '#aaaacc', name: 'gray'  },
   ];
   const iris = irisSchemes[Math.floor(Math.random() * irisSchemes.length)];
 
-  function drawEye(pupilSize, totalSize) {
-    const cx = totalSize / 2;
-    const cy = totalSize / 2;
-    const irisR = totalSize / 2 - 1;
-    const pupilR = (pupilSize / totalSize) * irisR * 0.9;
-    const streaks = Array.from({length: 16}, (_, i) => {
-      const angle = (i / 16) * Math.PI * 2;
-      const r1 = pupilR + 1;
-      const r2 = irisR * (0.6 + Math.random() * 0.35);
-      return `<line x1="${cx + Math.cos(angle)*r1}" y1="${cy + Math.sin(angle)*r1}" x2="${cx + Math.cos(angle)*r2}" y2="${cy + Math.sin(angle)*r2}" stroke="${iris.streak}" stroke-width="0.6" opacity="0.5"/>`;
+  function drawEye(pupilFrac) {
+    const S = 42;
+    const cx = S / 2, cy = S / 2;
+    const irisR = S / 2 - 1;
+    const pupilR = Math.max(1.5, pupilFrac * irisR);
+    const streaks = Array.from({length: 22}, (_, i) => {
+      const angle = (i / 22) * Math.PI * 2;
+      const r1 = pupilR + 1.5;
+      const r2 = irisR * (0.52 + Math.random() * 0.42);
+      return `<line x1="${(cx + Math.cos(angle)*r1).toFixed(1)}" y1="${(cy + Math.sin(angle)*r1).toFixed(1)}" x2="${(cx + Math.cos(angle)*r2).toFixed(1)}" y2="${(cy + Math.sin(angle)*r2).toFixed(1)}" stroke="${iris.streak}" stroke-width="0.7" opacity="0.55"/>`;
     }).join('');
-    return `<svg width="${totalSize}" height="${totalSize}" viewBox="0 0 ${totalSize} ${totalSize}" style="display:block;">
+    return `<svg width="${S}" height="${S}" viewBox="0 0 ${S} ${S}" style="display:block;">
       <circle cx="${cx}" cy="${cy}" r="${irisR}" fill="${iris.outer}"/>
-      <circle cx="${cx}" cy="${cy}" r="${irisR * 0.75}" fill="${iris.mid}"/>
-      <circle cx="${cx}" cy="${cy}" r="${irisR * 0.55}" fill="${iris.inner}"/>
+      <circle cx="${cx}" cy="${cy}" r="${(irisR*0.78).toFixed(1)}" fill="${iris.mid}"/>
+      <circle cx="${cx}" cy="${cy}" r="${(irisR*0.56).toFixed(1)}" fill="${iris.inner}"/>
       ${streaks}
-      <circle cx="${cx}" cy="${cy}" r="${pupilR}" fill="#080808"/>
-      <circle cx="${cx + pupilR*0.25}" cy="${cy - pupilR*0.25}" r="${Math.max(1, pupilR*0.18)}" fill="rgba(255,255,255,0.25)"/>
-      <circle cx="${cx}" cy="${cy}" r="${irisR}" fill="none" stroke="rgba(0,0,0,0.7)" stroke-width="1.5"/>
+      <circle cx="${cx}" cy="${cy}" r="${pupilR.toFixed(1)}" fill="#040404"/>
+      <circle cx="${(cx + pupilR*0.3).toFixed(1)}" cy="${(cy - pupilR*0.3).toFixed(1)}" r="${Math.max(1.2, pupilR*0.22).toFixed(1)}" fill="rgba(255,255,255,0.32)"/>
+      <circle cx="${cx}" cy="${cy}" r="${irisR}" fill="none" stroke="rgba(0,0,0,0.85)" stroke-width="1.5"/>
     </svg>`;
   }
 
-  const maxSize = perceivedMcga > 300 ? 32 : perceivedMcga > 200 ? 28 : perceivedMcga > 130 ? 24 : 20;
-  const eyeSize = 34;
+  const peakFrac = perceivedMcga > 300 ? 0.93 : perceivedMcga > 200 ? 0.88 : perceivedMcga > 130 ? 0.81 : 0.73;
 
   const pupilData = [
-    { time: `${fmt(t.dose)}–${fmt(pupilStart)}`,      label: 'Baseline — completely normal, no change',              pupil: 11, total: eyeSize },
-    { time: `${fmt(pupilStart)}–${fmt(t.comeup)}`,    label: 'Trace dilation — almost unnoticeable',                 pupil: 13, total: eyeSize },
-    { time: `${fmt(t.comeup)}–${fmt(pupilNotice)}`,   label: 'Mild dilation starting — noticeable in normal light',  pupil: 15, total: eyeSize },
-    { time: `${fmt(pupilNotice)}–${fmt(t.peak)}`,     label: 'Clear dilation — obvious to anyone who looks',         pupil: 18, total: eyeSize },
-    { time: `${fmt(t.peak)}–${fmt(pupilFull)}`,       label: '⚠ PEAK DILATION — iris barely visible, dead giveaway', pupil: Math.round(maxSize * 0.88), total: eyeSize },
-    { time: `${fmt(pupilFull)}–${fmt(t.plateau)}`,    label: 'Maximum sustained — fully blown, stays like this',     pupil: Math.round(maxSize * 0.88), total: eyeSize },
-    { time: `${fmt(t.plateau)}–${fmt(pupilHalf)}`,    label: 'Slowly shrinking — still very dilated',                pupil: Math.round(maxSize * 0.72), total: eyeSize },
-    { time: `${fmt(pupilHalf)}–${fmt(t.comedown)}`,   label: 'Noticeably coming down — clearly recovering',          pupil: Math.round(maxSize * 0.55), total: eyeSize },
-    { time: `${fmt(t.comedown)}–${fmt(pupilFading)}`, label: 'Mild dilation remaining — passable in dim light',       pupil: 16, total: eyeSize },
-    { time: `${fmt(pupilFading)}–${fmt(pupilAlmost)}`,label: 'Almost normal — only obvious in very bright light',     pupil: 13, total: eyeSize },
-    { time: `${fmt(pupilAlmost)}–${fmt(pupilNormal)}`,label: 'Nearly baseline — only you would notice',               pupil: 12, total: eyeSize },
-    { time: `${fmt(pupilNormal)}+`,                   label: '✓ Fully normal — safe to go anywhere',                 pupil: 11, total: eyeSize },
+    { time: `${fmt(t.dose)}–${fmt(pupilStart)}`,       label: 'Baseline — completely normal, no change',              pupilFrac: 0.23 },
+    { time: `${fmt(pupilStart)}–${fmt(t.comeup)}`,     label: 'Trace dilation — almost unnoticeable',                 pupilFrac: 0.32 },
+    { time: `${fmt(t.comeup)}–${fmt(pupilNotice)}`,    label: 'Mild dilation starting — noticeable in normal light',  pupilFrac: 0.45 },
+    { time: `${fmt(pupilNotice)}–${fmt(t.peak)}`,      label: 'Clear dilation — obvious to anyone who looks',         pupilFrac: 0.60 },
+    { time: `${fmt(t.peak)}–${fmt(pupilFull)}`,        label: '⚠ PEAK DILATION — iris barely visible, dead giveaway', pupilFrac: peakFrac },
+    { time: `${fmt(pupilFull)}–${fmt(t.plateau)}`,     label: 'Maximum sustained — fully blown, stays like this',     pupilFrac: peakFrac },
+    { time: `${fmt(t.plateau)}–${fmt(pupilHalf)}`,     label: 'Slowly shrinking — still very dilated',                pupilFrac: peakFrac * 0.80 },
+    { time: `${fmt(pupilHalf)}–${fmt(t.comedown)}`,    label: 'Noticeably coming down — clearly recovering',          pupilFrac: peakFrac * 0.63 },
+    { time: `${fmt(t.comedown)}–${fmt(pupilFading)}`,  label: 'Mild dilation remaining — passable in dim light',      pupilFrac: 0.48 },
+    { time: `${fmt(pupilFading)}–${fmt(pupilAlmost)}`, label: 'Almost normal — only obvious in very bright light',    pupilFrac: 0.34 },
+    { time: `${fmt(pupilAlmost)}–${fmt(pupilNormal)}`, label: 'Nearly baseline — only you would notice',              pupilFrac: 0.27 },
+    { time: `${fmt(pupilNormal)}+`,                    label: '✓ Fully normal — safe to go anywhere',                pupilFrac: 0.23 },
   ];
 
   document.getElementById('pupilSection').innerHTML = pupilData.map(p => `
     <div class="pupil-row">
       <span class="pupil-time">${p.time}</span>
-      <div class="pupil-eye-wrap">${drawEye(p.pupil, p.total)}</div>
+      <div class="pupil-eye-wrap">${drawEye(p.pupilFrac)}</div>
       <span class="pupil-label">${p.label}</span>
     </div>
   `).join('');
@@ -783,6 +1107,7 @@ function calculate() {
 }
 
 renderCompounds();
+renderSavedTrips();
 </script>
 </body>
 </html>
