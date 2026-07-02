@@ -82,6 +82,11 @@ header.topbar{
     linear-gradient(90deg,var(--border-soft) 1px,transparent 1px),var(--bg);
   background-size:24px 24px,24px 24px,100% 100%;
 }
+.canvas-area.grid-dots{background:
+    radial-gradient(circle,var(--border) 1.1px,transparent 1.3px),var(--bg);
+  background-size:24px 24px,100% 100%;
+}
+.canvas-area.grid-off{background:var(--bg)}
 #molCanvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
 .canvas-hint{
   position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
@@ -150,13 +155,29 @@ header.topbar{
 @keyframes pop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
 /* ---------- toasts ---------- */
-.toast-zone{position:fixed;left:50%;bottom:max(16px,env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;flex-direction:column;gap:7px;z-index:300;pointer-events:none;width:min(92vw,400px)}
+.toast-zone{position:fixed;left:50%;bottom:max(16px,env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:7px;z-index:300;pointer-events:none;max-width:min(92vw,420px)}
 .toast{
-  background:var(--surface-2);border:1px solid var(--border);border-left:3px solid var(--warn);
-  color:var(--text);padding:10px 14px;border-radius:8px;font:500 .82rem 'Inter';
-  box-shadow:var(--shadow);animation:pop .18s ease;
+  display:flex;align-items:center;gap:9px;width:fit-content;
+  background:rgba(23,26,33,.97);border:1px solid var(--border);
+  color:var(--text);padding:10px 16px;border-radius:999px;font:500 .82rem 'Inter';
+  box-shadow:var(--shadow);animation:toastIn .22s cubic-bezier(.2,.9,.3,1.2);
 }
-.toast.err{border-left-color:var(--bad)} .toast.ok{border-left-color:var(--good)}
+.toast::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--warn);flex:none}
+.toast.ok::before{background:var(--good)}
+.toast.err::before{background:var(--bad)}
+@keyframes toastIn{from{opacity:0;transform:translateY(12px) scale(.95)}to{opacity:1;transform:none}}
+
+/* ---------- settings ---------- */
+.set-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--border-soft)}
+.set-row:last-of-type{border-bottom:none}
+.set-row .lbl{font:600 .84rem 'Inter'}
+.set-row .lbl small{display:block;font:500 .7rem 'Inter';color:var(--text-dim);margin-top:2px}
+.seg{display:flex;gap:3px;background:var(--surface-2);padding:3px;border-radius:8px;border:1px solid var(--border-soft)}
+.seg button{
+  height:28px;padding:0 11px;border:none;border-radius:6px;background:transparent;color:var(--text-dim);
+  font:600 .74rem 'Inter';cursor:pointer;transition:.13s;
+}
+.seg button.on{background:var(--accent-dim);color:var(--accent);box-shadow:0 0 0 1px var(--accent-brd)}
 
 /* ---------- periodic table modal ---------- */
 .modal-veil{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:none;align-items:center;justify-content:center;padding:16px}
@@ -205,10 +226,15 @@ footer.credit{display:none}
     <div class="mark">N</div>
     <h1>Danylo's Nomenclature Engine</h1>
   </div>
-  <button class="name-cta" id="nameBtn">
-    <svg class="ico" viewBox="0 0 24 24"><path d="M9 3h6M10 3v5.2L4.6 17.5A2 2 0 0 0 6.4 20.5h11.2a2 2 0 0 0 1.8-3L14 8.2V3"/><path d="M8 14h8"/></svg>
-    <span>Name it</span>
-  </button>
+  <div style="display:flex;gap:8px;align-items:center">
+    <button class="rbtn" id="setBtn" title="Settings" style="width:34px;height:34px">
+      <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.09a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+    <button class="name-cta" id="nameBtn">
+      <svg class="ico" viewBox="0 0 24 24"><path d="M9 3h6M10 3v5.2L4.6 17.5A2 2 0 0 0 6.4 20.5h11.2a2 2 0 0 0 1.8-3L14 8.2V3"/><path d="M8 14h8"/></svg>
+      <span>Name it</span>
+    </button>
+  </div>
 </header>
 
 <div class="stage">
@@ -250,7 +276,8 @@ footer.credit{display:none}
     <div class="canvas-hint" id="canvasHint">
       <b>Click</b> empty space to place an atom<br/>
       <b>Drag</b> from an atom to bond it to another<br/>
-      <b>Click</b> an atom to retype it · <b>click</b> a bond to change its order
+      <b>Click</b> an atom to select it, <b>again</b> to retype it<br/>
+      <b>Click</b> a bond to change its order
     </div>
     <div class="formula-badge" id="formulaBadge"></div>
     <div class="zoom-ui">
@@ -290,6 +317,28 @@ footer.credit{display:none}
       </button>
     </div>
     <div class="pt-grid" id="ptGrid"></div>
+  </div>
+</div>
+<div class="modal-veil" id="setVeil">
+  <div class="pt-modal" style="max-width:360px">
+    <div class="pt-modal-head">
+      <h3>Settings</h3>
+      <button class="drawer-close" id="setClose">
+        <svg class="ico" viewBox="0 0 24 24" style="width:16px;height:16px"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg>
+      </button>
+    </div>
+    <div class="set-row">
+      <div class="lbl">Grid<small>Canvas background pattern</small></div>
+      <div class="seg" data-setting="grid">
+        <button data-v="lines">Lines</button><button data-v="dots">Dots</button><button data-v="off">Off</button>
+      </div>
+    </div>
+    <div class="set-row">
+      <div class="lbl">Bond snapping<small>ChemDraw-style angles &amp; lengths</small></div>
+      <div class="seg" data-setting="snap">
+        <button data-v="skeletal">Skeletal</button><button data-v="always">Always</button><button data-v="off">Off</button>
+      </div>
+    </div>
   </div>
 </div>
 <div class="toast-zone" id="toastZone"></div>
@@ -335,6 +384,25 @@ const hist = [], redoS = [];
 const $ = id => document.getElementById(id);
 const canvas = $("molCanvas"), wrap = $("canvasWrap");
 const ctx = canvas.getContext("2d");
+
+/* user settings */
+const SETTINGS=Object.assign({grid:"lines",snap:"skeletal"},JSON.parse(localStorage.getItem("dne_settings")||"{}"));
+function saveSettings(){ try{localStorage.setItem("dne_settings",JSON.stringify(SETTINGS));}catch(e){} }
+function applySettings(){
+  wrap.classList.toggle("grid-dots",SETTINGS.grid==="dots");
+  wrap.classList.toggle("grid-off",SETTINGS.grid==="off");
+  document.querySelectorAll(".seg").forEach(seg=>{
+    const k=seg.dataset.setting;
+    seg.querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.v===SETTINGS[k]));
+  });
+}
+const snapActive=()=>SETTINGS.snap==="always"||(SETTINGS.snap==="skeletal"&&skeletal);
+const SNAP_LEN=52, SNAP_STEP=Math.PI/6; // 30° increments, fixed bond length
+function snapFrom(o,w){
+  let ang=Math.atan2(w.y-o.y,w.x-o.x);
+  ang=Math.round(ang/SNAP_STEP)*SNAP_STEP;
+  return {x:o.x+SNAP_LEN*Math.cos(ang), y:o.y+SNAP_LEN*Math.sin(ang)};
+}
 
 function snap(){ hist.push(JSON.stringify({atoms,bonds})); if(hist.length>200) hist.shift(); redoS.length=0; }
 function restore(s){ const o=JSON.parse(s); atoms=o.atoms; bonds=o.bonds; selAtom=selBond=-1; hidePopover(); afterChange(); }
@@ -439,11 +507,16 @@ function redraw(){
     const sel = bi===selBond;
     drawBondLine(A.x,A.y,B.x,B.y,b.order, sel?"#5b8cf0":"rgba(231,233,238,.68)", (sel?3:2)*Math.min(view.k,1.4));
   });
-  // temp bond while dragging
+  // temp bond while dragging (snapped preview when snapping is active)
   if(drag.kind==="growBond"){
     const A=W2S(atoms[drag.from]);
+    let ex=drag.sx, ey=drag.sy;
+    if(snapActive()&&hitAtom(drag.sx,drag.sy)<0){
+      const sw=W2S(snapFrom(atoms[drag.from],S2W({x:drag.sx,y:drag.sy})));
+      ex=sw.x; ey=sw.y;
+    }
     ctx.setLineDash([6,5]);
-    drawBondLine(A.x,A.y,drag.sx,drag.sy, bondOrder, "rgba(91,140,240,.85)",2);
+    drawBondLine(A.x,A.y,ex,ey, bondOrder, "rgba(91,140,240,.85)",2);
     ctx.setLineDash([]);
   }
   // atoms
@@ -604,9 +677,13 @@ canvas.addEventListener("pointerup",e=>{
   } else if(kind==="growBond"){
     const ai=hitAtom(sx,sy);
     if(!drag.moved){
-      if(atoms[drag.from].el!==drawEl){
+      // retype only on a deliberate second tap of an already-selected atom —
+      // a stray tap while connecting must never replace the atom
+      if(selAtom===drag.from && atoms[drag.from].el!==drawEl){
         atoms[drag.from].el=drawEl; atoms[drag.from].charge=0; atoms[drag.from].manualCharge=false;
         snap(); afterChange();
+      } else if(selAtom!==drag.from && atoms[drag.from].el!==drawEl){
+        toast("Tap again to change this "+atoms[drag.from].el+" into "+drawEl);
       }
       selectAtom(drag.from);
     } else if(ai>=0 && ai!==drag.from){
@@ -614,7 +691,13 @@ canvas.addEventListener("pointerup",e=>{
     } else if(ai<0){
       const chk=canAddBond(drag.from,bondOrder);
       if(!chk.ok){ toast(`${atoms[drag.from].el} can't take another bond (valence full)`,"err"); redraw(); return; }
-      const w=S2W({x:sx,y:sy});
+      let w=S2W({x:sx,y:sy});
+      if(snapActive()){
+        w=snapFrom(atoms[drag.from],w);
+        const sp=W2S(w);
+        const near=hitAtom(sp.x,sp.y);
+        if(near>=0&&near!==drag.from){ tryBond(drag.from,near,bondOrder); return; }
+      }
       atoms.push({el:drawEl,x:w.x,y:w.y,charge:0});
       const ni=atoms.length-1;
       const chk2=canAddBond(ni,bondOrder);
@@ -798,6 +881,18 @@ $("drawerVeil").onclick=closeDrawer;
 $("ptBtn").onclick=()=>$("ptVeil").classList.add("show");
 $("ptClose").onclick=()=>$("ptVeil").classList.remove("show");
 $("ptVeil").addEventListener("click",e=>{ if(e.target.id==="ptVeil") $("ptVeil").classList.remove("show"); });
+
+/* settings modal */
+$("setBtn").onclick=()=>$("setVeil").classList.add("show");
+$("setClose").onclick=()=>$("setVeil").classList.remove("show");
+$("setVeil").addEventListener("click",e=>{ if(e.target.id==="setVeil") $("setVeil").classList.remove("show"); });
+document.querySelectorAll(".seg button").forEach(b=>{
+  b.addEventListener("click",()=>{
+    SETTINGS[b.closest(".seg").dataset.setting]=b.dataset.v;
+    saveSettings(); applySettings();
+  });
+});
+applySettings();
 
 /* auto-fill hydrogens — sterically even: split the largest free angular gaps
    so added H spread out like real substituent positions */
@@ -1296,21 +1391,21 @@ function finalize(lang,str){
   return str;
 }
 
-/* substituent (pure alkyl / phenyl) naming; returns {en,de} or null */
+/* substituent naming: alkyl, phenyl, substituted rings (alkyl/alkoxy/halo/nitro on the ring),
+   cycloalkyl & cycloalkenyl; returns {en,de,memb} or null */
 function nameBranch(hv,start,fromChainAtom,ringsInfo){
   const seen=new Set([fromChainAtom,start]);
   const q=[start], memb=[start];
   while(q.length){ const c=q.pop();
     for(const e of hv[c].nb){ if(!seen.has(e.n)){ seen.add(e.n); memb.push(e.n); q.push(e.n); } } }
-  // benzene branch?
-  const bz=ringsInfo.benzene.find(r=>r.every(x=>memb.includes(x)));
-  if(bz && memb.length===6) return {en:"phenyl",de:"phenyl"};
-  if(memb.some(i=>hv[i].el!=="C")) return null;         // hetero branch → fallback
-  if(ringsInfo.rings.some(r=>r.every(x=>memb.includes(x)))){
-    const r=ringsInfo.rings.find(r=>r.every(x=>memb.includes(x)));
-    if(r && memb.length===r.length){ const nm="cyclo"+STEM[r.length]+"yl"; return {en:nm,de:nm}; }
-    return null;
+  const membSet=new Set(memb);
+  // ring branch (benzene / cycloalkane / cycloalkene, possibly substituted)
+  const ring=ringsInfo.rings.find(r=>r.every(x=>membSet.has(x)));
+  if(ring){
+    if(!ring.includes(start)) return null;              // ring buried deeper in the branch
+    return nameRingBranch(hv,ring,start,membSet,ringsInfo);
   }
+  if(memb.some(i=>hv[i].el!=="C")) return null;         // hetero acyclic branch → fallback
   // linear/branched alkyl via recursive longest path from attachment
   const sub=new Set(memb);
   function longestFrom(node,ban){
@@ -1338,10 +1433,85 @@ function nameBranch(hv,start,fromChainAtom,ringsInfo){
   });
   if(inner===null) return null;
   const base=STEM[chain.length]+"yl";
-  if(!inner.length) return {en:base,de:base};
+  if(!inner.length) return {en:base,de:base,memb:membSet};
   const en="("+buildPrefixPart(inner.map(x=>({name:{en:x.name.en,de:x.name.de},loc:[x.loc]})),"en")+base+")";
   const de="("+buildPrefixPart(inner.map(x=>({name:{en:x.name.en,de:x.name.de},loc:[x.loc]})),"de")+base+")";
-  return {en,de};
+  return {en,de,memb:membSet};
+}
+
+/* a whole ring as substituent, with its own numbered substituents:
+   phenyl · (4-ethyl-2,5-dimethoxyphenyl) · cyclohexyl · cyclopent-2-en-1-yl … */
+function nameRingBranch(hv,ring,start,membSet,ringsInfo){
+  const isBz=isBenzeneRing(hv,ring);
+  const n=ring.length;
+  const inRing=new Set(ring);
+  // exocyclic substituents (within this branch) per ring atom
+  const subsAt=new Map();
+  for(const ra of ring){
+    for(const e of hv[ra].nb){
+      if(inRing.has(e.n)) continue;
+      if(!membSet.has(e.n)) { if(ra===start) continue; return null; } // link back to parent
+      const s=hv[e.n].el;
+      let nm=null;
+      if(s==="C"&&e.o===1){
+        const bn=nameBranch(hv,e.n,ra,ringsInfo);
+        if(bn&&!bn.en.startsWith("(")) nm={en:bn.en,de:bn.de};
+      } else if(s==="O"&&e.o===1&&hv[e.n].nb.length===2&&!hv[e.n].charge){
+        const other=hv[e.n].nb.find(x=>x.n!==ra);
+        if(other&&hv[other.n].el==="C"&&other.o===1){
+          const bn=nameBranch(hv,other.n,e.n,ringsInfo);
+          if(bn&&!bn.en.startsWith("(")) nm={en:bn.en.replace(/yl$/,"oxy"),de:bn.de.replace(/yl$/,"oxy")};
+        }
+      } else if(HALO[s]&&hv[e.n].nb.length===1){
+        nm={en:HALO[s].en,de:HALO[s].de};
+      } else if(s==="N"){
+        const os=hv[e.n].nb.filter(x=>hv[x.n].el==="O"&&hv[x.n].nb.length===1);
+        if(os.length===2) nm={en:"nitro",de:"nitro"};
+      }
+      if(!nm) return null;
+      if(!subsAt.has(ra)) subsAt.set(ra,[]);
+      subsAt.get(ra).push(nm);
+    }
+  }
+  // numbering: attachment = 1, both directions, lowest locants (unsaturation first)
+  const startIdx=ring.indexOf(start);
+  let best=null;
+  for(const dir of [1,-1]){
+    const pos=new Map();
+    for(let k=0;k<n;k++) pos.set(ring[((startIdx+dir*k)%n+n)%n],k+1);
+    const locs=[]; subsAt.forEach((arr2,ra)=>arr2.forEach(()=>locs.push(pos.get(ra))));
+    locs.sort((x,y)=>x-y);
+    const dL=[];
+    if(!isBz){
+      for(let k=0;k<n;k++){
+        const a=ring[k], b=ring[(k+1)%n], o=bondOrderBetween(hv,a,b);
+        if(o===3) return null;
+        if(o===2){
+          const pa=pos.get(a), pb=pos.get(b);
+          dL.push(Math.abs(pa-pb)===1? Math.min(pa,pb) : Math.max(pa,pb));
+        }
+      }
+      dL.sort((x,y)=>x-y);
+    }
+    if(!best || locantsCmp(dL,best.dL)<0 || (locantsCmp(dL,best.dL)===0&&locantsCmp(locs,best.locs)<0))
+      best={pos,locs,dL};
+  }
+  let baseE,baseD;
+  if(isBz){ baseE=baseD="phenyl"; }
+  else{
+    const stem="cyclo"+STEM[n];
+    if(best.dL.length){
+      const m=MULT[best.dL.length]||"";
+      // contains locants → always parenthesized when used as a prefix
+      baseE=baseD="("+stem+(m?"a":"")+"-"+best.dL.join(",")+"-"+m+"en-1-yl)";
+    } else baseE=baseD=stem+"yl";
+  }
+  if(!subsAt.size) return {en:baseE,de:baseD,memb:membSet};
+  baseE=baseE.replace(/[()]/g,""); baseD=baseD.replace(/[()]/g,"");
+  const items=[]; subsAt.forEach((arr2,ra)=>arr2.forEach(nm=>items.push({name:nm,loc:[best.pos.get(ra)]})));
+  const en="("+buildPrefixPart(items,"en")+baseE+")";
+  const de="("+buildPrefixPart(items,"de")+baseD+")";
+  return {en,de,memb:membSet};
 }
 
 /* acyl / alkyl piece namers for esters & anhydrides (simple linear only) */
@@ -1450,8 +1620,9 @@ function analyze(){
 }
 
 function collectPrefixGroups(hv,gs,principal,posOf){
-  // returns prefixes [{name:{en,de},loc:[n]}] , suffix locants, N-subs for amine/amide, ok flag
-  const prefixes=[]; const sufLoc=[]; let ok=true; let nSubs=[];
+  // returns prefixes [{name:{en,de},loc:[n]}], suffix locants, N-subs, unplaced groups
+  // (unplaced = group sits off the parent; may be covered by a named branch, checked later)
+  const prefixes=[]; const sufLoc=[]; let ok=true; let nSubs=[]; const unplaced=[];
   gs.forEach(g=>{
     const isPrincipal=principal&&principal.list.includes(g);
     const pos=posOf(g.c);
@@ -1459,31 +1630,36 @@ function collectPrefixGroups(hv,gs,principal,posOf){
       if(pos===undefined){ ok=false; return; }
       sufLoc.push(pos);
       if(g.type==="amine"&&g.allC&&g.allC.length>1){
-        // N-substituents
-        g.allC.forEach(cx=>{ if(posOf(cx)===undefined){
-          // branch on N
-          nSubs.push(cx);
-        }});
+        g.allC.forEach(cx=>{ if(posOf(cx)===undefined) nSubs.push(cx); });
       }
       return;
     }
+    if(pos===undefined && g.type!=="ether"){ unplaced.push(g); return; }
     switch(g.type){
-      case "halo": if(pos===undefined){ok=false;return;} prefixes.push({name:{en:HALO[g.el].en,de:HALO[g.el].de},loc:[pos]}); break;
-      case "nitro": if(pos===undefined){ok=false;return;} prefixes.push({name:{en:"nitro",de:"nitro"},loc:[pos]}); break;
-      case "ether": ok=ok&&"ether-handled"; prefixes.push({ether:g}); break;
+      case "halo": prefixes.push({name:{en:HALO[g.el].en,de:HALO[g.el].de},loc:[pos]}); break;
+      case "nitro": prefixes.push({name:{en:"nitro",de:"nitro"},loc:[pos]}); break;
+      case "ether": prefixes.push({ether:g}); break;
       default:{
         const G=GROUPS[g.type];
         if(!G||!G.prefEN){ ok=false; return; }
-        if(pos===undefined){ ok=false; return; }
         prefixes.push({name:{en:G.prefEN,de:G.prefDE},loc:[pos]});
       }
     }
   });
-  return {prefixes,sufLoc,ok,nSubs};
+  return {prefixes,sufLoc,ok,nSubs,unplaced};
 }
 
 function nameChainParent(hv,cAdj,ringsInfo,gs,principal,formula){
-  const chains=allChains(cAdj);
+  // rings can never be broken open into the main chain — they stay intact
+  // (as ring parent or as a phenyl/cycloalkyl substituent)
+  const ringAtoms=new Set();
+  ringsInfo.rings.forEach(r=>r.forEach(x=>ringAtoms.add(x)));
+  let chainAdj=cAdj;
+  if(ringAtoms.size){
+    chainAdj=new Map();
+    cAdj.forEach((v,k)=>{ if(!ringAtoms.has(k)) chainAdj.set(k,v.filter(e=>!ringAtoms.has(e.n))); });
+  }
+  const chains=allChains(chainAdj);
   if(!chains.length) return {fallback:true,reason:"No carbon chain found.",formula:formula.str};
   const pgCs=principal? new Set(principal.list.map(g=>g.c)) : new Set();
   // score candidates
@@ -1570,8 +1746,43 @@ function assembleName(hv,use,gs,principal,ringsInfo,formula,ringMode){
   const prefixes=col.prefixes.filter(p=>!p.ether);
   const ethers=col.prefixes.filter(p=>p.ether);
   const inParent=new Set(arr);
-  // ethers → alkoxy prefix; smaller side must be pure alkyl OUTSIDE parent
+
+  // N-substituents of a principal amine
+  const nSubNames=[];
+  if(principal&&principal.type==="amine"){
+    principal.list.forEach(g=>{ g.allC.forEach(cx=>{ if(!inParent.has(cx)){
+      const br=nameBranch(hv,cx,g.n===undefined?-1:g.n,ringsInfo);
+      if(br) nSubNames.push(br); }; }); });
+  }
+
+  // substituent branches first — they may swallow whole rings incl. their own
+  // ring substituents (alkoxy, halo, nitro), tracked in consumedByBranches
+  const consumedByBranches=new Set();
+  let bad=false;
+  arr.forEach(c=>{
+    hv[c].nb.forEach(e=>{
+      if(bad||inParent.has(e.n)||hv[e.n].el!=="C") return;
+      if(gs.some(g=>g.type==="ester"&&e.n===g.oAlkylC)) return;
+      // skip exocyclic principal-group carbons (they became the ring suffix, e.g. -carboxylic acid)
+      if(principal&&principal.exo&&principal.list.some(g=>g.exoC===e.n)) return;
+      const br=nameBranch(hv,e.n,c,ringsInfo);
+      if(!br){ bad=true; return; }
+      if(br.memb) br.memb.forEach(x=>consumedByBranches.add(x));
+      prefixes.push({name:br,loc:[posOf(c)]});
+    });
+  });
+  if(bad) return {fallback:true,reason:"A substituent contains features beyond the local engine.",formula:formula.str};
+
+  // groups that sat off the parent must be inside a named branch, else we can't name this locally
+  for(const g of col.unplaced){
+    const anchors=g.het&&g.het.length? g.het : [g.c];
+    if(!anchors.some(a2=>consumedByBranches.has(a2)))
+      return {fallback:true,reason:"A functional group sits off the main chain — using online lookup.",formula:formula.str};
+  }
+
+  // ethers → alkoxy prefix on the parent (skip ones already named inside a branch)
   for(const {ether} of ethers){
+    if(consumedByBranches.has(ether.o)) continue;
     let cIn,cOut;
     if(inParent.has(ether.c)&&!inParent.has(ether.c2)){cIn=ether.c;cOut=ether.c2;}
     else if(inParent.has(ether.c2)&&!inParent.has(ether.c)){cIn=ether.c2;cOut=ether.c;}
@@ -1582,29 +1793,6 @@ function assembleName(hv,use,gs,principal,ringsInfo,formula,ringMode){
     const oxyD=br.de==="phenyl"?"phenoxy":br.de.replace(/yl$/,"oxy");
     prefixes.push({name:{en:oxyE,de:oxyD},loc:[posOf(cIn)]});
   }
-  // alkyl substituents: carbon neighbors outside parent, not consumed by groups
-  const consumed=new Set();
-  gs.forEach(g=>{ if(g.type==="ester"){consumed.add(g.oAlkylC);} if(g.het) g.het.forEach(h=>consumed.add(h)); if(g.type==="amine"&&g.allC) g.allC.forEach((cx,ix)=>{ }); });
-  const nSubNames=[];
-  if(principal&&principal.type==="amine"){
-    principal.list.forEach(g=>{ g.allC.forEach(cx=>{ if(!inParent.has(cx)){
-      const br=nameBranch(hv,cx,g.n===undefined?-1:g.n,ringsInfo);
-      if(br) nSubNames.push(br); }; }); });
-  }
-  let bad=false;
-  arr.forEach(c=>{
-    hv[c].nb.forEach(e=>{
-      if(bad||inParent.has(e.n)||hv[e.n].el!=="C") return;
-      // skip carbons that belong to groups (acyl of ester alkyl side etc.) — only pure branches
-      if(gs.some(g=>(g.type==="ester"&&(e.n===g.oAlkylC))||(g.type==="ether"&&(e.n===g.c||e.n===g.c2)&&false))) return;
-      // skip exocyclic principal-group carbons (they became the ring suffix, e.g. -carboxylic acid)
-      if(principal&&principal.exo&&principal.list.some(g=>g.exoC===e.n)) return;
-      const br=nameBranch(hv,e.n,c,ringsInfo);
-      if(!br){ bad=true; return; }
-      prefixes.push({name:br,loc:[posOf(c)]});
-    });
-  });
-  if(bad) return {fallback:true,reason:"A substituent contains features beyond the local engine.",formula:formula.str};
 
   const build=lang=>{
     const G=principal? GROUPS[principal.type]:null;
@@ -1638,7 +1826,7 @@ function assembleName(hv,use,gs,principal,ringsInfo,formula,ringMode){
       nPart=list.map(x=>"N-"+x).join("-");
     }
     const totalLocs=prefixes.reduce((a,p)=>a+p.loc.length,0);
-    const dropLocs=arr.length===1||(arr.length===2&&totalLocs===1)
+    const dropLocs=arr.length===1||(arr.length===2&&totalLocs===1&&!use.sufL.length)
       ||(!!ringMode&&totalLocs===1&&!use.sufL.length);
     const prefPart=buildPrefixPart(prefixes,lang,dropLocs);
     let full=nPart+(nPart&&prefPart?"-":"")+(prefPart? prefPart:"")+core+(G? (sufLocStr||(G.locSuffix&&arr.length>2?"":"")):"")+suffix;
@@ -1771,6 +1959,32 @@ function toSMILES(){
   return parts.join(".");
 }
 
+/* ============ EN → DE IUPAC translator (rule-based, for PubChem names) ============ */
+function deFromEN(nm){
+  let s=" "+nm+" ";
+  const R=[
+    [/\bwater\b/g,"Wasser"],[/\bammonia\b/g,"Ammoniak"],
+    [/acetic acid/g,"essigsäure"],[/formic acid/g,"ameisensäure"],[/benzoic acid/g,"benzoesäure"],
+    [/carboxylic acid/g,"carbonsäure"],[/sulfonic acid/g,"sulfonsäure"],
+    [/oic acid/g,"säure"],[/ic acid/g,"säure"],
+    [/carbaldehyde/g,"carbaldehyd"],[/carboxamide/g,"carboxamid"],[/carbonitrile/g,"carbonitril"],
+    [/anhydride/g,"anhydrid"],[/nitrile/g,"nitril"],
+    [/amide(?![a-z])/g,"amid"],[/amine(?![a-z])/g,"amin"],
+    [/benzene/g,"benzol"],[/phenol/g,"phenol"],[/aniline/g,"anilin"],[/toluene/g,"toluol"],
+    [/naphthalene/g,"naphthalin"],[/pyridine/g,"pyridin"],[/furan(?![a-z])/g,"furan"],
+    [/olate(?![a-z])/g,"olat"],[/oate(?![a-z])/g,"oat"],[/ate(?![a-z])/g,"at"],
+    [/ane(?=carbon|sulfon)/g,"an"],        // Cyclohexancarbonsäure, Ethansulfonsäure
+    [/ane(?![a-z])/g,"an"],[/ene(?![a-z])/g,"en"],[/yne(?![a-z])/g,"in"],[/one(?![a-z])/g,"on"],
+    [/ether(?![a-z])/g,"ether"],
+    [/(yl) (?=[a-zäö\d])/g,"$1"]           // "ethyl ethanoat" → "ethylethanoat"
+  ];
+  R.forEach(([re,to])=>{ s=s.replace(re,to); });
+  s=s.trim().replace(/\s+/g," ");
+  // capitalize the first real word letter, not indicated-H/locant letters like "4a"
+  s=s.replace(/[a-zäöü](?=[a-zäöü])/,c=>c.toUpperCase());
+  return s;
+}
+
 /* ================= PUBCHEM ONLINE LOOKUP ================= */
 async function pubchemName(smiles){
   const url="https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/smiles/property/IUPACName/JSON?smiles="+encodeURIComponent(smiles);
@@ -1812,10 +2026,12 @@ async function runNaming(){
     body.appendChild(waitCard);
     try{
       const nm=await pubchemName(smiles);
+      const nmDE=deFromEN(nm);
       waitCard.replaceWith(card(`
         <div class="lang-row"><span class="lang">EN</span><span class="the-name">${esc(nm)}</span></div>
-        <div class="meta">Exact IUPAC name via PubChem${res.en? " (cross-check of the local name)":""}</div>${res.en?"":fRow}
-        <button class="copy" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(nm).replace(/'/g,"\\'")}');this.textContent='Copied'">Copy</button>`));
+        <div class="lang-row"><span class="lang">DE</span><span class="the-name">${esc(nmDE)}</span></div>
+        <div class="meta">Exact IUPAC name via PubChem${res.en? " (cross-check of the local name)":""} · German is an automatic translation</div>${res.en?"":fRow}
+        <button class="copy" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(nm).replace(/'/g,"\\'")}');this.textContent='Copied'">Copy EN</button>`));
     }catch(err){
       waitCard.replaceWith(card((res.fallback? esc(res.reason)+"<br/>":"")+
         `<div class="meta">Online lookup unavailable (${esc(err.message)}). ${res.en? "Local name above still applies.":"Try simplifying the structure."}</div>${res.en?"":fRow}`, res.en? "warn":"err"));
