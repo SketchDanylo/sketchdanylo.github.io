@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
 <meta name="theme-color" content="#0b1020"/>
-<title>Nomenclature Studio — IUPAC Naming Tool</title>
+<title>Danylo's Nomenclature Engine</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -20,7 +20,9 @@
   --shadow:0 16px 40px rgba(0,0,0,.5);
   --rail-size:64px;
 }
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;
+  user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.name-card .the-name,.name-card .meta{user-select:text;-webkit-user-select:text}
 html,body{height:100%;overscroll-behavior:none}
 body{
   font-family:'Inter',system-ui,sans-serif;color:var(--text);background:var(--bg);
@@ -201,7 +203,7 @@ footer.credit{display:none}
 <header class="topbar">
   <div class="brand">
     <div class="mark">N</div>
-    <h1>Nomenclature</h1>
+    <h1>Danylo's Nomenclature Engine</h1>
   </div>
   <button class="name-cta" id="nameBtn">
     <svg class="ico" viewBox="0 0 24 24"><path d="M9 3h6M10 3v5.2L4.6 17.5A2 2 0 0 0 6.4 20.5h11.2a2 2 0 0 0 1.8-3L14 8.2V3"/><path d="M8 14h8"/></svg>
@@ -227,6 +229,9 @@ footer.credit{display:none}
     <div class="sep"></div>
     <button class="rbtn" id="moveBtn" title="Move atoms (drag to reposition instead of bonding)">
       <svg class="ico" viewBox="0 0 24 24"><path d="M4 3l7 18 2.5-7.5L21 11z"/></svg>
+    </button>
+    <button class="rbtn" id="skelBtn" title="Skeletal formula view (Skelettformel)">
+      <svg class="ico" viewBox="0 0 24 24"><path d="M3 16l5-8 4 8 5-8 4 8"/></svg>
     </button>
     <button class="rbtn" id="autoHBtn" title="Auto-fill hydrogens">
       <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.1"/><ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(30 12 12)"/><ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(-30 12 12)"/></svg>
@@ -321,6 +326,7 @@ const CATION_OK = {N:1,O:1,S:1,P:1,B:-1}; // B gets − (borate style)
 let atoms = [];   // {el,x,y,charge}
 let bonds = [];   // {a,b,order}
 let mode = "build";        // build | move
+let skeletal = false;      // skeletal-formula rendering (Skelettformel)
 let drawEl = "C";
 let bondOrder = 1;
 let selAtom = -1, selBond = -1;
@@ -397,12 +403,38 @@ function drawBondLine(x1,y1,x2,y2,order,color,width){
     ctx.stroke();
   }
 }
+/* skeletal helpers: hide H bound to a heavy atom, fold them into labels */
+function skelHiddenH(i){
+  if(!skeletal) return false;
+  const a=atoms[i]; if(a.el!=="H"||a.charge) return false;
+  let nb=-1,cnt=0;
+  for(const b of bonds){ if(b.a===i){nb=b.b;cnt++;} else if(b.b===i){nb=b.a;cnt++;} }
+  return cnt===1 && atoms[nb].el!=="H";
+}
+function displayH(i){
+  let n=implicitH(i);
+  for(const b of bonds){
+    const o=b.a===i? b.b : (b.b===i? b.a : -1);
+    if(o>=0 && atoms[o].el==="H" && skelHiddenH(o)) n++;
+  }
+  return n;
+}
+function atomDeg(i){ let d=0; for(const b of bonds) if(b.a===i||b.b===i) d++; return d; }
+
+function drawChargeBadge(P,rr,charge,fs){
+  ctx.beginPath(); ctx.arc(P.x+rr*.85,P.y-rr*.85,7*Math.min(view.k,1.2),0,7);
+  ctx.fillStyle=charge>0? "#e5534b":"#5b8cf0"; ctx.fill();
+  ctx.fillStyle="#0a0c10"; ctx.font=`800 ${fs*0.68}px Inter`;
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.fillText(charge>0? (charge>1?charge+"+":"+") : (charge<-1?(-charge)+"−":"−"), P.x+rr*.85, P.y-rr*.85+0.5);
+}
 function redraw(){
   const r=wrap.getBoundingClientRect();
   ctx.clearRect(0,0,r.width,r.height);
   $("canvasHint").style.display = atoms.length? "none":"block";
   // bonds
   bonds.forEach((b,bi)=>{
+    if(skelHiddenH(b.a)||skelHiddenH(b.b)) return;
     const A=W2S(atoms[b.a]), B=W2S(atoms[b.b]);
     const sel = bi===selBond;
     drawBondLine(A.x,A.y,B.x,B.y,b.order, sel?"#5b8cf0":"rgba(231,233,238,.68)", (sel?3:2)*Math.min(view.k,1.4));
@@ -417,8 +449,35 @@ function redraw(){
   // atoms
   const fs=Math.max(11,14*view.k);
   atoms.forEach((a,i)=>{
+    if(skelHiddenH(i)) return;
     const P=W2S(a), rr=R_ATOM*view.k;
     const col=elColor(a.el);
+
+    if(skeletal){
+      const isVertexC = a.el==="C" && atomDeg(i)>0;
+      if(isVertexC){
+        // bare line-angle vertex; only selection ring + charge
+        if(i===selAtom){
+          ctx.beginPath(); ctx.arc(P.x,P.y,8*view.k,0,7);
+          ctx.strokeStyle="#5b8cf0"; ctx.lineWidth=2; ctx.stroke();
+        }
+        if(a.charge) drawChargeBadge(P,10*view.k,a.charge,fs);
+        return;
+      }
+      // labeled atom (heteroatom, H, isolated C): mask circle + text like OH / NH₂ / CH₄
+      const dh=displayH(i);
+      const label=a.el+(dh>0? "H"+(dh>1?subNum(dh):"") : "");
+      ctx.font=`700 ${fs}px Inter`;
+      const tw=ctx.measureText(label).width;
+      ctx.beginPath(); ctx.arc(P.x,P.y,Math.max(rr*.8,tw*.62),0,7);
+      ctx.fillStyle="#0a0c10"; ctx.fill();
+      if(i===selAtom){ ctx.strokeStyle="#5b8cf0"; ctx.lineWidth=2; ctx.stroke(); }
+      ctx.fillStyle=col; ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.fillText(label,P.x,P.y+1);
+      if(a.charge) drawChargeBadge(P,rr,a.charge,fs);
+      return;
+    }
+
     ctx.beginPath(); ctx.arc(P.x,P.y,rr,0,7);
     ctx.fillStyle="#0a0c10"; ctx.fill();
     ctx.lineWidth = i===selAtom? 2.6:1.5;
@@ -426,19 +485,12 @@ function redraw(){
     ctx.fillStyle=col; ctx.font=`700 ${fs}px Inter`;
     ctx.textAlign="center"; ctx.textBaseline="middle";
     ctx.fillText(a.el,P.x,P.y+1);
-    // implicit H count (small)
     const ih=implicitH(i);
     if(ih>0 && a.el!=="C"){
       ctx.font=`600 ${fs*0.62}px Inter`; ctx.fillStyle="rgba(231,233,238,.5)";
       ctx.fillText("H"+(ih>1?ih:""),P.x,P.y+rr+8*view.k);
     }
-    // charge badge
-    if(a.charge){
-      ctx.beginPath(); ctx.arc(P.x+rr*.85,P.y-rr*.85,7*Math.min(view.k,1.2),0,7);
-      ctx.fillStyle=a.charge>0? "#e5534b":"#5b8cf0"; ctx.fill();
-      ctx.fillStyle="#0a0c10"; ctx.font=`800 ${fs*0.68}px Inter`;
-      ctx.fillText(a.charge>0? (a.charge>1?a.charge+"+":"+") : (a.charge<-1?(-a.charge)+"−":"−"), P.x+rr*.85, P.y-rr*.85+0.5);
-    }
+    if(a.charge) drawChargeBadge(P,rr,a.charge,fs);
   });
   updateFormula();
   positionPopover();
@@ -448,6 +500,7 @@ function afterChange(){ autoCharges(); redraw(); }
 /* ================= HIT TESTS ================= */
 function hitAtom(sx,sy){
   for(let i=atoms.length-1;i>=0;i--){
+    if(skelHiddenH(i)) continue;
     const P=W2S(atoms[i]);
     if((P.x-sx)**2+(P.y-sy)**2 < (R_ATOM*view.k+10)**2) return i;
   }
@@ -479,7 +532,10 @@ const pointers=new Map();
 let pinch0=null;
 const THRESH=6;
 
+canvas.addEventListener("contextmenu",e=>e.preventDefault());
+canvas.addEventListener("mousedown",e=>e.preventDefault()); // no text-selection / native drag UI
 canvas.addEventListener("pointerdown",e=>{
+  e.preventDefault();
   canvas.setPointerCapture(e.pointerId);
   const rect=canvas.getBoundingClientRect();
   const sx=e.clientX-rect.left, sy=e.clientY-rect.top;
@@ -630,17 +686,25 @@ function deleteAtom(i){
 }
 
 /* ================= UI WIRING ================= */
+function exitMoveMode(){
+  if(mode!=="move") return;
+  mode="build";
+  $("moveBtn").classList.remove("active");
+  canvas.style.cursor="crosshair";
+}
 document.querySelectorAll(".el-swatch").forEach(b=>{
   b.addEventListener("click",()=>{
     document.querySelectorAll(".el-swatch").forEach(x=>x.classList.remove("active"));
     b.classList.add("active"); drawEl=b.dataset.el;
     $("ptBtn").classList.remove("active");
+    exitMoveMode();
   });
 });
 document.querySelectorAll("[data-bond]").forEach(b=>{
   b.addEventListener("click",()=>{
     document.querySelectorAll("[data-bond]").forEach(x=>x.classList.remove("active"));
     b.classList.add("active"); bondOrder=+b.dataset.bond;
+    exitMoveMode();
   });
 });
 document.querySelector('[data-bond="1"]').classList.add("active");
@@ -648,6 +712,11 @@ $("moveBtn").onclick=()=>{
   mode = mode==="move" ? "build" : "move";
   $("moveBtn").classList.toggle("active",mode==="move");
   canvas.style.cursor = mode==="move" ? "grab" : "crosshair";
+  selAtom=selBond=-1; hidePopover(); redraw();
+};
+$("skelBtn").onclick=()=>{
+  skeletal=!skeletal;
+  $("skelBtn").classList.toggle("active",skeletal);
   selAtom=selBond=-1; hidePopover(); redraw();
 };
 $("undoBtn").onclick=undo; $("redoBtn").onclick=redo;
@@ -730,58 +799,103 @@ $("ptBtn").onclick=()=>$("ptVeil").classList.add("show");
 $("ptClose").onclick=()=>$("ptVeil").classList.remove("show");
 $("ptVeil").addEventListener("click",e=>{ if(e.target.id==="ptVeil") $("ptVeil").classList.remove("show"); });
 
-/* auto-fill hydrogens */
+/* auto-fill hydrogens — sterically even: split the largest free angular gaps
+   so added H spread out like real substituent positions */
+function neighborAngles(i){
+  const angles=[];
+  bonds.forEach(b=>{
+    if(b.a===i) angles.push(Math.atan2(atoms[b.b].y-atoms[i].y,atoms[b.b].x-atoms[i].x));
+    else if(b.b===i) angles.push(Math.atan2(atoms[b.a].y-atoms[i].y,atoms[b.a].x-atoms[i].x));
+  });
+  return angles;
+}
+function openAngles(i,count){
+  const TWO=2*Math.PI;
+  let angles=neighborAngles(i).map(a=>((a%TWO)+TWO)%TWO).sort((a,b)=>a-b);
+  const out=[];
+  if(!angles.length){ // isolated atom: even star, first H pointing up-right
+    for(let k=0;k<count;k++) out.push(-Math.PI/2 + k*TWO/count);
+    return out;
+  }
+  // gap list: {start, size, slots}
+  const gaps=[];
+  for(let g=0;g<angles.length;g++){
+    const a0=angles[g], a1= g+1<angles.length? angles[g+1] : angles[0]+TWO;
+    gaps.push({start:a0,size:a1-a0,slots:0});
+  }
+  for(let k=0;k<count;k++){ // greedy: give each H to the gap with the widest per-slot share
+    let best=0,score=-1;
+    gaps.forEach((gp,gi)=>{ const s=gp.size/(gp.slots+2); if(s>score){score=s;best=gi;} });
+    gaps[best].slots++;
+  }
+  gaps.forEach(gp=>{
+    for(let s=1;s<=gp.slots;s++) out.push(gp.start + gp.size*s/(gp.slots+1));
+  });
+  return out;
+}
 $("autoHBtn").onclick=()=>{
   let added=0;
   const n0=atoms.length;
   for(let i=0;i<n0;i++){
     const need=implicitH(i);
     if(need<=0) continue;
-    // neighbors' angles to find open directions
-    const angles=[];
-    bonds.forEach(b=>{
-      if(b.a===i) angles.push(Math.atan2(atoms[b.b].y-atoms[i].y,atoms[b.b].x-atoms[i].x));
-      else if(b.b===i) angles.push(Math.atan2(atoms[b.a].y-atoms[i].y,atoms[b.a].x-atoms[i].x));
-    });
-    for(let k=0;k<need;k++){
-      let best=0,bestScore=-1;
-      for(let t=0;t<24;t++){
-        const ang=t/24*2*Math.PI;
-        let score=1e9;
-        angles.forEach(a2=>{ let d=Math.abs(((ang-a2)%(2*Math.PI)+3*Math.PI)%(2*Math.PI)-Math.PI); score=Math.min(score,d); });
-        if(!angles.length) score=Math.random();
-        if(score>bestScore){bestScore=score;best=ang;}
-      }
-      angles.push(best);
-      atoms.push({el:"H",x:atoms[i].x+46*Math.cos(best),y:atoms[i].y+46*Math.sin(best),charge:0});
+    const HL= atoms[i].el==="C"? 38:34;
+    openAngles(i,need).forEach(ang=>{
+      atoms.push({el:"H",x:atoms[i].x+HL*Math.cos(ang),y:atoms[i].y+HL*Math.sin(ang),charge:0});
       bonds.push({a:i,b:atoms.length-1,order:1});
       added++;
-    }
+    });
   }
   if(added){ snap(); afterChange(); toast(added+" hydrogens added","ok"); }
   else toast("All valences already satisfied");
 };
 
-/* tidy layout: simple force relax */
+/* tidy layout: springs + repulsion + angular spreading (steric relaxation) */
 $("cleanBtn").onclick=()=>{
   if(atoms.length<2) return;
   const L=52;
-  for(let it=0;it<220;it++){
+  const adjIdx=atoms.map(()=>[]);
+  bonds.forEach(b=>{ adjIdx[b.a].push(b.b); adjIdx[b.b].push(b.a); });
+  for(let it=0;it<260;it++){
     const fx=new Array(atoms.length).fill(0), fy=new Array(atoms.length).fill(0);
+    // bond springs (H bonds shorter, like real bond lengths)
     bonds.forEach(b=>{
+      const hb=atoms[b.a].el==="H"||atoms[b.b].el==="H";
+      const target=hb? L*0.72 : L;
       const dx=atoms[b.b].x-atoms[b.a].x, dy=atoms[b.b].y-atoms[b.a].y;
-      const d=Math.hypot(dx,dy)||1, f=(d-L)*0.08;
+      const d=Math.hypot(dx,dy)||1, f=(d-target)*0.08;
       fx[b.a]+=dx/d*f; fy[b.a]+=dy/d*f; fx[b.b]-=dx/d*f; fy[b.b]-=dy/d*f;
     });
+    // global repulsion (avoid overlaps)
     for(let i=0;i<atoms.length;i++)for(let j=i+1;j<atoms.length;j++){
       const dx=atoms[j].x-atoms[i].x, dy=atoms[j].y-atoms[i].y;
       const d2=dx*dx+dy*dy||1;
       if(d2<L*L*4){ const d=Math.sqrt(d2), f=Math.min(4,(L*1.7-d)*0.06);
         if(f>0){ fx[i]-=dx/d*f; fy[i]-=dy/d*f; fx[j]+=dx/d*f; fy[j]+=dy/d*f; } }
     }
+    // angular spreading: push adjacent bonds around each atom toward even spacing
+    for(let i=0;i<atoms.length;i++){
+      const nb=adjIdx[i]; if(nb.length<2) continue;
+      const ideal=2*Math.PI/nb.length;
+      const withAng=nb.map(n=>({n,ang:Math.atan2(atoms[n].y-atoms[i].y,atoms[n].x-atoms[i].x)}))
+                      .sort((a,b)=>a.ang-b.ang);
+      for(let k=0;k<withAng.length;k++){
+        const A=withAng[k], B=withAng[(k+1)%withAng.length];
+        let gap=B.ang-A.ang; if(k===withAng.length-1) gap+=2*Math.PI;
+        const err=gap-ideal;
+        if(Math.abs(err)<0.03) continue;
+        const t=0.018*err; // shrink oversized gaps, widen cramped ones
+        [[A,t],[B,-t]].forEach(([P,rot])=>{
+          const dx=atoms[P.n].x-atoms[i].x, dy=atoms[P.n].y-atoms[i].y;
+          const d=Math.hypot(dx,dy)||1;
+          fx[P.n]+= -dy/d * rot * d * 0.5;
+          fy[P.n]+=  dx/d * rot * d * 0.5;
+        });
+      }
+    }
     atoms.forEach((a,i)=>{a.x+=fx[i];a.y+=fy[i];});
   }
-  snap(); fitView(); toast("Layout tidied","ok");
+  snap(); fitView(); toast("Layout tidied (sterically relaxed)","ok");
 };
 
 /* ================= GRAPH HELPERS + FORMULA ================= */
@@ -821,14 +935,19 @@ const MULT=["","","di","tri","tetra","penta","hexa","hepta","octa","nona","deca"
 const HALO={F:{en:"fluoro",de:"fluor"},Cl:{en:"chloro",de:"chlor"},Br:{en:"bromo",de:"brom"},I:{en:"iodo",de:"iod"}};
 // principal group table, ordered by seniority (high → low)
 const GROUPS={
-  acid:     {sen:10, sufEN:"oic acid",  sufDE:"säure",  locSuffix:false, terminal:true},
-  amide:    {sen:8,  sufEN:"amide",     sufDE:"amid",   locSuffix:false, terminal:true},
-  nitrile:  {sen:7,  sufEN:"nitrile",   sufDE:"nitril", locSuffix:false, terminal:true},
-  aldehyde: {sen:6,  sufEN:"al",        sufDE:"al",     locSuffix:false, terminal:true, prefEN:"oxo", prefDE:"oxo"},
-  ketone:   {sen:5,  sufEN:"one",       sufDE:"on",     locSuffix:true,  prefEN:"oxo", prefDE:"oxo"},
-  ol:       {sen:4,  sufEN:"ol",        sufDE:"ol",     locSuffix:true,  prefEN:"hydroxy", prefDE:"hydroxy"},
-  thiol:    {sen:3,  sufEN:"thiol",     sufDE:"thiol",  locSuffix:true,  prefEN:"sulfanyl", prefDE:"sulfanyl"},
-  amine:    {sen:2,  sufEN:"amine",     sufDE:"amin",   locSuffix:true,  prefEN:"amino", prefDE:"amino"}
+  acid:       {sen:10,  sufEN:"oic acid",      sufDE:"säure",       locSuffix:false, terminal:true},
+  carboxylate:{sen:9.7, sufEN:"oate",          sufDE:"oat",         locSuffix:false, terminal:true},
+  sulfo:      {sen:9.4, sufEN:"sulfonic acid", sufDE:"sulfonsäure", locSuffix:true,  prefEN:"sulfo", prefDE:"sulfo"},
+  sulfonate:  {sen:9.3, sufEN:"sulfonate",     sufDE:"sulfonat",    locSuffix:true},
+  amide:      {sen:8,   sufEN:"amide",         sufDE:"amid",        locSuffix:false, terminal:true},
+  nitrile:    {sen:7,   sufEN:"nitrile",       sufDE:"nitril",      locSuffix:false, terminal:true},
+  aldehyde:   {sen:6,   sufEN:"al",            sufDE:"al",          locSuffix:false, terminal:true, prefEN:"oxo", prefDE:"oxo"},
+  ketone:     {sen:5,   sufEN:"one",           sufDE:"on",          locSuffix:true,  prefEN:"oxo", prefDE:"oxo"},
+  olate:      {sen:4.1, sufEN:"olate",         sufDE:"olat",        locSuffix:true,  prefEN:"oxido", prefDE:"oxido"},
+  ol:         {sen:4,   sufEN:"ol",            sufDE:"ol",          locSuffix:true,  prefEN:"hydroxy", prefDE:"hydroxy"},
+  thiolate:   {sen:3.1, sufEN:"thiolate",      sufDE:"thiolat",     locSuffix:true},
+  thiol:      {sen:3,   sufEN:"thiol",         sufDE:"thiol",       locSuffix:true,  prefEN:"sulfanyl", prefDE:"sulfanyl"},
+  amine:      {sen:2,   sufEN:"amine",         sufDE:"amin",        locSuffix:true,  prefEN:"amino", prefDE:"amino"}
 };
 const SPECIALS={ // formula string → names
   "H₂O":{en:"water",de:"Wasser"},"NH₃":{en:"ammonia",de:"Ammoniak"},
@@ -928,11 +1047,13 @@ function detectGroups(hv){
     if(co&&used.has(co.n)) co=null; // already consumed (e.g. far side of an anhydride)
     if(co){
       const sO=singleO(c).filter(e=>!used.has(e.n));
-      // acid: C(=O)-OH
-      const oh=sO.find(e=>deg(e.n)===1&&hv[e.n].h>=1 || (deg(e.n)===1&&hv[e.n].charge===-1));
+      // acid: C(=O)-OH   /   carboxylate: C(=O)-O⁻
+      const ohH=sO.find(e=>deg(e.n)===1&&hv[e.n].h>=1&&!hv[e.n].charge);
+      const oNeg=sO.find(e=>deg(e.n)===1&&hv[e.n].charge===-1);
       // ester / anhydride: C(=O)-O-C
       const orLink=sO.find(e=>deg(e.n)===2);
-      if(oh){ gs.push({type:"acid",c,het:[co.n,oh.n]}); used.add(co.n); used.add(oh.n); continue; }
+      if(ohH){ gs.push({type:"acid",c,het:[co.n,ohH.n]}); used.add(co.n); used.add(ohH.n); continue; }
+      if(oNeg){ gs.push({type:"carboxylate",c,het:[co.n,oNeg.n]}); used.add(co.n); used.add(oNeg.n); continue; }
       if(orLink){
         const O=orLink.n;
         const other=hv[O].nb.find(e=>e.n!==c);
@@ -963,13 +1084,15 @@ function detectGroups(hv){
       if(used.has(e.n)) return;
       const s=el(e.n);
       if(s==="O"&&e.o===1&&deg(e.n)===1){
-        if(hv[e.n].charge===-1){ gs.push({type:"ol",c,het:[e.n],anion:true}); used.add(e.n); }
+        if(hv[e.n].charge===-1){ gs.push({type:"olate",c,het:[e.n]}); used.add(e.n); }
         else if(hv[e.n].h>=1){ gs.push({type:"ol",c,het:[e.n]}); used.add(e.n); }
       } else if(s==="O"&&e.o===1&&deg(e.n)===2){
         const other=hv[e.n].nb.find(x=>x.n!==c);
         if(other&&el(other.n)==="C"){ // ether (register from lower C)
           if(c<other.n){ gs.push({type:"ether",c,c2:other.n,o:e.n,het:[e.n]}); used.add(e.n); }
         }
+      } else if(s==="S"&&e.o===1&&deg(e.n)===1&&hv[e.n].charge===-1){
+        gs.push({type:"thiolate",c,het:[e.n]}); used.add(e.n);
       } else if(s==="S"&&e.o===1&&deg(e.n)===1&&hv[e.n].h>=1){
         gs.push({type:"thiol",c,het:[e.n]}); used.add(e.n);
       } else if(s==="N"&&e.o===1&&deg(e.n)===1+ (hv[e.n].nb.filter(x=>el(x.n)==="O").length*0)){
@@ -978,6 +1101,21 @@ function detectGroups(hv){
         gs.push({type:"halo",c,el:s,het:[e.n]}); used.add(e.n);
       }
     });
+  }
+  // sulfonic acids / sulfonates (S-centered): C-S(=O)(=O)-OH / -O⁻
+  for(let s2=0;s2<hv.length;s2++){
+    if(el(s2)!=="S"||used.has(s2)) continue;
+    const dO=hv[s2].nb.filter(e=>el(e.n)==="O"&&e.o===2&&deg(e.n)===1);
+    const sOH=hv[s2].nb.filter(e=>el(e.n)==="O"&&e.o===1&&deg(e.n)===1);
+    const cs=hv[s2].nb.filter(e=>el(e.n)==="C"&&e.o===1);
+    if(dO.length===2&&sOH.length===1&&cs.length===1){
+      const O=sOH[0].n;
+      const t= hv[O].charge===-1? "sulfonate" : (hv[O].h>=1? "sulfo" : null);
+      if(t){
+        gs.push({type:t,c:cs[0].n,het:[s2,dO[0].n,dO[1].n,O]});
+        used.add(s2); dO.forEach(o=>used.add(o.n)); used.add(O);
+      }
+    }
   }
   // amines & nitro (N-centered)
   for(let n=0;n<hv.length;n++){
@@ -1042,6 +1180,75 @@ function prefLocs(hv,gs,principal,arr,pos){
     hv[c].nb.forEach(e=>{ if(!inP.has(e.n)&&hv[e.n].el==="C") out.push(pos.get(c)); });
   });
   return out.sort((a,b)=>a-b);
+}
+
+/* ---- CIP-lite priorities + E/Z double-bond stereo (from 2D geometry) ---- */
+const ZNUM={}; PT.forEach(p=>ZNUM[p[0]]=p[1]);
+function sphereList(hv,start,from,maxd){
+  // BFS levels of atomic numbers (bond order duplicates neighbors), CIP-approximation
+  let frontier=[{n:start,p:from}];
+  const levels=[[ZNUM[hv[start].el]||0]];
+  for(let d=0;d<maxd;d++){
+    const next=[], lvl=[];
+    for(const f of frontier){
+      const a=hv[f.n];
+      for(let h=0;h<a.h;h++) lvl.push(1);
+      for(const e of a.nb){
+        if(e.n===f.p) continue;
+        for(let m=0;m<e.o;m++) lvl.push(ZNUM[hv[e.n].el]||0);
+        next.push({n:e.n,p:f.n});
+      }
+    }
+    if(!lvl.length) break;
+    lvl.sort((x,y)=>y-x);
+    levels.push(lvl);
+    frontier=next;
+    if(frontier.length>400) break;
+  }
+  return levels;
+}
+function cipRank(hv,c,sub){ return sub==="H"? [[1]] : sphereList(hv,sub.n,c,5); }
+function cipCmp(A,B){
+  for(let d=0;d<Math.max(A.length,B.length);d++){
+    const a=A[d]||[], b=B[d]||[];
+    for(let i=0;i<Math.max(a.length,b.length);i++){
+      const x=a[i]??-1, y=b[i]??-1;
+      if(x!==y) return x-y;
+    }
+  }
+  return 0;
+}
+function doubleBondStereo(hv,rings){
+  const ringSet=new Set();
+  (rings||[]).forEach(r=>{ for(let k=0;k<r.length;k++){ const a=r[k], b=r[(k+1)%r.length]; ringSet.add(a<b? a+"_"+b : b+"_"+a); } });
+  const out=[];
+  hv.forEach((A,u)=>A.nb.forEach(e=>{
+    if(e.o!==2||e.n<u) return;
+    const v=e.n;
+    if(hv[u].el!=="C"||hv[v].el!=="C") return;
+    if(ringSet.has(u+"_"+v)) return;                 // ring double bonds: geometry is fixed
+    const subsOf=(c,other)=>{
+      const list=hv[c].nb.filter(x=>x.n!==other);
+      for(let h=0;h<hv[c].h;h++) list.push("H");
+      return list;
+    };
+    const su=subsOf(u,v), sv=subsOf(v,u);
+    if(su.length!==2||sv.length!==2) return;
+    const cu=cipCmp(cipRank(hv,u,su[0]),cipRank(hv,u,su[1]));
+    const cv=cipCmp(cipRank(hv,v,sv[0]),cipRank(hv,v,sv[1]));
+    if(cu===0||cv===0) return;                       // two identical substituents → no E/Z
+    const refU= cu>0? su[0]:su[1];
+    const refV= cv>0? sv[0]:sv[1];
+    if(refU==="H"||refV==="H") return;
+    const Pu=atoms[hv[u].orig], Pv=atoms[hv[v].orig];
+    const Pa=atoms[hv[refU.n].orig], Pb=atoms[hv[refV.n].orig];
+    const dx=Pv.x-Pu.x, dy=Pv.y-Pu.y;
+    const sideA=Math.sign(dx*(Pa.y-Pu.y)-dy*(Pa.x-Pu.x));
+    const sideB=Math.sign(dx*(Pb.y-Pv.y)-dy*(Pb.x-Pv.x));
+    if(!sideA||!sideB) return;                       // collinear drawing → ambiguous
+    out.push({u,v,refU:refU.n,refV:refV.n,ez: sideA===sideB? "Z":"E"});
+  }));
+  return out;
 }
 
 /* ---- name assembly helpers ---- */
@@ -1216,6 +1423,22 @@ function analyze(){
   // parent: ring vs chain
   const cAdj=carbonAdj(hv);
   const ring=carbonRings[0]||null;
+  // exocyclic terminal groups directly on a ring → "-carboxylic acid" style ring suffixes
+  if(principal && ring && GROUPS[principal.type].terminal){
+    const EXO={acid:["carboxylic acid","carbonsäure"],carboxylate:["carboxylate","carboxylat"],
+               aldehyde:["carbaldehyde","carbaldehyd"],nitrile:["carbonitrile","carbonitril"],
+               amide:["carboxamide","carboxamid"]};
+    const allExo=principal.list.every(g=>!ring.includes(g.c) && hv[g.c].nb.some(e=>ring.includes(e.n)&&e.o===1)
+                                      && hv[g.c].nb.filter(x=>hv[x.n].el==="C").length===1);
+    if(allExo && EXO[principal.type]){
+      principal.exo=true;
+      principal.exoSuf={sufEN:EXO[principal.type][0],sufDE:EXO[principal.type][1]};
+      principal.list.forEach(g=>{
+        g.exoC=g.c;
+        g.c=hv[g.c].nb.find(e=>ring.includes(e.n)).n;
+      });
+    }
+  }
   const useRing = ring && (!principal || principal.list.some(g=>ring.includes(g.c)));
   if(ring && !useRing && principal){
     // ring becomes substituent — allowed via nameBranch(cycloalkyl/phenyl)
@@ -1299,6 +1522,18 @@ function nameChainParent(hv,cAdj,ringsInfo,gs,principal,formula){
   let use=f;
   for(let k=0;k<3;k++){ const c=locantsCmp(rf[k],rr[k]); if(c<0){use=f;break;} if(c>0){use=r;break;} }
 
+  // E/Z descriptors for double bonds inside the chosen chain
+  const stereo=doubleBondStereo(hv,ringsInfo.rings);
+  if(stereo.length){
+    const inChain=[];
+    stereo.forEach(st=>{
+      const pu=use.pos.get(st.u), pv=use.pos.get(st.v);
+      if(pu&&pv&&Math.abs(pu-pv)===1) inChain.push({loc:Math.min(pu,pv),ez:st.ez});
+    });
+    inChain.sort((a,b)=>a.loc-b.loc);
+    if(inChain.length) use.stereoDesc=inChain;
+  }
+
   return assembleName(hv,use,gs,principal,ringsInfo,formula,false);
 }
 
@@ -1362,7 +1597,8 @@ function assembleName(hv,use,gs,principal,ringsInfo,formula,ringMode){
       if(bad||inParent.has(e.n)||hv[e.n].el!=="C") return;
       // skip carbons that belong to groups (acyl of ester alkyl side etc.) — only pure branches
       if(gs.some(g=>(g.type==="ester"&&(e.n===g.oAlkylC))||(g.type==="ether"&&(e.n===g.c||e.n===g.c2)&&false))) return;
-      // skip branch if it is reached through a group heteroatom — can't be from C neighbor, fine
+      // skip exocyclic principal-group carbons (they became the ring suffix, e.g. -carboxylic acid)
+      if(principal&&principal.exo&&principal.list.some(g=>g.exoC===e.n)) return;
       const br=nameBranch(hv,e.n,c,ringsInfo);
       if(!br){ bad=true; return; }
       prefixes.push({name:br,loc:[posOf(c)]});
@@ -1372,21 +1608,21 @@ function assembleName(hv,use,gs,principal,ringsInfo,formula,ringMode){
 
   const build=lang=>{
     const G=principal? GROUPS[principal.type]:null;
+    const exo=principal&&principal.exo? principal.exoSuf:null;
     let suffix="", sufLocStr="";
     const cnt=use.sufL.length;
     if(G){
       const m=cnt>1? MULT[cnt]:"";
-      const base=lang==="en"? G.sufEN:G.sufDE;
-      const needLoc=G.locSuffix&&(arr.length>2||cnt>1);
+      const base=exo? (lang==="en"?exo.sufEN:exo.sufDE) : (lang==="en"? G.sufEN:G.sufDE);
+      const needLoc=exo? (cnt>1||prefixes.length>0) : G.locSuffix&&(arr.length>2||cnt>1);
       sufLocStr=needLoc? "-"+use.sufL.join(",")+"-" : (cnt>1&&G.terminal?"":"");
-      if(cnt>1&&G.terminal&&["acid","nitrile","amide","aldehyde"].includes(principal.type)){
-        suffix=(lang==="en"? {acid:"dioic acid",nitrile:"dinitrile",amide:"diamide",aldehyde:"dial"}[principal.type]
-                            : {acid:"disäure",nitrile:"dinitril",amide:"diamid",aldehyde:"dial"}[principal.type]);
+      if(!exo&&cnt>1&&G.terminal&&["acid","carboxylate","nitrile","amide","aldehyde"].includes(principal.type)){
+        suffix=(lang==="en"? {acid:"dioic acid",carboxylate:"dioate",nitrile:"dinitrile",amide:"diamide",aldehyde:"dial"}[principal.type]
+                            : {acid:"disäure",carboxylate:"dioat",nitrile:"dinitril",amide:"diamid",aldehyde:"dial"}[principal.type]);
         sufLocStr="";
       } else suffix=m+base;
     }
-    const sufStartsVowel=/^[aeiouy]/.test(suffix)&&!(suffix.startsWith("d")||suffix.startsWith("t"));
-    const vowelNext=/^[aeiou]/.test((cnt>1?MULT[cnt]:"")+ (G? (lang==="en"?G.sufEN:G.sufDE):""));
+    const vowelNext=!exo && /^[aeiou]/.test((cnt>1?MULT[cnt]:"")+ (G? (lang==="en"?G.sufEN:G.sufDE):""));
     let core;
     if(ringMode&&ringMode.benzene){
       core=lang==="en"?"benzen":"benzol";
@@ -1407,11 +1643,27 @@ function assembleName(hv,use,gs,principal,ringsInfo,formula,ringMode){
     const prefPart=buildPrefixPart(prefixes,lang,dropLocs);
     let full=nPart+(nPart&&prefPart?"-":"")+(prefPart? prefPart:"")+core+(G? (sufLocStr||(G.locSuffix&&arr.length>2?"":"")):"")+suffix;
     if(G&&!sufLocStr&&suffix&&!full.endsWith(suffix)) full+=suffix;
-    if(lang==="en") full=full.replace(/ane(?=ol|al|one|amine|oic)/,"an");
+    if(lang==="en") full=full.replace(/ane(?=ol|al|one|amine|oic|oate)/,"an");
+    // E/Z stereodescriptors
+    if(use.stereoDesc&&use.stereoDesc.length){
+      const single = use.stereoDesc.length===1 && (use.dL.length+use.tL.length)===1;
+      const tag= single? use.stereoDesc[0].ez : use.stereoDesc.map(d=>d.loc+d.ez).join(",");
+      full="("+tag+")-"+full;
+    }
     return finalize(lang,full);
   };
   let en=build("en"), de=build("de");
-  const RETAINED={ "benzen-1-ol":["phenol","Phenol"], "methylbenzene":["toluene (methylbenzene)","Toluol (Methylbenzol)"] };
+  const RETAINED={
+    "benzen-1-ol":["phenol","Phenol"],
+    "methylbenzene":["toluene (methylbenzene)","Toluol (Methylbenzol)"],
+    "benzenecarboxylic acid":["benzoic acid","Benzoesäure"],
+    "benzenecarboxylate":["benzoate","Benzoat"],
+    "benzenecarbaldehyde":["benzaldehyde","Benzaldehyd"],
+    "benzenecarbonitrile":["benzonitrile","Benzonitril"],
+    "benzenecarboxamide":["benzamide","Benzamid"],
+    "benzen-1-amine":["aniline (benzenamine)","Anilin"],
+    "ethenylbenzene":["styrene (vinylbenzene)","Styrol"]
+  };
   if(RETAINED[en]){ de=RETAINED[en][1]; en=RETAINED[en][0]; }
   return {en,de,via:"local",formula:formula.str};
 }
@@ -1439,6 +1691,47 @@ function toSMILES(){
     let s=a.h; a.nb.forEach(e=>s+=e.o);
     return v.includes(s);
   }
+  /* E/Z → directional single bonds (/ \) so the online lookup sees stereo, not just connectivity */
+  const marks=new Map(); // "a_b" (directed) → "/" or "\\"
+  const flip=s=>s==="/"?"\\":"/";
+  function setMark(a,b,sym){ // returns false on conflict with an existing mark
+    const kf=a+"_"+b, kr=b+"_"+a;
+    if(marks.has(kf)) return marks.get(kf)===sym;
+    if(marks.has(kr)) return marks.get(kr)===flip(sym);
+    marks.set(kf,sym); return true;
+  }
+  (function markStereo(){
+    const stereo=doubleBondStereo(hv,findRings(hv));
+    for(const st of stereo){
+      // pick single-bond reference substituents on each side (geometry decides same/opposite)
+      const pick=(c,other)=>{
+        const cands=hv[c].nb.filter(x=>x.n!==other&&x.o===1);
+        return cands.length? cands[0].n : -1;
+      };
+      const a=pick(st.u,st.v), b=pick(st.v,st.u);
+      if(a<0||b<0) continue;
+      const Pu=atoms[hv[st.u].orig], Pv=atoms[hv[st.v].orig];
+      const Pa=atoms[hv[a].orig], Pb=atoms[hv[b].orig];
+      const dx=Pv.x-Pu.x, dy=Pv.y-Pu.y;
+      const sideA=Math.sign(dx*(Pa.y-Pu.y)-dy*(Pa.x-Pu.x));
+      const sideB=Math.sign(dx*(Pb.y-Pv.y)-dy*(Pb.x-Pv.x));
+      if(!sideA||!sideB) continue;
+      const snap1=new Map(marks);
+      // a/u=v/b (opposite sides) · a/u=v\b (same side)
+      if(setMark(a,st.u,"/") && setMark(st.v,b, sideA===sideB? "\\":"/")) continue;
+      marks.clear(); snap1.forEach((v2,k)=>marks.set(k,v2)); // conflict → drop this bond's stereo
+    }
+  })();
+  function bondStr(i,j,o){
+    if(o===1){
+      const kf=i+"_"+j, kr=j+"_"+i;
+      if(marks.has(kf)) return marks.get(kf);
+      if(marks.has(kr)) return flip(marks.get(kr));
+      return "";
+    }
+    return bondSym(o);
+  }
+
   const isClosure=(i,j)=>closure.some(c=>(c.a===i&&c.b===j)||(c.a===j&&c.b===i));
   function dfs(i,parent){
     visited[i]=true;
@@ -1454,7 +1747,7 @@ function toSMILES(){
     const parts=[];
     for(const e of branches){
       if(visited[e.n]) continue;          // may have been reached via another branch
-      parts.push(bondSym(e.o)+dfs(e.n,i));
+      parts.push(bondStr(i,e.n,e.o)+dfs(e.n,i));
     }
     parts.forEach((p,pi)=>{ s+= pi<parts.length-1? "("+p+")": p; });
     return s;
@@ -1515,7 +1808,7 @@ async function runNaming(){
     const smiles=toSMILES();
     if(!smiles) return;
     const waitCard=card((res.fallback? esc(res.reason)+"<br/>":"")+
-      `<div class="meta">Looking up the exact IUPAC name online (PubChem)…</div><div class="meta">SMILES: <code>${esc(smiles)}</code></div>`,"warn");
+      `<div class="meta">Looking up the exact IUPAC name online (PubChem) — matched by full structure (connectivity, charges, E/Z), not just the formula…</div><div class="meta">SMILES: <code>${esc(smiles)}</code></div>`,"warn");
     body.appendChild(waitCard);
     try{
       const nm=await pubchemName(smiles);
