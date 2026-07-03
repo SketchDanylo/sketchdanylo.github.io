@@ -56,7 +56,7 @@
 
     .name-cycle {
       display: inline-flex;
-      gap: 0.01em;
+      justify-content: center;
       white-space: nowrap;
     }
 
@@ -559,6 +559,7 @@
       if (!nameCycle || reduceMotion) return;
 
       const namePieces = ["D", "a", "n", "y", "l", "o", "'s"];
+      const nameText = namePieces.join("");
       const fonts = [
         "\"Arial Black\", system-ui, sans-serif",
         "\"Bahnschrift Condensed\", \"Arial Narrow\", system-ui, sans-serif",
@@ -585,6 +586,46 @@
       const weights = [780, 690, 740, 760, 720, 760, 730, 720, 760, 800, 720, 760, 740, 760, 850, 380, 760, 820, 760, 800, 760];
       const stableFont = "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif";
       const stableWeight = 780;
+      const measure = document.createElement("span");
+      measure.textContent = nameText;
+      measure.setAttribute("aria-hidden", "true");
+      measure.style.position = "fixed";
+      measure.style.left = "-9999px";
+      measure.style.top = "-9999px";
+      measure.style.visibility = "hidden";
+      measure.style.whiteSpace = "nowrap";
+      measure.style.pointerEvents = "none";
+      document.body.appendChild(measure);
+
+      function syncMeasureBase() {
+        const titleStyle = window.getComputedStyle(nameCycle.closest("h1"));
+        measure.style.fontSize = titleStyle.fontSize;
+        measure.style.lineHeight = titleStyle.lineHeight;
+        measure.style.letterSpacing = titleStyle.letterSpacing;
+      }
+
+      function measureName(font, weight) {
+        syncMeasureBase();
+        measure.style.fontFamily = font;
+        measure.style.fontWeight = weight;
+        return measure.getBoundingClientRect().width || 1;
+      }
+
+      let stableWidth = measureName(stableFont, stableWeight);
+      nameCycle.style.width = `${stableWidth}px`;
+
+      function fitName(font, weight) {
+        const currentWidth = measureName(font, weight);
+        const scale = Math.min(1.24, Math.max(0.66, stableWidth / currentWidth));
+        nameCycle.style.fontSize = `${scale}em`;
+      }
+
+      window.addEventListener("resize", () => {
+        stableWidth = measureName(stableFont, stableWeight);
+        nameCycle.style.width = `${stableWidth}px`;
+        fitName(currentFont, currentWeight);
+      });
+
       const letters = namePieces.map((letter, index) => {
         const span = document.createElement("span");
         span.className = "name-letter";
@@ -614,6 +655,7 @@
         currentFont = fonts[nextIndex];
         currentWeight = weights[nextIndex];
         lastFontStep = step;
+        fitName(currentFont, currentWeight);
       }
 
       function tick(now) {
@@ -631,6 +673,9 @@
               letter.style.fontFamily = stableFont;
               letter.style.fontWeight = stableWeight;
               letter.style.opacity = "1";
+              if (index === letters.length - 1) {
+                nameCycle.style.fontSize = "1em";
+              }
             }
             return;
           }
