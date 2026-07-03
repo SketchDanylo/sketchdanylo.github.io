@@ -128,7 +128,7 @@
     ];
 
     const secretLinks = [
-        { url: "/lsdcalculator", text: "LSD-25 Calculator", secret: "lsd" },
+        { text: "It was a long time ago...", secret: "lsd" },
     ];
         
         function levenshteinDistance(a, b) {
@@ -220,7 +220,7 @@
                 });
 
                 secretLinks.forEach(link => {
-                    const linkElement = document.getElementById('link-' + link.url);
+                    const linkElement = document.getElementById('link-secret-' + link.secret);
                     if (query === link.secret.toLowerCase()) {
                         linkElement.style.display = 'block';
                         visibleLinks++;
@@ -245,7 +245,6 @@
 
                 for (let link of secretLinks) {
                     if (input === link.secret.toLowerCase()) {
-                        openLink(link.url);
                         return;
                     }
                 }
@@ -288,10 +287,10 @@
             secretLinks.forEach(link => {
                 const linkItem = document.createElement('div');
                 linkItem.className = 'link-item secret-item';
-                linkItem.id = 'link-' + link.url;
+                linkItem.id = 'link-secret-' + link.secret;
                 linkItem.style.display = 'none';
                 linkItem.innerHTML = `
-                    <a href="javascript:void(0);" onclick="openLink('${link.url}');">
+                    <a href="javascript:void(0);" aria-disabled="true">
                         ${link.text}
                         <span class="similarity-percentage"></span>
                     </a>
