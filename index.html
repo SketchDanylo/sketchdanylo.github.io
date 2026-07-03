@@ -17,6 +17,8 @@
       --focus: rgba(255, 255, 255, 0.34);
       --secret: #cfc3a0;
       --radius: 30px;
+      --space-glow: rgba(150, 178, 255, 0.16);
+      --space-line: rgba(210, 222, 255, 0.12);
     }
 
     * {
@@ -27,8 +29,33 @@
       min-height: 100vh;
       margin: 0;
       color: var(--text);
-      background: var(--bg);
+      background:
+        radial-gradient(circle at 50% 22%, rgba(80, 102, 170, 0.16), transparent 34%),
+        radial-gradient(circle at 12% 18%, rgba(100, 128, 255, 0.11), transparent 26%),
+        radial-gradient(circle at 88% 9%, rgba(255, 255, 255, 0.06), transparent 18%),
+        var(--bg);
       font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow-x: hidden;
+    }
+
+    .space-bg {
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    body::after {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      content: "";
+      background:
+        radial-gradient(circle at 50% 26%, transparent 0 24%, rgba(7, 7, 7, 0.48) 62%, rgba(7, 7, 7, 0.9) 100%),
+        linear-gradient(to bottom, rgba(7, 7, 7, 0.05), rgba(7, 7, 7, 0.78));
     }
 
     .page {
@@ -437,6 +464,8 @@
   </style>
 </head>
 <body>
+  <canvas class="space-bg" id="space-bg" aria-hidden="true"></canvas>
+
   <main class="page">
     <h1>
       <span class="name-cycle" id="name-cycle" aria-label="Danylo's"><span aria-hidden="true">Danylo's</span></span>
@@ -532,6 +561,180 @@
         .filter(item => item.style.display !== "none");
     }
 
+    function setupSpaceBackground() {
+      const canvas = document.getElementById("space-bg");
+      if (!canvas) return;
+      const context = canvas.getContext("2d", { alpha: true });
+      if (!context) return;
+
+      const pointer = { x: 0, y: 0, targetX: 0, targetY: 0, active: false };
+      const stars = [];
+      const satellites = tools.map((tool, index) => ({
+        label: tool.name
+          .replace(" Calculator", "")
+          .replace(" Helper", "")
+          .replace(" Model Drawer", "")
+          .replace(" Engine", "")
+          .replace(" Predict", ""),
+        angle: (Math.PI * 2 * index) / tools.length,
+        orbit: 0.34 + ((index % 3) * 0.055),
+        speed: 0.00008 + (index * 0.000012),
+        pulse: Math.random() * Math.PI * 2
+      }));
+      let width = 0;
+      let height = 0;
+      let pixelRatio = 1;
+      let animationFrame = null;
+
+      function resize() {
+        pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = Math.floor(width * pixelRatio);
+        canvas.height = Math.floor(height * pixelRatio);
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+        context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+
+        const starCount = Math.min(170, Math.max(80, Math.floor((width * height) / 9500)));
+        stars.length = 0;
+        for (let index = 0; index < starCount; index++) {
+          stars.push({
+            x: Math.random() * width,
+            y: Math.random() * height,
+            radius: 0.45 + Math.random() * 1.25,
+            depth: 0.16 + Math.random() * 0.84,
+            alpha: 0.18 + Math.random() * 0.58,
+            twinkle: Math.random() * Math.PI * 2
+          });
+        }
+      }
+
+      function movePointer(clientX, clientY) {
+        pointer.targetX = ((clientX / Math.max(width, 1)) - 0.5) * 2;
+        pointer.targetY = ((clientY / Math.max(height, 1)) - 0.5) * 2;
+        pointer.active = true;
+      }
+
+      window.addEventListener("pointermove", event => movePointer(event.clientX, event.clientY), { passive: true });
+      window.addEventListener("pointerleave", () => {
+        pointer.targetX = 0;
+        pointer.targetY = 0;
+        pointer.active = false;
+      });
+      window.addEventListener("resize", resize);
+
+      function drawStarfield(time) {
+        context.clearRect(0, 0, width, height);
+        pointer.x += (pointer.targetX - pointer.x) * 0.055;
+        pointer.y += (pointer.targetY - pointer.y) * 0.055;
+
+        const glow = context.createRadialGradient(
+          width * (0.5 + pointer.x * 0.025),
+          height * (0.24 + pointer.y * 0.018),
+          0,
+          width * 0.5,
+          height * 0.26,
+          Math.max(width, height) * 0.58
+        );
+        glow.addColorStop(0, "rgba(118, 145, 255, 0.18)");
+        glow.addColorStop(0.34, "rgba(118, 145, 255, 0.055)");
+        glow.addColorStop(1, "rgba(7, 7, 7, 0)");
+        context.fillStyle = glow;
+        context.fillRect(0, 0, width, height);
+
+        stars.forEach(star => {
+          const x = star.x + pointer.x * star.depth * 18;
+          const y = star.y + pointer.y * star.depth * 12;
+          const alpha = star.alpha + (Math.sin(time * 0.0015 + star.twinkle) * 0.12);
+          context.beginPath();
+          context.fillStyle = `rgba(255, 255, 255, ${Math.max(0.04, alpha)})`;
+          context.arc(x, y, star.radius, 0, Math.PI * 2);
+          context.fill();
+        });
+      }
+
+      function drawSatellites(time) {
+        const centerX = width * (0.5 + pointer.x * 0.018);
+        const centerY = Math.min(height * 0.48, 360) + pointer.y * 10;
+        const orbitX = Math.min(width * 0.42, 560);
+        const orbitY = Math.min(height * 0.24, 210);
+        const positions = satellites.map(satellite => {
+          const angle = satellite.angle + (time * satellite.speed);
+          return {
+            ...satellite,
+            x: centerX + Math.cos(angle) * orbitX * satellite.orbit,
+            y: centerY + Math.sin(angle) * orbitY * satellite.orbit,
+            glow: 0.45 + (Math.sin(time * 0.002 + satellite.pulse) * 0.22)
+          };
+        });
+
+        context.save();
+        context.lineWidth = 1;
+        context.strokeStyle = "rgba(210, 222, 255, 0.08)";
+        context.beginPath();
+        positions.forEach((position, index) => {
+          if (index === 0) context.moveTo(position.x, position.y);
+          else context.lineTo(position.x, position.y);
+        });
+        context.closePath();
+        context.stroke();
+
+        positions.forEach((position, index) => {
+          const next = positions[(index + 2) % positions.length];
+          context.beginPath();
+          context.strokeStyle = `rgba(180, 202, 255, ${0.045 + position.glow * 0.035})`;
+          context.moveTo(position.x, position.y);
+          context.lineTo(next.x, next.y);
+          context.stroke();
+        });
+
+        positions.forEach(position => {
+          const dx = (pointer.targetX * width * 0.5) - (position.x - width * 0.5);
+          const dy = (pointer.targetY * height * 0.5) - (position.y - height * 0.5);
+          const proximity = pointer.active ? Math.max(0, 1 - (Math.hypot(dx, dy) / 520)) : 0;
+          const nodeAlpha = 0.35 + position.glow * 0.25 + proximity * 0.36;
+
+          context.beginPath();
+          context.fillStyle = `rgba(235, 241, 255, ${nodeAlpha})`;
+          context.shadowColor = "rgba(150, 178, 255, 0.42)";
+          context.shadowBlur = 12 + proximity * 18;
+          context.arc(position.x, position.y, 2.1 + proximity * 1.4, 0, Math.PI * 2);
+          context.fill();
+          context.shadowBlur = 0;
+
+          context.font = "600 11px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif";
+          context.fillStyle = `rgba(226, 234, 255, ${0.12 + proximity * 0.56})`;
+          context.textAlign = position.x < centerX ? "right" : "left";
+          context.fillText(position.label, position.x + (position.x < centerX ? -10 : 10), position.y + 4);
+        });
+        context.restore();
+      }
+
+      function draw(time) {
+        drawStarfield(time);
+        drawSatellites(time);
+        animationFrame = window.requestAnimationFrame(draw);
+      }
+
+      resize();
+      if (reduceMotion) {
+        drawStarfield(0);
+        drawSatellites(0);
+        return;
+      }
+      animationFrame = window.requestAnimationFrame(draw);
+
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden && animationFrame) {
+          window.cancelAnimationFrame(animationFrame);
+          animationFrame = null;
+        } else if (!document.hidden && !animationFrame) {
+          animationFrame = window.requestAnimationFrame(draw);
+        }
+      });
+    }
+
     function syncSearchText() {
       const value = search.value;
       const selectionEnd = search.selectionEnd ?? value.length;
@@ -622,6 +825,7 @@
 
     render();
     filter();
+    setupSpaceBackground();
 
     function setupHeadingAnimation() {
       const nameCycle = document.getElementById("name-cycle");
