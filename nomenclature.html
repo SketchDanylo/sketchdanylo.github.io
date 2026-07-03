@@ -206,6 +206,18 @@ header.topbar{
 .pt-cell small{font:500 .47rem 'Inter';color:var(--text-faint)}
 .pt-cell:hover{background:var(--accent-dim);border-color:var(--accent-brd);z-index:2}
 .pt-cell:active{transform:scale(.94)}
+.pt-tabs{display:flex;gap:3px;background:var(--surface-2);padding:3px;border-radius:8px;border:1px solid var(--border-soft)}
+.pt-tabs button{height:28px;padding:0 13px;border:none;border-radius:6px;background:transparent;color:var(--text-dim);font:600 .76rem 'Inter';cursor:pointer}
+.pt-tabs button.on{background:var(--accent-dim);color:var(--accent);box-shadow:0 0 0 1px var(--accent-brd)}
+.save-cta{width:100%;height:38px;border-radius:9px;border:1px dashed var(--accent-brd);background:var(--accent-dim);color:var(--accent);font:600 .82rem 'Inter';cursor:pointer;margin-bottom:12px}
+.save-cta:hover{background:rgba(91,140,240,.22)}
+.saved-list{display:flex;flex-direction:column;gap:7px}
+.saved-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;background:var(--surface-2);border:1px solid var(--border-soft)}
+.saved-item .nm{flex:1;min-width:0;font:600 .84rem 'Inter';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.saved-item .nm small{display:block;font:500 .72rem 'Inter';color:var(--text-dim)}
+.saved-item button{height:30px;padding:0 12px;border-radius:7px;border:1px solid var(--border);background:var(--surface-3);color:var(--text);font:600 .76rem 'Inter';cursor:pointer;flex:none}
+.saved-item button.del{color:var(--bad);min-width:30px;padding:0}
+.saved-empty{color:var(--text-dim);font:500 .8rem 'Inter';text-align:center;padding:22px 0}
 
 footer.credit{display:none}
 @media (max-width:820px){
@@ -264,6 +276,9 @@ footer.credit{display:none}
     <div class="sep"></div>
     <button class="rbtn" id="moveBtn" title="Move atoms (drag to reposition instead of bonding)">
       <svg class="ico" viewBox="0 0 24 24"><path d="M4 3l7 18 2.5-7.5L21 11z"/></svg>
+    </button>
+    <button class="rbtn" id="eraseBtn" title="Eraser (drag over atoms/bonds to remove)">
+      <svg class="ico" viewBox="0 0 24 24"><path d="M19 13l-6 6H7.8L4 15.2a2 2 0 0 1 0-2.8L12.2 4a2 2 0 0 1 2.8 0l4 4a2 2 0 0 1 0 2.8z"/><path d="M8.5 8.5l7 7"/><path d="M5 21h14"/></svg>
     </button>
     <button class="rbtn" id="skelBtn" title="Skeletal formula view (Skelettformel)">
       <svg class="ico" viewBox="0 0 24 24"><path d="M3 16l5-8 4 8 5-8 4 8"/></svg>
@@ -324,12 +339,19 @@ footer.credit{display:none}
 <div class="modal-veil" id="ptVeil">
   <div class="pt-modal">
     <div class="pt-modal-head">
-      <h3>Periodic table</h3>
+      <div class="pt-tabs">
+        <button id="tabElements" class="on">Elements</button>
+        <button id="tabSaved">Saved structures</button>
+      </div>
       <button class="drawer-close" id="ptClose">
         <svg class="ico" viewBox="0 0 24 24" style="width:16px;height:16px"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg>
       </button>
     </div>
     <div class="pt-grid" id="ptGrid"></div>
+    <div id="savedPage" style="display:none">
+      <button class="save-cta" id="saveStructBtn">＋ Save current drawing</button>
+      <div id="savedList" class="saved-list"></div>
+    </div>
   </div>
 </div>
 <div class="modal-veil" id="setVeil">
@@ -483,17 +505,41 @@ const W2S = p => ({x:(p.x+view.x)*view.k, y:(p.y+view.y)*view.k});
 const S2W = p => ({x:p.x/view.k-view.x, y:p.y/view.k-view.y});
 const R_ATOM = 17;
 
-function drawBondLine(x1,y1,x2,y2,order,color,width){
-  const dx=x2-x1, dy=y2-y1, L=Math.hypot(dx,dy)||1;
-  const ox=-dy/L, oy=dx/L, gap=4.2*view.k;
-  ctx.strokeStyle=color; ctx.lineWidth=width;
-  const lines = order===1?[0]: order===2?[-gap/1.6,gap/1.6]:[-gap,0,gap];
-  for(const off of lines){
-    ctx.beginPath();
-    ctx.moveTo(x1+ox*off, y1+oy*off);
-    ctx.lineTo(x2+ox*off, y2+oy*off);
-    ctx.stroke();
+/* which side of bond b has more structure (ring interior / neighbors) —
+   the short inner line of a double bond goes there, ChemDraw-style */
+function bondSide(b){
+  const A=atoms[b.a], B=atoms[b.b];
+  const dx=B.x-A.x, dy=B.y-A.y;
+  let s=0;
+  for(const o of bonds){
+    if(o===b) continue;
+    let other=-1;
+    if(o.a===b.a||o.a===b.b) other=o.b;
+    else if(o.b===b.a||o.b===b.b) other=o.a;
+    if(other<0||other===b.a||other===b.b) continue;
+    const P=atoms[other];
+    s+=Math.sign(dx*(P.y-A.y)-dy*(P.x-A.x));
   }
+  return s>=0?1:-1;
+}
+function drawBondLine(x1,y1,x2,y2,order,color,width,side){
+  const dx=x2-x1, dy=y2-y1, L=Math.hypot(dx,dy)||1;
+  const ux=dx/L, uy=dy/L, ox=-uy, oy=ux;
+  const gap=5.2*Math.min(view.k,1.6);
+  ctx.strokeStyle=color; ctx.lineWidth=width;
+  const seg=(ax,ay,bx,by)=>{ ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke(); };
+  if(order===1){ seg(x1,y1,x2,y2); return; }
+  if(order===2){
+    // full main line + one shortened inner line on the structure side
+    seg(x1,y1,x2,y2);
+    const s=(side||1)*gap;
+    seg(x1+ux*L*.18+ox*s, y1+uy*L*.18+oy*s, x1+ux*L*.82+ox*s, y1+uy*L*.82+oy*s);
+    return;
+  }
+  // triple: full center line + two symmetric shortened outer lines
+  seg(x1,y1,x2,y2);
+  for(const s of [gap,-gap])
+    seg(x1+ux*L*.15+ox*s, y1+uy*L*.15+oy*s, x1+ux*L*.85+ox*s, y1+uy*L*.85+oy*s);
 }
 /* skeletal helpers: hide H bound to a heavy atom, fold them into labels */
 function skelHiddenH(i){
@@ -529,7 +575,7 @@ function redraw(){
     if(skelHiddenH(b.a)||skelHiddenH(b.b)) return;
     const A=W2S(atoms[b.a]), B=W2S(atoms[b.b]);
     const sel = bi===selBond;
-    drawBondLine(A.x,A.y,B.x,B.y,b.order, sel?"#5b8cf0":"rgba(231,233,238,.68)", (sel?3:2)*Math.min(view.k,1.4));
+    drawBondLine(A.x,A.y,B.x,B.y,b.order, sel?"#5b8cf0":"rgba(231,233,238,.68)", (sel?3:2)*Math.min(view.k,1.4), bondSide(b));
   });
   // temp bond while dragging (snapped preview when snapping is active)
   if(drag.kind==="growBond"){
@@ -630,7 +676,7 @@ let pinch0=null;
 const THRESH=6;
 
 canvas.addEventListener("contextmenu",e=>e.preventDefault());
-canvas.addEventListener("mousedown",e=>{ if(e.button===0) e.preventDefault(); }); // no text-selection / native drag UI
+canvas.addEventListener("mousedown",e=>{ if(e.button===0||e.button===1) e.preventDefault(); }); // no text-selection / autoscroll
 canvas.addEventListener("pointerdown",e=>{
   // right-click only opens the charge/delete popover for whatever's under the cursor —
   // it never draws, bonds, or places anything
@@ -646,7 +692,18 @@ canvas.addEventListener("pointerdown",e=>{
     selAtom=selBond=-1; hidePopover(); redraw();
     return;
   }
-  // only the primary button/contact draws; middle-click must never place or bond
+  // middle-click: pan the canvas without switching tools
+  if(e.button===1){
+    e.preventDefault();
+    try{ canvas.setPointerCapture(e.pointerId); }catch(err){}
+    const rect=canvas.getBoundingClientRect();
+    drag.kind="panBtn";
+    drag.panSX=e.clientX-rect.left; drag.panSY=e.clientY-rect.top;
+    drag.startView={...view};
+    pointers.set(e.pointerId,{sx:drag.panSX,sy:drag.panSY});
+    return;
+  }
+  // only the primary button/contact draws
   // (touch and pen always report button 0 for their primary contact, so this never blocks them)
   if(e.button!==0) return;
   e.preventDefault();
@@ -662,6 +719,7 @@ canvas.addEventListener("pointerdown",e=>{
     drag.kind="pinch"; return;
   }
   drag.moved=false; drag.sx=sx; drag.sy=sy; drag.panSX=sx; drag.panSY=sy; drag.startView={...view};
+  if(mode==="erase"){ drag.kind="erase"; eraseAt(sx,sy); return; }
   const ai=hitAtom(sx,sy);
   if(ai>=0){
     drag.from=ai;
@@ -692,7 +750,9 @@ canvas.addEventListener("pointermove",e=>{
     const w=S2W({x:sx,y:sy}); atoms[drag.from].x=w.x; atoms[drag.from].y=w.y; redraw();
   } else if(drag.kind==="growBond"){
     drag.sx=sx; drag.sy=sy; redraw();
-  } else if(drag.kind==="empty" && drag.moved){
+  } else if(drag.kind==="erase"){
+    eraseAt(sx,sy);
+  } else if((drag.kind==="empty"&&drag.moved) || drag.kind==="panBtn"){
     view.x=drag.startView.x+(sx-drag.panSX)/view.k;
     view.y=drag.startView.y+(sy-drag.panSY)/view.k;
     redraw();
@@ -826,13 +886,21 @@ function deleteAtom(i){
   if(selAtom===i){selAtom=-1;hidePopover();}
   snap(); afterChange();
 }
+function eraseAt(sx,sy){
+  const ai=hitAtom(sx,sy);
+  if(ai>=0){ deleteAtom(ai); return; }
+  const bi=hitBond(sx,sy);
+  if(bi>=0){ bonds.splice(bi,1); if(selBond===bi){selBond=-1;hidePopover();} snap(); afterChange(); }
+}
 
 /* ================= UI WIRING ================= */
-function exitMoveMode(){
-  if(mode!=="move") return;
-  mode="build";
-  $("moveBtn").classList.remove("active");
-  canvas.style.cursor="crosshair";
+function exitMoveMode(){ setMode("build"); }
+function setMode(m){
+  mode=m;
+  $("moveBtn").classList.toggle("active",mode==="move");
+  $("eraseBtn").classList.toggle("active",mode==="erase");
+  canvas.style.cursor = mode==="move"? "grab" : mode==="erase"? "cell" : "crosshair";
+  if(mode!=="build"){ selAtom=selBond=-1; hidePopover(); redraw(); }
 }
 function selectSwatch(el,btn){
   document.querySelectorAll(".el-swatch").forEach(x=>x.classList.remove("active"));
@@ -895,12 +963,8 @@ document.querySelectorAll("[data-bond]").forEach(b=>{
   });
 });
 document.querySelector('[data-bond="1"]').classList.add("active");
-$("moveBtn").onclick=()=>{
-  mode = mode==="move" ? "build" : "move";
-  $("moveBtn").classList.toggle("active",mode==="move");
-  canvas.style.cursor = mode==="move" ? "grab" : "crosshair";
-  selAtom=selBond=-1; hidePopover(); redraw();
-};
+$("moveBtn").onclick=()=>setMode(mode==="move"?"build":"move");
+$("eraseBtn").onclick=()=>setMode(mode==="erase"?"build":"erase");
 $("skelBtn").onclick=()=>{
   skeletal=!skeletal;
   $("skelBtn").classList.toggle("active",skeletal);
@@ -990,6 +1054,64 @@ $("drawerVeil").onclick=closeDrawer;
 })();
 wireElementDrag($("ptBtn"), ()=>drawEl, ()=>$("ptVeil").classList.add("show"));
 $("ptClose").onclick=()=>$("ptVeil").classList.remove("show");
+
+/* ---- saved structures gallery ---- */
+let structures=[];
+try{ structures=JSON.parse(localStorage.getItem("dne_structs")||"[]"); }catch(e){}
+function saveStructs(){ try{localStorage.setItem("dne_structs",JSON.stringify(structures));}catch(e){} }
+function showPtTab(which){
+  $("tabElements").classList.toggle("on",which==="el");
+  $("tabSaved").classList.toggle("on",which==="saved");
+  $("ptGrid").style.display = which==="el"? "grid":"none";
+  $("savedPage").style.display = which==="el"? "none":"block";
+  if(which==="saved") renderSaved();
+}
+$("tabElements").onclick=()=>showPtTab("el");
+$("tabSaved").onclick=()=>showPtTab("saved");
+function renderSaved(){
+  const list=$("savedList"); list.innerHTML="";
+  if(!structures.length){
+    const d=document.createElement("div"); d.className="saved-empty";
+    d.textContent="Nothing saved yet — draw a structure and press the button above.";
+    list.appendChild(d); return;
+  }
+  structures.forEach((s,i)=>{
+    const row=document.createElement("div"); row.className="saved-item";
+    const nm=document.createElement("div"); nm.className="nm";
+    nm.innerHTML=`${esc(s.name)}<small>${esc(s.formula||"")} · ${s.atoms.length} atoms</small>`;
+    const ins=document.createElement("button"); ins.textContent="Insert";
+    ins.onclick=()=>insertStruct(i);
+    const del=document.createElement("button"); del.className="del"; del.textContent="✕";
+    del.onclick=()=>{ structures.splice(i,1); saveStructs(); renderSaved(); };
+    row.append(nm,ins,del); list.appendChild(row);
+  });
+}
+$("saveStructBtn").onclick=()=>{
+  if(!atoms.length){ toast("Draw something first"); return; }
+  const name=prompt("Name this structure:","Structure "+(structures.length+1));
+  if(!name) return;
+  structures.push({
+    name,
+    formula:molFormula().str,
+    atoms:JSON.parse(JSON.stringify(atoms)),
+    bonds:JSON.parse(JSON.stringify(bonds))
+  });
+  saveStructs(); renderSaved(); toast("Structure saved","ok");
+};
+function insertStruct(i){
+  const s=structures[i]; if(!s) return;
+  // paste at the current view centre
+  const r=wrap.getBoundingClientRect();
+  const c=S2W({x:r.width/2,y:r.height/2});
+  let cx=0,cy=0; s.atoms.forEach(a=>{cx+=a.x;cy+=a.y;});
+  cx/=s.atoms.length; cy/=s.atoms.length;
+  const off=atoms.length;
+  s.atoms.forEach(a=>atoms.push({el:a.el,x:a.x-cx+c.x,y:a.y-cy+c.y,charge:a.charge||0,manualCharge:a.manualCharge}));
+  s.bonds.forEach(b=>bonds.push({a:b.a+off,b:b.b+off,order:b.order}));
+  snap(); afterChange();
+  $("ptVeil").classList.remove("show");
+  toast('"'+s.name+'" inserted',"ok");
+}
 $("ptVeil").addEventListener("click",e=>{ if(e.target.id==="ptVeil") $("ptVeil").classList.remove("show"); });
 
 /* settings modal */
@@ -1055,52 +1177,172 @@ $("autoHBtn").onclick=()=>{
   else toast("All valences already satisfied");
 };
 
-/* tidy layout: springs + repulsion + angular spreading (steric relaxation) */
+/* tidy layout: proper 2D depiction geometry.
+   Constructive placement first (regular ring polygons, exact 120° zigzag chains,
+   dead-straight sp centres), then a short force polish for overlaps. */
+function idealLayout(){
+  const N=atoms.length; if(!N) return false;
+  const adj=atoms.map(()=>[]);
+  bonds.forEach(b=>{ adj[b.a].push({n:b.b,o:b.order}); adj[b.b].push({n:b.a,o:b.order}); });
+  const L=52, TWO=2*Math.PI;
+  const hvT=heavyView();
+  const rings=findRings(hvT).map(r=>r.map(x=>hvT[x].orig));
+  // fused/bridged systems (atom in >1 ring) keep the force approach
+  const rc={}; let fused=false;
+  rings.forEach(r=>r.forEach(a=>{ rc[a]=(rc[a]||0)+1; if(rc[a]>1) fused=true; }));
+  if(fused) return false;
+  const inRing=new Map(); rings.forEach((r,ri)=>r.forEach(a=>inRing.set(a,ri)));
+  const isLin=i=> adj[i].some(e=>e.o===3) || adj[i].filter(e=>e.o===2).length>=2;
+  const blen=(i,j)=> (atoms[i].el==="H"||atoms[j].el==="H")? 38 : L;
+  const pos=new Array(N), placed=new Array(N).fill(false);
+  function pickAngle(p,dirs){
+    if(!dirs.length) return -Math.PI/6;
+    if(dirs.length===1){
+      const inc=dirs[0]+Math.PI;                       // forward continuation
+      if(isLin(p)) return inc;                          // sp: straight through
+      const c1=inc-Math.PI/3, c2=inc+Math.PI/3;         // 120° kink, zigzag side
+      return Math.abs(Math.sin(c1)+Math.sin(inc))<=Math.abs(Math.sin(c2)+Math.sin(inc))? c1:c2;
+    }
+    const a=dirs.map(x=>((x%TWO)+TWO)%TWO).sort((x,y)=>x-y);
+    let best=0,bg=-1;
+    for(let g=0;g<a.length;g++){
+      const a0=a[g], a1=g+1<a.length? a[g+1]:a[0]+TWO;
+      if(a1-a0>bg){ bg=a1-a0; best=(a0+a1)/2; }
+    }
+    return best;
+  }
+  function layRing(ri,entryAtom,fromAtom){
+    const r=rings[ri], n=r.length, R=L/(2*Math.sin(Math.PI/n));
+    let cx,cy,startTh;
+    if(fromAtom===undefined){
+      let ox=0,oy=0; r.forEach(a=>{ox+=atoms[a].x;oy+=atoms[a].y;}); cx=ox/n; cy=oy/n; startTh=-Math.PI/2;
+    } else {
+      const dirs=adj[fromAtom].filter(x=>placed[x.n]&&x.n!==entryAtom).map(x=>Math.atan2(pos[x.n].y-pos[fromAtom].y,pos[x.n].x-pos[fromAtom].x));
+      const ang=pickAngle(fromAtom,dirs);
+      const ex=pos[fromAtom].x+blen(fromAtom,entryAtom)*Math.cos(ang);
+      const ey=pos[fromAtom].y+blen(fromAtom,entryAtom)*Math.sin(ang);
+      cx=ex+R*Math.cos(ang); cy=ey+R*Math.sin(ang); startTh=ang+Math.PI;
+    }
+    const k0=r.indexOf(entryAtom);
+    for(let k=0;k<n;k++){
+      const a=r[(k0+k)%n];
+      pos[a]={x:cx+R*Math.cos(startTh+k*TWO/n), y:cy+R*Math.sin(startTh+k*TWO/n)};
+      placed[a]=true;
+    }
+    return r;
+  }
+  const seen=new Array(N).fill(false);
+  for(let s=0;s<N;s++){
+    if(seen[s]) continue;
+    const comp=[], st=[s]; seen[s]=true;
+    while(st.length){ const c=st.pop(); comp.push(c); adj[c].forEach(e=>{ if(!seen[e.n]){seen[e.n]=true; st.push(e.n);} }); }
+    const queue=[];
+    const seedRing=comp.map(a=>inRing.get(a)).find(x=>x!==undefined);
+    if(seedRing!==undefined){ layRing(seedRing, rings[seedRing][0]).forEach(a=>queue.push(a)); }
+    else {
+      let cx=0,cy=0; comp.forEach(a=>{cx+=atoms[a].x;cy+=atoms[a].y;});
+      pos[comp[0]]={x:cx/comp.length,y:cy/comp.length}; placed[comp[0]]=true; queue.push(comp[0]);
+    }
+    while(queue.length){
+      const p=queue.shift();
+      const todo=adj[p].filter(e=>!placed[e.n]).sort((a,b)=>(atoms[a.n].el==="H")-(atoms[b.n].el==="H"));
+      for(const e of todo){
+        if(placed[e.n]) continue;
+        const w=e.n, ri=inRing.get(w);
+        if(ri!==undefined){ layRing(ri,w,p).forEach(a=>queue.push(a)); continue; }
+        const dirs=adj[p].filter(x=>placed[x.n]).map(x=>Math.atan2(pos[x.n].y-pos[p].y,pos[x.n].x-pos[p].x));
+        const ang=pickAngle(p,dirs);
+        pos[w]={x:pos[p].x+blen(p,w)*Math.cos(ang), y:pos[p].y+blen(p,w)*Math.sin(ang)};
+        placed[w]=true; queue.push(w);
+      }
+    }
+  }
+  atoms.forEach((a,i)=>{ if(pos[i]){ a.x=pos[i].x; a.y=pos[i].y; } });
+  return true;
+}
 $("cleanBtn").onclick=()=>{
   if(atoms.length<2) return;
   const L=52;
   const adjIdx=atoms.map(()=>[]);
-  bonds.forEach(b=>{ adjIdx[b.a].push(b.b); adjIdx[b.b].push(b.a); });
-  for(let it=0;it<260;it++){
+  const bondOrderAt=atoms.map(()=>[]);
+  bonds.forEach(b=>{ adjIdx[b.a].push(b.b); adjIdx[b.b].push(b.a);
+                     bondOrderAt[b.a].push(b.order); bondOrderAt[b.b].push(b.order); });
+  const isLinearCenter=i=> bondOrderAt[i].some(o=>o===3) || bondOrderAt[i].filter(o=>o===2).length>=2;
+  // ring rigidity: second/third-neighbor springs force regular polygons
+  const hvT=heavyView();
+  const ringsT=findRings(hvT).map(r=>r.map(x=>hvT[x].orig));
+  const ringSprings=[];
+  ringsT.forEach(r=>{
+    const n=r.length;
+    for(const m of (n>=6? [2,3] : [2])){
+      if(m>=n) continue;
+      const target=L*Math.sin(m*Math.PI/n)/Math.sin(Math.PI/n);
+      for(let k=0;k<n;k++) ringSprings.push({a:r[k], b:r[(k+m)%n], target});
+    }
+  });
+  const gotIdeal=idealLayout();
+  // polish pass (short after ideal placement; long fallback for fused systems)
+  const ITERS=gotIdeal? 140 : 1600;
+  if(!gotIdeal) atoms.forEach(a=>{ a.x+=(Math.random()-0.5)*7; a.y+=(Math.random()-0.5)*7; });
+  for(let it=0;it<ITERS;it++){
     const fx=new Array(atoms.length).fill(0), fy=new Array(atoms.length).fill(0);
-    // bond springs (H bonds shorter, like real bond lengths)
+    const spring=(a,b,target,str)=>{
+      const dx=atoms[b].x-atoms[a].x, dy=atoms[b].y-atoms[a].y;
+      const d=Math.hypot(dx,dy)||1, f=(d-target)*str;
+      fx[a]+=dx/d*f; fy[a]+=dy/d*f; fx[b]-=dx/d*f; fy[b]-=dy/d*f;
+    };
     bonds.forEach(b=>{
       const hb=atoms[b.a].el==="H"||atoms[b.b].el==="H";
-      const target=hb? L*0.72 : L;
-      const dx=atoms[b.b].x-atoms[b.a].x, dy=atoms[b.b].y-atoms[b.a].y;
-      const d=Math.hypot(dx,dy)||1, f=(d-target)*0.08;
-      fx[b.a]+=dx/d*f; fy[b.a]+=dy/d*f; fx[b.b]-=dx/d*f; fy[b.b]-=dy/d*f;
+      spring(b.a,b.b, hb? L*0.72:L, 0.1);
     });
-    // global repulsion (avoid overlaps)
+    ringSprings.forEach(s=>spring(s.a,s.b,s.target,0.07));
+    // repulsion (avoid overlaps)
     for(let i=0;i<atoms.length;i++)for(let j=i+1;j<atoms.length;j++){
       const dx=atoms[j].x-atoms[i].x, dy=atoms[j].y-atoms[i].y;
       const d2=dx*dx+dy*dy||1;
       if(d2<L*L*4){ const d=Math.sqrt(d2), f=Math.min(4,(L*1.7-d)*0.06);
         if(f>0){ fx[i]-=dx/d*f; fy[i]-=dy/d*f; fx[j]+=dx/d*f; fy[j]+=dy/d*f; } }
     }
-    // angular spreading: push adjacent bonds around each atom toward even spacing
+    // angular targets per atom
     for(let i=0;i<atoms.length;i++){
       const nb=adjIdx[i]; if(nb.length<2) continue;
-      const ideal=2*Math.PI/nb.length;
       const withAng=nb.map(n=>({n,ang:Math.atan2(atoms[n].y-atoms[i].y,atoms[n].x-atoms[i].x)}))
                       .sort((a,b)=>a.ang-b.ang);
-      for(let k=0;k<withAng.length;k++){
-        const A=withAng[k], B=withAng[(k+1)%withAng.length];
-        let gap=B.ang-A.ang; if(k===withAng.length-1) gap+=2*Math.PI;
-        const err=gap-ideal;
-        if(Math.abs(err)<0.03) continue;
-        const t=0.018*err; // shrink oversized gaps, widen cramped ones
+      const torque=(A,B,err,str)=>{ // shrink oversized gap A→B by err
+        const t=(str||0.02)*err;
         [[A,t],[B,-t]].forEach(([P,rot])=>{
           const dx=atoms[P.n].x-atoms[i].x, dy=atoms[P.n].y-atoms[i].y;
           const d=Math.hypot(dx,dy)||1;
           fx[P.n]+= -dy/d * rot * d * 0.5;
           fy[P.n]+=  dx/d * rot * d * 0.5;
         });
+      };
+      if(nb.length===2){
+        // sp centers straight (180°), everything else the classic 120° kink
+        const linear=isLinearCenter(i);
+        const target=linear? Math.PI : 2*Math.PI/3;
+        const str=linear? 0.14 : 0.035;  // triple bonds must really straighten out
+        const A=withAng[0], B=withAng[1];
+        let gap=B.ang-A.ang;                       // gap A→B (ccw)
+        const err = gap<=Math.PI? gap-target : (2*Math.PI-gap)-target;
+        if(Math.abs(err)>0.02){
+          if(gap<=Math.PI) torque(A,B,err,str); else torque(B,A,err,str);
+        }
+      } else {
+        const ideal=2*Math.PI/nb.length;
+        for(let k=0;k<withAng.length;k++){
+          const A=withAng[k], B=withAng[(k+1)%withAng.length];
+          let gap=B.ang-A.ang; if(k===withAng.length-1) gap+=2*Math.PI;
+          const err=gap-ideal;
+          if(Math.abs(err)>0.03) torque(A,B,err);
+        }
       }
     }
-    atoms.forEach((a,i)=>{a.x+=fx[i];a.y+=fy[i];});
+    let maxF=0;
+    atoms.forEach((a,i)=>{a.x+=fx[i];a.y+=fy[i]; maxF=Math.max(maxF,Math.abs(fx[i]),Math.abs(fy[i]));});
+    if(maxF<0.045 && it>120) break;      // converged
   }
-  snap(); fitView(); toast("Layout tidied (sterically relaxed)","ok");
+  snap(); fitView(); toast("Layout tidied","ok");
 };
 
 /* ================= GRAPH HELPERS + FORMULA ================= */
@@ -1138,10 +1380,12 @@ const STEM=["","meth","eth","prop","but","pent","hex","hept","oct","non","dec",
 "henicos","docos","tricos","tetracos","pentacos","hexacos","heptacos","octacos","nonacos","triacont"];
 const MULT=["","","di","tri","tetra","penta","hexa","hepta","octa","nona","deca"];
 const HALO={F:{en:"fluoro",de:"fluor"},Cl:{en:"chloro",de:"chlor"},Br:{en:"bromo",de:"brom"},I:{en:"iodo",de:"iod"}};
+const HALIDE={F:["fluoride","fluorid"],Cl:["chloride","chlorid"],Br:["bromide","bromid"],I:["iodide","iodid"]};
 // principal group table, ordered by seniority (high → low)
 const GROUPS={
   acid:       {sen:10,  sufEN:"oic acid",      sufDE:"säure",       locSuffix:false, terminal:true},
   carboxylate:{sen:9.7, sufEN:"oate",          sufDE:"oat",         locSuffix:false, terminal:true},
+  acylhalide: {sen:9.5, sufEN:"oyl halide",    sufDE:"oylhalogenid",locSuffix:false, terminal:true},
   sulfo:      {sen:9.4, sufEN:"sulfonic acid", sufDE:"sulfonsäure", locSuffix:true,  prefEN:"sulfo", prefDE:"sulfo"},
   sulfonate:  {sen:9.3, sufEN:"sulfonate",     sufDE:"sulfonat",    locSuffix:true},
   amide:      {sen:8,   sufEN:"amide",         sufDE:"amid",        locSuffix:false, terminal:true},
@@ -1270,6 +1514,9 @@ function detectGroups(hv){
         }
         if(other && el(other.n)==="C"){ gs.push({type:"ester",c,oAlkylC:other.n,o:O,het:[co.n,O]}); used.add(co.n); used.add(O); continue; }
       }
+      // acyl halide: C(=O)-X
+      const hx=hv[c].nb.find(e=>HALO[el(e.n)]&&e.o===1&&deg(e.n)===1&&!used.has(e.n));
+      if(hx){ gs.push({type:"acylhalide",c,el:el(hx.n),het:[co.n,hx.n]}); used.add(co.n); used.add(hx.n); continue; }
       // amide: C(=O)-N
       const nAm=hv[c].nb.find(e=>el(e.n)==="N"&&e.o===1&&!used.has(e.n));
       if(nAm){ gs.push({type:"amide",c,het:[co.n,nAm.n]}); used.add(co.n); used.add(nAm.n); continue; }
@@ -1300,6 +1547,11 @@ function detectGroups(hv){
         gs.push({type:"thiolate",c,het:[e.n]}); used.add(e.n);
       } else if(s==="S"&&e.o===1&&deg(e.n)===1&&hv[e.n].h>=1){
         gs.push({type:"thiol",c,het:[e.n]}); used.add(e.n);
+      } else if(s==="S"&&e.o===1&&deg(e.n)===2&&!hv[e.n].charge){
+        const otherS=hv[e.n].nb.find(x=>x.n!==c);
+        if(otherS&&el(otherS.n)==="C"&&otherS.o===1){ // thioether R-S-R'
+          if(c<otherS.n){ gs.push({type:"thioether",c,c2:otherS.n,o:e.n,het:[e.n]}); used.add(e.n); }
+        }
       } else if(s==="N"&&e.o===1&&deg(e.n)===1+ (hv[e.n].nb.filter(x=>el(x.n)==="O").length*0)){
         // plain amine N (only this C neighbor) — N with multiple C = sec/tert, handled if all nbs are C
       } else if(HALO[s]&&deg(e.n)===1){
@@ -1378,7 +1630,7 @@ function prefLocs(hv,gs,principal,arr,pos){
   const out=[]; const inP=new Set(arr);
   gs.forEach(g=>{
     if(principal&&principal.list.includes(g)) return;
-    if(g.type==="ether"){ const c=inP.has(g.c)?g.c:g.c2; if(pos.has(c)) out.push(pos.get(c)); return; }
+    if(g.type==="ether"||g.type==="thioether"){ const c=inP.has(g.c)?g.c:g.c2; if(pos.has(c)) out.push(pos.get(c)); return; }
     if(pos.has(g.c)) out.push(pos.get(g.c));
   });
   arr.forEach(c=>{
@@ -1536,16 +1788,39 @@ function nameBranch(hv,start,fromChainAtom,ringsInfo){
     hv[c].nb.forEach(e=>{
       if(!sub.has(e.n)||cs.has(e.n)) return;
       if(pos===0&&e.n===fromChainAtom) return;
+      if(e.o!==1){ inner=null; return; }        // ylidene attachments → online lookup
       const bn=nameBranch(hv,e.n,c,ringsInfo);
       if(!bn){ inner=null; return; }
       if(inner) inner.push({loc:pos+1,name:bn});
     });
   });
   if(inner===null) return null;
-  const base=STEM[chain.length]+"yl";
-  if(!inner.length) return {en:base,de:base,memb:membSet};
-  const en="("+buildPrefixPart(inner.map(x=>({name:{en:x.name.en,de:x.name.de},loc:[x.loc]})),"en")+base+")";
-  const de="("+buildPrefixPart(inner.map(x=>({name:{en:x.name.en,de:x.name.de},loc:[x.loc]})),"de")+base+")";
+  // unsaturation INSIDE the branch: prop-1-yn-1-yl, but-3-en-1-yl, ethenyl …
+  const dL=[],tL=[];
+  for(let k=0;k<chain.length-1;k++){
+    const o=bondOrderBetween(hv,chain[k],chain[k+1]);
+    if(o===2)dL.push(k+1); else if(o===3)tL.push(k+1);
+  }
+  let baseEN,baseDE,hasLoc=false;
+  if(!dL.length&&!tL.length){
+    baseEN=baseDE=STEM[chain.length]+"yl";
+  } else if(chain.length<=2&&dL.length+tL.length===1){
+    baseEN=STEM[chain.length]+(dL.length?"enyl":"ynyl");     // ethenyl / ethynyl
+    baseDE=STEM[chain.length]+(dL.length?"enyl":"inyl");
+  } else {
+    hasLoc=true;
+    const part=(s,loc,m,end)=> s+((m&&!/[aeiou]$/.test(s))?"a":"")+"-"+loc.join(",")+"-"+m+end;
+    let sE=STEM[chain.length], sD=STEM[chain.length];
+    if(dL.length){ const m=MULT[dL.length]||""; sE=part(sE,dL,m,"en"); sD=part(sD,dL,m,"en"); }
+    if(tL.length){ const m=MULT[tL.length]||""; sE=part(sE,tL,m,"yn"); sD=part(sD,tL,m,"in"); }
+    baseEN=sE+"-1-yl"; baseDE=sD+"-1-yl";
+  }
+  if(!inner.length){
+    if(hasLoc) return {en:"("+baseEN+")",de:"("+baseDE+")",memb:membSet};
+    return {en:baseEN,de:baseDE,memb:membSet};
+  }
+  const en="("+buildPrefixPart(inner.map(x=>({name:{en:x.name.en,de:x.name.de},loc:[x.loc]})),"en")+baseEN+")";
+  const de="("+buildPrefixPart(inner.map(x=>({name:{en:x.name.en,de:x.name.de},loc:[x.loc]})),"de")+baseDE+")";
   return {en,de,memb:membSet};
 }
 
@@ -1744,11 +2019,11 @@ function collectPrefixGroups(hv,gs,principal,posOf){
       }
       return;
     }
-    if(pos===undefined && g.type!=="ether"){ unplaced.push(g); return; }
+    if(pos===undefined && g.type!=="ether" && g.type!=="thioether"){ unplaced.push(g); return; }
     switch(g.type){
       case "halo": prefixes.push({name:{en:HALO[g.el].en,de:HALO[g.el].de},loc:[pos]}); break;
       case "nitro": prefixes.push({name:{en:"nitro",de:"nitro"},loc:[pos]}); break;
-      case "ether": prefixes.push({ether:g}); break;
+      case "ether": case "thioether": prefixes.push({ether:g}); break;
       default:{
         const G=GROUPS[g.type];
         if(!G||!G.prefEN){ ok=false; return; }
@@ -1875,6 +2150,7 @@ function assembleName(hv,use,gs,principal,ringsInfo,formula,ringMode){
       if(gs.some(g=>g.type==="ester"&&e.n===g.oAlkylC)) return;
       // skip exocyclic principal-group carbons (they became the ring suffix, e.g. -carboxylic acid)
       if(principal&&principal.exo&&principal.list.some(g=>g.exoC===e.n)) return;
+      if(e.o!==1){ bad=true; return; }   // =CH2 ylidene substituents → online lookup
       const br=nameBranch(hv,e.n,c,ringsInfo);
       if(!br){ bad=true; return; }
       if(br.memb) br.memb.forEach(x=>consumedByBranches.add(x));
@@ -1899,8 +2175,9 @@ function assembleName(hv,use,gs,principal,ringsInfo,formula,ringMode){
     else return {fallback:true,reason:"Ether topology too complex — using online lookup.",formula:formula.str};
     const br=nameBranch(hv,cOut,ether.o,ringsInfo);
     if(!br||br.en.includes("(")) return {fallback:true,reason:"Branched ether side — using online lookup.",formula:formula.str};
-    const oxyE=br.en==="phenyl"?"phenoxy":br.en.replace(/yl$/,"oxy");
-    const oxyD=br.de==="phenyl"?"phenoxy":br.de.replace(/yl$/,"oxy");
+    const isThio=ether.type==="thioether";
+    const oxyE= isThio? br.en+"sulfanyl" : (br.en==="phenyl"?"phenoxy":br.en.replace(/yl$/,"oxy"));
+    const oxyD= isThio? br.de+"sulfanyl" : (br.de==="phenyl"?"phenoxy":br.de.replace(/yl$/,"oxy"));
     prefixes.push({name:{en:oxyE,de:oxyD},loc:[posOf(cIn)]});
   }
 
@@ -1911,7 +2188,11 @@ function assembleName(hv,use,gs,principal,ringsInfo,formula,ringMode){
     const cnt=use.sufL.length;
     if(G){
       const m=cnt>1? MULT[cnt]:"";
-      const base=exo? (lang==="en"?exo.sufEN:exo.sufDE) : (lang==="en"? G.sufEN:G.sufDE);
+      let base=exo? (lang==="en"?exo.sufEN:exo.sufDE) : (lang==="en"? G.sufEN:G.sufDE);
+      if(principal.type==="acylhalide"){
+        const hel=principal.list[0].el||"Cl";
+        base= lang==="en"? "oyl "+HALIDE[hel][0] : "oyl"+HALIDE[hel][1];
+      }
       const needLoc=exo? (cnt>1||prefixes.length>0) : G.locSuffix&&(arr.length>2||cnt>1);
       sufLocStr=needLoc? "-"+use.sufL.join(",")+"-" : (cnt>1&&G.terminal?"":"");
       if(!exo&&cnt>1&&G.terminal&&["acid","carboxylate","nitrile","amide","aldehyde"].includes(principal.type)){
@@ -1960,7 +2241,8 @@ function assembleName(hv,use,gs,principal,ringsInfo,formula,ringMode){
     "benzenecarbonitrile":["benzonitrile","Benzonitril"],
     "benzenecarboxamide":["benzamide","Benzamid"],
     "benzen-1-amine":["aniline (benzenamine)","Anilin"],
-    "ethenylbenzene":["styrene (vinylbenzene)","Styrol"]
+    "ethenylbenzene":["styrene (vinylbenzene)","Styrol"],
+    "phenylmethanoyl chloride":["benzoyl chloride","Benzoylchlorid"]
   };
   if(RETAINED[en]){ de=RETAINED[en][1]; en=RETAINED[en][0]; }
   return {en,de,via:"local",formula:formula.str};
@@ -2073,18 +2355,40 @@ function toSMILES(){
 function deFromEN(nm){
   let s=" "+nm+" ";
   const R=[
+    // fixed molecules / trivial names
     [/\bwater\b/g,"Wasser"],[/\bammonia\b/g,"Ammoniak"],
     [/acetic acid/g,"essigsäure"],[/formic acid/g,"ameisensäure"],[/benzoic acid/g,"benzoesäure"],
-    [/carboxylic acid/g,"carbonsäure"],[/sulfonic acid/g,"sulfonsäure"],
-    [/oic acid/g,"säure"],[/ic acid/g,"säure"],
+    [/oxalic acid/g,"oxalsäure"],[/lactic acid/g,"milchsäure"],[/citric acid/g,"citronensäure"],
+    // acid constructions (longest patterns first)
+    [/carboxylic acid/g,"carbonsäure"],[/sulfonic acid/g,"sulfonsäure"],[/sulfinic acid/g,"sulfinsäure"],
+    [/phosphonic acid/g,"phosphonsäure"],[/boronic acid/g,"boronsäure"],
+    [/dioic acid/g,"disäure"],[/oic acid/g,"säure"],[/ic acid/g,"säure"],
+    // C1-on-ring group suffixes
     [/carbaldehyde/g,"carbaldehyd"],[/carboxamide/g,"carboxamid"],[/carbonitrile/g,"carbonitril"],
+    [/carboxylate/g,"carboxylat"],[/carbonyl (chloride|fluoride|bromide|iodide)/g,(m,x)=>"carbonyl"+({chloride:"chlorid",fluoride:"fluorid",bromide:"bromid",iodide:"iodid"}[x])],
+    // N / O / S suffixes
     [/anhydride/g,"anhydrid"],[/nitrile/g,"nitril"],
-    [/amide(?![a-z])/g,"amid"],[/amine(?![a-z])/g,"amin"],
+    [/amide(?![a-z])/g,"amid"],[/imide(?![a-z])/g,"imid"],
+    [/amine(?![a-z])/g,"amin"],[/imine(?![a-z])/g,"imin"],
+    [/(fluor|chlor|brom|iod|ox|sulf|selen|tellur|hydr|cyan|az)ide(?![a-z])/g,"$1id"], // chloride→chlorid, oxide→oxid, azide→azid …
+    [/peroxide/g,"peroxid"],
+    // aromatics & heterocycles
     [/benzene/g,"benzol"],[/phenol/g,"phenol"],[/aniline/g,"anilin"],[/toluene/g,"toluol"],
-    [/naphthalene/g,"naphthalin"],[/pyridine/g,"pyridin"],[/furan(?![a-z])/g,"furan"],
+    [/xylene/g,"xylol"],[/styrene/g,"styrol"],
+    [/naphthalene/g,"naphthalin"],[/anthracene/g,"anthracen"],[/pyridine/g,"pyridin"],
+    [/pyrimidine/g,"pyrimidin"],[/piperidine/g,"piperidin"],[/pyrrolidine/g,"pyrrolidin"],
+    [/morpholine/g,"morpholin"],[/imidazole/g,"imidazol"],[/pyrazole/g,"pyrazol"],
+    [/indole(?![a-z])/g,"indol"],[/thiophene/g,"thiophen"],[/furan(?![a-z])/g,"furan"],
+    [/purine/g,"purin"],[/quinoline/g,"chinolin"],
+    // halogen & pseudo-halogen prefixes: chloro→chlor, fluoro→fluor …
+    [/chloro/g,"chlor"],[/fluoro/g,"fluor"],[/bromo/g,"brom"],[/iodo/g,"iod"],[/cyano/g,"cyan"],
+    // anion / ester endings
     [/olate(?![a-z])/g,"olat"],[/oate(?![a-z])/g,"oat"],[/ate(?![a-z])/g,"at"],
-    [/ane(?=carbon|sulfon)/g,"an"],        // Cyclohexancarbonsäure, Ethansulfonsäure
-    [/ane(?![a-z])/g,"an"],[/ene(?![a-z])/g,"en"],[/yne(?![a-z])/g,"in"],[/one(?![a-z])/g,"on"],
+    // hydride endings — elide the silent English e
+    [/ane(?=carbon|sulfon|sulfin|phosphon)/g,"an"],   // Cyclohexancarbonsäure, Ethansulfonsäure
+    [/ynyl/g,"inyl"],[/yn(?=-)/g,"in"],               // prop-1-in-1-yl, But-2-in
+    [/ane(?![a-z])/g,"an"],[/ene(?![a-z])/g,"en"],[/yne(?![a-z])/g,"in"],
+    [/one(?![a-z])/g,"on"],[/ole(?![a-z])/g,"ol"],
     [/ether(?![a-z])/g,"ether"],
     [/(yl) (?=[a-zäö\d])/g,"$1"]           // "ethyl ethanoat" → "ethylethanoat"
   ];
