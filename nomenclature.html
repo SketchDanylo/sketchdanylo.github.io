@@ -122,6 +122,15 @@ header.topbar{
 .ctx-pop .cp-danger{color:var(--bad)}
 .ctx-pop .cp-danger:hover{background:var(--bad-dim)}
 
+/* drag-from-rail element placement */
+.drag-ghost{
+  position:fixed;left:0;top:0;width:38px;height:38px;margin:-19px 0 0 -19px;
+  border-radius:9px;display:none;align-items:center;justify-content:center;
+  font:700 .9rem 'Inter';background:var(--surface-2);border:1.5px solid var(--accent);
+  box-shadow:0 6px 20px rgba(0,0,0,.4);pointer-events:none;z-index:400;
+}
+.canvas-area.drop-ready{box-shadow:inset 0 0 0 2px var(--accent-brd)}
+
 /* ---------- results drawer ---------- */
 .drawer-veil{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:39;display:none}
 .drawer-veil.show{display:block}
@@ -274,8 +283,8 @@ footer.credit{display:none}
   <div class="canvas-area" id="canvasWrap">
     <canvas id="molCanvas"></canvas>
     <div class="canvas-hint" id="canvasHint">
-      <b>Click</b> empty space to place an atom<br/>
-      <b>Drag</b> from an atom to bond it to another<br/>
+      <b>Drag</b> an element from the rail to place an atom<br/>
+      <b>Drag</b> from an atom on canvas to bond it to another<br/>
       <b>Click</b> an atom to select it, <b>again</b> to retype it<br/>
       <b>Click</b> a bond to select it, <b>again</b> to change its order
     </div>
@@ -299,6 +308,7 @@ footer.credit{display:none}
     </div>
   </div>
 </div>
+<div class="drag-ghost" id="dragGhost"></div>
 
 <div class="drawer-veil" id="drawerVeil"></div>
 <div class="drawer" id="drawer">
@@ -340,6 +350,12 @@ footer.credit{display:none}
       <div class="lbl">Bond snapping<small>ChemDraw-style angles &amp; lengths</small></div>
       <div class="seg" data-setting="snap">
         <button data-v="skeletal">Skeletal</button><button data-v="always">Always</button><button data-v="off">Off</button>
+      </div>
+    </div>
+    <div class="set-row">
+      <div class="lbl">Place atoms by<small>Drag never fires by accident; click is the old behavior</small></div>
+      <div class="seg" data-setting="place">
+        <button data-v="drag">Drag from rail</button><button data-v="click">Click canvas</button>
       </div>
     </div>
   </div>
@@ -389,7 +405,7 @@ const canvas = $("molCanvas"), wrap = $("canvasWrap");
 const ctx = canvas.getContext("2d");
 
 /* user settings */
-const SETTINGS=Object.assign({grid:"lines",snap:"skeletal"},JSON.parse(localStorage.getItem("dne_settings")||"{}"));
+const SETTINGS=Object.assign({grid:"lines",snap:"skeletal",place:"drag"},JSON.parse(localStorage.getItem("dne_settings")||"{}"));
 function saveSettings(){ try{localStorage.setItem("dne_settings",JSON.stringify(SETTINGS));}catch(e){} }
 function applySettings(){
   wrap.classList.toggle("grid-dots",SETTINGS.grid==="dots");
@@ -398,6 +414,10 @@ function applySettings(){
     const k=seg.dataset.setting;
     seg.querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.v===SETTINGS[k]));
   });
+  const hint=$("canvasHint");
+  if(hint) hint.innerHTML = SETTINGS.place==="click"
+    ? "<b>Click</b> empty space to place an atom<br/><b>Drag</b> from an atom on canvas to bond it to another<br/><b>Click</b> an atom to select it, <b>again</b> to retype it<br/><b>Click</b> a bond to select it, <b>again</b> to change its order"
+    : "<b>Drag</b> an element from the rail to place an atom<br/><b>Drag</b> from an atom on canvas to bond it to another<br/><b>Click</b> an atom to select it, <b>again</b> to retype it<br/><b>Click</b> a bond to select it, <b>again</b> to change its order";
 }
 const snapActive=()=>SETTINGS.snap==="always"||(SETTINGS.snap==="skeletal"&&skeletal);
 const SNAP_LEN=52, SNAP_STEP=Math.PI/6; // 30° increments, fixed bond length
@@ -609,10 +629,13 @@ let pinch0=null;
 const THRESH=6;
 
 canvas.addEventListener("contextmenu",e=>e.preventDefault());
-canvas.addEventListener("mousedown",e=>e.preventDefault()); // no text-selection / native drag UI
+canvas.addEventListener("mousedown",e=>{ if(e.button===0) e.preventDefault(); }); // no text-selection / native drag UI
 canvas.addEventListener("pointerdown",e=>{
+  // only the primary button/contact draws; right-click / middle-click must never place or bond
+  // (touch and pen always report button 0 for their primary contact, so this never blocks them)
+  if(e.button!==0) return;
   e.preventDefault();
-  canvas.setPointerCapture(e.pointerId);
+  try{ canvas.setPointerCapture(e.pointerId); }catch(err){ /* fall back to normal bubbling */ }
   const rect=canvas.getBoundingClientRect();
   const sx=e.clientX-rect.left, sy=e.clientY-rect.top;
   pointers.set(e.pointerId,{sx,sy});
@@ -671,9 +694,10 @@ canvas.addEventListener("pointerup",e=>{
     if(!drag.moved){
       // if something is selected, the first empty click only deselects — no surprise atom
       if(selAtom>=0||selBond>=0){ selAtom=selBond=-1; hidePopover(); redraw(); return; }
-      const w=S2W({x:sx,y:sy});
-      if(mode==="build"){ atoms.push({el:drawEl,x:w.x,y:w.y,charge:0}); snap(); afterChange(); }
-      else redraw();
+      if(mode==="build" && SETTINGS.place==="click"){
+        const w=S2W({x:sx,y:sy});
+        atoms.push({el:drawEl,x:w.x,y:w.y,charge:0}); snap(); afterChange();
+      } else redraw();
     } else redraw();
   } else if(kind==="moveAtom"){
     if(!drag.moved){ selectAtom(drag.from); }
@@ -787,13 +811,58 @@ function exitMoveMode(){
   $("moveBtn").classList.remove("active");
   canvas.style.cursor="crosshair";
 }
-document.querySelectorAll(".el-swatch").forEach(b=>{
-  b.addEventListener("click",()=>{
-    document.querySelectorAll(".el-swatch").forEach(x=>x.classList.remove("active"));
-    b.classList.add("active"); drawEl=b.dataset.el;
-    $("ptBtn").classList.remove("active");
-    exitMoveMode();
+function selectSwatch(el,btn){
+  document.querySelectorAll(".el-swatch").forEach(x=>x.classList.remove("active"));
+  drawEl=el;
+  if(btn && btn.classList.contains("el-swatch")){ btn.classList.add("active"); $("ptBtn").classList.remove("active"); }
+  exitMoveMode();
+}
+function dropAtomAt(el,clientX,clientY){
+  const rect=canvas.getBoundingClientRect();
+  if(clientX<rect.left||clientX>rect.right||clientY<rect.top||clientY>rect.bottom) return false;
+  const sx=clientX-rect.left, sy=clientY-rect.top;
+  const hit=hitAtom(sx,sy);
+  if(hit>=0){
+    if(atoms[hit].el!==el){ atoms[hit].el=el; atoms[hit].charge=0; atoms[hit].manualCharge=false; snap(); afterChange(); }
+  } else {
+    const w=S2W({x:sx,y:sy});
+    atoms.push({el,x:w.x,y:w.y,charge:0}); snap(); afterChange();
+  }
+  return true;
+}
+/* click on a rail element = select it as current; drag it onto the canvas = place/retype there */
+function wireElementDrag(btn,getEl,onPlainClick){
+  const ghost=$("dragGhost");
+  btn.addEventListener("pointerdown",e=>{
+    if(e.button!==0) return;
+    try{ btn.setPointerCapture(e.pointerId); }catch(err){ /* fall back to normal bubbling */ }
+    const startX=e.clientX, startY=e.clientY;
+    let dragging=false;
+    const move=ev=>{
+      if(!dragging && Math.hypot(ev.clientX-startX,ev.clientY-startY)>10){
+        dragging=true; ghost.textContent=getEl(); ghost.style.display="flex";
+      }
+      if(dragging){
+        ghost.style.left=ev.clientX+"px"; ghost.style.top=ev.clientY+"px";
+        const rect=canvas.getBoundingClientRect();
+        wrap.classList.toggle("drop-ready", ev.clientX>=rect.left&&ev.clientX<=rect.right&&ev.clientY>=rect.top&&ev.clientY<=rect.bottom);
+      }
+    };
+    const up=ev=>{
+      btn.removeEventListener("pointermove",move);
+      btn.removeEventListener("pointerup",up);
+      btn.removeEventListener("pointercancel",up);
+      ghost.style.display="none"; wrap.classList.remove("drop-ready");
+      if(!dragging){ onPlainClick(btn); return; }
+      dropAtomAt(getEl(),ev.clientX,ev.clientY);
+    };
+    btn.addEventListener("pointermove",move);
+    btn.addEventListener("pointerup",up);
+    btn.addEventListener("pointercancel",up);
   });
+}
+document.querySelectorAll(".el-swatch").forEach(b=>{
+  wireElementDrag(b, ()=>b.dataset.el, ()=>selectSwatch(b.dataset.el,b));
 });
 document.querySelectorAll("[data-bond]").forEach(b=>{
   b.addEventListener("click",()=>{
@@ -892,7 +961,7 @@ $("drawerVeil").onclick=closeDrawer;
     grid.appendChild(c);
   });
 })();
-$("ptBtn").onclick=()=>$("ptVeil").classList.add("show");
+wireElementDrag($("ptBtn"), ()=>drawEl, ()=>$("ptVeil").classList.add("show"));
 $("ptClose").onclick=()=>$("ptVeil").classList.remove("show");
 $("ptVeil").addEventListener("click",e=>{ if(e.target.id==="ptVeil") $("ptVeil").classList.remove("show"); });
 
