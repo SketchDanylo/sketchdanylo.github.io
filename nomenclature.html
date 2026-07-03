@@ -177,14 +177,14 @@ header.topbar{
 @keyframes toastIn{from{opacity:0;transform:translateY(12px) scale(.95)}to{opacity:1;transform:none}}
 
 /* ---------- settings ---------- */
-.set-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--border-soft)}
+.set-row{display:flex;flex-direction:column;align-items:stretch;gap:9px;padding:12px 0;border-bottom:1px solid var(--border-soft)}
 .set-row:last-of-type{border-bottom:none}
 .set-row .lbl{font:600 .84rem 'Inter'}
 .set-row .lbl small{display:block;font:500 .7rem 'Inter';color:var(--text-dim);margin-top:2px}
-.seg{display:flex;gap:3px;background:var(--surface-2);padding:3px;border-radius:8px;border:1px solid var(--border-soft)}
+.seg{display:flex;gap:3px;background:var(--surface-2);padding:3px;border-radius:8px;border:1px solid var(--border-soft);width:100%}
 .seg button{
-  height:28px;padding:0 11px;border:none;border-radius:6px;background:transparent;color:var(--text-dim);
-  font:600 .74rem 'Inter';cursor:pointer;transition:.13s;
+  flex:1;height:30px;padding:0 8px;border:none;border-radius:6px;background:transparent;color:var(--text-dim);
+  font:600 .74rem 'Inter';cursor:pointer;transition:.13s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 .seg button.on{background:var(--accent-dim);color:var(--accent);box-shadow:0 0 0 1px var(--accent-brd)}
 
@@ -333,7 +333,7 @@ footer.credit{display:none}
   </div>
 </div>
 <div class="modal-veil" id="setVeil">
-  <div class="pt-modal" style="max-width:360px">
+  <div class="pt-modal" style="max-width:400px">
     <div class="pt-modal-head">
       <h3>Settings</h3>
       <button class="drawer-close" id="setClose">
@@ -353,9 +353,9 @@ footer.credit{display:none}
       </div>
     </div>
     <div class="set-row">
-      <div class="lbl">Place atoms by<small>Drag never fires by accident; click is the old behavior</small></div>
+      <div class="lbl">Place atoms by<small>Click is the classic behavior; drag never fires by accident</small></div>
       <div class="seg" data-setting="place">
-        <button data-v="drag">Drag from rail</button><button data-v="click">Click canvas</button>
+        <button data-v="click">Click canvas</button><button data-v="drag">Drag from rail</button>
       </div>
     </div>
   </div>
@@ -405,7 +405,7 @@ const canvas = $("molCanvas"), wrap = $("canvasWrap");
 const ctx = canvas.getContext("2d");
 
 /* user settings */
-const SETTINGS=Object.assign({grid:"lines",snap:"skeletal",place:"drag"},JSON.parse(localStorage.getItem("dne_settings")||"{}"));
+const SETTINGS=Object.assign({grid:"lines",snap:"skeletal",place:"click"},JSON.parse(localStorage.getItem("dne_settings")||"{}"));
 function saveSettings(){ try{localStorage.setItem("dne_settings",JSON.stringify(SETTINGS));}catch(e){} }
 function applySettings(){
   wrap.classList.toggle("grid-dots",SETTINGS.grid==="dots");
@@ -778,12 +778,20 @@ canvas.addEventListener("wheel",e=>{
 },{passive:false});
 
 document.addEventListener("keydown",e=>{
+  if(document.activeElement && ["INPUT","TEXTAREA"].includes(document.activeElement.tagName)) return;
   if(e.key==="Escape"){ selAtom=selBond=-1; hidePopover(); redraw(); return; }
   if((e.key==="Delete"||e.key==="Backspace") && (selAtom>=0||selBond>=0)){
-    if(document.activeElement && ["INPUT","TEXTAREA"].includes(document.activeElement.tagName)) return;
     e.preventDefault();
     if(selAtom>=0) deleteAtom(selAtom); else { bonds.splice(selBond,1); selBond=-1; hidePopover(); snap(); afterChange(); }
+    return;
   }
+  const mod=e.ctrlKey||e.metaKey;
+  if(mod && e.key.toLowerCase()==="z"){
+    e.preventDefault();
+    if(e.shiftKey) redo(); else undo();
+    return;
+  }
+  if(mod && e.key.toLowerCase()==="y"){ e.preventDefault(); redo(); return; }
 });
 
 function tryBond(i,j,order){
