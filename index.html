@@ -57,7 +57,15 @@
     .name-cycle {
       display: inline-flex;
       justify-content: center;
+      vertical-align: top;
       white-space: nowrap;
+    }
+
+    .name-visual {
+      display: inline-flex;
+      transform: scaleX(var(--name-scale, 1));
+      transform-origin: center center;
+      will-change: transform;
     }
 
     .name-letter {
@@ -674,31 +682,37 @@
 
       let stableWidth = measureName(stableFont, stableWeight);
       nameCycle.style.width = `${stableWidth}px`;
+      nameCycle.style.height = `${measure.getBoundingClientRect().height || 0}px`;
+      nameCycle.style.verticalAlign = "top";
 
       function fitName(font, weight) {
         const currentWidth = measureName(font, weight);
         const scale = Math.min(1.24, Math.max(0.66, stableWidth / currentWidth));
-        nameCycle.style.fontSize = `${scale}em`;
+        nameCycle.style.setProperty("--name-scale", scale);
       }
 
       window.addEventListener("resize", () => {
         stableWidth = measureName(stableFont, stableWeight);
         nameCycle.style.width = `${stableWidth}px`;
+        nameCycle.style.height = `${measure.getBoundingClientRect().height || 0}px`;
         fitName(currentFont, currentWeight);
       });
 
+      const visual = document.createElement("span");
+      visual.className = "name-visual";
+      visual.setAttribute("aria-hidden", "true");
       const letters = namePieces.map((letter, index) => {
         const span = document.createElement("span");
         span.className = "name-letter";
         span.textContent = letter;
         span.setAttribute("aria-hidden", "true");
         span.dataset.index = index;
-        nameCycle.appendChild(span);
         return span;
       });
 
       nameCycle.textContent = "";
-      letters.forEach(letter => nameCycle.appendChild(letter));
+      letters.forEach(letter => visual.appendChild(letter));
+      nameCycle.appendChild(visual);
 
       const start = performance.now();
       const freezeStart = 2000;
@@ -735,7 +749,7 @@
               letter.style.fontWeight = stableWeight;
               letter.style.opacity = "1";
               if (index === letters.length - 1) {
-                nameCycle.style.fontSize = "1em";
+                nameCycle.style.setProperty("--name-scale", 1);
               }
             }
             return;
