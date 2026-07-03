@@ -48,6 +48,39 @@
       text-wrap: balance;
     }
 
+    .name-cycle,
+    .title-rest {
+      display: inline-block;
+      vertical-align: baseline;
+    }
+
+    .name-cycle {
+      display: inline-flex;
+      gap: 0.01em;
+      white-space: nowrap;
+    }
+
+    .name-letter {
+      display: inline-block;
+      min-width: 0.12em;
+      transform: translateY(var(--letter-y, 0)) skewX(var(--letter-skew, 0deg));
+      transition:
+        opacity 180ms ease,
+        transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+        font-weight 120ms ease;
+      will-change: transform, font-family;
+    }
+
+    .name-letter.is-stable {
+      --letter-y: 0 !important;
+      --letter-skew: 0deg !important;
+      opacity: 1;
+      transition:
+        transform 520ms cubic-bezier(0.16, 1, 0.3, 1),
+        opacity 260ms ease;
+      will-change: auto;
+    }
+
     .search-shell {
       position: relative;
     }
@@ -81,6 +114,8 @@
     }
 
     .search-label {
+      --pad-x: 30px;
+      --cursor-x: 0px;
       position: relative;
       display: block;
       width: 100%;
@@ -120,6 +155,7 @@
       caret-color: transparent;
       font: inherit;
       font-size: clamp(1rem, 1.45vw, 1.14rem);
+      line-height: 1;
       -webkit-appearance: none;
       appearance: none;
     }
@@ -132,42 +168,85 @@
     .search-display {
       position: absolute;
       inset: 0;
-      display: flex;
+      display: block;
       width: 100%;
-      align-items: center;
-      padding: 0 30px;
+      padding: 0 var(--pad-x);
       color: var(--text);
       font-size: clamp(1rem, 1.45vw, 1.14rem);
       font-weight: 520;
       letter-spacing: -0.012em;
-      line-height: 1;
       pointer-events: none;
       white-space: nowrap;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    .search-display::before {
+      position: absolute;
+      top: 50%;
+      left: var(--pad-x);
+      color: rgba(255, 255, 255, 0.38);
+      content: attr(data-placeholder);
+      font-weight: 500;
+      line-height: 1;
+      opacity: 0;
+      transform: translateY(-50%);
+      transition: opacity 150ms ease, transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .search-label[data-empty="true"] .search-display::before {
+      opacity: 1;
+      transform: translateY(-50%) translateX(0);
     }
 
     .search-text {
-      min-width: 0;
+      position: absolute;
+      top: 50%;
+      left: var(--pad-x);
+      max-width: calc(100% - (var(--pad-x) * 2));
       overflow: hidden;
       text-overflow: ellipsis;
-    }
-
-    .search-text.is-placeholder {
-      color: rgba(255, 255, 255, 0.38);
-      font-weight: 500;
+      line-height: 1.15;
+      transform: translateY(-50%);
     }
 
     .custom-caret {
+      position: absolute;
+      top: 50%;
+      left: calc(var(--pad-x) + var(--cursor-x) + 4px);
       width: 2px;
       height: 1.35em;
-      margin-left: 3px;
       border-radius: 999px;
       background: rgba(255, 255, 255, 0.9);
       opacity: 0;
-      transform: scaleY(0.85);
+      transform: translateY(-50%) scaleY(0.85);
+      transition: left 145ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease;
+      will-change: left, opacity;
     }
 
     .search-label:focus-within .custom-caret {
       animation: caret-pulse 960ms ease-in-out infinite;
+    }
+
+    .typed-char {
+      display: inline-block;
+    }
+
+    .typed-char.is-new {
+      animation: char-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .search-measure {
+      position: absolute;
+      top: -999px;
+      left: -999px;
+      visibility: hidden;
+      white-space: pre;
+      font: inherit;
+      font-size: clamp(1rem, 1.45vw, 1.14rem);
+      font-weight: 520;
+      letter-spacing: -0.012em;
+      line-height: 1;
     }
 
     .results {
@@ -243,19 +322,35 @@
       .search-display {
         padding: 0 18px;
       }
+
+      .search-label {
+        --pad-x: 18px;
+      }
     }
 
     @keyframes caret-pulse {
       0%,
       100% {
         opacity: 0.28;
-        transform: scaleY(0.78);
+        transform: translateY(-50%) scaleY(0.78);
       }
 
       45%,
       60% {
         opacity: 1;
-        transform: scaleY(1);
+        transform: translateY(-50%) scaleY(1);
+      }
+    }
+
+    @keyframes char-in {
+      from {
+        opacity: 0;
+        transform: translateY(0.22em);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
       }
     }
 
@@ -270,15 +365,19 @@
 </head>
 <body>
   <main class="page">
-    <h1>Danylo's Helping Tools</h1>
+    <h1>
+      <span class="name-cycle" id="name-cycle" aria-label="Danylo's"><span aria-hidden="true">Danylo's</span></span>
+      <span class="title-rest">Helping Tools</span>
+    </h1>
 
     <div class="search-shell">
-      <label class="search-label">
+      <label class="search-label" id="search-label" data-empty="true">
         <span class="sr-only">Search tools</span>
-        <input id="search" type="search" autocomplete="off" placeholder="Search tools...">
-        <span class="search-display" aria-hidden="true">
-          <span class="search-text is-placeholder" id="search-text">Search tools...</span>
+        <input id="search" type="search" autocomplete="off" aria-label="Search tools">
+        <span class="search-display" id="search-display" data-placeholder="Search tools..." aria-hidden="true">
+          <span class="search-text" id="search-text"></span>
           <span class="custom-caret"></span>
+          <span class="search-measure" id="search-measure"></span>
         </span>
       </label>
     </div>
@@ -329,10 +428,21 @@
     ];
 
     const search = document.getElementById("search");
+    const searchLabel = document.getElementById("search-label");
     const searchText = document.getElementById("search-text");
+    const searchMeasure = document.getElementById("search-measure");
     const list = document.getElementById("tools");
     const empty = document.getElementById("empty");
-    const placeholder = search.getAttribute("placeholder");
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let previousSearchValue = "";
+
+    function escapeHtml(value) {
+      return value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
 
     function normalize(value) {
       return value.toLowerCase().trim();
@@ -350,8 +460,24 @@
     }
 
     function syncSearchText() {
-      searchText.textContent = search.value || placeholder;
-      searchText.classList.toggle("is-placeholder", search.value === "");
+      const value = search.value;
+      const selectionEnd = search.selectionEnd ?? value.length;
+      const changedByAppend = value.length > previousSearchValue.length
+        && value.startsWith(previousSearchValue);
+
+      searchLabel.dataset.empty = value === "" ? "true" : "false";
+      searchText.innerHTML = [...value].map((character, index) => {
+        const shouldAnimate = changedByAppend && index >= previousSearchValue.length && !reduceMotion;
+        return `<span class="typed-char${shouldAnimate ? " is-new" : ""}">${escapeHtml(character)}</span>`;
+      }).join("");
+
+      searchMeasure.textContent = value.slice(0, selectionEnd);
+      const style = window.getComputedStyle(searchLabel);
+      const padding = Number.parseFloat(style.getPropertyValue("--pad-x")) || 30;
+      const maxCursor = Math.max(0, searchLabel.clientWidth - (padding * 2) - 8);
+      const cursorX = Math.min(searchMeasure.offsetWidth, maxCursor);
+      searchLabel.style.setProperty("--cursor-x", `${cursorX}px`);
+      previousSearchValue = value;
     }
 
     function render() {
@@ -406,6 +532,9 @@
 
     search.addEventListener("focus", filter);
     search.addEventListener("input", filter);
+    search.addEventListener("click", syncSearchText);
+    search.addEventListener("keyup", syncSearchText);
+    search.addEventListener("select", syncSearchText);
     search.addEventListener("blur", () => {
       window.setTimeout(filter, 100);
     });
@@ -420,6 +549,74 @@
 
     render();
     filter();
+
+    function setupHeadingAnimation() {
+      const nameCycle = document.getElementById("name-cycle");
+      if (!nameCycle || reduceMotion) return;
+
+      const namePieces = ["D", "a", "n", "y", "l", "o", "'s"];
+      const fonts = [
+        "\"Arial Black\", system-ui, sans-serif",
+        "Georgia, \"Times New Roman\", serif",
+        "\"Trebuchet MS\", system-ui, sans-serif",
+        "\"Courier New\", monospace",
+        "Impact, Haettenschweiler, sans-serif",
+        "Verdana, system-ui, sans-serif"
+      ];
+      const weights = [780, 720, 820, 760, 700, 800];
+      const stableFont = "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif";
+      const stableWeight = 780;
+      const letters = namePieces.map((letter, index) => {
+        const span = document.createElement("span");
+        span.className = "name-letter";
+        span.textContent = letter;
+        span.setAttribute("aria-hidden", "true");
+        span.dataset.index = index;
+        nameCycle.appendChild(span);
+        return span;
+      });
+
+      nameCycle.textContent = "";
+      letters.forEach(letter => nameCycle.appendChild(letter));
+
+      const start = performance.now();
+      const freezeStart = 5000;
+      const freezeGap = 125;
+
+      function tick(now) {
+        const elapsed = now - start;
+        const fontStep = Math.floor(elapsed / 95);
+
+        let allStable = true;
+        letters.forEach((letter, index) => {
+          const shouldFreeze = elapsed >= freezeStart + (index * freezeGap);
+
+          if (shouldFreeze) {
+            if (!letter.classList.contains("is-stable")) {
+              letter.classList.add("is-stable");
+              letter.style.fontFamily = stableFont;
+              letter.style.fontWeight = stableWeight;
+              letter.style.opacity = "1";
+            }
+            return;
+          }
+
+          allStable = false;
+          const fontIndex = (fontStep + index) % fonts.length;
+          letter.style.fontFamily = fonts[fontIndex];
+          letter.style.fontWeight = weights[fontIndex];
+          letter.style.opacity = String(0.82 + (Math.sin((elapsed * 0.006) + index) * 0.09));
+          letter.style.setProperty("--letter-y", `${Math.sin((elapsed * 0.008) + index) * 0.035}em`);
+          letter.style.setProperty("--letter-skew", `${Math.sin((elapsed * 0.01) + index) * 2.2}deg`);
+        });
+
+        if (!allStable) requestAnimationFrame(tick);
+      }
+
+      requestAnimationFrame(tick);
+    }
+
+    setupHeadingAnimation();
   </script>
 </body>
 </html>
