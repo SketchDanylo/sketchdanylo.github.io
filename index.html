@@ -63,21 +63,20 @@
     .name-letter {
       display: inline-block;
       min-width: 0.12em;
-      transform: translateY(var(--letter-y, 0)) skewX(var(--letter-skew, 0deg));
+      transform: translateY(var(--letter-y, 0));
       transition:
-        opacity 180ms ease,
-        transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
-        font-weight 120ms ease;
+        opacity 90ms ease,
+        transform 110ms cubic-bezier(0.22, 1, 0.36, 1),
+        font-weight 60ms ease;
       will-change: transform, font-family;
     }
 
     .name-letter.is-stable {
       --letter-y: 0 !important;
-      --letter-skew: 0deg !important;
       opacity: 1;
       transition:
-        transform 520ms cubic-bezier(0.16, 1, 0.3, 1),
-        opacity 260ms ease;
+        transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+        opacity 130ms ease;
       will-change: auto;
     }
 
@@ -580,12 +579,27 @@
       letters.forEach(letter => nameCycle.appendChild(letter));
 
       const start = performance.now();
-      const freezeStart = 5000;
-      const freezeGap = 125;
+      const freezeStart = 2000;
+      const freezeGap = 62;
+      let lastFontStep = -1;
+      let currentFont = fonts[0];
+      let currentWeight = weights[0];
+
+      function pickFont(step) {
+        let nextIndex = Math.floor(Math.random() * fonts.length);
+        if (fonts.length > 1 && fonts[nextIndex] === currentFont) {
+          nextIndex = (nextIndex + 1) % fonts.length;
+        }
+
+        currentFont = fonts[nextIndex];
+        currentWeight = weights[nextIndex];
+        lastFontStep = step;
+      }
 
       function tick(now) {
         const elapsed = now - start;
-        const fontStep = Math.floor(elapsed / 95);
+        const fontStep = Math.floor(elapsed / 48);
+        if (fontStep !== lastFontStep) pickFont(fontStep);
 
         let allStable = true;
         letters.forEach((letter, index) => {
@@ -602,12 +616,10 @@
           }
 
           allStable = false;
-          const fontIndex = (fontStep + index) % fonts.length;
-          letter.style.fontFamily = fonts[fontIndex];
-          letter.style.fontWeight = weights[fontIndex];
-          letter.style.opacity = String(0.82 + (Math.sin((elapsed * 0.006) + index) * 0.09));
-          letter.style.setProperty("--letter-y", `${Math.sin((elapsed * 0.008) + index) * 0.035}em`);
-          letter.style.setProperty("--letter-skew", `${Math.sin((elapsed * 0.01) + index) * 2.2}deg`);
+          letter.style.fontFamily = currentFont;
+          letter.style.fontWeight = currentWeight;
+          letter.style.opacity = "1";
+          letter.style.setProperty("--letter-y", "0");
         });
 
         if (!allStable) requestAnimationFrame(tick);
