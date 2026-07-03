@@ -280,6 +280,9 @@ footer.credit{display:none}
     <button class="rbtn" id="eraseBtn" title="Eraser (drag over atoms/bonds to remove)">
       <svg class="ico" viewBox="0 0 24 24"><path d="M19 13l-6 6H7.8L4 15.2a2 2 0 0 1 0-2.8L12.2 4a2 2 0 0 1 2.8 0l4 4a2 2 0 0 1 0 2.8z"/><path d="M8.5 8.5l7 7"/><path d="M5 21h14"/></svg>
     </button>
+    <button class="rbtn" id="selectBtn" title="Select (drag a box to select, drag selection to move, then delete/save it)">
+      <svg class="ico" viewBox="0 0 24 24" stroke-dasharray="2.5 2.5"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+    </button>
     <button class="rbtn" id="skelBtn" title="Skeletal formula view (Skelettformel)">
       <svg class="ico" viewBox="0 0 24 24"><path d="M3 16l5-8 4 8 5-8 4 8"/></svg>
     </button>
@@ -318,6 +321,15 @@ footer.credit{display:none}
       </button>
       <span class="cp-sep" id="cpSep"></span>
       <button class="cp-danger" id="cpDelete" title="Delete">
+        <svg class="ico" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M3 6h18M8 6V4h8v2m-9 0l1 14h8l1-14"/></svg>
+      </button>
+    </div>
+    <div class="ctx-pop" id="selPop">
+      <button id="selSaveBtn" title="Save selection as a structure">
+        <svg class="ico" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M7 3v5h9V3M7 21v-7h10v7"/></svg>
+      </button>
+      <span class="cp-sep"></span>
+      <button class="cp-danger" id="selDeleteBtn" title="Delete selection">
         <svg class="ico" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M3 6h18M8 6V4h8v2m-9 0l1 14h8l1-14"/></svg>
       </button>
     </div>
@@ -415,11 +427,12 @@ const CATION_OK = {N:1,O:1,S:1,P:1,B:-1}; // B gets − (borate style)
 /* ================= STATE ================= */
 let atoms = [];   // {el,x,y,charge}
 let bonds = [];   // {a,b,order}
-let mode = "build";        // build | move
+let mode = "build";        // build | move | erase | select
 let skeletal = false;      // skeletal-formula rendering (Skelettformel)
 let drawEl = "C";
 let bondOrder = 1;
 let selAtom = -1, selBond = -1;
+let multiSel = new Set(); // atom indices picked by the select tool (box-select / shift-click)
 let view = {x:0,y:0,k:1};
 const hist = [], redoS = [];
 const $ = id => document.getElementById(id);
@@ -575,8 +588,23 @@ function redraw(){
     if(skelHiddenH(b.a)||skelHiddenH(b.b)) return;
     const A=W2S(atoms[b.a]), B=W2S(atoms[b.b]);
     const sel = bi===selBond;
-    drawBondLine(A.x,A.y,B.x,B.y,b.order, sel?"#5b8cf0":"rgba(231,233,238,.68)", (sel?3:2)*Math.min(view.k,1.4), bondSide(b));
+    const msel = multiSel.has(b.a)&&multiSel.has(b.b);
+    const color = sel? "#5b8cf0" : msel? "#cf9a2e" : "rgba(231,233,238,.68)";
+    drawBondLine(A.x,A.y,B.x,B.y,b.order, color, (sel||msel?3:2)*Math.min(view.k,1.4), bondSide(b));
   });
+  // select-tool highlight halo (drawn under the atom glyphs)
+  if(multiSel.size){
+    ctx.save();
+    multiSel.forEach(i=>{
+      if(skelHiddenH(i)) return;
+      const P=W2S(atoms[i]);
+      ctx.beginPath(); ctx.arc(P.x,P.y,R_ATOM*view.k+5,0,7);
+      ctx.fillStyle="rgba(207,154,46,.22)"; ctx.fill();
+      ctx.lineWidth=1.5; ctx.strokeStyle="rgba(207,154,46,.9)";
+      ctx.setLineDash([4,3]); ctx.stroke(); ctx.setLineDash([]);
+    });
+    ctx.restore();
+  }
   // temp bond while dragging (snapped preview when snapping is active)
   if(drag.kind==="growBond"){
     const A=W2S(atoms[drag.from]);
@@ -635,8 +663,22 @@ function redraw(){
     }
     if(a.charge) drawChargeBadge(P,rr,a.charge,fs);
   });
+  // live marquee rectangle
+  if(drag.kind==="marquee" && drag.rect){
+    const rc=drag.rect;
+    const x0=Math.min(rc.x0,rc.x1), x1=Math.max(rc.x0,rc.x1);
+    const y0=Math.min(rc.y0,rc.y1), y1=Math.max(rc.y0,rc.y1);
+    ctx.save();
+    ctx.fillStyle="rgba(207,154,46,.12)";
+    ctx.strokeStyle="rgba(207,154,46,.9)";
+    ctx.setLineDash([5,4]); ctx.lineWidth=1.5;
+    ctx.fillRect(x0,y0,x1-x0,y1-y0);
+    ctx.strokeRect(x0,y0,x1-x0,y1-y0);
+    ctx.restore();
+  }
   updateFormula();
   positionPopover();
+  positionSelPop();
 }
 function afterChange(){ autoCharges(); redraw(); }
 
@@ -720,6 +762,26 @@ canvas.addEventListener("pointerdown",e=>{
   }
   drag.moved=false; drag.sx=sx; drag.sy=sy; drag.panSX=sx; drag.panSY=sy; drag.startView={...view};
   if(mode==="erase"){ drag.kind="erase"; eraseAt(sx,sy); return; }
+  if(mode==="select"){
+    const ai=hitAtom(sx,sy);
+    if(ai>=0){
+      if(e.shiftKey){
+        drag.kind = multiSel.has(ai) ? "selectRemove" : "selectAdd";
+        drag.from = ai;
+        return;
+      }
+      if(!multiSel.has(ai)){ multiSel.clear(); multiSel.add(ai); }
+      drag.kind="moveSel";
+      drag.selStart=[...multiSel].map(idx=>({idx,x:atoms[idx].x,y:atoms[idx].y}));
+      redraw();
+      return;
+    }
+    if(!e.shiftKey) multiSel.clear();
+    drag.kind="marquee";
+    drag.rect={x0:sx,y0:sy,x1:sx,y1:sy};
+    redraw();
+    return;
+  }
   const ai=hitAtom(sx,sy);
   if(ai>=0){
     drag.from=ai;
@@ -752,6 +814,13 @@ canvas.addEventListener("pointermove",e=>{
     drag.sx=sx; drag.sy=sy; redraw();
   } else if(drag.kind==="erase"){
     eraseAt(sx,sy);
+  } else if(drag.kind==="marquee"){
+    drag.rect.x1=sx; drag.rect.y1=sy; redraw();
+  } else if(drag.kind==="moveSel"){
+    const w=S2W({x:sx,y:sy}), w0=S2W({x:drag.sx,y:drag.sy});
+    const dx=w.x-w0.x, dy=w.y-w0.y;
+    drag.selStart.forEach(s=>{ atoms[s.idx].x=s.x+dx; atoms[s.idx].y=s.y+dy; });
+    redraw();
   } else if((drag.kind==="empty"&&drag.moved) || drag.kind==="panBtn"){
     view.x=drag.startView.x+(sx-drag.panSX)/view.k;
     view.y=drag.startView.y+(sy-drag.panSY)/view.k;
@@ -777,6 +846,25 @@ canvas.addEventListener("pointerup",e=>{
   } else if(kind==="moveAtom"){
     if(!drag.moved){ selectAtom(drag.from, e.pointerType!=="mouse"); }
     else { snap(); redraw(); }
+  } else if(kind==="marquee"){
+    const rc=drag.rect;
+    if(rc){
+      const x0=Math.min(rc.x0,rc.x1), x1=Math.max(rc.x0,rc.x1);
+      const y0=Math.min(rc.y0,rc.y1), y1=Math.max(rc.y0,rc.y1);
+      if(x1-x0>4 || y1-y0>4){
+        atoms.forEach((a,i)=>{
+          if(skelHiddenH(i)) return;
+          const P=W2S(a);
+          if(P.x>=x0&&P.x<=x1&&P.y>=y0&&P.y<=y1) multiSel.add(i);
+        });
+      }
+    }
+    drag.rect=null; redraw();
+  } else if(kind==="moveSel"){
+    if(drag.moved) snap();
+    redraw();
+  } else if(kind==="selectAdd"){ multiSel.add(drag.from); redraw();
+  } else if(kind==="selectRemove"){ multiSel.delete(drag.from); redraw();
   } else if(kind==="growBond"){
     const ai=hitAtom(sx,sy);
     // a bond is only created after a real drag — sloppy clicks never leave line stubs
@@ -839,10 +927,13 @@ canvas.addEventListener("wheel",e=>{
 
 document.addEventListener("keydown",e=>{
   if(document.activeElement && ["INPUT","TEXTAREA"].includes(document.activeElement.tagName)) return;
-  if(e.key==="Escape"){ selAtom=selBond=-1; hidePopover(); redraw(); return; }
-  if((e.key==="Delete"||e.key==="Backspace") && (selAtom>=0||selBond>=0)){
-    e.preventDefault();
-    if(selAtom>=0) deleteAtom(selAtom); else { bonds.splice(selBond,1); selBond=-1; hidePopover(); snap(); afterChange(); }
+  if(e.key==="Escape"){ selAtom=selBond=-1; hidePopover(); multiSel.clear(); redraw(); return; }
+  if(e.key==="Delete"||e.key==="Backspace"){
+    if(multiSel.size){ e.preventDefault(); deleteSelection(); return; }
+    if(selAtom>=0||selBond>=0){
+      e.preventDefault();
+      if(selAtom>=0) deleteAtom(selAtom); else { bonds.splice(selBond,1); selBond=-1; hidePopover(); snap(); afterChange(); }
+    }
     return;
   }
   const mod=e.ctrlKey||e.metaKey;
@@ -884,6 +975,11 @@ function deleteAtom(i){
   atoms.splice(i,1);
   bonds.forEach(b=>{ if(b.a>i)b.a--; if(b.b>i)b.b--; });
   if(selAtom===i){selAtom=-1;hidePopover();}
+  if(multiSel.size){
+    const next=new Set();
+    multiSel.forEach(idx=>{ if(idx===i) return; next.add(idx>i? idx-1 : idx); });
+    multiSel=next;
+  }
   snap(); afterChange();
 }
 function eraseAt(sx,sy){
@@ -893,14 +989,47 @@ function eraseAt(sx,sy){
   if(bi>=0){ bonds.splice(bi,1); if(selBond===bi){selBond=-1;hidePopover();} snap(); afterChange(); }
 }
 
+/* ---- select tool: box/shift select -> move, delete or save the subset ---- */
+function deleteSelection(){
+  if(!multiSel.size) return;
+  const idxs=[...multiSel].sort((a,b)=>b-a);
+  idxs.forEach(i=>{
+    bonds=bonds.filter(b=>b.a!==i&&b.b!==i);
+    atoms.splice(i,1);
+    bonds.forEach(b=>{ if(b.a>i)b.a--; if(b.b>i)b.b--; });
+    if(selAtom===i){selAtom=-1;hidePopover();}
+  });
+  multiSel.clear();
+  snap(); afterChange();
+}
+function saveSelection(){
+  if(!multiSel.size){ toast("Box-select or shift-click some atoms first"); return; }
+  const idxs=[...multiSel].sort((a,b)=>a-b);
+  const remap=new Map(idxs.map((orig,newI)=>[orig,newI]));
+  const subAtoms=idxs.map(i=>JSON.parse(JSON.stringify(atoms[i])));
+  const subBonds=bonds.filter(b=>remap.has(b.a)&&remap.has(b.b)).map(b=>({a:remap.get(b.a),b:remap.get(b.b),order:b.order}));
+  const name=prompt("Name this structure:","Selection "+(structures.length+1));
+  if(!name) return;
+  const bakA=atoms, bakB=bonds;
+  atoms=subAtoms; bonds=subBonds;
+  const formula=molFormula().str;
+  atoms=bakA; bonds=bakB;
+  structures.push({name, formula, atoms:subAtoms, bonds:subBonds});
+  saveStructs();
+  toast('"'+name+'" saved',"ok");
+}
+
 /* ================= UI WIRING ================= */
 function exitMoveMode(){ setMode("build"); }
 function setMode(m){
   mode=m;
   $("moveBtn").classList.toggle("active",mode==="move");
   $("eraseBtn").classList.toggle("active",mode==="erase");
+  $("selectBtn").classList.toggle("active",mode==="select");
   canvas.style.cursor = mode==="move"? "grab" : mode==="erase"? "cell" : "crosshair";
-  if(mode!=="build"){ selAtom=selBond=-1; hidePopover(); redraw(); }
+  if(mode!=="select") multiSel.clear();
+  if(mode!=="build"){ selAtom=selBond=-1; hidePopover(); }
+  redraw();
 }
 function selectSwatch(el,btn){
   document.querySelectorAll(".el-swatch").forEach(x=>x.classList.remove("active"));
@@ -965,6 +1094,7 @@ document.querySelectorAll("[data-bond]").forEach(b=>{
 document.querySelector('[data-bond="1"]').classList.add("active");
 $("moveBtn").onclick=()=>setMode(mode==="move"?"build":"move");
 $("eraseBtn").onclick=()=>setMode(mode==="erase"?"build":"erase");
+$("selectBtn").onclick=()=>setMode(mode==="select"?"build":"select");
 $("skelBtn").onclick=()=>{
   skeletal=!skeletal;
   $("skelBtn").classList.toggle("active",skeletal);
@@ -1019,10 +1149,24 @@ $("cpDelete").onclick=()=>{
   if(selAtom>=0) deleteAtom(selAtom);
   else if(selBond>=0){ bonds.splice(selBond,1); selBond=-1; hidePopover(); snap(); afterChange(); }
 };
+
+/* floating toolbar for the select tool's current selection */
+function positionSelPop(){
+  const pop=$("selPop");
+  if(!multiSel.size){ pop.classList.remove("show"); return; }
+  pop.classList.add("show");
+  let x0=1e9,y0=1e9,x1=-1e9;
+  multiSel.forEach(i=>{ const P=W2S(atoms[i]); x0=Math.min(x0,P.x); y0=Math.min(y0,P.y); x1=Math.max(x1,P.x); });
+  pop.style.left=((x0+x1)/2)+"px";
+  pop.style.top=y0+"px";
+}
+$("selSaveBtn").onclick=saveSelection;
+$("selDeleteBtn").onclick=deleteSelection;
+
 document.addEventListener("pointerdown",e=>{
-  if(selAtom<0&&selBond<0) return;
-  if($("ctxPop").contains(e.target)||canvas.contains(e.target)) return;
-  selAtom=selBond=-1; hidePopover(); redraw();
+  if(selAtom<0&&selBond<0&&!multiSel.size) return;
+  if($("ctxPop").contains(e.target)||$("selPop").contains(e.target)||canvas.contains(e.target)) return;
+  selAtom=selBond=-1; hidePopover(); multiSel.clear(); redraw();
 });
 
 /* ---- results drawer ---- */
@@ -1077,6 +1221,7 @@ function renderSaved(){
   }
   structures.forEach((s,i)=>{
     const row=document.createElement("div"); row.className="saved-item";
+    row.title="Drag onto the canvas to place it there";
     const nm=document.createElement("div"); nm.className="nm";
     nm.innerHTML=`${esc(s.name)}<small>${esc(s.formula||"")} · ${s.atoms.length} atoms</small>`;
     const ins=document.createElement("button"); ins.textContent="Insert";
@@ -1084,6 +1229,49 @@ function renderSaved(){
     const del=document.createElement("button"); del.className="del"; del.textContent="✕";
     del.onclick=()=>{ structures.splice(i,1); saveStructs(); renderSaved(); };
     row.append(nm,ins,del); list.appendChild(row);
+    wireStructDrag(row,i);
+  });
+}
+/* press-and-drag a saved-structure row onto the canvas to place it at the drop point */
+function wireStructDrag(row,i){
+  const ghost=$("dragGhost");
+  row.addEventListener("pointerdown",e=>{
+    if(e.button!==0 || e.target.tagName==="BUTTON") return;
+    try{ row.setPointerCapture(e.pointerId); }catch(err){}
+    const startX=e.clientX, startY=e.clientY;
+    let dragging=false;
+    const move=ev=>{
+      if(!dragging && Math.hypot(ev.clientX-startX,ev.clientY-startY)>10){
+        dragging=true;
+        const s=structures[i]; if(!s) return;
+        ghost.textContent=s.formula||s.name;
+        ghost.style.width="auto"; ghost.style.minWidth="38px"; ghost.style.padding="0 10px";
+        ghost.style.display="flex";
+        $("ptVeil").classList.remove("show");
+      }
+      if(dragging){
+        ghost.style.left=ev.clientX+"px"; ghost.style.top=ev.clientY+"px";
+        const rect=canvas.getBoundingClientRect();
+        wrap.classList.toggle("drop-ready", ev.clientX>=rect.left&&ev.clientX<=rect.right&&ev.clientY>=rect.top&&ev.clientY<=rect.bottom);
+      }
+    };
+    const up=ev=>{
+      row.removeEventListener("pointermove",move);
+      row.removeEventListener("pointerup",up);
+      row.removeEventListener("pointercancel",up);
+      ghost.style.display="none"; ghost.style.width=""; ghost.style.minWidth=""; ghost.style.padding="";
+      wrap.classList.remove("drop-ready");
+      if(!dragging) return;
+      const rect=canvas.getBoundingClientRect();
+      if(ev.clientX>=rect.left&&ev.clientX<=rect.right&&ev.clientY>=rect.top&&ev.clientY<=rect.bottom){
+        insertStructAt(i,ev.clientX,ev.clientY);
+      } else {
+        $("ptVeil").classList.add("show");
+      }
+    };
+    row.addEventListener("pointermove",move);
+    row.addEventListener("pointerup",up);
+    row.addEventListener("pointercancel",up);
   });
 }
 $("saveStructBtn").onclick=()=>{
@@ -1099,17 +1287,21 @@ $("saveStructBtn").onclick=()=>{
   saveStructs(); renderSaved(); toast("Structure saved","ok");
 };
 function insertStruct(i){
-  const s=structures[i]; if(!s) return;
   // paste at the current view centre
   const r=wrap.getBoundingClientRect();
-  const c=S2W({x:r.width/2,y:r.height/2});
+  insertStructAt(i, r.left+r.width/2, r.top+r.height/2);
+  $("ptVeil").classList.remove("show");
+}
+function insertStructAt(i,clientX,clientY){
+  const s=structures[i]; if(!s) return;
+  const rect=canvas.getBoundingClientRect();
+  const c=S2W({x:clientX-rect.left, y:clientY-rect.top});
   let cx=0,cy=0; s.atoms.forEach(a=>{cx+=a.x;cy+=a.y;});
   cx/=s.atoms.length; cy/=s.atoms.length;
   const off=atoms.length;
   s.atoms.forEach(a=>atoms.push({el:a.el,x:a.x-cx+c.x,y:a.y-cy+c.y,charge:a.charge||0,manualCharge:a.manualCharge}));
   s.bonds.forEach(b=>bonds.push({a:b.a+off,b:b.b+off,order:b.order}));
   snap(); afterChange();
-  $("ptVeil").classList.remove("show");
   toast('"'+s.name+'" inserted',"ok");
 }
 $("ptVeil").addEventListener("click",e=>{ if(e.target.id==="ptVeil") $("ptVeil").classList.remove("show"); });
