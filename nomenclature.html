@@ -277,7 +277,7 @@ footer.credit{display:none}
       <b>Click</b> empty space to place an atom<br/>
       <b>Drag</b> from an atom to bond it to another<br/>
       <b>Click</b> an atom to select it, <b>again</b> to retype it<br/>
-      <b>Click</b> a bond to change its order
+      <b>Click</b> a bond to select it, <b>again</b> to change its order
     </div>
     <div class="formula-badge" id="formulaBadge"></div>
     <div class="zoom-ui">
@@ -289,6 +289,9 @@ footer.credit{display:none}
       <button id="cpMinus" title="Decrease charge">−</button>
       <span class="charge-val" id="cpCharge">0</span>
       <button id="cpPlus" title="Increase charge">+</button>
+      <button id="cpOrder" title="Change bond order">
+        <svg class="ico" viewBox="0 0 24 24" style="width:16px;height:16px"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/></svg>
+      </button>
       <span class="cp-sep" id="cpSep"></span>
       <button class="cp-danger" id="cpDelete" title="Delete">
         <svg class="ico" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M3 6h18M8 6V4h8v2m-9 0l1 14h8l1-14"/></svg>
@@ -666,7 +669,8 @@ canvas.addEventListener("pointerup",e=>{
 
   if(kind==="empty"){
     if(!drag.moved){
-      hidePopover(); selAtom=selBond=-1;
+      // if something is selected, the first empty click only deselects — no surprise atom
+      if(selAtom>=0||selBond>=0){ selAtom=selBond=-1; hidePopover(); redraw(); return; }
       const w=S2W({x:sx,y:sy});
       if(mode==="build"){ atoms.push({el:drawEl,x:w.x,y:w.y,charge:0}); snap(); afterChange(); }
       else redraw();
@@ -676,9 +680,12 @@ canvas.addEventListener("pointerup",e=>{
     else { snap(); redraw(); }
   } else if(kind==="growBond"){
     const ai=hitAtom(sx,sy);
-    if(!drag.moved){
-      // retype only on a deliberate second tap of an already-selected atom —
-      // a stray tap while connecting must never replace the atom
+    // a bond is only created after a real drag — sloppy clicks never leave line stubs
+    const dist=Math.hypot(sx-drag.panSX,sy-drag.panSY);
+    const CREATE_MIN=Math.max(14,0.4*SNAP_LEN*view.k);
+    const ontoOther=ai>=0&&ai!==drag.from;
+    if(dist<CREATE_MIN && !ontoOther){
+      // treat as a tap: select; retype only on a deliberate second tap
       if(selAtom===drag.from && atoms[drag.from].el!==drawEl){
         atoms[drag.from].el=drawEl; atoms[drag.from].charge=0; atoms[drag.from].manualCharge=false;
         snap(); afterChange();
@@ -686,18 +693,21 @@ canvas.addEventListener("pointerup",e=>{
         toast("Tap again to change this "+atoms[drag.from].el+" into "+drawEl);
       }
       selectAtom(drag.from);
-    } else if(ai>=0 && ai!==drag.from){
+    } else if(ontoOther){
       tryBond(drag.from,ai,bondOrder);
-    } else if(ai<0){
+    } else {
       const chk=canAddBond(drag.from,bondOrder);
       if(!chk.ok){ toast(`${atoms[drag.from].el} can't take another bond (valence full)`,"err"); redraw(); return; }
       let w=S2W({x:sx,y:sy});
       if(snapActive()){
+        // resolve the target from the SNAPPED endpoint (matches the preview),
+        // even if the raw release drifted back over the origin atom
         w=snapFrom(atoms[drag.from],w);
         const sp=W2S(w);
         const near=hitAtom(sp.x,sp.y);
         if(near>=0&&near!==drag.from){ tryBond(drag.from,near,bondOrder); return; }
-      }
+        if(near===drag.from){ redraw(); return; }
+      } else if(ai===drag.from){ redraw(); return; }
       atoms.push({el:drawEl,x:w.x,y:w.y,charge:0});
       const ni=atoms.length-1;
       const chk2=canAddBond(ni,bondOrder);
@@ -705,9 +715,11 @@ canvas.addEventListener("pointerup",e=>{
       bonds.push({a:drag.from,b:ni,order:bondOrder});
       if(chk.charge!==null){atoms[drag.from].charge=chk.charge;}
       snap(); afterChange();
-    } else redraw();
+    }
   } else if(kind==="bondHit" && !drag.moved){
-    setBondOrder(drag.bond, bonds[drag.bond].order%3+1);
+    // first click selects the bond; changing its order is a popover action
+    // (or a deliberate second click) — plain clicks never add extra lines
+    if(selBond===drag.bond) setBondOrder(drag.bond, bonds[drag.bond].order%3+1);
     selectBond(drag.bond);
   }
 });
@@ -832,7 +844,8 @@ function positionPopover(){
   $("cpMinus").style.display = isAtom? "":"none";
   $("cpCharge").style.display = isAtom? "":"none";
   $("cpPlus").style.display = isAtom? "":"none";
-  $("cpSep").style.display = isAtom? "":"none";
+  $("cpOrder").style.display = isAtom? "none":"";
+  $("cpSep").style.display = "";
   if(isAtom) $("cpCharge").textContent = atoms[selAtom].charge||0;
   let P;
   if(isAtom) P=W2S(atoms[selAtom]);
@@ -841,6 +854,7 @@ function positionPopover(){
 }
 $("cpPlus").onclick=()=>{ if(selAtom<0)return; atoms[selAtom].charge=(atoms[selAtom].charge||0)+1; atoms[selAtom].manualCharge=true; snap(); redraw(); };
 $("cpMinus").onclick=()=>{ if(selAtom<0)return; atoms[selAtom].charge=(atoms[selAtom].charge||0)-1; atoms[selAtom].manualCharge=true; snap(); redraw(); };
+$("cpOrder").onclick=()=>{ if(selBond<0)return; setBondOrder(selBond, bonds[selBond].order%3+1); };
 $("cpDelete").onclick=()=>{
   if(selAtom>=0) deleteAtom(selAtom);
   else if(selBond>=0){ bonds.splice(selBond,1); selBond=-1; hidePopover(); snap(); afterChange(); }
