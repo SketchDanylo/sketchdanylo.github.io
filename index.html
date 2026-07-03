@@ -716,7 +716,8 @@
 
       const start = performance.now();
       const freezeStart = 2000;
-      const freezeGap = 62;
+      const freezeDuration = 2000;
+      const freezeGap = freezeDuration / Math.max(letters.length - 1, 1);
       let lastFontStep = -1;
       let currentFont = fonts[0];
       let currentWeight = weights[0];
