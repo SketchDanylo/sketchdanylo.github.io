@@ -1162,6 +1162,14 @@ $("clearBtn").onclick=()=>{ if(!atoms.length) return;
 $("zoomIn").onclick=()=>{view.k=Math.min(3,view.k*1.25); redraw();};
 $("zoomOut").onclick=()=>{view.k=Math.max(.3,view.k/1.25); redraw();};
 $("zoomFit").onclick=fitView;
+
+/* the rail/zoom controls are pointer-first tools, not a keyboard tab stop —
+   without this, clicking one leaves it holding focus, and a later stray
+   Tab/Space/Enter (e.g. while typing a structure name) silently re-fires it */
+document.querySelectorAll(".rbtn,.el-swatch,[data-bond],.zoom-ui button").forEach(b=>{
+  b.setAttribute("tabindex","-1");
+  b.addEventListener("mousedown",e=>e.preventDefault());
+});
 function fitView(){
   if(!atoms.length){view={x:0,y:0,k:1}; redraw(); return;}
   const r=wrap.getBoundingClientRect();
