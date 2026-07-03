@@ -285,8 +285,8 @@ footer.credit{display:none}
     <div class="canvas-hint" id="canvasHint">
       <b>Drag</b> an element from the rail to place an atom<br/>
       <b>Drag</b> from an atom on canvas to bond it to another<br/>
-      <b>Click</b> an atom to select it, <b>again</b> to retype it<br/>
-      <b>Click</b> a bond to select it, <b>again</b> to change its order
+      <b>Click</b> an atom or bond to select it, <b>again</b> to retype/cycle order<br/>
+      <b>Right-click</b> an atom or bond for charge &amp; delete (tap on touch)
     </div>
     <div class="formula-badge" id="formulaBadge"></div>
     <div class="zoom-ui">
@@ -415,9 +415,10 @@ function applySettings(){
     seg.querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.v===SETTINGS[k]));
   });
   const hint=$("canvasHint");
+  const editLine="<b>Right-click</b> an atom or bond for charge &amp; delete (tap on touch)";
   if(hint) hint.innerHTML = SETTINGS.place==="click"
-    ? "<b>Click</b> empty space to place an atom<br/><b>Drag</b> from an atom on canvas to bond it to another<br/><b>Click</b> an atom to select it, <b>again</b> to retype it<br/><b>Click</b> a bond to select it, <b>again</b> to change its order"
-    : "<b>Drag</b> an element from the rail to place an atom<br/><b>Drag</b> from an atom on canvas to bond it to another<br/><b>Click</b> an atom to select it, <b>again</b> to retype it<br/><b>Click</b> a bond to select it, <b>again</b> to change its order";
+    ? `<b>Click</b> empty space to place an atom<br/><b>Drag</b> from an atom on canvas to bond it to another<br/><b>Click</b> an atom or bond to select it, <b>again</b> to retype/cycle order<br/>${editLine}`
+    : `<b>Drag</b> an element from the rail to place an atom<br/><b>Drag</b> from an atom on canvas to bond it to another<br/><b>Click</b> an atom or bond to select it, <b>again</b> to retype/cycle order<br/>${editLine}`;
 }
 const snapActive=()=>SETTINGS.snap==="always"||(SETTINGS.snap==="skeletal"&&skeletal);
 const SNAP_LEN=52, SNAP_STEP=Math.PI/6; // 30° increments, fixed bond length
@@ -631,7 +632,21 @@ const THRESH=6;
 canvas.addEventListener("contextmenu",e=>e.preventDefault());
 canvas.addEventListener("mousedown",e=>{ if(e.button===0) e.preventDefault(); }); // no text-selection / native drag UI
 canvas.addEventListener("pointerdown",e=>{
-  // only the primary button/contact draws; right-click / middle-click must never place or bond
+  // right-click only opens the charge/delete popover for whatever's under the cursor —
+  // it never draws, bonds, or places anything
+  if(e.button===2){
+    e.preventDefault();
+    drag.kind=null;
+    const rect=canvas.getBoundingClientRect();
+    const sx=e.clientX-rect.left, sy=e.clientY-rect.top;
+    const ai=hitAtom(sx,sy);
+    if(ai>=0){ selectAtom(ai,true); return; }
+    const bi=hitBond(sx,sy);
+    if(bi>=0){ selectBond(bi,true); return; }
+    selAtom=selBond=-1; hidePopover(); redraw();
+    return;
+  }
+  // only the primary button/contact draws; middle-click must never place or bond
   // (touch and pen always report button 0 for their primary contact, so this never blocks them)
   if(e.button!==0) return;
   e.preventDefault();
@@ -700,7 +715,7 @@ canvas.addEventListener("pointerup",e=>{
       } else redraw();
     } else redraw();
   } else if(kind==="moveAtom"){
-    if(!drag.moved){ selectAtom(drag.from); }
+    if(!drag.moved){ selectAtom(drag.from, e.pointerType!=="mouse"); }
     else { snap(); redraw(); }
   } else if(kind==="growBond"){
     const ai=hitAtom(sx,sy);
@@ -716,7 +731,7 @@ canvas.addEventListener("pointerup",e=>{
       } else if(selAtom!==drag.from && atoms[drag.from].el!==drawEl){
         toast("Tap again to change this "+atoms[drag.from].el+" into "+drawEl);
       }
-      selectAtom(drag.from);
+      selectAtom(drag.from, e.pointerType!=="mouse");
     } else if(ontoOther){
       tryBond(drag.from,ai,bondOrder);
     } else {
@@ -744,7 +759,7 @@ canvas.addEventListener("pointerup",e=>{
     // first click selects the bond; changing its order is a popover action
     // (or a deliberate second click) — plain clicks never add extra lines
     if(selBond===drag.bond) setBondOrder(drag.bond, bonds[drag.bond].order%3+1);
-    selectBond(drag.bond);
+    selectBond(drag.bond, e.pointerType!=="mouse");
   }
 });
 canvas.addEventListener("pointercancel",e=>{ pointers.delete(e.pointerId); drag.kind=null; });
@@ -901,13 +916,17 @@ function fitView(){
   redraw();
 }
 
-/* ---- floating context popover for the selected atom/bond ---- */
-function selectAtom(i){ selAtom=i; selBond=-1; redraw(); }
-function selectBond(bi){ selBond=bi; selAtom=-1; redraw(); }
-function hidePopover(){ $("ctxPop").classList.remove("show"); }
+/* ---- floating context popover for the selected atom/bond ----
+   left-click / a plain tap only selects (for the retype-arm / order-cycle-arm);
+   the charge+delete popover itself only opens via right-click on desktop,
+   or via tap on touch devices, which have no right-click gesture */
+let popVisible=false;
+function selectAtom(i,showPop){ selAtom=i; selBond=-1; popVisible=!!showPop; redraw(); }
+function selectBond(bi,showPop){ selBond=bi; selAtom=-1; popVisible=!!showPop; redraw(); }
+function hidePopover(){ popVisible=false; $("ctxPop").classList.remove("show"); }
 function positionPopover(){
   const pop=$("ctxPop");
-  if(selAtom<0 && selBond<0){ pop.classList.remove("show"); return; }
+  if((selAtom<0 && selBond<0)||!popVisible){ pop.classList.remove("show"); return; }
   pop.classList.add("show");
   const isAtom=selAtom>=0;
   $("cpMinus").style.display = isAtom? "":"none";
