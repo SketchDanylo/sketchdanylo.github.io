@@ -7,16 +7,16 @@
   <style>
     :root {
       color-scheme: dark;
-      --bg: #191919;
-      --panel: #222;
-      --panel-soft: #2d2d2d;
-      --panel-hover: #363636;
-      --text: #f2f2f2;
-      --muted: #8f8f8f;
-      --line: #333;
-      --focus: #b9d6ff;
-      --secret: #d8c17a;
-      --radius: 14px;
+      --bg: #070707;
+      --text: #f4f4f4;
+      --muted: #9a9a9a;
+      --glass: rgba(18, 18, 18, 0.58);
+      --glass-strong: rgba(24, 24, 24, 0.72);
+      --line: rgba(255, 255, 255, 0.16);
+      --line-soft: rgba(255, 255, 255, 0.08);
+      --focus: rgba(255, 255, 255, 0.34);
+      --secret: #cfc3a0;
+      --radius: 30px;
     }
 
     * {
@@ -26,34 +26,67 @@
     body {
       min-height: 100vh;
       margin: 0;
-      display: grid;
-      place-items: center;
-      padding: 28px;
       color: var(--text);
-      background:
-        radial-gradient(circle at top, rgba(255,255,255,0.05), transparent 34rem),
-        var(--bg);
+      background: var(--bg);
       font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
-    .app {
-      width: min(620px, 100%);
+    body::before {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      content: "";
+      background:
+        linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+      background-size: 64px 64px;
+      opacity: 0.35;
     }
 
-    .panel {
-      padding: clamp(20px, 4vw, 30px);
-      border: 1px solid var(--line);
-      border-radius: calc(var(--radius) + 6px);
-      background: rgba(34, 34, 34, 0.96);
-      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.34);
+    .page {
+      position: relative;
+      width: min(1220px, calc(100% - 28px));
+      margin: 0 auto;
+      padding-top: clamp(72px, 13vh, 128px);
     }
 
     h1 {
-      margin: 0 0 22px;
-      font-size: clamp(2.1rem, 7vw, 3.5rem);
+      margin: 0 0 14px 18px;
+      font-size: clamp(1.55rem, 3.2vw, 2.65rem);
       line-height: 1;
-      letter-spacing: 0.08em;
-      text-align: center;
+      letter-spacing: 0.02em;
+      font-weight: 760;
+    }
+
+    .search-shell {
+      position: relative;
+    }
+
+    .search-shell::before {
+      position: absolute;
+      z-index: 2;
+      top: 1px;
+      left: 22px;
+      width: 180px;
+      height: 1px;
+      pointer-events: none;
+      content: "";
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.76), transparent);
+      opacity: 0.95;
+    }
+
+    .search-shell::after {
+      position: absolute;
+      z-index: 2;
+      top: 13px;
+      left: 23px;
+      width: 20px;
+      height: 20px;
+      pointer-events: none;
+      content: "";
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(255, 255, 255, 0.34), transparent 68%);
+      filter: blur(0.2px);
     }
 
     label {
@@ -73,33 +106,53 @@
 
     #search {
       width: 100%;
-      min-height: 54px;
-      margin-bottom: 16px;
-      padding: 0 16px;
-      border: 1px solid transparent;
+      min-height: 62px;
+      padding: 0 26px;
+      border: 1px solid var(--line);
       border-radius: var(--radius);
       outline: none;
       color: var(--text);
-      background: #3a3a3a;
+      background: var(--glass);
+      box-shadow:
+        inset 0 1px rgba(255, 255, 255, 0.08),
+        0 18px 48px rgba(0, 0, 0, 0.24);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
       font: inherit;
-      font-size: 1.08rem;
+      font-size: 1rem;
+      transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
     }
 
     #search::placeholder {
-      color: #858585;
+      color: rgba(255, 255, 255, 0.38);
     }
 
     #search:focus {
       border-color: var(--focus);
-      box-shadow: 0 0 0 3px rgba(185, 214, 255, 0.13);
+      background: rgba(22, 22, 22, 0.68);
+      box-shadow:
+        inset 0 1px rgba(255, 255, 255, 0.11),
+        0 18px 48px rgba(0, 0, 0, 0.28),
+        0 0 0 1px rgba(255, 255, 255, 0.04);
     }
 
-    .tools {
-      display: grid;
-      gap: 10px;
-      margin: 0;
-      padding: 0;
+    .results {
+      display: none;
+      width: min(680px, calc(100% - 28px));
+      margin: 12px 0 0 14px;
+      padding: 8px;
+      border: 1px solid var(--line-soft);
+      border-radius: 18px;
+      background: var(--glass-strong);
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
       list-style: none;
+    }
+
+    .results[data-open="true"] {
+      display: grid;
+      gap: 4px;
     }
 
     .tool {
@@ -108,44 +161,19 @@
 
     .tool a,
     .secret {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      min-height: 54px;
-      padding: 0 16px;
-      border-radius: 10px;
+      display: block;
+      padding: 12px 14px;
+      border-radius: 12px;
       color: var(--text);
-      background: var(--panel-soft);
       text-decoration: none;
-      font-size: 1.08rem;
-      font-weight: 650;
-      transition: background 140ms ease, transform 140ms ease;
+      font-size: 0.98rem;
+      font-weight: 600;
     }
 
     .tool a:hover,
     .tool a:focus-visible {
-      background: var(--panel-hover);
-      transform: translateY(-1px);
-    }
-
-    .tool a:focus-visible {
-      outline: 2px solid var(--focus);
-      outline-offset: 3px;
-    }
-
-    .tool a::after {
-      content: "→";
-      color: var(--muted);
-      font-weight: 500;
-      opacity: 0;
-      transform: translateX(-5px);
-      transition: opacity 140ms ease, transform 140ms ease;
-    }
-
-    .tool a:hover::after,
-    .tool a:focus-visible::after {
-      opacity: 1;
-      transform: translateX(0);
+      background: rgba(255, 255, 255, 0.07);
+      outline: none;
     }
 
     .secret {
@@ -155,32 +183,31 @@
 
     .empty {
       display: none;
-      margin-top: 14px;
+      margin: 0;
+      padding: 12px 14px;
       color: var(--muted);
-      text-align: center;
-      font-size: 0.98rem;
+      font-size: 0.95rem;
     }
 
-    .small-note {
-      margin-top: 14px;
-      color: var(--muted);
-      text-align: center;
-      font-size: 0.82rem;
-    }
-
-    @media (max-width: 520px) {
-      body {
-        padding: 16px;
-        place-items: start center;
+    @media (max-width: 700px) {
+      .page {
+        width: min(100% - 20px, 1220px);
+        padding-top: 34px;
       }
 
       h1 {
-        text-align: left;
-        letter-spacing: 0.04em;
+        margin-left: 10px;
+        font-size: 1.55rem;
       }
 
-      .panel {
-        padding: 18px;
+      #search {
+        min-height: 58px;
+        padding: 0 18px;
+      }
+
+      .results {
+        width: 100%;
+        margin-left: 0;
       }
     }
 
@@ -194,19 +221,18 @@
   </style>
 </head>
 <body>
-  <main class="app">
-    <section class="panel" aria-label="Tool search">
-      <h1>Danylo's Helping Tools</h1>
+  <main class="page">
+    <h1>Danylo's Helping Tools</h1>
 
+    <div class="search-shell">
       <label>
         <span class="sr-only">Search tools</span>
         <input id="search" type="search" autocomplete="off" placeholder="Ask AI to open something">
       </label>
+    </div>
 
-      <ul class="tools" id="tools"></ul>
-      <p class="empty" id="empty">Couldn’t find that tool.</p>
-      <p class="small-note">Press Enter to open the first result.</p>
-    </section>
+    <ul class="results" id="tools" data-open="false"></ul>
+    <p class="empty" id="empty">Couldn’t find that tool.</p>
   </main>
 
   <script>
@@ -291,6 +317,12 @@
       });
     }
 
+    function setOpenState(hasResults) {
+      const shouldOpen = document.activeElement === search || normalize(search.value) !== "";
+      list.dataset.open = shouldOpen && hasResults ? "true" : "false";
+      empty.style.display = shouldOpen && !hasResults ? "block" : "none";
+    }
+
     function filter() {
       const query = normalize(search.value);
       let shown = 0;
@@ -309,10 +341,14 @@
         if (show) shown++;
       });
 
-      empty.style.display = shown === 0 ? "block" : "none";
+      setOpenState(shown > 0);
     }
 
+    search.addEventListener("focus", filter);
     search.addEventListener("input", filter);
+    search.addEventListener("blur", () => {
+      window.setTimeout(filter, 100);
+    });
     search.addEventListener("keydown", event => {
       if (event.key !== "Enter") return;
       const query = normalize(search.value);
