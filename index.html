@@ -198,6 +198,11 @@
       transform: translateY(-50%) translateX(0);
     }
 
+    .search-label[data-empty="true"]:focus-within .search-display::before {
+      opacity: 0;
+      transform: translateY(-50%) translateX(4px);
+    }
+
     .search-text {
       position: absolute;
       top: 50%;
