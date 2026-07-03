@@ -219,6 +219,22 @@ header.topbar{
 .saved-item button.del{color:var(--bad);min-width:30px;padding:0}
 .saved-empty{color:var(--text-dim);font:500 .8rem 'Inter';text-align:center;padding:22px 0}
 
+/* ---------- name-structure modal (replaces window.prompt) ---------- */
+.name-input{
+  width:100%;height:42px;padding:0 13px;border-radius:9px;border:1px solid var(--border);
+  background:var(--surface-2);color:var(--text);font:600 .88rem 'Inter';margin-bottom:16px;
+  outline:none;transition:border-color .12s,box-shadow .12s;
+}
+.name-input:focus{border-color:var(--accent-brd);box-shadow:0 0 0 3px var(--accent-dim)}
+.name-input::placeholder{color:var(--text-faint)}
+.name-modal-actions{display:flex;justify-content:flex-end;gap:8px}
+.ghost-btn{
+  height:36px;padding:0 15px;border-radius:8px;border:1px solid var(--border);background:transparent;
+  color:var(--text-dim);font:600 .8rem 'Inter';cursor:pointer;transition:.12s;
+}
+.ghost-btn:hover{background:var(--surface-3);color:var(--text)}
+.save-cta.inline{width:auto;margin:0;padding:0 18px;height:36px}
+
 footer.credit{display:none}
 @media (max-width:820px){
   .drawer{top:0;right:0;left:0;bottom:0;width:auto;max-width:none;transform:translateY(100%)}
@@ -394,6 +410,21 @@ footer.credit{display:none}
     </div>
   </div>
 </div>
+<div class="modal-veil" id="nameVeil" style="z-index:300">
+  <div class="pt-modal" style="max-width:360px">
+    <div class="pt-modal-head">
+      <h3 id="nameModalTitle">Save structure</h3>
+      <button class="drawer-close" id="nameClose">
+        <svg class="ico" viewBox="0 0 24 24" style="width:16px;height:16px"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg>
+      </button>
+    </div>
+    <input type="text" id="nameInput" class="name-input" maxlength="60" placeholder="Structure name" autocomplete="off"/>
+    <div class="name-modal-actions">
+      <button class="ghost-btn" id="nameCancel">Cancel</button>
+      <button class="save-cta inline" id="nameSave">Save</button>
+    </div>
+  </div>
+</div>
 <div class="toast-zone" id="toastZone"></div>
 
 <script>
@@ -470,6 +501,30 @@ function redo(){ if(redoS.length){ const s=redoS.pop(); hist.push(s); restore(s)
 
 function toast(msg,cls){ const t=document.createElement("div"); t.className="toast "+(cls||""); t.textContent=msg;
   $("toastZone").appendChild(t); setTimeout(()=>{t.style.opacity="0"; t.style.transition="opacity .3s"; setTimeout(()=>t.remove(),320);},2400); }
+
+/* styled name-entry modal, used instead of window.prompt() when saving a structure */
+function askName(title,defaultName,cb){
+  const veil=$("nameVeil"), inp=$("nameInput");
+  $("nameModalTitle").textContent=title;
+  inp.value=defaultName;
+  veil.classList.add("show");
+  requestAnimationFrame(()=>{ inp.focus(); inp.select(); });
+  function cleanup(){
+    veil.classList.remove("show");
+    $("nameSave").onclick=null; $("nameCancel").onclick=null; $("nameClose").onclick=null;
+    inp.onkeydown=null; veil.onclick=null;
+  }
+  function submit(){ const v=inp.value.trim(); if(!v) return; cleanup(); cb(v); }
+  function cancel(){ cleanup(); }
+  $("nameSave").onclick=submit;
+  $("nameCancel").onclick=cancel;
+  $("nameClose").onclick=cancel;
+  inp.onkeydown=e=>{
+    if(e.key==="Enter"){ e.preventDefault(); submit(); }
+    else if(e.key==="Escape"){ e.preventDefault(); cancel(); }
+  };
+  veil.onclick=e=>{ if(e.target===veil) cancel(); };
+}
 
 /* ================= VALENCE / CHARGES ================= */
 function bondSum(i){ let s=0; for(const b of bonds) if(b.a===i||b.b===i) s+=b.order; return s; }
@@ -1008,15 +1063,15 @@ function saveSelection(){
   const remap=new Map(idxs.map((orig,newI)=>[orig,newI]));
   const subAtoms=idxs.map(i=>JSON.parse(JSON.stringify(atoms[i])));
   const subBonds=bonds.filter(b=>remap.has(b.a)&&remap.has(b.b)).map(b=>({a:remap.get(b.a),b:remap.get(b.b),order:b.order}));
-  const name=prompt("Name this structure:","Selection "+(structures.length+1));
-  if(!name) return;
-  const bakA=atoms, bakB=bonds;
-  atoms=subAtoms; bonds=subBonds;
-  const formula=molFormula().str;
-  atoms=bakA; bonds=bakB;
-  structures.push({name, formula, atoms:subAtoms, bonds:subBonds});
-  saveStructs();
-  toast('"'+name+'" saved',"ok");
+  askName("Save selection","Selection "+(structures.length+1),name=>{
+    const bakA=atoms, bakB=bonds;
+    atoms=subAtoms; bonds=subBonds;
+    const formula=molFormula().str;
+    atoms=bakA; bonds=bakB;
+    structures.push({name, formula, atoms:subAtoms, bonds:subBonds});
+    saveStructs();
+    toast('"'+name+'" saved',"ok");
+  });
 }
 
 /* ================= UI WIRING ================= */
@@ -1276,15 +1331,15 @@ function wireStructDrag(row,i){
 }
 $("saveStructBtn").onclick=()=>{
   if(!atoms.length){ toast("Draw something first"); return; }
-  const name=prompt("Name this structure:","Structure "+(structures.length+1));
-  if(!name) return;
-  structures.push({
-    name,
-    formula:molFormula().str,
-    atoms:JSON.parse(JSON.stringify(atoms)),
-    bonds:JSON.parse(JSON.stringify(bonds))
+  askName("Save structure","Structure "+(structures.length+1),name=>{
+    structures.push({
+      name,
+      formula:molFormula().str,
+      atoms:JSON.parse(JSON.stringify(atoms)),
+      bonds:JSON.parse(JSON.stringify(bonds))
+    });
+    saveStructs(); renderSaved(); toast("Structure saved","ok");
   });
-  saveStructs(); renderSaved(); toast("Structure saved","ok");
 };
 function insertStruct(i){
   // paste at the current view centre
