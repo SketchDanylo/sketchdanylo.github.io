@@ -626,12 +626,6 @@
     .range-links button { flex: 1; }
   }
 
-  * {
-    animation: none !important;
-    transition: none !important;
-    scroll-behavior: auto !important;
-  }
-
   .space-bg,
   body::after,
   .topbar::before {
@@ -1129,6 +1123,70 @@
       margin-right: auto;
     }
   }
+
+  /* ---------- motion layer ---------- */
+  .topbar { justify-content: flex-end; }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: none; }
+  }
+  @keyframes word-in {
+    from { opacity: 0; transform: translateY(0.35em); }
+    to   { opacity: 1; transform: none; }
+  }
+  @keyframes row-in {
+    from { opacity: 0; transform: translateX(-8px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .boot { animation: rise 640ms cubic-bezier(0.22, 1, 0.36, 1) both; animation-delay: var(--bd, 0ms); }
+
+  h1 .wd {
+    display: inline-block;
+    animation: word-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: var(--wd, 0ms);
+  }
+
+  .st tbody tr {
+    animation: row-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: var(--rd, 0ms);
+  }
+
+  .reveal {
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity 700ms cubic-bezier(0.22, 1, 0.36, 1), transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .reveal.in { opacity: 1; transform: none; }
+
+  a, button.link, .langs button, .range-links button, .loc-input, select.bare, summary, .toggle {
+    transition: color 160ms ease, border-color 160ms ease, background 160ms ease,
+                text-decoration-color 160ms ease, opacity 160ms ease;
+  }
+
+  .fuel-tabs button { position: relative; transition: color 180ms ease; }
+  .fuel-tabs button::after {
+    content: "";
+    position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
+    background: var(--text);
+    transform: scaleX(0); transform-origin: left;
+    transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .fuel-tabs button.on { border-bottom-color: transparent; }
+  .fuel-tabs button.on::after { transform: scaleX(1); }
+
+  .key-notice {
+    max-width: 62ch;
+    margin: 10px 0 0;
+    color: #e2c07c;
+    font-size: 0.88rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .boot, h1 .wd, .st tbody tr { animation: none !important; }
+    .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+  }
 </style>
 </head>
 <body>
@@ -1136,7 +1194,6 @@
 
 <main class="page">
   <div class="topbar">
-    <a class="home" href="/" data-i18n="backHome">← Danylo's Tools</a>
     <nav class="langs" id="langSwitch" aria-label="Language">
       <button data-lang="en">EN</button>
       <button data-lang="de">DE</button>
@@ -1144,12 +1201,13 @@
     </nav>
   </div>
 
-  <p class="kicker">Danylo's Benz Checker</p>
-  <h1 id="verdict" data-i18n="heroAsk">Should you fill up now, or wait?</h1>
-  <p class="lede" id="lede" data-i18n="heroLede">Find the cheaper stop nearby and whether waiting is worth it.</p>
+  <p class="kicker boot" style="--bd:0ms">Danylo's Benz Checker</p>
+  <h1 id="verdict" class="boot" style="--bd:70ms" data-i18n="heroAsk">Should you fill up now, or wait?</h1>
+  <p class="lede boot" style="--bd:140ms" id="lede" data-i18n="heroLede">Find the cheaper stop nearby and whether waiting is worth it.</p>
   <p class="meta" id="metaLine" hidden></p>
+  <p class="key-notice" id="keyNotice" hidden></p>
 
-  <div class="loc-block open" id="locBlock">
+  <div class="loc-block open boot" style="--bd:210ms" id="locBlock">
     <div class="loc-line">
       <input class="loc-input" id="locInput" type="search" autocomplete="off" enterkeyhint="search"
              data-i18n-ph="searchPh" placeholder="City or address…">
@@ -1169,7 +1227,7 @@
     <div class="status" id="statusLine"></div>
   </div>
 
-  <nav class="fuel-tabs" id="fuelTabs" aria-label="Fuel">
+  <nav class="fuel-tabs boot" style="--bd:280ms" id="fuelTabs" aria-label="Fuel">
     <button data-f="e10">Super E10</button>
     <button data-f="e5">Super E5</button>
     <button data-f="diesel">Diesel</button>
@@ -1191,13 +1249,13 @@
   </section>
   <p class="empty-note" id="stEmpty" hidden></p>
 
-  <section id="todaySec" hidden>
+  <section id="todaySec" class="reveal" hidden>
     <h2 data-i18n="secToday">Today's price rhythm</h2>
     <div class="chart-box"><canvas id="todayChart"></canvas></div>
     <p class="caption" data-i18n-html="todayCaption">Pump prices in Germany swing through the day — dearest around dawn, cheapest between 18:00 and 21:00. <span class="w">●</span> marks now, <span class="g">●</span> marks today's best time.</p>
   </section>
 
-  <section>
+  <section class="reveal">
     <h2 data-i18n="secLong">The long view</h2>
     <div class="chart-opts">
       <div class="range-links" id="rangeLinks">
@@ -1214,7 +1272,7 @@
     <p class="caption" id="histCaption" data-i18n="histCaption">Approximate German national averages. Once live prices are recorded on this device, your area appears as its own line.</p>
   </section>
 
-  <details class="settings" id="settingsBox">
+  <details class="settings reveal" id="settingsBox">
     <summary data-i18n="settingsTitle">Settings</summary>
     <div class="settings-body">
       <label class="field">
@@ -1262,6 +1320,7 @@ const I18N = {
     backHome: "← Danylo's Tools",
     heroAsk: "Should you fill up now, or wait?",
     heroLede: "Find the cheaper stop nearby and whether waiting is worth it.",
+    keyNotice: "Live prices are off: the Tankerkönig API key is inactive. Open the confirmation e-mail from Tankerkönig to activate it — until then, prices are model estimates.",
     heroNoData: "No stations found here.",
     heroNoDataLede: "Try a larger radius or a different place.",
     tankNow: "Fill up now.",
@@ -1308,6 +1367,7 @@ const I18N = {
     backHome: "← Danylos Tools",
     heroAsk: "Jetzt tanken oder warten?",
     heroLede: "Finde die günstigere Tankstelle in der Nähe und ob Warten Sinn ergibt.",
+    keyNotice: "Echtzeitpreise sind aus: Der Tankerkönig-API-Key ist inaktiv. Bestätigungs-E-Mail von Tankerkönig öffnen und aktivieren — bis dahin sind die Preise Modellschätzungen.",
     heroNoData: "Hier keine Tankstellen gefunden.",
     heroNoDataLede: "Größeren Radius oder anderen Ort versuchen.",
     tankNow: "Jetzt tanken.",
@@ -1354,6 +1414,7 @@ const I18N = {
     backHome: "← Інструменти Данила",
     heroAsk: "Заправлятися зараз чи почекати?",
     heroLede: "Знайди дешевшу заправку поруч і чи варто чекати.",
+    keyNotice: "Живі ціни вимкнені: API-ключ Tankerkönig неактивний. Відкрий лист-підтвердження від Tankerkönig і активуй його — до того часу ціни є модельними оцінками.",
     heroNoData: "Заправок тут не знайдено.",
     heroNoDataLede: "Спробуй більший радіус або інше місце.",
     tankNow: "Заправляйся зараз.",
@@ -1608,7 +1669,11 @@ async function loadStations(forceFresh){
         const bd = brandDelta(name);
         const seed = hashStr(e.type + e.id);
         const prices = {};
-        for (const f in FUELS) prices[f] = +(BASE_NOW[f] + bd + intradayAt(now) / 100 + ((seed % 13) - 6) / 1000).toFixed(3);
+        /* German price signs end in 9: round to the cent, then …9 */
+        for (const f in FUELS){
+          const p = BASE_NOW[f] + bd + intradayAt(now) / 100 + ((seed % 13) - 6) / 1000;
+          prices[f] = +(Math.round(p * 100) / 100 - 0.001).toFixed(3);
+        }
         return {
           id: "osm-" + e.type + e.id, name,
           detail: [e.tags?.["addr:street"], e.tags?.["addr:city"]].filter(Boolean).join(", "),
@@ -1708,7 +1773,19 @@ function renderAll(){
   renderTodayChart();
   renderHistChart();
   renderKeyState();
+  const notice = $("#keyNotice");
+  notice.hidden = !(keyChecked === false && settings.apiKey);
+  if (!notice.hidden) notice.textContent = t("keyNotice");
   $("#footNote").textContent = liveMode ? t("footLive") : t("footEst");
+  requestAnimationFrame(() => map && map.invalidateSize());
+}
+
+/* verdict headline: word-by-word rise */
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+function setHeadline(el, text){
+  if (reduceMotion){ el.textContent = text; return; }
+  el.innerHTML = text.split(" ").map((w, i) =>
+    `<span class="wd" style="--wd:${i * 50}ms">${esc(w)}</span>`).join(" ");
 }
 
 function renderVerdict(){
@@ -1716,10 +1793,10 @@ function renderVerdict(){
   const v = computeVerdict();
   if (!v){
     if (loc && lastUpdate && !stations.length){
-      h.textContent = t("heroNoData");
+      setHeadline(h, t("heroNoData"));
       lede.textContent = t("heroNoDataLede");
     } else {
-      h.textContent = t("heroAsk");
+      setHeadline(h, t("heroAsk"));
       lede.textContent = t("heroLede");
     }
     meta.hidden = true;
@@ -1728,10 +1805,10 @@ function renderVerdict(){
   const deal = t("bestDeal")(esc(v.best.name), fmtEUR(v.best.prices[v.fuel]), v.best.dist.toFixed(1));
   if (v.wait){
     const dayWord = v.wait.d === 0 ? t("today") : v.wait.d === 1 ? t("tomorrow") : fmtDay(new Date(Date.now() + v.wait.d * 86400e3));
-    h.textContent = t("waitUntil")(dayWord, fmtHour(v.wait.h));
+    setHeadline(h, t("waitUntil")(dayWord, fmtHour(v.wait.h)));
     lede.innerHTML = t("waitWhy")(v.save) + " " + deal;
   } else {
-    h.textContent = t("tankNow");
+    setHeadline(h, t("tankNow"));
     lede.innerHTML = t("tankNowWhy") + " " + deal;
   }
   const mode = liveMode ? t("modeLive") : (keyChecked === false ? t("modeEstKey") : t("modeEst"));
@@ -1762,7 +1839,7 @@ function renderStations(){
   body.innerHTML = rows.map((s, i) => {
     const closed = s.isOpen === false ? `<span class="tag-closed">${t("closed")}</span>` : "";
     const cheap = i === 0 ? `<span class="cheap-note">— ${t("cheapNote")}</span>` : "";
-    return `<tr data-id="${esc(s.id)}" class="${i === 0 ? "cheapest" : ""}">
+    return `<tr data-id="${esc(s.id)}" class="${i === 0 ? "cheapest" : ""}" style="--rd:${Math.min(i, 14) * 32}ms">
       <td><span class="name">${esc(s.name)}</span>${closed}${cheap}<br><span class="addr">${esc(s.detail || "")}</span></td>
       <td class="num dist">${s.dist.toFixed(1)}</td>
       <td class="num price">${fmtSign(s.prices[fuel])}</td>
@@ -1834,7 +1911,8 @@ function renderTodayChart(){
       ],
     },
     options: {
-      responsive: true, maintainAspectRatio: false, animation: false,
+      responsive: true, maintainAspectRatio: false,
+      animation: reduceMotion ? false : { duration: 750, easing: "easeOutQuart" },
       plugins: {
         legend: { display: false },
         tooltip: { callbacks: {
@@ -1897,7 +1975,8 @@ function renderHistChart(){
     type: "line",
     data: { labels, datasets },
     options: {
-      responsive: true, maintainAspectRatio: false, animation: false,
+      responsive: true, maintainAspectRatio: false,
+      animation: reduceMotion ? false : { duration: 750, easing: "easeOutQuart" },
       interaction: { mode: "index", intersect: false },
       plugins: {
         legend: { display: datasets.length > 1, labels: { color: tickColor, boxWidth: 8, usePointStyle: true, font: fontOpts } },
@@ -1925,7 +2004,8 @@ function renderKeyState(){
 /* ---------------- starfield (site identity) ---------------- */
 function setupSpaceBackground(){
   const canvas = $("#space-bg");
-  const context = canvas?.getContext("2d", { alpha: true });
+  if (!canvas || getComputedStyle(canvas).display === "none") return;
+  const context = canvas.getContext("2d", { alpha: true });
   if (!context) return;
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const pointer = { x: 0, y: 0, targetX: 0, targetY: 0 };
@@ -2009,6 +2089,12 @@ function init(){
 
   applyI18n();
   syncControls();
+
+  /* scroll-reveal for sections */
+  const io = new IntersectionObserver(entries => entries.forEach(e => {
+    if (e.isIntersecting){ e.target.classList.add("in"); io.unobserve(e.target); }
+  }), { threshold: 0.08 });
+  $$(".reveal").forEach(el => io.observe(el));
 
   $$("#langSwitch button").forEach(b => b.addEventListener("click", () => {
     lang = b.dataset.lang;
