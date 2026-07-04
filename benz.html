@@ -1050,6 +1050,85 @@
       grid-template-columns: 1fr;
     }
   }
+
+  body:not(.has-stations) .page {
+    display: grid;
+    grid-template-columns: minmax(520px, 760px) minmax(420px, 780px);
+    column-gap: clamp(44px, 6vw, 96px);
+    align-items: start;
+    width: min(1640px, calc(100% - 96px));
+    margin-left: clamp(18px, 6vw, 124px);
+    margin-right: auto;
+  }
+
+  body:not(.has-stations) .topbar {
+    grid-column: 1 / -1;
+  }
+
+  body:not(.has-stations) .kicker,
+  body:not(.has-stations) h1,
+  body:not(.has-stations) .lede,
+  body:not(.has-stations) .meta,
+  body:not(.has-stations) .loc-block,
+  body:not(.has-stations) .fuel-tabs,
+  body:not(.has-stations) #stationsSec,
+  body:not(.has-stations) #stEmpty {
+    grid-column: 1;
+  }
+
+  body:not(.has-stations) section:not(#stationsSec):not(#todaySec),
+  body:not(.has-stations) details.settings,
+  body:not(.has-stations) .foot {
+    grid-column: 2;
+  }
+
+  body:not(.has-stations) section:not(#stationsSec):not(#todaySec) {
+    margin-top: 42px;
+  }
+
+  body:not(.has-stations) details.settings {
+    margin-top: 30px;
+  }
+
+  body:not(.has-stations) .loc-block {
+    display: block;
+  }
+
+  body:not(.has-stations) .topbar,
+  body:not(.has-stations) .loc-block,
+  body:not(.has-stations) .fuel-tabs,
+  body:not(.has-stations) section,
+  body:not(.has-stations) details.settings,
+  body:not(.has-stations) .foot {
+    max-width: none;
+  }
+
+  @media (min-width: 980px) {
+    body:not(.has-stations) #todaySec,
+    body:not(.has-stations) section:not(#stationsSec):not(#todaySec) {
+      display: block;
+      width: min(780px, 100%);
+      margin-right: 0;
+    }
+  }
+
+  @media (max-width: 560px) {
+    body:not(.has-stations) .page {
+      display: block;
+      width: min(100% - 28px, 520px);
+      margin-left: auto;
+      margin-right: auto;
+    }
+  }
+
+  @media (max-width: 1100px) {
+    body:not(.has-stations) .page {
+      display: block;
+      width: min(900px, calc(100% - 48px));
+      margin-left: auto;
+      margin-right: auto;
+    }
+  }
 </style>
 </head>
 <body>
@@ -1463,8 +1542,9 @@ async function searchPlace(q){
 function setLocation(lat, lon, label){
   loc = { lat, lon, label, t: Date.now() };
   store.set("bz-loc", loc);
+  $("#locInput").value = label;
   setStatus("");
-  toggleLocBlock(false);
+  toggleLocBlock(true);
   placeUserMarker();
   loadStations();
 }
@@ -1619,6 +1699,9 @@ function computeVerdict(){
 
 /* ---------------- rendering ---------------- */
 function renderAll(){
+  const activeFuel = settings.fuel;
+  const hasStations = stations.some(s => s.prices[activeFuel] > 0);
+  document.body.classList.toggle("has-stations", hasStations);
   renderVerdict();
   renderStations();
   renderMap();
@@ -1711,6 +1794,7 @@ function renderMap(){
   const fuel = settings.fuel;
   const priced = stations.filter(s => s.prices[fuel] > 0);
   if (!priced.length) return;
+  requestAnimationFrame(() => map.invalidateSize());
   const lo = priced[0].prices[fuel], hi = priced[priced.length - 1].prices[fuel];
   priced.forEach(s => {
     const k = hi > lo ? (s.prices[fuel] - lo) / (hi - lo) : 0;
@@ -1915,7 +1999,6 @@ function syncControls(){
 
 function toggleLocBlock(open){
   $("#locBlock").classList.toggle("open", open);
-  if (open) $("#locInput").focus();
 }
 
 function init(){
@@ -1989,11 +2072,12 @@ function init(){
   renderHistChart();
 
   if (loc){
-    toggleLocBlock(false);
-    $("#locInput").value = "";
+    toggleLocBlock(true);
+    $("#locInput").value = loc.label || "";
     placeUserMarker();
     loadStations();
   } else {
+    toggleLocBlock(true);
     setStatus("");
   }
 }
