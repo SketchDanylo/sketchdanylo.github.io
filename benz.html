@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="German fuel prices near you: cheapest station, best time to fill up, long-term trends.">
+<meta name="description" content="German fuel prices near you: the cheapest station right now, and whether waiting will save you money.">
 <title>Danylo's Benz Checker</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
@@ -11,17 +11,12 @@
     color-scheme: dark;
     --bg: #070707;
     --text: #f4f4f4;
-    --muted: #9a9a9a;
-    --faint: #5f6368;
-    --glass: rgba(18, 18, 18, 0.58);
-    --glass-deep: rgba(12, 12, 12, 0.55);
-    --line: rgba(255, 255, 255, 0.16);
-    --line-soft: rgba(255, 255, 255, 0.08);
-    --focus: rgba(255, 255, 255, 0.34);
-    --good: #74d99f;
-    --bad: #f28b82;
-    --radius: 18px;
-    --radius-sm: 10px;
+    --muted: #a3a3a3;
+    --faint: #616161;
+    --rule: rgba(255, 255, 255, 0.13);
+    --rule-soft: rgba(255, 255, 255, 0.07);
+    --good: #86dcab;
+    --bad: #f0958b;
   }
 
   * { box-sizing: border-box; }
@@ -31,278 +26,201 @@
     margin: 0;
     color: var(--text);
     background:
-      radial-gradient(circle at 50% 22%, rgba(80, 102, 170, 0.16), transparent 34%),
-      radial-gradient(circle at 12% 18%, rgba(100, 128, 255, 0.11), transparent 26%),
-      radial-gradient(circle at 88% 9%, rgba(255, 255, 255, 0.06), transparent 18%),
+      radial-gradient(circle at 50% 18%, rgba(80, 102, 170, 0.13), transparent 34%),
+      radial-gradient(circle at 12% 14%, rgba(100, 128, 255, 0.09), transparent 26%),
       var(--bg);
     font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    font-size: 15px;
-    line-height: 1.5;
+    font-size: 16px;
+    line-height: 1.55;
     overflow-x: hidden;
   }
 
   .space-bg { position: fixed; inset: 0; z-index: -2; width: 100%; height: 100%; pointer-events: none; }
-
   body::after {
     position: fixed; inset: 0; z-index: -1; pointer-events: none; content: "";
     background:
-      radial-gradient(circle at 50% 26%, transparent 0 24%, rgba(7, 7, 7, 0.48) 62%, rgba(7, 7, 7, 0.9) 100%),
-      linear-gradient(to bottom, rgba(7, 7, 7, 0.05), rgba(7, 7, 7, 0.78));
+      radial-gradient(circle at 50% 22%, transparent 0 22%, rgba(7, 7, 7, 0.5) 62%, rgba(7, 7, 7, 0.92) 100%),
+      linear-gradient(to bottom, rgba(7, 7, 7, 0.04), rgba(7, 7, 7, 0.8));
   }
 
-  .page { position: relative; width: min(920px, calc(100% - 32px)); margin: 0 auto; padding: 0 0 64px; }
+  .page { width: min(680px, calc(100% - 40px)); margin: 0 auto; padding: 0 0 80px; }
 
-  /* ---------- top bar ---------- */
-  .topbar {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 22px 2px 0;
-  }
-  .topbar a.home {
-    color: var(--muted); text-decoration: none; font-size: 0.88rem; font-weight: 600;
-    transition: color 130ms ease;
-  }
-  .topbar a.home:hover { color: var(--text); }
-  .lang-switch { display: flex; align-items: center; gap: 2px; }
-  .lang-switch button {
-    background: none; border: 0; padding: 4px 8px; cursor: pointer;
-    color: var(--faint); font: inherit; font-size: 0.84rem; font-weight: 650;
-    border-radius: 6px; transition: color 130ms ease;
-  }
-  .lang-switch button:hover { color: var(--muted); }
-  .lang-switch button.on { color: var(--text); }
-  .lang-switch .sep { color: var(--faint); font-size: 0.8rem; user-select: none; }
+  a { color: var(--text); text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
+  a:hover { text-decoration-color: var(--text); }
 
+  button.link {
+    background: none; border: 0; padding: 0; cursor: pointer;
+    color: var(--muted); font: inherit;
+    text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px;
+  }
+  button.link:hover { color: var(--text); text-decoration-color: var(--text); }
+
+  /* ---------- top ---------- */
+  .topbar { display: flex; justify-content: space-between; align-items: baseline; padding: 26px 0 0; }
+  .topbar .home { font-size: 0.86rem; color: var(--muted); text-decoration: none; }
+  .topbar .home:hover { color: var(--text); }
+  .langs { display: flex; gap: 10px; }
+  .langs button {
+    background: none; border: 0; padding: 0; cursor: pointer;
+    color: var(--faint); font: inherit; font-size: 0.82rem; font-weight: 600;
+  }
+  .langs button:hover { color: var(--muted); }
+  .langs button.on { color: var(--text); }
+
+  /* ---------- masthead ---------- */
+  .kicker {
+    margin: clamp(52px, 11vh, 96px) 0 14px;
+    font-size: 0.78rem;
+    font-weight: 650;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
   h1 {
-    margin: clamp(40px, 8vh, 74px) 0 10px;
-    text-align: center;
-    font-size: clamp(2rem, 5vw, 3.6rem);
-    line-height: 0.97;
-    letter-spacing: -0.055em;
+    margin: 0 0 16px;
+    font-size: clamp(1.9rem, 5.4vw, 3.1rem);
+    line-height: 1.04;
+    letter-spacing: -0.045em;
     font-weight: 780;
     text-wrap: balance;
   }
-  .subtitle {
-    margin: 0 auto clamp(34px, 6vh, 54px);
-    max-width: 600px;
-    text-align: center;
-    color: var(--muted);
-    font-size: 1.02rem;
-    text-wrap: balance;
-  }
+  .lede { margin: 0 0 14px; color: var(--muted); font-size: 1.02rem; max-width: 58ch; }
+  .lede b { color: var(--text); font-weight: 650; }
 
-  /* ---------- panels ---------- */
-  .panel {
-    margin: 0 0 16px;
-    padding: clamp(20px, 3vw, 28px);
-    border: 1px solid var(--line-soft);
-    border-radius: var(--radius);
-    background: var(--glass);
-    box-shadow: inset 0 1px rgba(255, 255, 255, 0.06), 0 18px 48px rgba(0, 0, 0, 0.22);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-  }
-  .overline {
-    margin: 0 0 14px;
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--muted);
-    display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap;
-  }
-  .overline .aux { font-weight: 500; letter-spacing: 0.02em; text-transform: none; color: var(--faint); font-size: 0.8rem; }
+  .meta { margin: 0; color: var(--faint); font-size: 0.88rem; }
+  .meta b { color: var(--muted); font-weight: 600; }
 
-  /* ---------- verdict ---------- */
-  .verdict-head {
-    margin: 0 0 6px;
-    font-size: clamp(1.3rem, 2.6vw, 1.7rem);
-    font-weight: 720;
-    letter-spacing: -0.03em;
-    line-height: 1.25;
-  }
-  .verdict-head .ok { color: var(--good); }
-  .verdict-rationale { margin: 0 0 18px; color: var(--muted); font-size: 0.95rem; max-width: 64ch; }
-  .verdict-rationale b { color: var(--text); font-weight: 650; }
-
-  .stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 1px;
-    border: 1px solid var(--line-soft);
-    border-radius: 12px;
-    background: var(--line-soft);
-    overflow: hidden;
-    margin: 0;
-  }
-  .stat { background: var(--glass-deep); padding: 12px 16px; }
-  .stat dt { font-size: 0.7rem; font-weight: 650; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); }
-  .stat dd { margin: 5px 0 0; font-size: 1.02rem; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
-  .stat dd small { color: var(--muted); font-weight: 500; font-size: 0.8em; }
-  .stat dd .up { color: var(--bad); } .stat dd .down { color: var(--good); }
-
-  /* ---------- controls ---------- */
-  .loc-row { display: flex; gap: 8px; }
-  .icon-btn {
-    flex: 0 0 46px; height: 46px;
-    display: inline-flex; align-items: center; justify-content: center;
-    border: 1px solid var(--line); border-radius: var(--radius-sm);
-    background: rgba(255, 255, 255, 0.04); color: var(--text); cursor: pointer;
-    transition: background 130ms ease, border-color 130ms ease;
-  }
-  .icon-btn:hover { background: rgba(255, 255, 255, 0.09); border-color: var(--focus); }
-  .icon-btn svg { width: 19px; height: 19px; stroke: currentColor; fill: none; stroke-width: 1.7; }
-
+  /* ---------- location row ---------- */
+  .loc-block { display: none; margin: 26px 0 4px; }
+  .loc-block.open { display: block; }
+  .loc-line { display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap; }
   .loc-input {
-    flex: 1; min-width: 0; height: 46px; padding: 0 14px;
-    border: 1px solid var(--line); border-radius: var(--radius-sm);
-    background: rgba(10, 10, 10, 0.5); color: var(--text);
-    font: inherit; font-size: 0.95rem; outline: none;
+    flex: 1; min-width: 200px;
+    background: transparent; border: 0; border-bottom: 1px solid var(--rule);
+    padding: 6px 0; color: var(--text);
+    font: inherit; font-size: 1.05rem; outline: none;
+    border-radius: 0;
     transition: border-color 130ms ease;
   }
-  .loc-input:focus { border-color: var(--focus); }
-  .loc-input::placeholder { color: rgba(255, 255, 255, 0.32); }
+  .loc-input:focus { border-color: rgba(255, 255, 255, 0.5); }
+  .loc-input::placeholder { color: var(--faint); }
+  .loc-line .go { font-weight: 650; color: var(--text); }
+  .loc-extras { margin-top: 10px; font-size: 0.88rem; color: var(--faint); display: flex; gap: 18px; flex-wrap: wrap; align-items: baseline; }
+  .status { margin-top: 10px; font-size: 0.88rem; color: var(--muted); min-height: 1.2em; }
+  .status.err { color: var(--bad); }
 
-  .btn {
-    height: 46px; padding: 0 20px;
-    border: 1px solid transparent; border-radius: var(--radius-sm);
-    background: rgba(255, 255, 255, 0.92); color: #0a0a0a;
-    font: inherit; font-size: 0.92rem; font-weight: 700; cursor: pointer;
-    transition: background 130ms ease, transform 110ms ease;
+  select.bare {
+    background: transparent; border: 0; border-bottom: 1px solid var(--rule);
+    color: var(--muted); font: inherit; font-size: 0.88rem;
+    padding: 2px 0; outline: none; cursor: pointer; border-radius: 0;
   }
-  .btn:hover { background: #fff; }
-  .btn:active { transform: scale(0.98); }
-  .btn.quiet {
-    background: rgba(255, 255, 255, 0.04); color: var(--text); border-color: var(--line);
-    font-weight: 600;
-  }
-  .btn.quiet:hover { background: rgba(255, 255, 255, 0.09); }
+  select.bare:hover { color: var(--text); }
+  select.bare option { background: #111; }
 
-  .status-line { margin-top: 12px; color: var(--muted); font-size: 0.88rem; min-height: 1.3em; }
-  .status-line.err { color: var(--bad); }
-
-  .opts-row {
-    display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
-    justify-content: space-between; margin-top: 16px;
+  /* ---------- fuel tabs ---------- */
+  .fuel-tabs { display: flex; gap: 22px; margin: 30px 0 0; border-bottom: 1px solid var(--rule-soft); }
+  .fuel-tabs button {
+    background: none; border: 0; padding: 0 0 9px; cursor: pointer;
+    color: var(--faint); font: inherit; font-size: 0.95rem; font-weight: 600;
+    border-bottom: 1px solid transparent; margin-bottom: -1px;
+    transition: color 130ms ease, border-color 130ms ease;
   }
+  .fuel-tabs button:hover { color: var(--muted); }
+  .fuel-tabs button.on { color: var(--text); border-bottom-color: var(--text); }
 
-  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
-  .seg button {
-    border: 0; border-left: 1px solid var(--line-soft);
-    background: transparent; color: var(--muted);
-    padding: 9px 16px; font: inherit; font-size: 0.88rem; font-weight: 650; cursor: pointer;
-    transition: background 130ms ease, color 130ms ease;
+  /* ---------- sections ---------- */
+  h2 {
+    margin: 56px 0 4px;
+    font-size: 1.02rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
   }
-  .seg button:first-child { border-left: 0; }
-  .seg button:hover { color: var(--text); }
-  .seg button.on { background: rgba(255, 255, 255, 0.92); color: #0a0a0a; }
-
-  .radius-field { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.88rem; }
-  select {
-    height: 38px; padding: 0 10px;
-    border: 1px solid var(--line); border-radius: 8px;
-    background: rgba(10, 10, 10, 0.55); color: var(--text);
-    font: inherit; font-size: 0.88rem; outline: none; cursor: pointer;
-  }
+  .sec-note { margin: 0 0 18px; color: var(--faint); font-size: 0.86rem; }
 
   /* ---------- stations table ---------- */
-  .table-wrap { max-height: 430px; overflow-y: auto; border: 1px solid var(--line-soft); border-radius: 12px; }
-  table.stations { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
-  .stations th {
-    position: sticky; top: 0; z-index: 1;
-    padding: 10px 14px; text-align: left;
-    font-size: 0.7rem; font-weight: 650; letter-spacing: 0.12em; text-transform: uppercase;
-    color: var(--faint); background: #101114;
-    border-bottom: 1px solid var(--line-soft);
+  table.st { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+  .st th {
+    padding: 0 0 8px; text-align: left;
+    font-size: 0.78rem; font-weight: 600; color: var(--faint);
+    border-bottom: 1px solid var(--rule);
   }
-  .stations th.num, .stations td.num { text-align: right; }
-  .stations td { padding: 11px 14px; border-top: 1px solid var(--line-soft); vertical-align: middle; }
-  .stations tr:first-child td { border-top: 0; }
-  .stations tbody tr { cursor: pointer; }
-  .stations tbody tr:hover td { background: rgba(255, 255, 255, 0.025); }
-  .stations tbody tr.best td { background: rgba(116, 217, 159, 0.05); }
-  .stations tbody tr.best td:first-child { box-shadow: inset 2px 0 var(--good); }
-  .st-brand { font-weight: 650; }
-  .st-addr { color: var(--muted); font-size: 0.82rem; margin-top: 1px; }
-  td.dist { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-  td.price { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  tr.best td.price { color: var(--good); }
-  .st-status { font-size: 0.82rem; }
-  .st-status.open { color: var(--good); }
-  .st-status.closed { color: var(--bad); }
-  .st-status.na { color: var(--faint); }
-  .empty-note { color: var(--muted); font-size: 0.92rem; padding: 4px 2px; }
+  .st th.num { text-align: right; }
+  .st td { padding: 10px 0; border-bottom: 1px solid var(--rule-soft); vertical-align: baseline; }
+  .st tbody tr { cursor: pointer; }
+  .st tbody tr:hover .name { text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
+  .st .name { font-weight: 650; }
+  .st .addr { color: var(--faint); font-size: 0.84rem; font-weight: 400; }
+  .st .tag-closed { color: var(--bad); font-size: 0.8rem; margin-left: 8px; }
+  .st td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .st td.dist { color: var(--muted); }
+  .st td.price { font-weight: 650; }
+  .st tr.cheapest td.price { color: var(--good); }
+  .st .cheap-note { color: var(--good); font-size: 0.8rem; margin-left: 8px; }
+  .price sup { font-size: 0.62em; font-weight: inherit; }
+  .show-more { margin: 14px 0 0; font-size: 0.9rem; }
+  .empty-note { color: var(--muted); font-size: 0.94rem; }
 
   /* ---------- map ---------- */
-  #map { height: 340px; border-radius: 12px; border: 1px solid var(--line-soft); background: #0a0a0a; }
-  .leaflet-container { font-family: inherit; }
-  .leaflet-popup-content-wrapper { background: #16181d; color: var(--text); border-radius: 10px; border: 1px solid var(--line-soft); }
-  .leaflet-popup-tip { background: #16181d; }
-  .pop-name { font-weight: 650; font-size: 0.9rem; }
-  .pop-price { font-size: 1.1rem; font-weight: 720; margin: 2px 0; font-variant-numeric: tabular-nums; }
-  .pop-meta { color: #9a9a9a; font-size: 0.78rem; }
+  #map { height: 300px; margin-top: 18px; border: 1px solid var(--rule-soft); border-radius: 4px; background: #0a0a0a; }
+  .leaflet-container { font-family: inherit; font-size: 12px; }
+  .leaflet-popup-content-wrapper { background: #141519; color: var(--text); border-radius: 6px; border: 1px solid var(--rule-soft); box-shadow: none; }
+  .leaflet-popup-tip { background: #141519; }
+  .pop-name { font-weight: 650; font-size: 0.88rem; }
+  .pop-price { font-size: 1.05rem; font-weight: 700; margin: 1px 0; font-variant-numeric: tabular-nums; }
+  .pop-meta { color: #9a9a9a; font-size: 0.76rem; }
 
   /* ---------- charts ---------- */
-  .chart-box { position: relative; height: 250px; margin-top: 4px; overflow: hidden; }
-  .chart-box.tall { height: 285px; }
+  .chart-box { position: relative; height: 230px; margin: 14px 0 10px; overflow: hidden; }
+  .chart-box.tall { height: 270px; }
   .chart-box canvas { max-width: 100%; }
+  .caption { margin: 0; color: var(--faint); font-size: 0.86rem; max-width: 60ch; }
+  .caption .w { color: #dcdcdc; } .caption .g { color: var(--good); }
 
-  .range-seg { display: inline-flex; gap: 0; border: 1px solid var(--line-soft); border-radius: 8px; overflow: hidden; }
-  .range-seg button {
-    border: 0; border-left: 1px solid var(--line-soft); background: transparent;
-    color: var(--muted); padding: 4px 12px; font: inherit; font-size: 0.78rem; font-weight: 650; cursor: pointer;
+  .chart-opts { display: flex; gap: 20px; align-items: baseline; margin: 6px 0 0; font-size: 0.88rem; color: var(--faint); flex-wrap: wrap; }
+  .range-links { display: flex; gap: 14px; }
+  .range-links button {
+    background: none; border: 0; padding: 0; cursor: pointer;
+    color: var(--faint); font: inherit; font-size: 0.88rem; font-weight: 600;
   }
-  .range-seg button:first-child { border-left: 0; }
-  .range-seg button.on { background: rgba(255, 255, 255, 0.9); color: #0a0a0a; }
-
-  .toggle-row {
-    display: flex; align-items: center; gap: 8px; margin-top: 12px;
-    color: var(--muted); font-size: 0.85rem; cursor: pointer; user-select: none; width: fit-content;
-  }
-  .toggle-row input { accent-color: #cfd8ff; }
+  .range-links button:hover { color: var(--muted); }
+  .range-links button.on { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+  .toggle { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; user-select: none; color: var(--faint); }
+  .toggle:hover { color: var(--muted); }
+  .toggle input { accent-color: #cfd8ff; margin: 0; }
 
   /* ---------- settings ---------- */
-  details.settings {
-    margin: 0 0 16px;
-    border: 1px solid var(--line-soft); border-radius: var(--radius);
-    background: var(--glass);
-    backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
-  }
+  details.settings { margin: 64px 0 0; border-top: 1px solid var(--rule); }
   details.settings summary {
-    padding: 16px clamp(20px, 3vw, 28px);
-    cursor: pointer; list-style: none;
-    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
-    color: var(--muted);
-    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 0; cursor: pointer; list-style: none;
+    font-size: 0.95rem; font-weight: 650; color: var(--muted);
+    display: flex; justify-content: space-between; align-items: baseline;
   }
+  details.settings summary:hover { color: var(--text); }
   details.settings summary::-webkit-details-marker { display: none; }
-  details.settings summary::after { content: "+"; font-size: 1rem; font-weight: 400; color: var(--faint); }
+  details.settings summary::after { content: "+"; color: var(--faint); font-weight: 400; }
   details.settings[open] summary::after { content: "–"; }
-  .settings-body { padding: 4px clamp(20px, 3vw, 28px) 24px; display: grid; gap: 18px; }
-  .field { display: grid; gap: 7px; font-size: 0.88rem; color: var(--muted); }
-  .field > span b { color: var(--text); font-weight: 650; }
-  .field input[type="text"], .field input[type="number"] {
-    height: 44px; padding: 0 14px;
-    border: 1px solid var(--line); border-radius: var(--radius-sm);
-    background: rgba(10, 10, 10, 0.5); color: var(--text);
-    font: inherit; font-size: 0.9rem; outline: none;
+  .settings-body { padding: 4px 0 22px; display: grid; gap: 20px; max-width: 480px; }
+  .field { display: grid; gap: 6px; font-size: 0.88rem; color: var(--muted); }
+  .field b { color: var(--text); font-weight: 650; }
+  .field input {
+    background: transparent; border: 0; border-bottom: 1px solid var(--rule);
+    padding: 6px 0; color: var(--text); font: inherit; font-size: 0.95rem; outline: none; border-radius: 0;
   }
-  .field input:focus { border-color: var(--focus); }
+  .field input:focus { border-color: rgba(255, 255, 255, 0.5); }
   .hint { font-size: 0.8rem; color: var(--faint); line-height: 1.5; }
-  .hint a { color: #a9bdf5; }
-  .key-state { font-size: 0.8rem; }
+  .hint a { color: var(--muted); }
   .key-state.ok { color: var(--good); }
   .key-state.bad { color: var(--bad); }
+  .settings-actions { display: flex; gap: 22px; }
 
   .foot {
-    margin: 30px auto 0; max-width: 660px;
-    color: var(--faint); font-size: 0.8rem; line-height: 1.6; text-align: center;
+    margin: 40px 0 0; padding-top: 18px; border-top: 1px solid var(--rule-soft);
+    color: var(--faint); font-size: 0.8rem; line-height: 1.6; max-width: 62ch;
   }
 
-  @media (max-width: 620px) {
-    .opts-row { flex-direction: column; align-items: stretch; }
-    .seg { width: 100%; }
-    .seg button { flex: 1; }
-    .stations th:nth-child(3), .stations td:nth-child(3) { display: none; }
+  @media (max-width: 560px) {
+    .st th:nth-child(2), .st td.dist { display: none; }
+    h1 { font-size: 1.85rem; }
   }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { transition: none !important; animation: none !important; }
@@ -315,123 +233,98 @@
 <main class="page">
   <div class="topbar">
     <a class="home" href="/" data-i18n="backHome">← Danylo's Tools</a>
-    <nav class="lang-switch" id="langSwitch" aria-label="Language">
-      <button data-lang="en">EN</button><span class="sep">·</span>
-      <button data-lang="de">DE</button><span class="sep">·</span>
+    <nav class="langs" id="langSwitch" aria-label="Language">
+      <button data-lang="en">EN</button>
+      <button data-lang="de">DE</button>
       <button data-lang="uk">UK</button>
     </nav>
   </div>
 
-  <h1>Danylo's Benz Checker</h1>
-  <p class="subtitle" data-i18n="subtitle">Live German pump prices near you — the cheapest station now, and whether waiting will save you money.</p>
+  <p class="kicker">Danylo's Benz Checker</p>
+  <h1 id="verdict" data-i18n="heroAsk">Should you fill up now, or wait?</h1>
+  <p class="lede" id="lede" data-i18n="heroLede">Set a location and get an answer for the stations around you — live German pump prices included.</p>
+  <p class="meta" id="metaLine" hidden></p>
 
-  <!-- location & options -->
-  <section class="panel">
-    <div class="overline"><span data-i18n="locTitle">Location &amp; fuel</span></div>
-    <div class="loc-row">
-      <button class="icon-btn" id="btnGps" data-i18n-title="gpsTitle" title="Use my location" aria-label="Use my location">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r="7.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/><line x1="12" y1="19.5" x2="12" y2="22.5"/><line x1="1.5" y1="12" x2="4.5" y2="12"/><line x1="19.5" y1="12" x2="22.5" y2="12"/></svg>
-      </button>
+  <div class="loc-block open" id="locBlock">
+    <div class="loc-line">
       <input class="loc-input" id="locInput" type="search" autocomplete="off" enterkeyhint="search"
-             data-i18n-ph="searchPh" placeholder="City or address">
-      <button class="btn" id="btnFind" data-i18n="findBtn">Search</button>
+             data-i18n-ph="searchPh" placeholder="City or address…">
+      <button class="link go" id="btnFind" data-i18n="findBtn">Search</button>
+      <button class="link" id="btnGps" data-i18n="useMyLoc">use my location</button>
     </div>
-    <div class="status-line" id="statusLine"></div>
-    <div class="opts-row">
-      <div class="seg" id="fuelSeg">
-        <button data-f="e10">Super E10</button>
-        <button data-f="e5">Super E5</button>
-        <button data-f="diesel">Diesel</button>
-      </div>
-      <label class="radius-field">
+    <div class="loc-extras">
+      <label>
         <span data-i18n="radius">Radius</span>
-        <select id="radiusSel">
+        <select class="bare" id="radiusSel">
           <option value="1">1 km</option><option value="2">2 km</option><option value="3">3 km</option>
           <option value="5">5 km</option><option value="10">10 km</option><option value="15">15 km</option>
           <option value="25">25 km</option>
         </select>
       </label>
     </div>
-  </section>
+    <div class="status" id="statusLine"></div>
+  </div>
 
-  <!-- verdict -->
-  <section class="panel">
-    <div class="overline"><span data-i18n="verdictTitle">Recommendation</span><span class="aux" id="fuelEcho"></span></div>
-    <p class="verdict-head" id="verdictHead" data-i18n="verdictLoading">Set a location to get a recommendation.</p>
-    <p class="verdict-rationale" id="verdictWhy"></p>
-    <dl class="stats" id="stats" hidden>
-      <div class="stat"><dt data-i18n="statCheapest">Cheapest now</dt><dd id="statCheapest">—</dd></div>
-      <div class="stat"><dt data-i18n="statWindow">Cheap window</dt><dd id="statWindow">—</dd></div>
-      <div class="stat"><dt data-i18n="statTrend">7-day trend</dt><dd id="statTrend">—</dd></div>
-      <div class="stat"><dt data-i18n="statMode">Price data</dt><dd id="statMode">—</dd></div>
-    </dl>
-  </section>
+  <nav class="fuel-tabs" id="fuelTabs" aria-label="Fuel">
+    <button data-f="e10">Super E10</button>
+    <button data-f="e5">Super E5</button>
+    <button data-f="diesel">Diesel</button>
+  </nav>
 
-  <!-- stations -->
-  <section class="panel">
-    <div class="overline">
-      <span data-i18n="stationsTitle">Stations</span>
-      <span class="aux" id="updatedAux"></span>
-    </div>
-    <div class="table-wrap" id="tableWrap" hidden>
-      <table class="stations">
-        <thead><tr>
-          <th data-i18n="colStation">Station</th>
-          <th data-i18n="colDist">Distance</th>
-          <th data-i18n="colStatus">Status</th>
-          <th class="num" data-i18n="colPrice">€ / L</th>
-        </tr></thead>
-        <tbody id="stBody"></tbody>
-      </table>
-    </div>
-    <div class="empty-note" id="stEmpty" data-i18n="noLocation">No location yet — use the search or the GPS button above.</div>
-  </section>
-
-  <!-- map -->
-  <section class="panel">
-    <div class="overline"><span data-i18n="mapTitle">Map</span></div>
+  <section id="stationsSec" hidden>
+    <h2 data-i18n="secStations">Stations nearby</h2>
+    <p class="sec-note" id="updatedNote"></p>
+    <table class="st">
+      <thead><tr>
+        <th data-i18n="colStation">Station</th>
+        <th class="num" data-i18n="colDist">km</th>
+        <th class="num" data-i18n="colPrice">€ / L</th>
+      </tr></thead>
+      <tbody id="stBody"></tbody>
+    </table>
+    <p class="show-more" id="showMoreWrap" hidden><button class="link" id="btnShowMore"></button></p>
     <div id="map"></div>
   </section>
+  <p class="empty-note" id="stEmpty" hidden></p>
 
-  <!-- today curve -->
-  <section class="panel">
-    <div class="overline"><span data-i18n="todayTitle">Expected price curve today</span><span class="aux" data-i18n="todayAux">typical German daily rhythm</span></div>
+  <section id="todaySec" hidden>
+    <h2 data-i18n="secToday">Today's price rhythm</h2>
     <div class="chart-box"><canvas id="todayChart"></canvas></div>
+    <p class="caption" data-i18n-html="todayCaption">Pump prices in Germany swing through the day — dearest around dawn, cheapest between 18:00 and 21:00. <span class="w">●</span> marks now, <span class="g">●</span> marks today's best time.</p>
   </section>
 
-  <!-- history -->
-  <section class="panel">
-    <div class="overline">
-      <span data-i18n="histTitle">Germany, long-term</span>
-      <div class="range-seg" id="rangeSeg">
-        <button data-y="1">1Y</button>
-        <button data-y="5">5Y</button>
-        <button data-y="99" data-i18n="rangeMax">Max</button>
+  <section>
+    <h2 data-i18n="secLong">The long view</h2>
+    <div class="chart-opts">
+      <div class="range-links" id="rangeLinks">
+        <button data-y="1" data-i18n="range1">1 year</button>
+        <button data-y="5" data-i18n="range5">5 years</button>
+        <button data-y="99" data-i18n="rangeMax">Since 2005</button>
       </div>
+      <label class="toggle">
+        <input type="checkbox" id="realToggle">
+        <span data-i18n="realToggle">inflation-adjusted</span>
+      </label>
     </div>
     <div class="chart-box tall"><canvas id="histChart"></canvas></div>
-    <label class="toggle-row">
-      <input type="checkbox" id="realToggle">
-      <span data-i18n="realToggle">Inflation-adjusted (in today's money)</span>
-    </label>
+    <p class="caption" id="histCaption" data-i18n="histCaption">Approximate German national averages. Once live prices are recorded on this device, your area appears as its own line.</p>
   </section>
 
-  <!-- settings -->
   <details class="settings" id="settingsBox">
     <summary data-i18n="settingsTitle">Settings</summary>
     <div class="settings-body">
       <label class="field">
         <span><b data-i18n="apiKeyLabel">Tankerkönig API key</b> — <span class="key-state" id="keyState"></span></span>
         <input type="text" id="apiKeyInput" autocomplete="off" spellcheck="false">
-        <span class="hint" data-i18n-html="apiKeyHint">Free at <a href="https://creativecommons.tankerkoenig.de" target="_blank" rel="noopener">creativecommons.tankerkoenig.de</a> (confirm the e-mail link to activate it). With an active key the app shows real prices from MTS-K; without it, model estimates.</span>
+        <span class="hint" data-i18n-html="apiKeyHint">Free at <a href="https://creativecommons.tankerkoenig.de" target="_blank" rel="noopener">creativecommons.tankerkoenig.de</a> (confirm the e-mail link to activate it). With an active key this page shows real prices from MTS-K; without one, model estimates.</span>
       </label>
       <label class="field">
         <span><b data-i18n="inflLabel">Inflation assumption</b> (%/<span data-i18n="year">yr</span>)</span>
         <input type="number" id="inflInput" min="0" max="15" step="0.1">
       </label>
-      <div>
-        <button class="btn" id="btnSave" data-i18n="saveBtn">Save</button>
-        <button class="btn quiet" id="btnClearData" data-i18n="clearBtn" style="margin-left:8px">Clear cached data</button>
+      <div class="settings-actions">
+        <button class="link go" id="btnSave" data-i18n="saveBtn">Save</button>
+        <button class="link" id="btnClearData" data-i18n="clearBtn">Clear cached data</button>
       </div>
     </div>
   </details>
@@ -444,17 +337,15 @@
 <script>
 "use strict";
 /* ================================================================
-   Danylo's Benz Checker — v3
+   Danylo's Benz Checker — v4 (editorial)
    Live prices: Tankerkönig / MTS-K. Fallback: model estimates on
-   the documented German daily rhythm. Heavy localStorage caching:
-   settings, language, last location, station cache, price snapshots,
-   UI state. History: embedded national averages 2005 → mid-2026.
+   the documented German daily rhythm. localStorage: settings,
+   language, last location, station cache, snapshots, UI state.
    ================================================================ */
 
 const $  = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 
-/* ---------------- storage ---------------- */
 const store = {
   get(k, fb = null){ try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? fb : v; } catch { return fb; } },
   set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
@@ -464,137 +355,140 @@ const store = {
 /* ---------------- i18n ---------------- */
 const I18N = {
   en: {
-    subtitle: "Live German pump prices near you — the cheapest station now, and whether waiting will save you money.",
     backHome: "← Danylo's Tools",
-    locTitle: "Location & fuel",
-    verdictTitle: "Recommendation",
-    verdictLoading: "Set a location to get a recommendation.",
-    verdictNoData: "No stations found here — try a larger radius or a different place.",
+    heroAsk: "Should you fill up now, or wait?",
+    heroLede: "Set a location and get an answer for the stations around you — live German pump prices included.",
+    heroNoData: "No stations found here.",
+    heroNoDataLede: "Try a larger radius or a different place.",
     tankNow: "Fill up now.",
     tankNowWhy: "You are inside the cheap part of the day — waiting is not expected to save anything.",
     waitUntil: (day, hour) => `Wait — fill up ${day} around ${hour}.`,
-    waitWhy: save => `German pump prices follow a daily rhythm — dearest at dawn, cheapest in the evening. Expected saving ≈ <b>${save} ct/L</b>.`,
-    bestDeal: (name, price, dist) => `Cheapest nearby: <b>${name}</b>, ${price} €/L (${dist} km).`,
+    waitWhy: save => `Prices here follow the daily rhythm — dearest at dawn, cheapest in the evening. Waiting should save about <b>${save} ct/L</b>.`,
+    bestDeal: (name, price, dist) => `Cheapest right now: <b>${name}</b> at ${price} €/L, ${dist} km away.`,
     today: "today", tomorrow: "tomorrow",
-    statCheapest: "Cheapest now", statWindow: "Cheap window", statTrend: "7-day trend", statMode: "Price data",
-    modeLive: "live (MTS-K)", modeEst: "estimates", modeEstKey: "estimates — key inactive",
-    searchPh: "City or address",
-    findBtn: "Search", gpsTitle: "Use my location",
+    metaFmt: (place, n, mode, upd) => `${place} · ${n} stations · ${mode} · ${upd}`,
+    modeLive: "live prices", modeEst: "estimated prices", modeEstKey: "estimates — key inactive",
+    change: "change",
+    searchPh: "City or address…",
+    findBtn: "Search", useMyLoc: "use my location",
     statusLocating: "Determining your location…",
     statusGpsDenied: "GPS is not available — enter a city or address.",
     statusSearching: q => `Searching “${q}”…`,
     statusNotFound: q => `Nothing found for “${q}”.`,
     statusFail: "Request failed — check your connection.",
-    statusFmt: (place, n) => `${place} — ${n} stations`,
     statusNone: r => `No stations within ${r} km — increase the radius.`,
     updatedAgo: min => min < 1 ? "updated just now" : `updated ${min} min ago`,
     radius: "Radius",
-    stationsTitle: "Stations",
-    colStation: "Station", colDist: "Distance", colStatus: "Status", colPrice: "€ / L",
-    open: "open", closed: "closed",
-    noLocation: "No location yet — use the search or the GPS button above.",
-    mapTitle: "Map",
-    todayTitle: "Expected price curve today", todayAux: "typical German daily rhythm",
+    secStations: "Stations nearby",
+    colStation: "Station", colDist: "km", colPrice: "€ / L",
+    closed: "closed", cheapNote: "cheapest",
+    showAll: n => `Show all ${n} stations`, showLess: "Show fewer",
+    secToday: "Today's price rhythm",
+    todayCaption: `Pump prices in Germany swing through the day — dearest around dawn, cheapest between 18:00 and 21:00. <span class="w">●</span> marks now, <span class="g">●</span> marks today's best time.`,
     now: "now", best: "best time",
-    histTitle: "Germany, long-term", rangeMax: "Max",
-    realToggle: "Inflation-adjusted (in today's money)",
+    secLong: "The long view",
+    range1: "1 year", range5: "5 years", rangeMax: "Since 2005",
+    realToggle: "inflation-adjusted",
+    histCaption: "Approximate German national averages. Once live prices are recorded on this device, your area appears as its own line.",
     settingsTitle: "Settings",
     apiKeyLabel: "Tankerkönig API key",
-    apiKeyHint: `Free at <a href="https://creativecommons.tankerkoenig.de" target="_blank" rel="noopener">creativecommons.tankerkoenig.de</a> (confirm the e-mail link to activate it). With an active key the app shows real prices from MTS-K; without it, model estimates.`,
-    keyOk: "active", keyBad: "inactive or invalid", keyNone: "not set",
+    apiKeyHint: `Free at <a href="https://creativecommons.tankerkoenig.de" target="_blank" rel="noopener">creativecommons.tankerkoenig.de</a> (confirm the e-mail link to activate it). With an active key this page shows real prices from MTS-K; without one, model estimates.`,
+    keyOk: "active", keyBad: "inactive or invalid", keyNone: "not set", keyUnknown: "not checked yet",
     inflLabel: "Inflation assumption", year: "yr",
     saveBtn: "Save", saved: "Saved", clearBtn: "Clear cached data",
-    footEst: "Station list from OpenStreetMap; prices are model estimates (German daily rhythm, brand positioning) until the API key is active. Long-term chart: approximate national averages.",
+    footEst: "Station list from OpenStreetMap. Prices are model estimates (German daily rhythm, brand positioning) until the API key is active. Long-term chart: approximate national averages.",
     footLive: "Prices via Tankerkönig from MTS-K, the Federal Cartel Office's fuel market transparency unit. Long-term chart: approximate national averages plus locally recorded values.",
     yourArea: "your area (recorded)", natAvg: "national average",
   },
   de: {
-    subtitle: "Aktuelle Spritpreise in deiner Nähe — die günstigste Tankstelle jetzt, und ob sich Warten lohnt.",
     backHome: "← Danylos Tools",
-    locTitle: "Standort & Kraftstoff",
-    verdictTitle: "Empfehlung",
-    verdictLoading: "Standort festlegen, um eine Empfehlung zu erhalten.",
-    verdictNoData: "Hier keine Tankstellen gefunden — größeren Radius oder anderen Ort versuchen.",
+    heroAsk: "Jetzt tanken oder warten?",
+    heroLede: "Standort festlegen und eine Antwort für die Tankstellen in deiner Nähe bekommen — mit aktuellen Spritpreisen.",
+    heroNoData: "Hier keine Tankstellen gefunden.",
+    heroNoDataLede: "Größeren Radius oder anderen Ort versuchen.",
     tankNow: "Jetzt tanken.",
     tankNowWhy: "Du bist im günstigen Teil des Tages — Warten bringt voraussichtlich nichts.",
     waitUntil: (day, hour) => `Warten — tanke ${day} gegen ${hour}.`,
-    waitWhy: save => `Spritpreise folgen einem Tagesrhythmus — morgens am teuersten, abends am günstigsten. Erwartete Ersparnis ≈ <b>${save} ct/L</b>.`,
-    bestDeal: (name, price, dist) => `Günstigste in der Nähe: <b>${name}</b>, ${price} €/L (${dist} km).`,
+    waitWhy: save => `Die Preise folgen dem Tagesrhythmus — morgens am teuersten, abends am günstigsten. Warten spart voraussichtlich etwa <b>${save} ct/L</b>.`,
+    bestDeal: (name, price, dist) => `Günstigste gerade: <b>${name}</b> für ${price} €/L, ${dist} km entfernt.`,
     today: "heute", tomorrow: "morgen",
-    statCheapest: "Günstigste jetzt", statWindow: "Günstiges Fenster", statTrend: "7-Tage-Trend", statMode: "Preisdaten",
-    modeLive: "live (MTS-K)", modeEst: "Schätzungen", modeEstKey: "Schätzungen — Key inaktiv",
-    searchPh: "Stadt oder Adresse",
-    findBtn: "Suchen", gpsTitle: "Meinen Standort verwenden",
+    metaFmt: (place, n, mode, upd) => `${place} · ${n} Tankstellen · ${mode} · ${upd}`,
+    modeLive: "Echtzeitpreise", modeEst: "geschätzte Preise", modeEstKey: "Schätzungen — Key inaktiv",
+    change: "ändern",
+    searchPh: "Stadt oder Adresse…",
+    findBtn: "Suchen", useMyLoc: "meinen Standort verwenden",
     statusLocating: "Standort wird ermittelt…",
     statusGpsDenied: "GPS nicht verfügbar — Stadt oder Adresse eingeben.",
     statusSearching: q => `Suche „${q}“…`,
     statusNotFound: q => `Nichts gefunden für „${q}“.`,
     statusFail: "Anfrage fehlgeschlagen — Verbindung prüfen.",
-    statusFmt: (place, n) => `${place} — ${n} Tankstellen`,
     statusNone: r => `Keine Tankstellen im Umkreis von ${r} km — Radius vergrößern.`,
     updatedAgo: min => min < 1 ? "gerade aktualisiert" : `vor ${min} Min. aktualisiert`,
     radius: "Radius",
-    stationsTitle: "Tankstellen",
-    colStation: "Tankstelle", colDist: "Entfernung", colStatus: "Status", colPrice: "€ / L",
-    open: "geöffnet", closed: "geschlossen",
-    noLocation: "Noch kein Standort — Suche oder GPS-Button oben nutzen.",
-    mapTitle: "Karte",
-    todayTitle: "Erwartete Preiskurve heute", todayAux: "typischer deutscher Tagesrhythmus",
+    secStations: "Tankstellen in der Nähe",
+    colStation: "Tankstelle", colDist: "km", colPrice: "€ / L",
+    closed: "geschlossen", cheapNote: "günstigste",
+    showAll: n => `Alle ${n} Tankstellen zeigen`, showLess: "Weniger zeigen",
+    secToday: "Der Tagesrhythmus heute",
+    todayCaption: `Spritpreise schwanken über den Tag — morgens am teuersten, zwischen 18 und 21 Uhr am günstigsten. <span class="w">●</span> markiert jetzt, <span class="g">●</span> die beste Zeit heute.`,
     now: "jetzt", best: "beste Zeit",
-    histTitle: "Deutschland, langfristig", rangeMax: "Max",
-    realToggle: "Inflationsbereinigt (in heutigem Geld)",
+    secLong: "Der lange Blick",
+    range1: "1 Jahr", range5: "5 Jahre", rangeMax: "Seit 2005",
+    realToggle: "inflationsbereinigt",
+    histCaption: "Ungefähre Bundesdurchschnitte. Sobald hier Echtzeitpreise aufgezeichnet sind, erscheint deine Gegend als eigene Linie.",
     settingsTitle: "Einstellungen",
     apiKeyLabel: "Tankerkönig API-Key",
-    apiKeyHint: `Kostenlos auf <a href="https://creativecommons.tankerkoenig.de" target="_blank" rel="noopener">creativecommons.tankerkoenig.de</a> (Bestätigungslink in der E-Mail anklicken). Mit aktivem Key zeigt die App echte MTS-K-Preise, ohne Key Modellschätzungen.`,
-    keyOk: "aktiv", keyBad: "inaktiv oder ungültig", keyNone: "nicht gesetzt",
+    apiKeyHint: `Kostenlos auf <a href="https://creativecommons.tankerkoenig.de" target="_blank" rel="noopener">creativecommons.tankerkoenig.de</a> (Bestätigungslink in der E-Mail anklicken). Mit aktivem Key zeigt die Seite echte MTS-K-Preise, ohne Key Modellschätzungen.`,
+    keyOk: "aktiv", keyBad: "inaktiv oder ungültig", keyNone: "nicht gesetzt", keyUnknown: "noch nicht geprüft",
     inflLabel: "Inflationsannahme", year: "Jahr",
     saveBtn: "Speichern", saved: "Gespeichert", clearBtn: "Zwischengespeicherte Daten löschen",
-    footEst: "Tankstellenliste aus OpenStreetMap; Preise sind Modellschätzungen (deutscher Tagesrhythmus, Markenpositionierung), bis der API-Key aktiv ist. Langzeit-Chart: ungefähre Bundesdurchschnitte.",
+    footEst: "Tankstellenliste aus OpenStreetMap. Preise sind Modellschätzungen (deutscher Tagesrhythmus, Markenpositionierung), bis der API-Key aktiv ist. Langzeit-Chart: ungefähre Bundesdurchschnitte.",
     footLive: "Preise via Tankerkönig aus der MTS-K (Markttransparenzstelle für Kraftstoffe des Bundeskartellamts). Langzeit-Chart: ungefähre Bundesdurchschnitte plus lokal aufgezeichnete Werte.",
     yourArea: "deine Gegend (aufgezeichnet)", natAvg: "Bundesdurchschnitt",
   },
   uk: {
-    subtitle: "Актуальні ціни на АЗС Німеччини поруч із тобою — найдешевша заправка зараз і чи варто почекати.",
     backHome: "← Інструменти Данила",
-    locTitle: "Локація та пальне",
-    verdictTitle: "Рекомендація",
-    verdictLoading: "Вкажи локацію, щоб отримати рекомендацію.",
-    verdictNoData: "Заправок тут не знайдено — спробуй більший радіус або інше місце.",
+    heroAsk: "Заправлятися зараз чи почекати?",
+    heroLede: "Вкажи локацію й отримай відповідь для заправок поруч — з актуальними цінами німецьких АЗС.",
+    heroNoData: "Заправок тут не знайдено.",
+    heroNoDataLede: "Спробуй більший радіус або інше місце.",
     tankNow: "Заправляйся зараз.",
     tankNowWhy: "Зараз дешева частина дня — очікування нічого не заощадить.",
     waitUntil: (day, hour) => `Почекай — заправся ${day} близько ${hour}.`,
-    waitWhy: save => `Ціни на АЗС мають денний ритм — найдорожче вранці, найдешевше ввечері. Очікувана економія ≈ <b>${save} ct/л</b>.`,
-    bestDeal: (name, price, dist) => `Найдешевша поруч: <b>${name}</b>, ${price} €/л (${dist} км).`,
+    waitWhy: save => `Ціни тут ідуть за денним ритмом — найдорожче вранці, найдешевше ввечері. Очікування заощадить приблизно <b>${save} ct/л</b>.`,
+    bestDeal: (name, price, dist) => `Найдешевша зараз: <b>${name}</b> за ${price} €/л, ${dist} км звідси.`,
     today: "сьогодні", tomorrow: "завтра",
-    statCheapest: "Найдешевше зараз", statWindow: "Дешеве вікно", statTrend: "Тренд за 7 днів", statMode: "Дані про ціни",
-    modeLive: "живі (MTS-K)", modeEst: "оцінки", modeEstKey: "оцінки — ключ неактивний",
-    searchPh: "Місто або адреса",
-    findBtn: "Пошук", gpsTitle: "Використати мою локацію",
+    metaFmt: (place, n, mode, upd) => `${place} · ${n} заправок · ${mode} · ${upd}`,
+    modeLive: "живі ціни", modeEst: "оцінені ціни", modeEstKey: "оцінки — ключ неактивний",
+    change: "змінити",
+    searchPh: "Місто або адреса…",
+    findBtn: "Пошук", useMyLoc: "використати мою локацію",
     statusLocating: "Визначаю локацію…",
     statusGpsDenied: "GPS недоступний — введи місто або адресу.",
     statusSearching: q => `Шукаю «${q}»…`,
     statusNotFound: q => `Нічого не знайдено для «${q}».`,
     statusFail: "Запит не вдався — перевір з'єднання.",
-    statusFmt: (place, n) => `${place} — ${n} заправок`,
     statusNone: r => `Немає заправок у радіусі ${r} км — збільш радіус.`,
     updatedAgo: min => min < 1 ? "щойно оновлено" : `оновлено ${min} хв тому`,
     radius: "Радіус",
-    stationsTitle: "Заправки",
-    colStation: "Заправка", colDist: "Відстань", colStatus: "Статус", colPrice: "€ / л",
-    open: "відчинено", closed: "зачинено",
-    noLocation: "Локації ще немає — скористайся пошуком або кнопкою GPS вище.",
-    mapTitle: "Карта",
-    todayTitle: "Очікувана крива ціни сьогодні", todayAux: "типовий німецький денний ритм",
+    secStations: "Заправки поруч",
+    colStation: "Заправка", colDist: "км", colPrice: "€ / л",
+    closed: "зачинено", cheapNote: "найдешевша",
+    showAll: n => `Показати всі ${n} заправок`, showLess: "Показати менше",
+    secToday: "Денний ритм сьогодні",
+    todayCaption: `Ціни на АЗС коливаються протягом дня — найдорожче вранці, найдешевше між 18:00 і 21:00. <span class="w">●</span> позначає зараз, <span class="g">●</span> — найкращий час сьогодні.`,
     now: "зараз", best: "найкращий час",
-    histTitle: "Німеччина, довгостроково", rangeMax: "Макс",
-    realToggle: "З поправкою на інфляцію (у сьогоднішніх грошах)",
+    secLong: "Довгий погляд",
+    range1: "1 рік", range5: "5 років", rangeMax: "З 2005-го",
+    realToggle: "з поправкою на інфляцію",
+    histCaption: "Приблизні середні по Німеччині. Щойно тут запишуться живі ціни, твоя місцевість з'явиться окремою лінією.",
     settingsTitle: "Налаштування",
     apiKeyLabel: "API-ключ Tankerkönig",
-    apiKeyHint: `Безкоштовно на <a href="https://creativecommons.tankerkoenig.de" target="_blank" rel="noopener">creativecommons.tankerkoenig.de</a> (підтверди лінк у листі, щоб активувати). З активним ключем застосунок показує реальні ціни MTS-K, без нього — модельні оцінки.`,
-    keyOk: "активний", keyBad: "неактивний або хибний", keyNone: "не задано",
+    apiKeyHint: `Безкоштовно на <a href="https://creativecommons.tankerkoenig.de" target="_blank" rel="noopener">creativecommons.tankerkoenig.de</a> (підтверди лінк у листі, щоб активувати). З активним ключем сторінка показує реальні ціни MTS-K, без нього — модельні оцінки.`,
+    keyOk: "активний", keyBad: "неактивний або хибний", keyNone: "не задано", keyUnknown: "ще не перевірено",
     inflLabel: "Припущення інфляції", year: "рік",
     saveBtn: "Зберегти", saved: "Збережено", clearBtn: "Очистити кешовані дані",
-    footEst: "Список заправок з OpenStreetMap; ціни — модельні оцінки (німецький денний ритм, позиціювання брендів), доки API-ключ не активний. Довгостроковий графік: приблизні середні по країні.",
+    footEst: "Список заправок з OpenStreetMap. Ціни — модельні оцінки (німецький денний ритм, позиціювання брендів), доки API-ключ не активний. Довгостроковий графік: приблизні середні по країні.",
     footLive: "Ціни через Tankerkönig із MTS-K (орган прозорості паливного ринку Федерального картельного відомства). Довгостроковий графік: приблизні середні по країні плюс локально записані значення.",
     yourArea: "твоя місцевість (записано)", natAvg: "середнє по Німеччині",
   },
@@ -609,10 +503,7 @@ function applyI18n(){
   $$("[data-i18n]").forEach(el => { const v = t(el.dataset.i18n); if (typeof v === "string") el.textContent = v; });
   $$("[data-i18n-html]").forEach(el => { const v = t(el.dataset.i18nHtml); if (typeof v === "string") el.innerHTML = v; });
   $$("[data-i18n-ph]").forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
-  $$("[data-i18n-title]").forEach(el => { el.title = t(el.dataset.i18nTitle); el.setAttribute("aria-label", t(el.dataset.i18nTitle)); });
   $$("#langSwitch button").forEach(b => b.classList.toggle("on", b.dataset.lang === lang));
-  $("#footNote").textContent = liveMode ? t("footLive") : t("footEst");
-  renderKeyState();
 }
 
 /* ---------------- settings ---------------- */
@@ -626,15 +517,11 @@ let ui = { range: 5, real: false, ...store.get("bz-ui") };
 function saveUi(){ store.set("bz-ui", ui); }
 
 /* ---------------- German market knowledge ---------------- */
-/* Intraday offsets from the daily mean, ct (documented rhythm:
-   dearest at dawn, cheapest ~18–21h). Index = hour. */
 const INTRADAY = [3.2, 3.6, 4.0, 4.6, 5.2, 5.8, 6.2, 5.6, 4.2, 2.6, 1.4, 0.4,
                   -0.2, 0.6, -0.2, -0.8, -1.6, -2.6, -3.6, -4.2, -4.6, -4.2, -2.2, 0.6];
-/* Weekday offsets, ct (Sun..Sat) — Tue–Thu slightly cheaper */
 const WEEKDAY = [0.6, 0.4, -0.3, -0.4, -0.5, 0.0, 0.3];
 
 const FUELS = { e10: "Super E10", e5: "Super E5", diesel: "Diesel" };
-/* fallback national ballpark €/L (mid-2026), estimate mode only */
 const BASE_NOW = { e5: 1.849, e10: 1.789, diesel: 1.719 };
 const BRANDS = [
   ["aral", 0.026], ["shell", 0.028], ["esso", 0.012], ["total", 0.010],
@@ -645,7 +532,6 @@ const BRANDS = [
   ["classic", -0.018], ["team", -0.020], ["allguth", -0.012], ["q1", -0.018],
 ];
 
-/* Approx. national averages, €/L, quarterly 2005 → 2026-Q2 */
 const HIST_START = 2005;
 const HIST_E5 = [
   1.19,1.22,1.25,1.21, 1.25,1.33,1.32,1.26, 1.28,1.36,1.38,1.40, 1.39,1.48,1.55,1.24,
@@ -690,22 +576,27 @@ function intradayAt(dateOrHour){
 }
 const locale = () => lang === "uk" ? "uk" : lang === "de" ? "de" : "en-GB";
 const fmtEUR = v => v.toLocaleString(locale(), { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+/* German price-sign style: superscript final digit, e.g. 1,75⁹ */
+function fmtSign(v){
+  const s = fmtEUR(v);
+  return `${s.slice(0, -1)}<sup>${s.slice(-1)}</sup>`;
+}
 const fmtHour = h => new Intl.DateTimeFormat(locale(), { hour: "2-digit", minute: "2-digit" }).format(new Date(2026, 0, 1, h, 0));
 const fmtDay = d => new Intl.DateTimeFormat(locale(), { weekday: "long" }).format(d);
 const fmtTime = ts => new Intl.DateTimeFormat(locale(), { hour: "2-digit", minute: "2-digit" }).format(new Date(ts));
 function esc(s){ return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 
 /* ---------------- state ---------------- */
-let loc = store.get("bz-loc");            // {lat, lon, label, t}
+let loc = store.get("bz-loc");
 let stations = [];
 let liveMode = false;
-let keyChecked = null;                    // null unknown, true ok, false bad
+let keyChecked = null;
 let lastUpdate = 0;
+let showAll = false;
 let map, markerLayer, userMarker, todayChart, histChart;
 
-const CACHE_TTL = 10 * 60e3;              // serve cached stations up to 10 min
+const CACHE_TTL = 10 * 60e3;
 
-/* ---------------- status ---------------- */
 function setStatus(msg, err){
   const el = $("#statusLine");
   el.textContent = msg || "";
@@ -747,21 +638,21 @@ async function searchPlace(q){
 function setLocation(lat, lon, label){
   loc = { lat, lon, label, t: Date.now() };
   store.set("bz-loc", loc);
+  setStatus("");
+  toggleLocBlock(false);
   placeUserMarker();
   loadStations();
 }
 
 function placeUserMarker(){
-  if (!loc) return;
+  if (!loc || !map) return;
   map.setView([loc.lat, loc.lon], 13);
   if (userMarker) userMarker.remove();
-  userMarker = L.circleMarker([loc.lat, loc.lon], { radius: 7, color: "#f4f4f4", weight: 2, fillColor: "#7b9dff", fillOpacity: 1 }).addTo(map);
+  userMarker = L.circleMarker([loc.lat, loc.lon], { radius: 6, color: "#f4f4f4", weight: 2, fillColor: "#7b9dff", fillOpacity: 1 }).addTo(map);
 }
 
 /* ---------------- stations ---------------- */
-function cacheKey(){
-  return `${loc.lat.toFixed(3)},${loc.lon.toFixed(3)},${settings.radiusKm}`;
-}
+function cacheKey(){ return `${loc.lat.toFixed(3)},${loc.lon.toFixed(3)},${settings.radiusKm}`; }
 
 async function loadStations(forceFresh){
   if (!loc) return;
@@ -771,7 +662,7 @@ async function loadStations(forceFresh){
     liveMode = cached.live;
     if (cached.keyChecked != null) keyChecked = cached.keyChecked;
     lastUpdate = cached.t;
-    finishLoad(true);
+    finishLoad();
     return;
   }
 
@@ -796,7 +687,7 @@ async function loadStations(forceFresh){
         keyChecked = true;
         ok = true;
       } else if (js.ok === false){
-        keyChecked = false;             // key rejected → remember, fall back
+        keyChecked = false;
       }
     } catch {}
   }
@@ -832,17 +723,14 @@ async function loadStations(forceFresh){
     store.set("bz-stations", { key: cacheKey(), t: lastUpdate, live: liveMode, keyChecked, stations });
     recordSnapshot();
   }
-  finishLoad(false);
+  finishLoad();
 }
 
-function finishLoad(fromCache){
+function finishLoad(){
   stations.sort((a, b) => (a.prices[settings.fuel] ?? 9) - (b.prices[settings.fuel] ?? 9));
-  if (stations.length) setStatus(t("statusFmt")(loc.label, stations.length));
-  else if (loc) setStatus(t("statusNone")(settings.radiusKm), true);
   renderAll();
 }
 
-/* self-building local history (live prices only), max one point/hour */
 function recordSnapshot(){
   if (!liveMode || !stations.length) return;
   const snaps = store.get("bz-snaps", []);
@@ -901,7 +789,7 @@ function computeVerdict(){
     if (c.delta <= cands[0].delta + 0.7){ win = c; break; }
   const save = -win.delta;
 
-  return { best, fuel, wait: save >= 0.8 ? win : null, save: save.toFixed(1), trendWk: (trendPerDay() * 7).toFixed(1) };
+  return { best, fuel, wait: save >= 0.8 ? win : null, save: save.toFixed(1) };
 }
 
 /* ---------------- rendering ---------------- */
@@ -916,60 +804,69 @@ function renderAll(){
 }
 
 function renderVerdict(){
-  $("#fuelEcho").textContent = FUELS[settings.fuel];
-  const head = $("#verdictHead"), why = $("#verdictWhy"), stats = $("#stats");
+  const h = $("#verdict"), lede = $("#lede"), meta = $("#metaLine");
   const v = computeVerdict();
   if (!v){
-    head.textContent = loc && stations.length === 0 && lastUpdate ? t("verdictNoData") : t("verdictLoading");
-    why.textContent = "";
-    stats.hidden = true;
+    if (loc && lastUpdate && !stations.length){
+      h.textContent = t("heroNoData");
+      lede.textContent = t("heroNoDataLede");
+    } else {
+      h.textContent = t("heroAsk");
+      lede.textContent = t("heroLede");
+    }
+    meta.hidden = true;
     return;
   }
   const deal = t("bestDeal")(esc(v.best.name), fmtEUR(v.best.prices[v.fuel]), v.best.dist.toFixed(1));
   if (v.wait){
     const dayWord = v.wait.d === 0 ? t("today") : v.wait.d === 1 ? t("tomorrow") : fmtDay(new Date(Date.now() + v.wait.d * 86400e3));
-    head.textContent = t("waitUntil")(dayWord, fmtHour(v.wait.h));
-    why.innerHTML = t("waitWhy")(v.save) + " " + deal;
+    h.textContent = t("waitUntil")(dayWord, fmtHour(v.wait.h));
+    lede.innerHTML = t("waitWhy")(v.save) + " " + deal;
   } else {
-    head.innerHTML = `<span class="ok">${t("tankNow")}</span>`;
-    why.innerHTML = t("tankNowWhy") + " " + deal;
+    h.textContent = t("tankNow");
+    lede.innerHTML = t("tankNowWhy") + " " + deal;
   }
-  stats.hidden = false;
-  $("#statCheapest").innerHTML = `${fmtEUR(v.best.prices[v.fuel])} <small>€/L</small>`;
-  $("#statWindow").textContent = "18–21 h";
-  const tr = +v.trendWk;
-  $("#statTrend").innerHTML = tr >= 0
-    ? `<span class="up">+${tr.toFixed(1)} ct</span>`
-    : `<span class="down">${tr.toFixed(1)} ct</span>`;
-  $("#statMode").textContent = liveMode ? t("modeLive") : (keyChecked === false ? t("modeEstKey") : t("modeEst"));
+  const mode = liveMode ? t("modeLive") : (keyChecked === false ? t("modeEstKey") : t("modeEst"));
+  const upd = t("updatedAgo")(Math.floor((Date.now() - lastUpdate) / 60e3));
+  meta.innerHTML = t("metaFmt")(`<b>${esc(loc.label)}</b>`, stations.length, mode, upd) +
+    ` · <button class="link" id="btnChange">${t("change")}</button>`;
+  meta.hidden = false;
 }
 
 function renderStations(){
   const fuel = settings.fuel;
-  const body = $("#stBody"), wrap = $("#tableWrap"), empty = $("#stEmpty");
-  $("#updatedAux").textContent = lastUpdate
-    ? t("updatedAgo")(Math.floor((Date.now() - lastUpdate) / 60e3)) + " · " + fmtTime(lastUpdate)
-    : "";
+  const sec = $("#stationsSec"), body = $("#stBody"), empty = $("#stEmpty");
   const priced = stations.filter(s => s.prices[fuel] > 0);
   if (!priced.length){
-    wrap.hidden = true;
-    empty.style.display = "";
-    empty.textContent = loc && lastUpdate ? t("statusNone")(settings.radiusKm) : t("noLocation");
+    sec.hidden = true;
+    if (loc && lastUpdate){
+      empty.hidden = false;
+      empty.textContent = t("statusNone")(settings.radiusKm);
+    } else empty.hidden = true;
     return;
   }
-  wrap.hidden = false;
-  empty.style.display = "none";
-  body.innerHTML = priced.map((s, i) => {
-    const st = s.isOpen == null ? `<span class="st-status na">—</span>`
-      : s.isOpen ? `<span class="st-status open">${t("open")}</span>`
-                 : `<span class="st-status closed">${t("closed")}</span>`;
-    return `<tr data-id="${esc(s.id)}" class="${i === 0 ? "best" : ""}">
-      <td><div class="st-brand">${esc(s.name)}</div><div class="st-addr">${esc(s.detail || "")}</div></td>
-      <td class="dist">${s.dist.toFixed(1)} km</td>
-      <td>${st}</td>
-      <td class="num price">${fmtEUR(s.prices[fuel])}</td>
+  sec.hidden = false;
+  empty.hidden = true;
+  $("#updatedNote").textContent = lastUpdate ? t("updatedAgo")(Math.floor((Date.now() - lastUpdate) / 60e3)) + " · " + fmtTime(lastUpdate) : "";
+
+  const limit = 12;
+  const rows = showAll ? priced : priced.slice(0, limit);
+  body.innerHTML = rows.map((s, i) => {
+    const closed = s.isOpen === false ? `<span class="tag-closed">${t("closed")}</span>` : "";
+    const cheap = i === 0 ? `<span class="cheap-note">— ${t("cheapNote")}</span>` : "";
+    return `<tr data-id="${esc(s.id)}" class="${i === 0 ? "cheapest" : ""}">
+      <td><span class="name">${esc(s.name)}</span>${closed}${cheap}<br><span class="addr">${esc(s.detail || "")}</span></td>
+      <td class="num dist">${s.dist.toFixed(1)}</td>
+      <td class="num price">${fmtSign(s.prices[fuel])}</td>
     </tr>`;
   }).join("");
+
+  const moreWrap = $("#showMoreWrap"), moreBtn = $("#btnShowMore");
+  if (priced.length > limit){
+    moreWrap.hidden = false;
+    moreBtn.textContent = showAll ? t("showLess") : t("showAll")(priced.length);
+  } else moreWrap.hidden = true;
+
   body.querySelectorAll("tr[data-id]").forEach(row => {
     row.addEventListener("click", () => {
       const s = stations.find(x => x.id === row.dataset.id);
@@ -992,21 +889,23 @@ function renderMap(){
   const lo = priced[0].prices[fuel], hi = priced[priced.length - 1].prices[fuel];
   priced.forEach(s => {
     const k = hi > lo ? (s.prices[fuel] - lo) / (hi - lo) : 0;
-    const color = k < 0.34 ? "#74d99f" : k < 0.67 ? "#e8c97a" : "#f28b82";
-    L.circleMarker([s.lat, s.lon], { radius: 8, color: "#0a0a0a", weight: 2, fillColor: color, fillOpacity: 0.95 })
+    const color = k < 0.34 ? "#86dcab" : k < 0.67 ? "#d9c58a" : "#f0958b";
+    L.circleMarker([s.lat, s.lon], { radius: 7, color: "#0a0a0a", weight: 2, fillColor: color, fillOpacity: 0.95 })
       .addTo(markerLayer)
       .bindPopup(`<div class="pop-name">${esc(s.name)}</div><div class="pop-price">${fmtEUR(s.prices[fuel])} €/L</div><div class="pop-meta">${s.dist.toFixed(1)} km · ${FUELS[fuel]}</div>`);
   });
 }
 
-const gridColor = "rgba(255,255,255,.05)", tickColor = "rgba(255,255,255,.35)";
-const fontOpts = { family: "ui-sans-serif, system-ui, 'Segoe UI', sans-serif", size: 10 };
+const gridColor = "rgba(255,255,255,.05)", tickColor = "rgba(255,255,255,.32)";
+const fontOpts = { family: "ui-sans-serif, system-ui, 'Segoe UI', sans-serif", size: 10.5 };
 
 function renderTodayChart(){
   if (todayChart){ todayChart.destroy(); todayChart = null; }
   const fuel = settings.fuel;
   const priced = stations.filter(s => s.prices[fuel] > 0);
-  if (!priced.length) return;
+  const sec = $("#todaySec");
+  if (!priced.length){ sec.hidden = true; return; }
+  sec.hidden = false;
   const anchor = priced[0].prices[fuel];
   const now = new Date();
   const nowOff = intradayAt(now);
@@ -1020,26 +919,23 @@ function renderTodayChart(){
     data: {
       labels,
       datasets: [
-        { data, borderColor: "rgba(190,205,255,.85)", backgroundColor: "rgba(150,178,255,.06)",
-          fill: true, borderWidth: 2, pointRadius: 0, tension: 0.35 },
-        { data: labels.map(h => h === nowH ? data[h] : null), pointRadius: 4.5,
-          pointBackgroundColor: "#f4f4f4", borderWidth: 0, label: t("now") },
-        { data: labels.map(h => h === bestH ? data[h] : null), pointRadius: 4.5,
-          pointBackgroundColor: "#74d99f", borderWidth: 0, label: t("best") },
+        { data, borderColor: "rgba(200,212,255,.75)", borderWidth: 1.6, pointRadius: 0, tension: 0.35 },
+        { data: labels.map(h => h === nowH ? data[h] : null), pointRadius: 4, pointBackgroundColor: "#f4f4f4", borderWidth: 0 },
+        { data: labels.map(h => h === bestH ? data[h] : null), pointRadius: 4, pointBackgroundColor: "#86dcab", borderWidth: 0 },
       ],
     },
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
       plugins: {
-        legend: { labels: { color: tickColor, boxWidth: 8, usePointStyle: true, font: fontOpts, filter: i => i.text } },
+        legend: { display: false },
         tooltip: { callbacks: {
           title: items => fmtHour(+items[0].label),
           label: c => " " + (c.raw == null ? "" : fmtEUR(c.raw) + " €/L"),
         } },
       },
       scales: {
-        x: { ticks: { color: tickColor, font: fontOpts, maxTicksLimit: 8, callback: v => fmtHour(+labels[v]) }, grid: { color: gridColor } },
-        y: { ticks: { color: tickColor, font: fontOpts, callback: v => v.toFixed(2) }, grid: { color: gridColor } },
+        x: { ticks: { color: tickColor, font: fontOpts, maxTicksLimit: 8, callback: v => fmtHour(+labels[v]) }, grid: { color: gridColor }, border: { color: "rgba(255,255,255,.1)" } },
+        y: { ticks: { color: tickColor, font: fontOpts, callback: v => v.toFixed(2) }, grid: { color: gridColor }, border: { display: false } },
       },
     },
   });
@@ -1061,11 +957,10 @@ function renderHistChart(){
 
   const labels = pts.map(p => p.d);
   const datasets = [{
-    label: t("natAvg"), data: pts.map(deflate), borderColor: "rgba(190,205,255,.85)",
-    backgroundColor: "rgba(150,178,255,.05)", fill: true, borderWidth: 2, pointRadius: 0, tension: 0.3,
+    label: t("natAvg"), data: pts.map(deflate), borderColor: "rgba(200,212,255,.75)",
+    borderWidth: 1.6, pointRadius: 0, tension: 0.3,
   }];
 
-  /* locally recorded snapshots, weekly buckets, mapped to nearest slot */
   const snaps = store.get("bz-snaps", []).filter(s => s[fuel] > 0);
   if (snaps.length){
     const buckets = new Map();
@@ -1084,7 +979,7 @@ function renderHistChart(){
       dl[bi] = deflate({ d, v: vals.reduce((a, b) => a + b, 0) / vals.length });
       any = true;
     }
-    if (any) datasets.push({ label: t("yourArea"), data: dl, borderColor: "#74d99f", borderWidth: 2, pointRadius: 2.5, tension: 0.3, spanGaps: true });
+    if (any) datasets.push({ label: t("yourArea"), data: dl, borderColor: "#86dcab", borderWidth: 1.6, pointRadius: 2.5, tension: 0.3, spanGaps: true });
   }
 
   const fmtTick = d => new Intl.DateTimeFormat(locale(), nQ > 24 ? { year: "numeric" } : { month: "short", year: "2-digit" }).format(d);
@@ -1096,15 +991,15 @@ function renderHistChart(){
       responsive: true, maintainAspectRatio: false, animation: false,
       interaction: { mode: "index", intersect: false },
       plugins: {
-        legend: { labels: { color: tickColor, boxWidth: 8, usePointStyle: true, font: fontOpts } },
+        legend: { display: datasets.length > 1, labels: { color: tickColor, boxWidth: 8, usePointStyle: true, font: fontOpts } },
         tooltip: { callbacks: {
           title: items => fmtTick(labels[items[0].dataIndex]),
           label: c => " " + (c.raw == null ? "—" : fmtEUR(c.raw) + " €/L"),
         } },
       },
       scales: {
-        x: { ticks: { color: tickColor, font: fontOpts, maxTicksLimit: 8, callback: (v, i) => fmtTick(labels[i]) }, grid: { color: gridColor } },
-        y: { ticks: { color: tickColor, font: fontOpts, callback: v => v.toFixed(2) }, grid: { color: gridColor } },
+        x: { ticks: { color: tickColor, font: fontOpts, maxTicksLimit: 8, callback: (v, i) => fmtTick(labels[i]) }, grid: { color: gridColor }, border: { color: "rgba(255,255,255,.1)" } },
+        y: { ticks: { color: tickColor, font: fontOpts, callback: v => v.toFixed(2) }, grid: { color: gridColor }, border: { display: false } },
       },
     },
   });
@@ -1115,7 +1010,7 @@ function renderKeyState(){
   if (!settings.apiKey){ el.textContent = t("keyNone"); el.className = "key-state"; return; }
   if (keyChecked === true){ el.textContent = t("keyOk"); el.className = "key-state ok"; }
   else if (keyChecked === false){ el.textContent = t("keyBad"); el.className = "key-state bad"; }
-  else { el.textContent = "…"; el.className = "key-state"; }
+  else { el.textContent = t("keyUnknown"); el.className = "key-state"; }
 }
 
 /* ---------------- starfield (site identity) ---------------- */
@@ -1137,12 +1032,12 @@ function setupSpaceBackground(){
     canvas.style.width = width + "px";
     canvas.style.height = height + "px";
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
-    const n = Math.min(170, Math.max(80, Math.floor(width * height / 9500)));
+    const n = Math.min(150, Math.max(70, Math.floor(width * height / 11000)));
     stars.length = 0;
     for (let i = 0; i < n; i++) stars.push({
       x: Math.random() * width, y: Math.random() * height,
-      radius: 0.45 + Math.random() * 1.25, depth: 0.16 + Math.random() * 0.84,
-      alpha: 0.18 + Math.random() * 0.58, twinkle: Math.random() * Math.PI * 2,
+      radius: 0.45 + Math.random() * 1.15, depth: 0.16 + Math.random() * 0.84,
+      alpha: 0.14 + Math.random() * 0.5, twinkle: Math.random() * Math.PI * 2,
     });
   }
   addEventListener("pointermove", e => {
@@ -1156,19 +1051,19 @@ function setupSpaceBackground(){
     pointer.x += (pointer.targetX - pointer.x) * 0.055;
     pointer.y += (pointer.targetY - pointer.y) * 0.055;
     const glow = context.createRadialGradient(
-      width * (0.5 + pointer.x * 0.025), height * (0.24 + pointer.y * 0.018), 0,
-      width * 0.5, height * 0.26, Math.max(width, height) * 0.58);
-    glow.addColorStop(0, "rgba(118, 145, 255, 0.18)");
-    glow.addColorStop(0.34, "rgba(118, 145, 255, 0.055)");
+      width * (0.5 + pointer.x * 0.025), height * (0.22 + pointer.y * 0.018), 0,
+      width * 0.5, height * 0.24, Math.max(width, height) * 0.55);
+    glow.addColorStop(0, "rgba(118, 145, 255, 0.14)");
+    glow.addColorStop(0.34, "rgba(118, 145, 255, 0.045)");
     glow.addColorStop(1, "rgba(7, 7, 7, 0)");
     context.fillStyle = glow;
     context.fillRect(0, 0, width, height);
     stars.forEach(star => {
-      const x = star.x + pointer.x * star.depth * 18;
-      const y = star.y + pointer.y * star.depth * 12;
-      const alpha = star.alpha + Math.sin(time * 0.0015 + star.twinkle) * 0.12;
+      const x = star.x + pointer.x * star.depth * 16;
+      const y = star.y + pointer.y * star.depth * 11;
+      const alpha = star.alpha + Math.sin(time * 0.0015 + star.twinkle) * 0.1;
       context.beginPath();
-      context.fillStyle = `rgba(255, 255, 255, ${Math.max(0.04, alpha)})`;
+      context.fillStyle = `rgba(255, 255, 255, ${Math.max(0.03, alpha)})`;
       context.arc(x, y, star.radius, 0, Math.PI * 2);
       context.fill();
     });
@@ -1185,12 +1080,17 @@ function setupSpaceBackground(){
 
 /* ---------------- wiring ---------------- */
 function syncControls(){
-  $$("#fuelSeg button").forEach(b => b.classList.toggle("on", b.dataset.f === settings.fuel));
+  $$("#fuelTabs button").forEach(b => b.classList.toggle("on", b.dataset.f === settings.fuel));
   $("#radiusSel").value = String(settings.radiusKm);
   $("#apiKeyInput").value = settings.apiKey;
   $("#inflInput").value = settings.inflation;
-  $$("#rangeSeg button").forEach(b => b.classList.toggle("on", +b.dataset.y === ui.range));
+  $$("#rangeLinks button").forEach(b => b.classList.toggle("on", +b.dataset.y === ui.range));
   $("#realToggle").checked = !!ui.real;
+}
+
+function toggleLocBlock(open){
+  $("#locBlock").classList.toggle("open", open);
+  if (open) $("#locInput").focus();
 }
 
 function init(){
@@ -1207,7 +1107,6 @@ function init(){
     lang = b.dataset.lang;
     store.set("bz-lang", lang);
     applyI18n();
-    if (loc && stations.length) setStatus(t("statusFmt")(loc.label, stations.length));
     renderAll();
   }));
 
@@ -1215,7 +1114,12 @@ function init(){
   $("#btnFind").addEventListener("click", () => searchPlace($("#locInput").value));
   $("#locInput").addEventListener("keydown", e => { if (e.key === "Enter") searchPlace(e.target.value); });
 
-  $$("#fuelSeg button").forEach(b => b.addEventListener("click", () => {
+  /* "change" link inside the meta line (re-rendered each time) */
+  $("#metaLine").addEventListener("click", e => {
+    if (e.target.id === "btnChange") toggleLocBlock(!$("#locBlock").classList.contains("open"));
+  });
+
+  $$("#fuelTabs button").forEach(b => b.addEventListener("click", () => {
     settings.fuel = b.dataset.f;
     saveSettings();
     syncControls();
@@ -1229,27 +1133,28 @@ function init(){
     if (loc) loadStations(true);
   });
 
+  $("#btnShowMore").addEventListener("click", () => { showAll = !showAll; renderStations(); });
+
   $("#btnSave").addEventListener("click", () => {
     settings.apiKey = $("#apiKeyInput").value.trim();
     settings.inflation = Math.max(0, Math.min(15, +$("#inflInput").value || 0));
     keyChecked = null;
     saveSettings();
-    applyI18n();
     const btn = $("#btnSave");
-    const old = t("saveBtn");
     btn.textContent = t("saved");
-    setTimeout(() => { btn.textContent = old; }, 1400);
-    if (loc) loadStations(true); else renderHistChart();
+    setTimeout(() => { btn.textContent = t("saveBtn"); }, 1400);
+    if (loc) loadStations(true); else renderKeyState();
   });
 
   $("#btnClearData").addEventListener("click", () => {
     ["bz-stations", "bz-snaps", "bz-loc"].forEach(k => store.del(k));
-    loc = null; stations = []; lastUpdate = 0; liveMode = false;
+    loc = null; stations = []; lastUpdate = 0; liveMode = false; showAll = false;
     setStatus("");
+    toggleLocBlock(true);
     renderAll();
   });
 
-  $$("#rangeSeg button").forEach(b => b.addEventListener("click", () => {
+  $$("#rangeLinks button").forEach(b => b.addEventListener("click", () => {
     ui.range = +b.dataset.y;
     saveUi();
     syncControls();
@@ -1259,9 +1164,9 @@ function init(){
 
   renderHistChart();
 
-  /* zero-effort start: cached location renders instantly; GPS only
-     when nothing is cached (or on button press) */
   if (loc){
+    toggleLocBlock(false);
+    $("#locInput").value = "";
     placeUserMarker();
     loadStations();
   } else if (location.hash !== "#nogps"){
