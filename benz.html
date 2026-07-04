@@ -1186,7 +1186,58 @@
   @media (prefers-reduced-motion: reduce) {
     .boot, h1 .wd, .st tbody tr { animation: none !important; }
     .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+    .st .barfill, .figures .big { transition: none !important; }
   }
+
+  /* ---------- visual layer ---------- */
+  /* verdict: big price anchor + now→best, replacing the prose lede */
+  .figures { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 24px; margin: 4px 0 2px; }
+  .fig-price { display: flex; align-items: baseline; gap: 7px; }
+  .fig-price .big {
+    font-size: clamp(2.1rem, 5.4vw, 3rem);
+    font-weight: 780; letter-spacing: -0.045em; line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .fig-price .big sup { font-size: 0.5em; top: -0.7em; }
+  .fig-price .unit { color: var(--muted); font-size: 0.95rem; font-weight: 600; }
+  .fig-where { color: var(--muted); font-size: 0.98rem; align-self: center; }
+  .fig-where b { color: var(--text); font-weight: 650; }
+  .fig-save {
+    display: inline-flex; align-items: baseline; gap: 9px; align-self: center;
+    color: var(--faint); font-size: 0.92rem; font-variant-numeric: tabular-nums;
+  }
+  .fig-save .arrow { opacity: 0.55; }
+  .fig-save .best { color: var(--good); font-weight: 650; }
+  .fig-save .chip {
+    padding: 2px 9px; border-radius: 999px; font-size: 0.8rem; font-weight: 700;
+    background: rgba(134, 220, 171, 0.15); color: var(--good);
+  }
+
+  /* per-row price-position bar: longer + greener = cheaper */
+  .st .pnum { display: block; }
+  .st .barwrap {
+    display: block; width: 62px; height: 5px; margin: 5px 0 0 auto;
+    border-radius: 999px; background: rgba(255, 255, 255, 0.06);
+    position: relative; overflow: hidden;
+  }
+  .st .barfill {
+    position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px;
+    transition: width 600ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* compact chart legend, replacing caption sentences */
+  .legend { display: inline-flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; color: var(--faint); font-size: 0.84rem; }
+  .legend .dot { display: inline-flex; align-items: center; gap: 7px; }
+  .legend .dot::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  .legend .now { color: #d8d8d8; }
+  .legend .best, .legend .area { color: var(--good); }
+  .legend .avg { color: rgba(200, 212, 255, 0.85); }
+
+  /* one-line key notice */
+  .key-notice { display: flex; gap: 8px; align-items: baseline; max-width: 58ch; margin: 12px 0 0; color: #e2c07c; font-size: 0.88rem; }
+  .key-notice::before { content: "▲"; font-size: 0.66rem; transform: translateY(-1px); flex: none; }
+  .key-notice[hidden] { display: none; }
+  .calib-hint { color: var(--faint); }
 </style>
 </head>
 <body>
@@ -1204,6 +1255,7 @@
   <p class="kicker boot" style="--bd:0ms">Danylo's Benz Checker</p>
   <h1 id="verdict" class="boot" style="--bd:70ms" data-i18n="heroAsk">Should you fill up now, or wait?</h1>
   <p class="lede boot" style="--bd:140ms" id="lede" data-i18n="heroLede">Find the cheaper stop nearby and whether waiting is worth it.</p>
+  <div class="figures boot" style="--bd:140ms" id="figures" hidden></div>
   <p class="meta" id="metaLine" hidden></p>
   <p class="key-notice" id="keyNotice" hidden></p>
 
@@ -1252,7 +1304,7 @@
   <section id="todaySec" class="reveal" hidden>
     <h2 data-i18n="secToday">Today's price rhythm</h2>
     <div class="chart-box"><canvas id="todayChart"></canvas></div>
-    <p class="caption" data-i18n-html="todayCaption">Pump prices in Germany swing through the day — dearest around dawn, cheapest between 18:00 and 21:00. <span class="w">●</span> marks now, <span class="g">●</span> marks today's best time.</p>
+    <p class="caption legend"><span class="dot now" data-i18n="now">now</span><span class="dot best" data-i18n="bestWindow">cheapest ~19h</span></p>
   </section>
 
   <section class="reveal">
@@ -1320,9 +1372,10 @@ const I18N = {
     backHome: "← Danylo's Tools",
     heroAsk: "Should you fill up now, or wait?",
     heroLede: "Find the cheaper stop nearby and whether waiting is worth it.",
-    keyNotice: "Live prices are off: the Tankerkönig API key is inactive. Open the confirmation e-mail from Tankerkönig to activate it — until then, prices are model estimates.",
-    calibNudge: "If a sign near you says otherwise, click a price in the table and type the real one — the whole list recalibrates.",
+    keyNotice: "Live prices aren't on yet — your API key isn't active, so these are estimates.",
+    calibHint: "tap a price to fix it",
     calibTitle: "Click to correct this price",
+    bestWindow: "cheapest ~19h",
     heroNoData: "No stations found here.",
     heroNoDataLede: "Try a larger radius or a different place.",
     tankNow: "Fill up now.",
@@ -1354,24 +1407,25 @@ const I18N = {
     secLong: "Price history",
     range1: "1 year", range5: "5 years", rangeMax: "Since 2005",
     realToggle: "inflation-adjusted",
-    histCaption: "Germany-wide averages. If this device records live prices, your area appears as its own line.",
+    histCaption: "German national average.",
     settingsTitle: "Settings",
     apiKeyLabel: "Tankerkönig API key",
     apiKeyHint: `Free at <a href="https://creativecommons.tankerkoenig.de" target="_blank" rel="noopener">creativecommons.tankerkoenig.de</a> (confirm the e-mail link to activate it). With an active key this page shows real prices from MTS-K; without one, model estimates.`,
     keyOk: "active", keyBad: "inactive or invalid", keyNone: "not set", keyUnknown: "not checked yet",
     inflLabel: "Inflation assumption", year: "yr",
     saveBtn: "Save", saved: "Saved", clearBtn: "Clear cached data",
-    footEst: "Station list from OpenStreetMap. Prices are model estimates (German daily rhythm, brand positioning) until the API key is active. Long-term chart: approximate national averages.",
-    footLive: "Prices via Tankerkönig from MTS-K, the Federal Cartel Office's fuel market transparency unit. Long-term chart: approximate national averages plus locally recorded values.",
-    yourArea: "your area (recorded)", natAvg: "national average",
+    footEst: "Stations from OpenStreetMap · prices estimated until your API key is active.",
+    footLive: "Prices: Tankerkönig / MTS-K, Germany's official fuel-price data.",
+    yourArea: "your area", natAvg: "German average",
   },
   de: {
     backHome: "← Danylos Tools",
     heroAsk: "Jetzt tanken oder warten?",
     heroLede: "Finde die günstigere Tankstelle in der Nähe und ob Warten Sinn ergibt.",
-    keyNotice: "Echtzeitpreise sind aus: Der Tankerkönig-API-Key ist inaktiv. Bestätigungs-E-Mail von Tankerkönig öffnen und aktivieren — bis dahin sind die Preise Modellschätzungen.",
-    calibNudge: "Wenn ein Schild in deiner Nähe etwas anderes sagt: Preis in der Tabelle anklicken und den echten eintippen — die ganze Liste kalibriert sich.",
+    keyNotice: "Echtzeitpreise noch aus — dein API-Key ist nicht aktiv, daher Schätzungen.",
+    calibHint: "Preis antippen zum Korrigieren",
     calibTitle: "Klicken und Preis korrigieren",
+    bestWindow: "günstigste ~19 Uhr",
     heroNoData: "Hier keine Tankstellen gefunden.",
     heroNoDataLede: "Größeren Radius oder anderen Ort versuchen.",
     tankNow: "Jetzt tanken.",
@@ -1403,24 +1457,25 @@ const I18N = {
     secLong: "Preisverlauf",
     range1: "1 Jahr", range5: "5 Jahre", rangeMax: "Seit 2005",
     realToggle: "inflationsbereinigt",
-    histCaption: "Deutschlandweite Durchschnittswerte. Wenn dieses Gerät Live-Preise speichert, erscheint deine Gegend als eigene Linie.",
+    histCaption: "Bundesdurchschnitt.",
     settingsTitle: "Einstellungen",
     apiKeyLabel: "Tankerkönig API-Key",
     apiKeyHint: `Kostenlos auf <a href="https://creativecommons.tankerkoenig.de" target="_blank" rel="noopener">creativecommons.tankerkoenig.de</a> (Bestätigungslink in der E-Mail anklicken). Mit aktivem Key zeigt die Seite echte MTS-K-Preise, ohne Key Modellschätzungen.`,
     keyOk: "aktiv", keyBad: "inaktiv oder ungültig", keyNone: "nicht gesetzt", keyUnknown: "noch nicht geprüft",
     inflLabel: "Inflationsannahme", year: "Jahr",
     saveBtn: "Speichern", saved: "Gespeichert", clearBtn: "Zwischengespeicherte Daten löschen",
-    footEst: "Tankstellenliste aus OpenStreetMap. Preise sind Modellschätzungen (deutscher Tagesrhythmus, Markenpositionierung), bis der API-Key aktiv ist. Langzeit-Chart: ungefähre Bundesdurchschnitte.",
-    footLive: "Preise via Tankerkönig aus der MTS-K (Markttransparenzstelle für Kraftstoffe des Bundeskartellamts). Langzeit-Chart: ungefähre Bundesdurchschnitte plus lokal aufgezeichnete Werte.",
-    yourArea: "deine Gegend (aufgezeichnet)", natAvg: "Bundesdurchschnitt",
+    footEst: "Tankstellen aus OpenStreetMap · Preise geschätzt, bis dein API-Key aktiv ist.",
+    footLive: "Preise: Tankerkönig / MTS-K, die offiziellen deutschen Spritpreisdaten.",
+    yourArea: "deine Gegend", natAvg: "Bundesdurchschnitt",
   },
   uk: {
     backHome: "← Інструменти Данила",
     heroAsk: "Заправлятися зараз чи почекати?",
     heroLede: "Знайди дешевшу заправку поруч і чи варто чекати.",
-    keyNotice: "Живі ціни вимкнені: API-ключ Tankerkönig неактивний. Відкрий лист-підтвердження від Tankerkönig і активуй його — до того часу ціни є модельними оцінками.",
-    calibNudge: "Якщо табло поруч показує інше: клацни ціну в таблиці та введи справжню — весь список відкалібрується.",
+    keyNotice: "Живі ціни ще вимкнені — твій API-ключ неактивний, тож це оцінки.",
+    calibHint: "торкнись ціни, щоб виправити",
     calibTitle: "Клацни, щоб виправити ціну",
+    bestWindow: "найдешевше ~19:00",
     heroNoData: "Заправок тут не знайдено.",
     heroNoDataLede: "Спробуй більший радіус або інше місце.",
     tankNow: "Заправляйся зараз.",
@@ -1452,16 +1507,16 @@ const I18N = {
     secLong: "Історія цін",
     range1: "1 рік", range5: "5 років", rangeMax: "З 2005-го",
     realToggle: "з поправкою на інфляцію",
-    histCaption: "Середні значення по Німеччині. Якщо цей пристрій збере живі ціни, твоя місцевість з'явиться окремою лінією.",
+    histCaption: "Середнє по Німеччині.",
     settingsTitle: "Налаштування",
     apiKeyLabel: "API-ключ Tankerkönig",
     apiKeyHint: `Безкоштовно на <a href="https://creativecommons.tankerkoenig.de" target="_blank" rel="noopener">creativecommons.tankerkoenig.de</a> (підтверди лінк у листі, щоб активувати). З активним ключем сторінка показує реальні ціни MTS-K, без нього — модельні оцінки.`,
     keyOk: "активний", keyBad: "неактивний або хибний", keyNone: "не задано", keyUnknown: "ще не перевірено",
     inflLabel: "Припущення інфляції", year: "рік",
     saveBtn: "Зберегти", saved: "Збережено", clearBtn: "Очистити кешовані дані",
-    footEst: "Список заправок з OpenStreetMap. Ціни — модельні оцінки (німецький денний ритм, позиціювання брендів), доки API-ключ не активний. Довгостроковий графік: приблизні середні по країні.",
-    footLive: "Ціни через Tankerkönig із MTS-K (орган прозорості паливного ринку Федерального картельного відомства). Довгостроковий графік: приблизні середні по країні плюс локально записані значення.",
-    yourArea: "твоя місцевість (записано)", natAvg: "середнє по Німеччині",
+    footEst: "Заправки з OpenStreetMap · ціни оцінені, доки ключ не активний.",
+    footLive: "Ціни: Tankerkönig / MTS-K, офіційні дані про ціни на пальне в Німеччині.",
+    yourArea: "твоя місцевість", natAvg: "середнє по Німеччині",
   },
 };
 
@@ -1798,7 +1853,7 @@ function renderAll(){
   renderKeyState();
   const notice = $("#keyNotice");
   notice.hidden = !(keyChecked === false && settings.apiKey);
-  if (!notice.hidden) notice.textContent = t("keyNotice") + " " + t("calibNudge");
+  if (!notice.hidden) notice.textContent = t("keyNotice");
   $("#footNote").textContent = liveMode ? t("footLive") : t("footEst");
   requestAnimationFrame(() => map && map.invalidateSize());
 }
@@ -1812,9 +1867,11 @@ function setHeadline(el, text){
 }
 
 function renderVerdict(){
-  const h = $("#verdict"), lede = $("#lede"), meta = $("#metaLine");
+  const h = $("#verdict"), lede = $("#lede"), figures = $("#figures"), meta = $("#metaLine");
   const v = computeVerdict();
   if (!v){
+    figures.hidden = true;
+    lede.hidden = false;
     if (loc && lastUpdate && !stations.length){
       setHeadline(h, t("heroNoData"));
       lede.textContent = t("heroNoDataLede");
@@ -1825,15 +1882,26 @@ function renderVerdict(){
     meta.hidden = true;
     return;
   }
-  const deal = t("bestDeal")(esc(v.best.name), fmtEUR(v.best.prices[v.fuel]), v.best.dist.toFixed(1));
+  const fuel = v.fuel, now = v.best.prices[fuel];
   if (v.wait){
     const dayWord = v.wait.d === 0 ? t("today") : v.wait.d === 1 ? t("tomorrow") : fmtDay(new Date(Date.now() + v.wait.d * 86400e3));
     setHeadline(h, t("waitUntil")(dayWord, fmtHour(v.wait.h)));
-    lede.innerHTML = t("waitWhy")(v.save) + " " + deal;
   } else {
     setHeadline(h, t("tankNow"));
-    lede.innerHTML = t("tankNowWhy") + " " + deal;
   }
+  const save = v.wait
+    ? `<span class="fig-save"><span>${t("now")} ${fmtEUR(now)}</span>` +
+      `<span class="arrow">→</span>` +
+      `<span class="best">${fmtHour(v.wait.h)} ${fmtEUR(now - v.save / 100)}</span>` +
+      `<span class="chip">−${v.save} ct</span></span>`
+    : "";
+  figures.innerHTML =
+    `<span class="fig-price"><span class="big">${fmtSign(now)}</span><span class="unit">€/L</span></span>` +
+    `<span class="fig-where"><b>${esc(v.best.name)}</b> · ${v.best.dist.toFixed(1)} km</span>` +
+    save;
+  lede.hidden = true;
+  figures.hidden = false;
+
   const mode = liveMode ? t("modeLive") : (keyChecked === false ? t("modeEstKey") : t("modeEst"));
   const upd = t("updatedAgo")(Math.floor((Date.now() - lastUpdate) / 60e3));
   meta.innerHTML = t("metaFmt")(`<b>${esc(loc.label)}</b>`, stations.length, mode, upd) +
@@ -1855,17 +1923,23 @@ function renderStations(){
   }
   sec.hidden = false;
   empty.hidden = true;
-  $("#updatedNote").textContent = lastUpdate ? t("updatedAgo")(Math.floor((Date.now() - lastUpdate) / 60e3)) + " · " + fmtTime(lastUpdate) : "";
+  const updBase = lastUpdate ? t("updatedAgo")(Math.floor((Date.now() - lastUpdate) / 60e3)) + " · " + fmtTime(lastUpdate) : "";
+  $("#updatedNote").innerHTML = updBase + (!liveMode ? ` · <span class="calib-hint">${t("calibHint")}</span>` : "");
 
   const limit = 12;
   const rows = showAll ? priced : priced.slice(0, limit);
+  const vlo = rows[0].prices[fuel], vhi = rows[rows.length - 1].prices[fuel], vspan = vhi - vlo;
   body.innerHTML = rows.map((s, i) => {
+    const p = s.prices[fuel];
+    const k = vspan > 0 ? (p - vlo) / vspan : 0;            // 0 cheapest … 1 priciest (in view)
+    const w = Math.round((1 - k) * 88 + 12);               // fuller bar = cheaper
+    const col = k < 0.34 ? "var(--good)" : k < 0.67 ? "#d9c58a" : "var(--bad)";
     const closed = s.isOpen === false ? `<span class="tag-closed">${t("closed")}</span>` : "";
     const cheap = i === 0 ? `<span class="cheap-note">— ${t("cheapNote")}</span>` : "";
     return `<tr data-id="${esc(s.id)}" class="${i === 0 ? "cheapest" : ""}" style="--rd:${Math.min(i, 14) * 32}ms">
       <td><span class="name">${esc(s.name)}</span>${closed}${cheap}<br><span class="addr">${esc(s.detail || "")}</span></td>
       <td class="num dist">${s.dist.toFixed(1)}</td>
-      <td class="num price">${fmtSign(s.prices[fuel])}</td>
+      <td class="num price"><span class="pnum">${fmtSign(p)}</span><span class="barwrap"><i class="barfill" style="width:${w}%;background:${col}"></i></span></td>
     </tr>`;
   }).join("");
 
