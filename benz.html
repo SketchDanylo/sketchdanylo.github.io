@@ -1321,6 +1321,8 @@ const I18N = {
     heroAsk: "Should you fill up now, or wait?",
     heroLede: "Find the cheaper stop nearby and whether waiting is worth it.",
     keyNotice: "Live prices are off: the Tankerkönig API key is inactive. Open the confirmation e-mail from Tankerkönig to activate it — until then, prices are model estimates.",
+    calibNudge: "If a sign near you says otherwise, click a price in the table and type the real one — the whole list recalibrates.",
+    calibTitle: "Click to correct this price",
     heroNoData: "No stations found here.",
     heroNoDataLede: "Try a larger radius or a different place.",
     tankNow: "Fill up now.",
@@ -1368,6 +1370,8 @@ const I18N = {
     heroAsk: "Jetzt tanken oder warten?",
     heroLede: "Finde die günstigere Tankstelle in der Nähe und ob Warten Sinn ergibt.",
     keyNotice: "Echtzeitpreise sind aus: Der Tankerkönig-API-Key ist inaktiv. Bestätigungs-E-Mail von Tankerkönig öffnen und aktivieren — bis dahin sind die Preise Modellschätzungen.",
+    calibNudge: "Wenn ein Schild in deiner Nähe etwas anderes sagt: Preis in der Tabelle anklicken und den echten eintippen — die ganze Liste kalibriert sich.",
+    calibTitle: "Klicken und Preis korrigieren",
     heroNoData: "Hier keine Tankstellen gefunden.",
     heroNoDataLede: "Größeren Radius oder anderen Ort versuchen.",
     tankNow: "Jetzt tanken.",
@@ -1415,6 +1419,8 @@ const I18N = {
     heroAsk: "Заправлятися зараз чи почекати?",
     heroLede: "Знайди дешевшу заправку поруч і чи варто чекати.",
     keyNotice: "Живі ціни вимкнені: API-ключ Tankerkönig неактивний. Відкрий лист-підтвердження від Tankerkönig і активуй його — до того часу ціни є модельними оцінками.",
+    calibNudge: "Якщо табло поруч показує інше: клацни ціну в таблиці та введи справжню — весь список відкалібрується.",
+    calibTitle: "Клацни, щоб виправити ціну",
     heroNoData: "Заправок тут не знайдено.",
     heroNoDataLede: "Спробуй більший радіус або інше місце.",
     tankNow: "Заправляйся зараз.",
@@ -1487,7 +1493,9 @@ const INTRADAY = [3.2, 3.6, 4.0, 4.6, 5.2, 5.8, 6.2, 5.6, 4.2, 2.6, 1.4, 0.4,
 const WEEKDAY = [0.6, 0.4, -0.3, -0.4, -0.5, 0.0, 0.3];
 
 const FUELS = { e10: "Super E10", e5: "Super E5", diesel: "Diesel" };
-const BASE_NOW = { e5: 1.849, e10: 1.789, diesel: 1.719 };
+/* July 2026: the May–June tax rebate (~14 ct) just ended, ADAC June
+   averages were E10 1.87 / Diesel 1.82 — post-rebate street level: */
+const BASE_NOW = { e5: 2.009, e10: 1.949, diesel: 1.929 };
 const BRANDS = [
   ["aral", 0.026], ["shell", 0.028], ["esso", 0.012], ["total", 0.010],
   ["agip", 0.008], ["eni", 0.008], ["avia", 0.004], ["westfalen", 0.006],
@@ -1503,16 +1511,16 @@ const HIST_E5 = [
   1.15,1.25,1.31,1.33, 1.38,1.42,1.41,1.45, 1.50,1.58,1.56,1.55, 1.60,1.68,1.66,1.60,
   1.58,1.60,1.59,1.53, 1.52,1.56,1.55,1.42, 1.34,1.46,1.44,1.32, 1.24,1.33,1.33,1.34,
   1.36,1.35,1.34,1.38, 1.39,1.45,1.51,1.48, 1.41,1.50,1.46,1.44, 1.43,1.24,1.28,1.30,
-  1.42,1.52,1.58,1.68, 1.78,2.14,1.88,1.85, 1.82,1.85,1.88,1.82, 1.78,1.85,1.80,1.72,
-  1.79,1.77,1.76,1.78, 1.81,1.84,
+  1.42,1.52,1.58,1.68, 1.78,2.14,1.88,1.85, 1.82,1.85,1.88,1.82, 1.80,1.86,1.83,1.82,
+  1.87,1.89,1.86,1.91, 1.96,1.90,
 ];
 const HIST_DIESEL = [
   1.02,1.05,1.09,1.08, 1.08,1.14,1.13,1.10, 1.10,1.15,1.17,1.25, 1.25,1.42,1.48,1.18,
   1.02,1.06,1.10,1.12, 1.16,1.20,1.19,1.26, 1.34,1.41,1.40,1.42, 1.47,1.51,1.48,1.45,
   1.43,1.42,1.41,1.37, 1.36,1.38,1.36,1.24, 1.15,1.24,1.20,1.10, 1.02,1.10,1.11,1.15,
   1.18,1.15,1.14,1.21, 1.22,1.27,1.33,1.34, 1.28,1.32,1.28,1.28, 1.28,1.09,1.10,1.12,
-  1.28,1.36,1.42,1.55, 1.66,2.16,2.02,1.95, 1.83,1.72,1.75,1.73, 1.72,1.70,1.64,1.60,
-  1.68,1.66,1.65,1.67, 1.70,1.72,
+  1.28,1.36,1.42,1.55, 1.66,2.16,2.02,1.95, 1.83,1.72,1.75,1.73, 1.70,1.72,1.68,1.70,
+  1.75,1.77,1.74,1.80, 1.87,1.83,
 ];
 const HIST_E10 = HIST_E5.map((v, i) => (HIST_START + Math.floor(i / 4)) >= 2011 ? +(v - 0.06).toFixed(2) : v);
 const HIST = { e5: HIST_E5, e10: HIST_E10, diesel: HIST_DIESEL };
@@ -1553,6 +1561,7 @@ function esc(s){ return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<":
 
 /* ---------------- state ---------------- */
 let loc = store.get("bz-loc");
+let calib = store.get("bz-calib", {});   // user's per-fuel correction for estimates, €
 let stations = [];
 let liveMode = false;
 let keyChecked = null;
@@ -1671,7 +1680,7 @@ async function loadStations(forceFresh){
         const prices = {};
         /* German price signs end in 9: round to the cent, then …9 */
         for (const f in FUELS){
-          const p = BASE_NOW[f] + bd + intradayAt(now) / 100 + ((seed % 13) - 6) / 1000;
+          const p = BASE_NOW[f] + (calib[f] || 0) + bd + intradayAt(now) / 100 + ((seed % 13) - 6) / 1000;
           prices[f] = +(Math.round(p * 100) / 100 - 0.001).toFixed(3);
         }
         return {
@@ -1714,6 +1723,20 @@ function recordSnapshot(){
   snaps.push(entry);
   while (snaps.length > 20000) snaps.shift();
   store.set("bz-snaps", snaps);
+}
+
+/* user corrected one estimate → shift all estimates for that fuel */
+function applyCalib(fuel, delta){
+  calib[fuel] = +(((calib[fuel] || 0) + delta).toFixed(3));
+  store.set("bz-calib", calib);
+  for (const s of stations){
+    if (!s.live && s.prices[fuel] > 0)
+      s.prices[fuel] = +(Math.round((s.prices[fuel] + delta) * 100) / 100 - 0.001).toFixed(3);
+  }
+  stations.sort((a, b) => (a.prices[fuel] ?? 9) - (b.prices[fuel] ?? 9));
+  const cached = store.get("bz-stations");
+  if (cached && !cached.live){ cached.stations = stations; store.set("bz-stations", cached); }
+  renderAll();
 }
 
 /* ---------------- verdict ---------------- */
@@ -1775,7 +1798,7 @@ function renderAll(){
   renderKeyState();
   const notice = $("#keyNotice");
   notice.hidden = !(keyChecked === false && settings.apiKey);
-  if (!notice.hidden) notice.textContent = t("keyNotice");
+  if (!notice.hidden) notice.textContent = t("keyNotice") + " " + t("calibNudge");
   $("#footNote").textContent = liveMode ? t("footLive") : t("footEst");
   requestAnimationFrame(() => map && map.invalidateSize());
 }
@@ -1864,6 +1887,40 @@ function renderStations(){
       });
     });
   });
+
+  /* estimate mode: click a price to type the real one → recalibrate */
+  if (!liveMode){
+    body.querySelectorAll("td.price").forEach(cell => {
+      cell.title = t("calibTitle");
+      cell.style.cursor = "text";
+      cell.addEventListener("click", e => {
+        e.stopPropagation();
+        if (cell.querySelector("input")) return;
+        const row = cell.closest("tr");
+        const st = stations.find(x => x.id === row.dataset.id);
+        if (!st) return;
+        const old = st.prices[settings.fuel];
+        cell.innerHTML = `<input type="number" step="0.001" min="0.5" max="5" value="${old.toFixed(3)}"
+          style="width:90px;background:transparent;border:0;border-bottom:1px solid var(--rule);
+                 color:var(--text);font:inherit;text-align:right;outline:none">`;
+        const inp = cell.querySelector("input");
+        inp.focus(); inp.select();
+        let done = false;
+        const commit = () => {
+          if (done) return;
+          done = true;
+          const v = parseFloat(inp.value);
+          if (isFinite(v) && v > 0.5 && v < 5 && Math.abs(v - old) > 0.0005) applyCalib(settings.fuel, v - old);
+          else renderStations();
+        };
+        inp.addEventListener("keydown", ev => {
+          if (ev.key === "Enter") commit();
+          else if (ev.key === "Escape"){ done = true; renderStations(); }
+        });
+        inp.addEventListener("blur", commit);
+      });
+    });
+  }
 }
 
 function renderMap(){
@@ -2140,7 +2197,8 @@ function init(){
   });
 
   $("#btnClearData").addEventListener("click", () => {
-    ["bz-stations", "bz-snaps", "bz-loc"].forEach(k => store.del(k));
+    ["bz-stations", "bz-snaps", "bz-loc", "bz-calib"].forEach(k => store.del(k));
+    calib = {};
     loc = null; stations = []; lastUpdate = 0; liveMode = false; showAll = false;
     setStatus("");
     toggleLocBlock(true);
