@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -225,6 +225,406 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { transition: none !important; animation: none !important; }
   }
+
+  [hidden] { display: none !important; }
+
+  :root {
+    --bg: #070707;
+    --text: #f4f4f4;
+    --muted: #a4a4a4;
+    --faint: #707070;
+    --glass: rgba(18, 18, 18, 0.58);
+    --glass-strong: rgba(22, 22, 22, 0.74);
+    --glass-soft: rgba(255, 255, 255, 0.045);
+    --line: rgba(255, 255, 255, 0.16);
+    --line-soft: rgba(255, 255, 255, 0.08);
+    --focus: rgba(255, 255, 255, 0.38);
+    --good: #8ee6b5;
+    --bad: #ff9d94;
+    --radius: 28px;
+  }
+
+  body {
+    background:
+      radial-gradient(circle at 48% 18%, rgba(90, 112, 185, 0.16), transparent 35%),
+      radial-gradient(circle at 13% 15%, rgba(154, 176, 255, 0.09), transparent 24%),
+      radial-gradient(circle at 88% 6%, rgba(255, 255, 255, 0.055), transparent 16%),
+      var(--bg);
+  }
+
+  body::after {
+    background:
+      radial-gradient(circle at 50% 18%, transparent 0 20%, rgba(7, 7, 7, 0.46) 60%, rgba(7, 7, 7, 0.92) 100%),
+      linear-gradient(to bottom, rgba(7, 7, 7, 0.02), rgba(7, 7, 7, 0.82));
+  }
+
+  .page {
+    width: min(1120px, calc(100% - 28px));
+    padding: 14px 0 52px;
+  }
+
+  .topbar {
+    position: sticky;
+    top: 12px;
+    z-index: 10;
+    align-items: center;
+    min-height: 50px;
+    padding: 0 16px 0 18px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(24, 24, 24, 0.7), rgba(13, 13, 13, 0.58));
+    box-shadow: inset 0 1px rgba(255, 255, 255, 0.08), 0 16px 42px rgba(0, 0, 0, 0.22);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+
+  .topbar::before {
+    position: absolute;
+    top: 0;
+    left: 22px;
+    width: 170px;
+    height: 1px;
+    content: "";
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.78), transparent);
+  }
+
+  .topbar .home {
+    color: var(--text);
+    font-weight: 700;
+    letter-spacing: -0.015em;
+  }
+
+  .langs {
+    gap: 4px;
+    padding: 3px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .langs button {
+    min-width: 36px;
+    padding: 6px 8px;
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 0.76rem;
+  }
+
+  .langs button.on {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.09);
+  }
+
+  .kicker {
+    margin: clamp(34px, 7vh, 62px) 0 10px;
+    text-align: center;
+    color: var(--faint);
+    font-size: 0.76rem;
+    letter-spacing: 0.2em;
+  }
+
+  h1 {
+    max-width: 760px;
+    margin: 0 auto 12px;
+    text-align: center;
+    font-size: clamp(2rem, 5.2vw, 4.4rem);
+    letter-spacing: -0.06em;
+  }
+
+  .lede,
+  .meta {
+    max-width: 650px;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
+  }
+
+  .lede {
+    margin-bottom: 0;
+    color: var(--muted);
+    font-size: clamp(0.98rem, 1.7vw, 1.08rem);
+  }
+
+  .meta {
+    margin-top: 10px;
+  }
+
+  .loc-block {
+    margin: 24px auto 12px;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--glass);
+    box-shadow: inset 0 1px rgba(255, 255, 255, 0.08), 0 18px 48px rgba(0, 0, 0, 0.24);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+
+  .loc-line {
+    align-items: center;
+    gap: 8px;
+  }
+
+  .loc-input {
+    min-width: min(360px, 100%);
+    min-height: 48px;
+    padding: 0 18px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.055);
+    font-size: 1rem;
+  }
+
+  .loc-input:focus {
+    border-color: var(--focus);
+    background: rgba(255, 255, 255, 0.075);
+  }
+
+  .loc-input::placeholder {
+    color: rgba(255, 255, 255, 0.34);
+  }
+
+  .loc-line button.link,
+  .settings-actions button.link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    padding: 0 16px;
+    border: 1px solid var(--line-soft);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.045);
+    color: var(--muted);
+    text-decoration: none;
+    transition: border-color 150ms ease, background 150ms ease, color 150ms ease, transform 150ms ease;
+  }
+
+  .loc-line button.link:hover,
+  .settings-actions button.link:hover {
+    border-color: var(--line);
+    background: rgba(255, 255, 255, 0.075);
+    color: var(--text);
+    transform: translateY(-1px);
+  }
+
+  .loc-line button.go,
+  .settings-actions button.go {
+    border-color: rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--text);
+    font-weight: 750;
+  }
+
+  .loc-extras {
+    margin: 10px 8px 0;
+    color: var(--faint);
+  }
+
+  .status {
+    margin: 8px 8px 0;
+  }
+
+  select.bare {
+    padding: 2px 18px 2px 4px;
+    border-color: var(--line-soft);
+  }
+
+  .fuel-tabs {
+    width: max-content;
+    max-width: 100%;
+    margin: 12px auto 0;
+    padding: 5px;
+    gap: 3px;
+    border: 1px solid var(--line-soft);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  .fuel-tabs button {
+    margin: 0;
+    padding: 9px 15px;
+    border: 0;
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  .fuel-tabs button.on {
+    border: 0;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.11);
+  }
+
+  section,
+  .empty-note {
+    margin-top: 18px;
+    padding: 18px;
+    border: 1px solid var(--line-soft);
+    border-radius: 24px;
+    background: linear-gradient(180deg, rgba(20, 20, 20, 0.66), rgba(12, 12, 12, 0.52));
+    box-shadow: inset 0 1px rgba(255, 255, 255, 0.06), 0 14px 42px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  h2 {
+    margin: 0 0 5px;
+    font-size: 0.98rem;
+  }
+
+  .sec-note {
+    margin-bottom: 12px;
+  }
+
+  #stationsSec {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(340px, 0.95fr);
+    gap: 14px 18px;
+    align-items: start;
+  }
+
+  #stationsSec h2,
+  #stationsSec .sec-note {
+    grid-column: 1 / -1;
+  }
+
+  #stationsSec .st,
+  #stationsSec .show-more {
+    grid-column: 1;
+  }
+
+  #stationsSec #map {
+    grid-column: 2;
+    grid-row: 3 / span 2;
+    position: sticky;
+    top: 86px;
+    height: min(46vh, 390px);
+    min-height: 330px;
+    margin: 0;
+    border-color: var(--line-soft);
+    border-radius: 18px;
+    overflow: hidden;
+  }
+
+  table.st {
+    font-size: 0.92rem;
+  }
+
+  .st th {
+    padding-bottom: 7px;
+  }
+
+  .st td {
+    padding: 9px 0;
+  }
+
+  .st tbody tr {
+    transition: background 140ms ease;
+  }
+
+  .st tbody tr:hover {
+    background: rgba(255, 255, 255, 0.035);
+  }
+
+  .show-more {
+    margin: 4px 0 0;
+  }
+
+  .chart-box {
+    height: 210px;
+    margin: 10px 0 8px;
+  }
+
+  .chart-box.tall {
+    height: 260px;
+  }
+
+  .chart-opts {
+    margin-top: 8px;
+  }
+
+  .range-links {
+    padding: 4px;
+    gap: 2px;
+    border: 1px solid var(--line-soft);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.035);
+  }
+
+  .range-links button {
+    padding: 6px 11px;
+    border-radius: 999px;
+    text-decoration: none;
+  }
+
+  .range-links button.on {
+    background: rgba(255, 255, 255, 0.1);
+    text-decoration: none;
+  }
+
+  details.settings {
+    margin: 18px 0 0;
+    padding: 0 18px;
+    border: 1px solid var(--line-soft);
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.035);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  details.settings summary {
+    padding: 15px 0;
+  }
+
+  .settings-body {
+    max-width: none;
+    grid-template-columns: minmax(0, 1.4fr) minmax(180px, 0.6fr);
+    gap: 18px;
+  }
+
+  .settings-actions {
+    grid-column: 1 / -1;
+  }
+
+  .foot {
+    max-width: none;
+    margin-top: 18px;
+    padding-top: 14px;
+  }
+
+  @media (max-width: 860px) {
+    .page { width: min(720px, calc(100% - 24px)); }
+    #stationsSec { grid-template-columns: 1fr; }
+    #stationsSec .st,
+    #stationsSec .show-more,
+    #stationsSec #map { grid-column: 1; }
+    #stationsSec #map { position: relative; top: auto; grid-row: auto; height: 300px; min-height: 300px; }
+    .settings-body { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 560px) {
+    .page { width: min(100% - 18px, 520px); padding-top: 9px; }
+    .topbar { top: 8px; min-height: 46px; padding-left: 14px; }
+    .topbar .home { font-size: 0.82rem; }
+    .langs button { min-width: 32px; padding-inline: 6px; }
+    .kicker { margin-top: 28px; }
+    h1 { font-size: clamp(1.95rem, 12vw, 3.15rem); }
+    .loc-block { padding: 8px; border-radius: 24px; }
+    .loc-line { display: grid; grid-template-columns: 1fr 1fr; }
+    .loc-input { grid-column: 1 / -1; width: 100%; }
+    .loc-line button.link { min-height: 40px; padding-inline: 12px; }
+    .fuel-tabs { width: 100%; }
+    .fuel-tabs button { flex: 1; padding-inline: 8px; }
+    section,
+    .empty-note { padding: 14px; border-radius: 20px; }
+    .chart-box,
+    .chart-box.tall { height: 230px; }
+    .chart-opts { align-items: stretch; flex-direction: column; gap: 10px; }
+    .range-links { width: 100%; }
+    .range-links button { flex: 1; }
+  }
 </style>
 </head>
 <body>
@@ -242,7 +642,7 @@
 
   <p class="kicker">Danylo's Benz Checker</p>
   <h1 id="verdict" data-i18n="heroAsk">Should you fill up now, or wait?</h1>
-  <p class="lede" id="lede" data-i18n="heroLede">Set a location and get an answer for the stations around you — live German pump prices included.</p>
+  <p class="lede" id="lede" data-i18n="heroLede">Find the cheaper stop nearby and whether waiting is worth it.</p>
   <p class="meta" id="metaLine" hidden></p>
 
   <div class="loc-block open" id="locBlock">
@@ -357,7 +757,7 @@ const I18N = {
   en: {
     backHome: "← Danylo's Tools",
     heroAsk: "Should you fill up now, or wait?",
-    heroLede: "Set a location and get an answer for the stations around you — live German pump prices included.",
+    heroLede: "Find the cheaper stop nearby and whether waiting is worth it.",
     heroNoData: "No stations found here.",
     heroNoDataLede: "Try a larger radius or a different place.",
     tankNow: "Fill up now.",
@@ -386,10 +786,10 @@ const I18N = {
     secToday: "Today's price rhythm",
     todayCaption: `Pump prices in Germany swing through the day — dearest around dawn, cheapest between 18:00 and 21:00. <span class="w">●</span> marks now, <span class="g">●</span> marks today's best time.`,
     now: "now", best: "best time",
-    secLong: "The long view",
+    secLong: "Price history",
     range1: "1 year", range5: "5 years", rangeMax: "Since 2005",
     realToggle: "inflation-adjusted",
-    histCaption: "Approximate German national averages. Once live prices are recorded on this device, your area appears as its own line.",
+    histCaption: "Germany-wide averages. If this device records live prices, your area appears as its own line.",
     settingsTitle: "Settings",
     apiKeyLabel: "Tankerkönig API key",
     apiKeyHint: `Free at <a href="https://creativecommons.tankerkoenig.de" target="_blank" rel="noopener">creativecommons.tankerkoenig.de</a> (confirm the e-mail link to activate it). With an active key this page shows real prices from MTS-K; without one, model estimates.`,
@@ -403,7 +803,7 @@ const I18N = {
   de: {
     backHome: "← Danylos Tools",
     heroAsk: "Jetzt tanken oder warten?",
-    heroLede: "Standort festlegen und eine Antwort für die Tankstellen in deiner Nähe bekommen — mit aktuellen Spritpreisen.",
+    heroLede: "Finde die günstigere Tankstelle in der Nähe und ob Warten Sinn ergibt.",
     heroNoData: "Hier keine Tankstellen gefunden.",
     heroNoDataLede: "Größeren Radius oder anderen Ort versuchen.",
     tankNow: "Jetzt tanken.",
@@ -432,10 +832,10 @@ const I18N = {
     secToday: "Der Tagesrhythmus heute",
     todayCaption: `Spritpreise schwanken über den Tag — morgens am teuersten, zwischen 18 und 21 Uhr am günstigsten. <span class="w">●</span> markiert jetzt, <span class="g">●</span> die beste Zeit heute.`,
     now: "jetzt", best: "beste Zeit",
-    secLong: "Der lange Blick",
+    secLong: "Preisverlauf",
     range1: "1 Jahr", range5: "5 Jahre", rangeMax: "Seit 2005",
     realToggle: "inflationsbereinigt",
-    histCaption: "Ungefähre Bundesdurchschnitte. Sobald hier Echtzeitpreise aufgezeichnet sind, erscheint deine Gegend als eigene Linie.",
+    histCaption: "Deutschlandweite Durchschnittswerte. Wenn dieses Gerät Live-Preise speichert, erscheint deine Gegend als eigene Linie.",
     settingsTitle: "Einstellungen",
     apiKeyLabel: "Tankerkönig API-Key",
     apiKeyHint: `Kostenlos auf <a href="https://creativecommons.tankerkoenig.de" target="_blank" rel="noopener">creativecommons.tankerkoenig.de</a> (Bestätigungslink in der E-Mail anklicken). Mit aktivem Key zeigt die Seite echte MTS-K-Preise, ohne Key Modellschätzungen.`,
@@ -449,7 +849,7 @@ const I18N = {
   uk: {
     backHome: "← Інструменти Данила",
     heroAsk: "Заправлятися зараз чи почекати?",
-    heroLede: "Вкажи локацію й отримай відповідь для заправок поруч — з актуальними цінами німецьких АЗС.",
+    heroLede: "Знайди дешевшу заправку поруч і чи варто чекати.",
     heroNoData: "Заправок тут не знайдено.",
     heroNoDataLede: "Спробуй більший радіус або інше місце.",
     tankNow: "Заправляйся зараз.",
@@ -478,10 +878,10 @@ const I18N = {
     secToday: "Денний ритм сьогодні",
     todayCaption: `Ціни на АЗС коливаються протягом дня — найдорожче вранці, найдешевше між 18:00 і 21:00. <span class="w">●</span> позначає зараз, <span class="g">●</span> — найкращий час сьогодні.`,
     now: "зараз", best: "найкращий час",
-    secLong: "Довгий погляд",
+    secLong: "Історія цін",
     range1: "1 рік", range5: "5 років", rangeMax: "З 2005-го",
     realToggle: "з поправкою на інфляцію",
-    histCaption: "Приблизні середні по Німеччині. Щойно тут запишуться живі ціни, твоя місцевість з'явиться окремою лінією.",
+    histCaption: "Середні значення по Німеччині. Якщо цей пристрій збере живі ціни, твоя місцевість з'явиться окремою лінією.",
     settingsTitle: "Налаштування",
     apiKeyLabel: "API-ключ Tankerkönig",
     apiKeyHint: `Безкоштовно на <a href="https://creativecommons.tankerkoenig.de" target="_blank" rel="noopener">creativecommons.tankerkoenig.de</a> (підтверди лінк у листі, щоб активувати). З активним ключем сторінка показує реальні ціни MTS-K, без нього — модельні оцінки.`,
@@ -1169,10 +1569,8 @@ function init(){
     $("#locInput").value = "";
     placeUserMarker();
     loadStations();
-  } else if (location.hash !== "#nogps"){
-    locate();
   } else {
-    setStatus(t("statusGpsDenied"));
+    setStatus("");
   }
 }
 
@@ -1180,3 +1578,4 @@ init();
 </script>
 </body>
 </html>
+
