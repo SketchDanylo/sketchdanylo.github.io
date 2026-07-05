@@ -1382,6 +1382,7 @@ const I18N = {
     keyNotice: "Your API key came back inactive, so these are estimates.",
     liveBlocked: "Couldn't reach the live price service (ad-blocker or offline?) — showing estimates.",
     retryLive: "Retry live prices",
+    googleNone: "Google returned no prices for this area — showing official MTS-K live prices instead.",
     onGoogle: "Price on Google Maps",
     checkGoogle: "check on Google Maps",
     calibHint: "tap a price to fix it",
@@ -1439,6 +1440,7 @@ const I18N = {
     keyNotice: "Dein API-Key kam als inaktiv zurück, daher Schätzungen.",
     liveBlocked: "Live-Preisdienst nicht erreichbar (Ad-Blocker oder offline?) — es werden Schätzungen gezeigt.",
     retryLive: "Live-Preise erneut laden",
+    googleNone: "Google liefert für diese Gegend keine Preise — stattdessen offizielle MTS-K-Echtzeitpreise.",
     onGoogle: "Preis auf Google Maps",
     checkGoogle: "auf Google Maps prüfen",
     calibHint: "Preis antippen zum Korrigieren",
@@ -1496,6 +1498,7 @@ const I18N = {
     keyNotice: "API-ключ повернувся як неактивний, тож це оцінки.",
     liveBlocked: "Не вдалося з'єднатися із сервісом живих цін (блокувальник реклами чи офлайн?) — показано оцінки.",
     retryLive: "Повторити живі ціни",
+    googleNone: "Google не дає цін для цієї місцевості — натомість офіційні живі ціни MTS-K.",
     onGoogle: "Ціна в Google Maps",
     checkGoogle: "перевірити в Google Maps",
     calibHint: "торкнись ціни, щоб виправити",
@@ -1908,12 +1911,13 @@ function renderAll(){
   renderHistChart();
   renderKeyState();
   const notice = $("#keyNotice");
-  const showNotice = settings.apiKey && !liveMode && stations.length > 0;
-  notice.hidden = !showNotice;
-  if (showNotice){
-    const msg = keyChecked === false ? t("keyNotice") : t("liveBlocked");
-    notice.innerHTML = `<span>${msg}</span> <button class="link" id="btnRetryLive">${t("retryLive")}</button>`;
+  let msg = null;
+  if (stations.length){
+    if (settings.googleKey && liveSource !== "google") msg = t("googleNone");        // never swap sources silently
+    else if (settings.apiKey && !liveMode) msg = keyChecked === false ? t("keyNotice") : t("liveBlocked");
   }
+  notice.hidden = !msg;
+  if (msg) notice.innerHTML = `<span>${msg}</span> <button class="link" id="btnRetryLive">${t("retryLive")}</button>`;
   $("#footNote").textContent = liveSource === "google" ? t("footGoogle") : liveMode ? t("footLive") : t("footEst");
   requestAnimationFrame(() => map && map.invalidateSize());
 }
