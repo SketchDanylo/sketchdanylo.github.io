@@ -1386,7 +1386,7 @@ const I18N = {
     today: "today", tomorrow: "tomorrow",
     metaFmt: (place, n, mode, upd) => `${place} · ${n} stations · ${mode} · ${upd}`,
     modeLive: "live prices", modeEst: "estimated prices", modeEstKey: "estimates — key inactive",
-    change: "change",
+    change: "change", refresh: "refresh",
     searchPh: "City or address…",
     findBtn: "Search", useMyLoc: "use my location",
     statusLocating: "Determining your location…",
@@ -1436,7 +1436,7 @@ const I18N = {
     today: "heute", tomorrow: "morgen",
     metaFmt: (place, n, mode, upd) => `${place} · ${n} Tankstellen · ${mode} · ${upd}`,
     modeLive: "Echtzeitpreise", modeEst: "geschätzte Preise", modeEstKey: "Schätzungen — Key inaktiv",
-    change: "ändern",
+    change: "ändern", refresh: "aktualisieren",
     searchPh: "Stadt oder Adresse…",
     findBtn: "Suchen", useMyLoc: "meinen Standort verwenden",
     statusLocating: "Standort wird ermittelt…",
@@ -1486,7 +1486,7 @@ const I18N = {
     today: "сьогодні", tomorrow: "завтра",
     metaFmt: (place, n, mode, upd) => `${place} · ${n} заправок · ${mode} · ${upd}`,
     modeLive: "живі ціни", modeEst: "оцінені ціни", modeEstKey: "оцінки — ключ неактивний",
-    change: "змінити",
+    change: "змінити", refresh: "оновити",
     searchPh: "Місто або адреса…",
     findBtn: "Пошук", useMyLoc: "використати мою локацію",
     statusLocating: "Визначаю локацію…",
@@ -1624,7 +1624,7 @@ let lastUpdate = 0;
 let showAll = false;
 let map, markerLayer, userMarker, todayChart, histChart;
 
-const CACHE_TTL = 10 * 60e3;
+const CACHE_TTL = 3 * 60e3;   // live prices should feel fresh
 
 function setStatus(msg, err){
   const el = $("#statusLine");
@@ -1687,7 +1687,13 @@ function cacheKey(){ return `${loc.lat.toFixed(3)},${loc.lon.toFixed(3)},${setti
 async function loadStations(forceFresh){
   if (!loc) return;
   const cached = store.get("bz-stations");
-  if (!forceFresh && cached && cached.key === cacheKey() && Date.now() - cached.t < CACHE_TTL){
+  /* serve cache only when fresh — and never serve stale estimates when a key
+     is present that could fetch live prices (fixes "activated key but still
+     seeing old estimates") */
+  const cacheOk = !forceFresh && cached && cached.key === cacheKey()
+    && Date.now() - cached.t < CACHE_TTL
+    && !(settings.apiKey && !cached.live);
+  if (cacheOk){
     stations = cached.stations;
     liveMode = cached.live;
     if (cached.keyChecked != null) keyChecked = cached.keyChecked;
@@ -1905,6 +1911,7 @@ function renderVerdict(){
   const mode = liveMode ? t("modeLive") : (keyChecked === false ? t("modeEstKey") : t("modeEst"));
   const upd = t("updatedAgo")(Math.floor((Date.now() - lastUpdate) / 60e3));
   meta.innerHTML = t("metaFmt")(`<b>${esc(loc.label)}</b>`, stations.length, mode, upd) +
+    ` · <button class="link" id="btnRefresh">${t("refresh")}</button>` +
     ` · <button class="link" id="btnChange">${t("change")}</button>`;
   meta.hidden = false;
 }
@@ -2241,6 +2248,7 @@ function init(){
   /* "change" link inside the meta line (re-rendered each time) */
   $("#metaLine").addEventListener("click", e => {
     if (e.target.id === "btnChange") toggleLocBlock(!$("#locBlock").classList.contains("open"));
+    else if (e.target.id === "btnRefresh") loadStations(true);
   });
 
   $$("#fuelTabs button").forEach(b => b.addEventListener("click", () => {
