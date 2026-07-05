@@ -1372,7 +1372,9 @@ const I18N = {
     backHome: "← Danylo's Tools",
     heroAsk: "Should you fill up now, or wait?",
     heroLede: "Find the cheaper stop nearby and whether waiting is worth it.",
-    keyNotice: "Live prices aren't on yet — your API key isn't active, so these are estimates.",
+    keyNotice: "Your API key came back inactive, so these are estimates.",
+    liveBlocked: "Couldn't reach the live price service (ad-blocker or offline?) — showing estimates.",
+    retryLive: "Retry live prices",
     calibHint: "tap a price to fix it",
     calibTitle: "Click to correct this price",
     bestWindow: "cheapest ~19h",
@@ -1422,7 +1424,9 @@ const I18N = {
     backHome: "← Danylos Tools",
     heroAsk: "Jetzt tanken oder warten?",
     heroLede: "Finde die günstigere Tankstelle in der Nähe und ob Warten Sinn ergibt.",
-    keyNotice: "Echtzeitpreise noch aus — dein API-Key ist nicht aktiv, daher Schätzungen.",
+    keyNotice: "Dein API-Key kam als inaktiv zurück, daher Schätzungen.",
+    liveBlocked: "Live-Preisdienst nicht erreichbar (Ad-Blocker oder offline?) — es werden Schätzungen gezeigt.",
+    retryLive: "Live-Preise erneut laden",
     calibHint: "Preis antippen zum Korrigieren",
     calibTitle: "Klicken und Preis korrigieren",
     bestWindow: "günstigste ~19 Uhr",
@@ -1472,7 +1476,9 @@ const I18N = {
     backHome: "← Інструменти Данила",
     heroAsk: "Заправлятися зараз чи почекати?",
     heroLede: "Знайди дешевшу заправку поруч і чи варто чекати.",
-    keyNotice: "Живі ціни ще вимкнені — твій API-ключ неактивний, тож це оцінки.",
+    keyNotice: "API-ключ повернувся як неактивний, тож це оцінки.",
+    liveBlocked: "Не вдалося з'єднатися із сервісом живих цін (блокувальник реклами чи офлайн?) — показано оцінки.",
+    retryLive: "Повторити живі ціни",
     calibHint: "торкнись ціни, щоб виправити",
     calibTitle: "Клацни, щоб виправити ціну",
     bestWindow: "найдешевше ~19:00",
@@ -1620,6 +1626,7 @@ let calib = store.get("bz-calib", {});   // user's per-fuel correction for estim
 let stations = [];
 let liveMode = false;
 let keyChecked = null;
+let liveError = false;      // live fetch threw (blocked / offline), not a key problem
 let lastUpdate = 0;
 let showAll = false;
 let map, markerLayer, userMarker, todayChart, histChart;
@@ -1704,6 +1711,7 @@ async function loadStations(forceFresh){
 
   const r = Math.min(25, settings.radiusKm);
   liveMode = false;
+  liveError = false;
   let ok = false;
 
   if (settings.apiKey){
@@ -1725,7 +1733,7 @@ async function loadStations(forceFresh){
       } else if (js.ok === false){
         keyChecked = false;
       }
-    } catch {}
+    } catch { liveError = true; }   // request blocked (ad-blocker) or offline
   }
 
   if (!ok){
@@ -1858,8 +1866,12 @@ function renderAll(){
   renderHistChart();
   renderKeyState();
   const notice = $("#keyNotice");
-  notice.hidden = !(keyChecked === false && settings.apiKey);
-  if (!notice.hidden) notice.textContent = t("keyNotice");
+  const showNotice = settings.apiKey && !liveMode && stations.length > 0;
+  notice.hidden = !showNotice;
+  if (showNotice){
+    const msg = keyChecked === false ? t("keyNotice") : t("liveBlocked");
+    notice.innerHTML = `<span>${msg}</span> <button class="link" id="btnRetryLive">${t("retryLive")}</button>`;
+  }
   $("#footNote").textContent = liveMode ? t("footLive") : t("footEst");
   requestAnimationFrame(() => map && map.invalidateSize());
 }
@@ -2249,6 +2261,13 @@ function init(){
   $("#metaLine").addEventListener("click", e => {
     if (e.target.id === "btnChange") toggleLocBlock(!$("#locBlock").classList.contains("open"));
     else if (e.target.id === "btnRefresh") loadStations(true);
+  });
+
+  /* retry live prices from the estimate banner */
+  $("#keyNotice").addEventListener("click", e => {
+    if (e.target.id !== "btnRetryLive") return;
+    keyChecked = null; liveError = false;
+    if (loc) loadStations(true);
   });
 
   $$("#fuelTabs button").forEach(b => b.addEventListener("click", () => {
