@@ -167,6 +167,8 @@
   .leaflet-popup-tip { background: #141519; }
   .pop-name { font-weight: 650; font-size: 0.88rem; }
   .pop-price { font-size: 1.05rem; font-weight: 700; margin: 1px 0; font-variant-numeric: tabular-nums; }
+  .pop-gmaps { display: inline-block; margin-top: 5px; font-size: 0.78rem; color: #8ab4f8; }
+  .fig-gmaps { color: #8ab4f8; text-decoration-color: rgba(138,180,248,.5); font-weight: 500; }
   .pop-meta { color: #9a9a9a; font-size: 0.76rem; }
 
   /* ---------- charts ---------- */
@@ -1375,6 +1377,8 @@ const I18N = {
     keyNotice: "Your API key came back inactive, so these are estimates.",
     liveBlocked: "Couldn't reach the live price service (ad-blocker or offline?) — showing estimates.",
     retryLive: "Retry live prices",
+    onGoogle: "Price on Google Maps",
+    checkGoogle: "check on Google Maps",
     calibHint: "tap a price to fix it",
     calibTitle: "Click to correct this price",
     bestWindow: "cheapest ~19h",
@@ -1427,6 +1431,8 @@ const I18N = {
     keyNotice: "Dein API-Key kam als inaktiv zurück, daher Schätzungen.",
     liveBlocked: "Live-Preisdienst nicht erreichbar (Ad-Blocker oder offline?) — es werden Schätzungen gezeigt.",
     retryLive: "Live-Preise erneut laden",
+    onGoogle: "Preis auf Google Maps",
+    checkGoogle: "auf Google Maps prüfen",
     calibHint: "Preis antippen zum Korrigieren",
     calibTitle: "Klicken und Preis korrigieren",
     bestWindow: "günstigste ~19 Uhr",
@@ -1479,6 +1485,8 @@ const I18N = {
     keyNotice: "API-ключ повернувся як неактивний, тож це оцінки.",
     liveBlocked: "Не вдалося з'єднатися із сервісом живих цін (блокувальник реклами чи офлайн?) — показано оцінки.",
     retryLive: "Повторити живі ціни",
+    onGoogle: "Ціна в Google Maps",
+    checkGoogle: "перевірити в Google Maps",
     calibHint: "торкнись ціни, щоб виправити",
     calibTitle: "Клацни, щоб виправити ціну",
     bestWindow: "найдешевше ~19:00",
@@ -1619,6 +1627,8 @@ const fmtHour = h => new Intl.DateTimeFormat(locale(), { hour: "2-digit", minute
 const fmtDay = d => new Intl.DateTimeFormat(locale(), { weekday: "long" }).format(d);
 const fmtTime = ts => new Intl.DateTimeFormat(locale(), { hour: "2-digit", minute: "2-digit" }).format(new Date(ts));
 function esc(s){ return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+/* open this station in Google Maps (to read Google's own price) */
+function gmapsUrl(s){ return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((s.name || "Tankstelle") + " " + s.lat + "," + s.lon)}`; }
 
 /* ---------------- state ---------------- */
 let loc = store.get("bz-loc");
@@ -1915,7 +1925,8 @@ function renderVerdict(){
     : "";
   figures.innerHTML =
     `<span class="fig-price"><span class="big">${fmtSign(now)}</span><span class="unit">€/L</span></span>` +
-    `<span class="fig-where"><b>${esc(v.best.name)}</b> · ${v.best.dist.toFixed(1)} km</span>` +
+    `<span class="fig-where"><b>${esc(v.best.name)}</b> · ${v.best.dist.toFixed(1)} km · ` +
+    `<a class="fig-gmaps" href="${gmapsUrl(v.best)}" target="_blank" rel="noopener">${t("checkGoogle")} ↗</a></span>` +
     save;
   lede.hidden = true;
   figures.hidden = false;
@@ -2028,7 +2039,8 @@ function renderMap(){
     const color = k < 0.34 ? "#86dcab" : k < 0.67 ? "#d9c58a" : "#f0958b";
     L.circleMarker([s.lat, s.lon], { radius: 7, color: "#0a0a0a", weight: 2, fillColor: color, fillOpacity: 0.95 })
       .addTo(markerLayer)
-      .bindPopup(`<div class="pop-name">${esc(s.name)}</div><div class="pop-price">${fmtEUR(s.prices[fuel])} €/L</div><div class="pop-meta">${s.dist.toFixed(1)} km · ${FUELS[fuel]}</div>`);
+      .bindPopup(`<div class="pop-name">${esc(s.name)}</div><div class="pop-price">${fmtEUR(s.prices[fuel])} €/L</div><div class="pop-meta">${s.dist.toFixed(1)} km · ${FUELS[fuel]}</div>` +
+        `<a class="pop-gmaps" href="${gmapsUrl(s)}" target="_blank" rel="noopener">${t("onGoogle")} ↗</a>`);
   });
 }
 
