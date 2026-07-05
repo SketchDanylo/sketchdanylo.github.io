@@ -1330,6 +1330,11 @@
     <summary data-i18n="settingsTitle">Settings</summary>
     <div class="settings-body">
       <label class="field">
+        <span><b data-i18n="googleKeyLabel">Google Maps API key</b></span>
+        <input type="text" id="googleKeyInput" autocomplete="off" spellcheck="false" placeholder="AIza…">
+        <span class="hint" data-i18n-html="googleKeyHint">Paste a Google Maps Platform key (Places API enabled) to use Google's own prices. Needs a Google Cloud project with billing on.</span>
+      </label>
+      <label class="field">
         <span><b data-i18n="apiKeyLabel">Tankerkönig API key</b> — <span class="key-state" id="keyState"></span></span>
         <input type="text" id="apiKeyInput" autocomplete="off" spellcheck="false">
         <span class="hint" data-i18n-html="apiKeyHint">Free at <a href="https://creativecommons.tankerkoenig.de" target="_blank" rel="noopener">creativecommons.tankerkoenig.de</a> (confirm the e-mail link to activate it). With an active key this page shows real prices from MTS-K; without one, model estimates.</span>
@@ -1391,7 +1396,7 @@ const I18N = {
     bestDeal: (name, price, dist) => `Cheapest right now: <b>${name}</b> at ${price} €/L, ${dist} km away.`,
     today: "today", tomorrow: "tomorrow",
     metaFmt: (place, n, mode, upd) => `${place} · ${n} stations · ${mode} · ${upd}`,
-    modeLive: "live prices", modeEst: "estimated prices", modeEstKey: "estimates — key inactive",
+    modeLive: "live prices", modeGoogle: "Google prices", modeEst: "estimated prices", modeEstKey: "estimates — key inactive",
     change: "change", refresh: "refresh",
     searchPh: "City or address…",
     findBtn: "Search", useMyLoc: "use my location",
@@ -1415,6 +1420,8 @@ const I18N = {
     realToggle: "inflation-adjusted",
     histCaption: "German national average.",
     settingsTitle: "Settings",
+    googleKeyLabel: "Google Maps API key",
+    googleKeyHint: `Paste a Google Maps Platform key (Places API enabled) to use Google's own prices. Needs a Google Cloud project with billing on.`,
     apiKeyLabel: "Tankerkönig API key",
     apiKeyHint: `Free at <a href="https://creativecommons.tankerkoenig.de" target="_blank" rel="noopener">creativecommons.tankerkoenig.de</a> (confirm the e-mail link to activate it). With an active key this page shows real prices from MTS-K; without one, model estimates.`,
     keyOk: "active", keyBad: "inactive or invalid", keyNone: "not set", keyUnknown: "not checked yet",
@@ -1422,6 +1429,7 @@ const I18N = {
     saveBtn: "Save", saved: "Saved", clearBtn: "Clear cached data",
     footEst: "Stations from OpenStreetMap · prices estimated until your API key is active.",
     footLive: "Prices: Tankerkönig / MTS-K, Germany's official fuel-price data.",
+    footGoogle: "Prices: Google Maps (Places API). Stations Google hasn't priced are skipped.",
     yourArea: "your area", natAvg: "German average",
   },
   de: {
@@ -1445,7 +1453,7 @@ const I18N = {
     bestDeal: (name, price, dist) => `Günstigste gerade: <b>${name}</b> für ${price} €/L, ${dist} km entfernt.`,
     today: "heute", tomorrow: "morgen",
     metaFmt: (place, n, mode, upd) => `${place} · ${n} Tankstellen · ${mode} · ${upd}`,
-    modeLive: "Echtzeitpreise", modeEst: "geschätzte Preise", modeEstKey: "Schätzungen — Key inaktiv",
+    modeLive: "Echtzeitpreise", modeGoogle: "Google-Preise", modeEst: "geschätzte Preise", modeEstKey: "Schätzungen — Key inaktiv",
     change: "ändern", refresh: "aktualisieren",
     searchPh: "Stadt oder Adresse…",
     findBtn: "Suchen", useMyLoc: "meinen Standort verwenden",
@@ -1469,6 +1477,8 @@ const I18N = {
     realToggle: "inflationsbereinigt",
     histCaption: "Bundesdurchschnitt.",
     settingsTitle: "Einstellungen",
+    googleKeyLabel: "Google Maps API-Key",
+    googleKeyHint: `Google-Maps-Platform-Key (Places API aktiviert) einfügen, um Googles eigene Preise zu nutzen. Braucht ein Google-Cloud-Projekt mit aktivierter Abrechnung.`,
     apiKeyLabel: "Tankerkönig API-Key",
     apiKeyHint: `Kostenlos auf <a href="https://creativecommons.tankerkoenig.de" target="_blank" rel="noopener">creativecommons.tankerkoenig.de</a> (Bestätigungslink in der E-Mail anklicken). Mit aktivem Key zeigt die Seite echte MTS-K-Preise, ohne Key Modellschätzungen.`,
     keyOk: "aktiv", keyBad: "inaktiv oder ungültig", keyNone: "nicht gesetzt", keyUnknown: "noch nicht geprüft",
@@ -1476,6 +1486,7 @@ const I18N = {
     saveBtn: "Speichern", saved: "Gespeichert", clearBtn: "Zwischengespeicherte Daten löschen",
     footEst: "Tankstellen aus OpenStreetMap · Preise geschätzt, bis dein API-Key aktiv ist.",
     footLive: "Preise: Tankerkönig / MTS-K, die offiziellen deutschen Spritpreisdaten.",
+    footGoogle: "Preise: Google Maps (Places API). Tankstellen ohne Google-Preis werden übersprungen.",
     yourArea: "deine Gegend", natAvg: "Bundesdurchschnitt",
   },
   uk: {
@@ -1499,7 +1510,7 @@ const I18N = {
     bestDeal: (name, price, dist) => `Найдешевша зараз: <b>${name}</b> за ${price} €/л, ${dist} км звідси.`,
     today: "сьогодні", tomorrow: "завтра",
     metaFmt: (place, n, mode, upd) => `${place} · ${n} заправок · ${mode} · ${upd}`,
-    modeLive: "живі ціни", modeEst: "оцінені ціни", modeEstKey: "оцінки — ключ неактивний",
+    modeLive: "живі ціни", modeGoogle: "ціни Google", modeEst: "оцінені ціни", modeEstKey: "оцінки — ключ неактивний",
     change: "змінити", refresh: "оновити",
     searchPh: "Місто або адреса…",
     findBtn: "Пошук", useMyLoc: "використати мою локацію",
@@ -1523,6 +1534,8 @@ const I18N = {
     realToggle: "з поправкою на інфляцію",
     histCaption: "Середнє по Німеччині.",
     settingsTitle: "Налаштування",
+    googleKeyLabel: "API-ключ Google Maps",
+    googleKeyHint: `Встав ключ Google Maps Platform (з увімкненим Places API), щоб використати ціни Google. Потрібен проєкт Google Cloud з увімкненою оплатою.`,
     apiKeyLabel: "API-ключ Tankerkönig",
     apiKeyHint: `Безкоштовно на <a href="https://creativecommons.tankerkoenig.de" target="_blank" rel="noopener">creativecommons.tankerkoenig.de</a> (підтверди лінк у листі, щоб активувати). З активним ключем сторінка показує реальні ціни MTS-K, без нього — модельні оцінки.`,
     keyOk: "активний", keyBad: "неактивний або хибний", keyNone: "не задано", keyUnknown: "ще не перевірено",
@@ -1530,6 +1543,7 @@ const I18N = {
     saveBtn: "Зберегти", saved: "Збережено", clearBtn: "Очистити кешовані дані",
     footEst: "Заправки з OpenStreetMap · ціни оцінені, доки ключ не активний.",
     footLive: "Ціни: Tankerkönig / MTS-K, офіційні дані про ціни на пальне в Німеччині.",
+    footGoogle: "Ціни: Google Maps (Places API). Заправки без ціни в Google пропускаються.",
     yourArea: "твоя місцевість", natAvg: "середнє по Німеччині",
   },
 };
@@ -1548,7 +1562,7 @@ function applyI18n(){
 
 /* ---------------- settings ---------------- */
 const DEFAULT_KEY = "8dae584c-91a2-4ca1-bfd8-77eed2e2d64f";
-const DEFAULTS = { radiusKm: 5, fuel: "e10", inflation: 2.3, apiKey: DEFAULT_KEY };
+const DEFAULTS = { radiusKm: 5, fuel: "e10", inflation: 2.3, apiKey: DEFAULT_KEY, googleKey: "" };
 let settings = { ...DEFAULTS, ...store.get("bz-settings") };
 if (!settings.apiKey) settings.apiKey = DEFAULT_KEY;
 function saveSettings(){ store.set("bz-settings", settings); }
@@ -1637,6 +1651,8 @@ let stations = [];
 let liveMode = false;
 let keyChecked = null;
 let liveError = false;      // live fetch threw (blocked / offline), not a key problem
+let liveSource = "";        // "google" | "mtsk"
+let googleReady = null;     // memoised Maps JS SDK loader
 let lastUpdate = 0;
 let showAll = false;
 let map, markerLayer, userMarker, todayChart, histChart;
@@ -1698,6 +1714,59 @@ function placeUserMarker(){
   userMarker = L.circleMarker([loc.lat, loc.lon], { radius: 6, color: "#f4f4f4", weight: 2, fillColor: "#7b9dff", fillOpacity: 1 }).addTo(map);
 }
 
+/* ---------------- Google Places fuel prices (optional source) ---------------- */
+/* Google fuel-type enum → app fuels (Germany). SP95=Super95(E5), SP95_E10=E10. */
+const GFUEL = { e5: ["SP95", "REGULAR_UNLEADED", "SP98"], e10: ["SP95_E10", "SP91_E10"], diesel: ["DIESEL", "TRUCK_DIESEL"] };
+function gPrice(fuelOptions, keys){
+  const fp = fuelOptions?.fuelPrices || [];
+  for (const k of keys){
+    const m = fp.find(x => x.type === k);
+    if (m?.price) return +(Number(m.price.units || 0) + Number(m.price.nanos || 0) / 1e9).toFixed(3);
+  }
+  return null;
+}
+function ensureGoogle(){
+  if (!settings.googleKey) return Promise.resolve(false);
+  if (googleReady) return googleReady;
+  googleReady = new Promise(resolve => {
+    if (window.google?.maps?.importLibrary){ resolve(true); return; }
+    const s = document.createElement("script");
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(settings.googleKey)}&loading=async&libraries=places&v=weekly`;
+    s.async = true;
+    s.onload = () => resolve(true);
+    s.onerror = () => { googleReady = null; resolve(false); };
+    document.head.appendChild(s);
+  });
+  return googleReady;
+}
+async function loadGoogleStations(r){
+  if (!(await ensureGoogle())) return null;
+  try {
+    const { Place, SearchNearbyRankPreference } = await google.maps.importLibrary("places");
+    const resp = await Place.searchNearby({
+      fields: ["id", "displayName", "location", "formattedAddress", "fuelOptions"],
+      locationRestriction: { center: { lat: loc.lat, lng: loc.lon }, radius: Math.min(r * 1000, 50000) },
+      includedPrimaryTypes: ["gas_station"],
+      maxResultCount: 20,
+      rankPreference: SearchNearbyRankPreference.DISTANCE,
+    });
+    const places = resp.places || [];
+    const mapped = places.map(p => {
+      const lat = p.location.lat(), lon = p.location.lng();
+      const prices = {};
+      for (const f in FUELS) prices[f] = gPrice(p.fuelOptions, GFUEL[f]);
+      return {
+        id: "g-" + (p.id || `${lat},${lon}`),
+        name: p.displayName || "Tankstelle",
+        detail: (p.formattedAddress || "").split(",")[0] || "",
+        lat, lon, dist: haversine(loc.lat, loc.lon, lat, lon),
+        isOpen: null, live: true, prices,
+      };
+    }).filter(s => Object.values(s.prices).some(v => v > 0));   // keep only stations Google priced
+    return mapped.length ? mapped : null;
+  } catch { return null; }
+}
+
 /* ---------------- stations ---------------- */
 function cacheKey(){ return `${loc.lat.toFixed(3)},${loc.lon.toFixed(3)},${settings.radiusKm}`; }
 
@@ -1722,9 +1791,19 @@ async function loadStations(forceFresh){
   const r = Math.min(25, settings.radiusKm);
   liveMode = false;
   liveError = false;
+  liveSource = "";
   let ok = false;
 
-  if (settings.apiKey){
+  /* 1) Google Places fuel prices, if a Google key is set */
+  if (settings.googleKey){
+    try {
+      const g = await loadGoogleStations(r);
+      if (g){ stations = g; liveMode = true; liveSource = "google"; ok = true; }
+    } catch { liveError = true; }
+  }
+
+  /* 2) Tankerkönig / MTS-K */
+  if (!ok && settings.apiKey){
     try {
       const url = `https://creativecommons.tankerkoenig.de/json/list.php?lat=${loc.lat}&lng=${loc.lon}&rad=${r}&sort=dist&type=all&apikey=${encodeURIComponent(settings.apiKey)}`;
       const js = await (await fetch(url)).json();
@@ -1738,6 +1817,7 @@ async function loadStations(forceFresh){
           prices: { e5: s.e5 || null, e10: s.e10 || null, diesel: s.diesel || null },
         }));
         liveMode = true;
+        liveSource = "mtsk";
         keyChecked = true;
         ok = true;
       } else if (js.ok === false){
@@ -1882,7 +1962,7 @@ function renderAll(){
     const msg = keyChecked === false ? t("keyNotice") : t("liveBlocked");
     notice.innerHTML = `<span>${msg}</span> <button class="link" id="btnRetryLive">${t("retryLive")}</button>`;
   }
-  $("#footNote").textContent = liveMode ? t("footLive") : t("footEst");
+  $("#footNote").textContent = liveSource === "google" ? t("footGoogle") : liveMode ? t("footLive") : t("footEst");
   requestAnimationFrame(() => map && map.invalidateSize());
 }
 
@@ -1931,7 +2011,8 @@ function renderVerdict(){
   lede.hidden = true;
   figures.hidden = false;
 
-  const mode = liveMode ? t("modeLive") : (keyChecked === false ? t("modeEstKey") : t("modeEst"));
+  const mode = liveMode ? (liveSource === "google" ? t("modeGoogle") : t("modeLive"))
+                        : (keyChecked === false ? t("modeEstKey") : t("modeEst"));
   const upd = t("updatedAgo")(Math.floor((Date.now() - lastUpdate) / 60e3));
   meta.innerHTML = t("metaFmt")(`<b>${esc(loc.label)}</b>`, stations.length, mode, upd) +
     ` · <button class="link" id="btnRefresh">${t("refresh")}</button>` +
@@ -2234,6 +2315,7 @@ function syncControls(){
   $$("#fuelTabs button").forEach(b => b.classList.toggle("on", b.dataset.f === settings.fuel));
   $("#radiusSel").value = String(settings.radiusKm);
   $("#apiKeyInput").value = settings.apiKey;
+  $("#googleKeyInput").value = settings.googleKey || "";
   $("#inflInput").value = settings.inflation;
   $$("#rangeLinks button").forEach(b => b.classList.toggle("on", +b.dataset.y === ui.range));
   $("#realToggle").checked = !!ui.real;
@@ -2300,6 +2382,9 @@ function init(){
 
   $("#btnSave").addEventListener("click", () => {
     settings.apiKey = $("#apiKeyInput").value.trim();
+    const newGoogle = $("#googleKeyInput").value.trim();
+    if (newGoogle !== settings.googleKey) googleReady = null;   // reload SDK with new key
+    settings.googleKey = newGoogle;
     settings.inflation = Math.max(0, Math.min(15, +$("#inflInput").value || 0));
     keyChecked = null;
     saveSettings();
