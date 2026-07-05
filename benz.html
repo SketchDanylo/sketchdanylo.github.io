@@ -1646,7 +1646,9 @@ function gmapsUrl(s){ return `https://www.google.com/maps/search/?api=1&query=${
 
 /* ---------------- state ---------------- */
 let loc = store.get("bz-loc");
-let calib = store.get("bz-calib", {});   // user's per-fuel correction for estimates, €
+let calib = {};   // per-fuel correction for estimates, € — in-memory only, never stored
+/* prices are never persisted: purge anything older versions saved */
+["bz-stations", "bz-snaps", "bz-calib"].forEach(k => store.del(k));
 let stations = [];
 let liveMode = false;
 let keyChecked = null;
@@ -1656,8 +1658,6 @@ let googleReady = null;     // memoised Maps JS SDK loader
 let lastUpdate = 0;
 let showAll = false;
 let map, markerLayer, userMarker, todayChart, histChart;
-
-const CACHE_TTL = 3 * 60e3;   // live prices should feel fresh
 
 function setStatus(msg, err){
   const el = $("#statusLine");
@@ -1768,26 +1768,10 @@ async function loadGoogleStations(r){
 }
 
 /* ---------------- stations ---------------- */
-function cacheKey(){ return `${loc.lat.toFixed(3)},${loc.lon.toFixed(3)},${settings.radiusKm}`; }
-
 async function loadStations(forceFresh){
   if (!loc) return;
-  const cached = store.get("bz-stations");
-  /* serve cache only when fresh — and never serve stale estimates when a key
-     is present that could fetch live prices (fixes "activated key but still
-     seeing old estimates") */
-  const cacheOk = !forceFresh && cached && cached.key === cacheKey()
-    && Date.now() - cached.t < CACHE_TTL
-    && !(settings.apiKey && !cached.live);
-  if (cacheOk){
-    stations = cached.stations;
-    liveMode = cached.live;
-    if (cached.keyChecked != null) keyChecked = cached.keyChecked;
-    lastUpdate = cached.t;
-    finishLoad();
-    return;
-  }
-
+  /* Prices are never stored — every load fetches fresh, so what you see is
+     always current (nothing cached to localStorage). */
   const r = Math.min(25, settings.radiusKm);
   liveMode = false;
   liveError = false;
@@ -1856,11 +1840,7 @@ async function loadStations(forceFresh){
     }
   }
 
-  if (ok){
-    lastUpdate = Date.now();
-    store.set("bz-stations", { key: cacheKey(), t: lastUpdate, live: liveMode, keyChecked, stations });
-    recordSnapshot();
-  }
+  if (ok) lastUpdate = Date.now();
   finishLoad();
 }
 
@@ -1869,49 +1849,21 @@ function finishLoad(){
   renderAll();
 }
 
-function recordSnapshot(){
-  if (!liveMode || !stations.length) return;
-  const snaps = store.get("bz-snaps", []);
-  const now = Date.now();
-  if (snaps.length && now - snaps[snaps.length - 1].t < 3600e3) return;
-  const entry = { t: now };
-  for (const f in FUELS){
-    const vals = stations.map(s => s.prices[f]).filter(v => v > 0);
-    if (vals.length) entry[f] = Math.min(...vals);
-  }
-  snaps.push(entry);
-  while (snaps.length > 20000) snaps.shift();
-  store.set("bz-snaps", snaps);
-}
-
-/* user corrected one estimate → shift all estimates for that fuel */
+/* user corrected one estimate → shift all estimates for that fuel
+   (kept in memory for this visit only — prices are never stored) */
 function applyCalib(fuel, delta){
   calib[fuel] = +(((calib[fuel] || 0) + delta).toFixed(3));
-  store.set("bz-calib", calib);
   for (const s of stations){
     if (!s.live && s.prices[fuel] > 0)
       s.prices[fuel] = +(Math.round((s.prices[fuel] + delta) * 100) / 100 - 0.001).toFixed(3);
   }
   stations.sort((a, b) => (a.prices[fuel] ?? 9) - (b.prices[fuel] ?? 9));
-  const cached = store.get("bz-stations");
-  if (cached && !cached.live){ cached.stations = stations; store.set("bz-stations", cached); }
   renderAll();
 }
 
 /* ---------------- verdict ---------------- */
 function trendPerDay(){
-  const fuel = settings.fuel;
-  const snaps = store.get("bz-snaps", []).filter(s => s[fuel] > 0);
-  if (snaps.length >= 6){
-    const seg = snaps.slice(-90);
-    const n = seg.length;
-    const mx = seg.reduce((a, s) => a + s.t, 0) / n;
-    const my = seg.reduce((a, s) => a + s[fuel], 0) / n;
-    let num = 0, den = 0;
-    for (const s of seg){ num += (s.t - mx) * (s[fuel] - my); den += (s.t - mx) ** 2; }
-    if (den) return (num / den) * 86400e3 * 100;
-  }
-  const h = HIST[fuel];
+  const h = HIST[settings.fuel];
   return (h[h.length - 1] - h[h.length - 3]) / 2 / 91 * 100;
 }
 
@@ -2190,27 +2142,6 @@ function renderHistChart(){
     label: t("natAvg"), data: pts.map(deflate), borderColor: "rgba(200,212,255,.75)",
     borderWidth: 1.6, pointRadius: 0, tension: 0.3,
   }];
-
-  const snaps = store.get("bz-snaps", []).filter(s => s[fuel] > 0);
-  if (snaps.length){
-    const buckets = new Map();
-    for (const s of snaps){
-      const wk = Math.floor(s.t / (7 * 86400e3));
-      if (!buckets.has(wk)) buckets.set(wk, []);
-      buckets.get(wk).push(s[fuel]);
-    }
-    const dl = labels.map(() => null);
-    let any = false;
-    for (const [wk, vals] of buckets){
-      const d = new Date(wk * 7 * 86400e3);
-      if (d < labels[0]) continue;
-      let bi = 0, bd = Infinity;
-      labels.forEach((L2, i) => { const dd = Math.abs(L2 - d); if (dd < bd){ bd = dd; bi = i; } });
-      dl[bi] = deflate({ d, v: vals.reduce((a, b) => a + b, 0) / vals.length });
-      any = true;
-    }
-    if (any) datasets.push({ label: t("yourArea"), data: dl, borderColor: "#86dcab", borderWidth: 1.6, pointRadius: 2.5, tension: 0.3, spanGaps: true });
-  }
 
   const fmtTick = d => new Intl.DateTimeFormat(locale(), nQ > 24 ? { year: "numeric" } : { month: "short", year: "2-digit" }).format(d);
 
