@@ -221,7 +221,6 @@
   }
 
   @media (max-width: 560px) {
-    .st th:nth-child(2), .st td.dist { display: none; }
     h1 { font-size: 1.85rem; }
   }
   @media (prefers-reduced-motion: reduce) {
@@ -1241,6 +1240,19 @@
   .key-notice[hidden] { display: none; }
   .calib-hint { color: var(--faint); }
 
+  /* multi-fuel table columns */
+  .st th.fuelcol { cursor: pointer; user-select: none; transition: color 150ms ease; }
+  .st th.fuelcol:hover { color: var(--muted); }
+  .st th.fuelcol.on { color: var(--text); }
+  .st td.price.dim { color: var(--muted); font-weight: 500; }
+  .st td.price.off { color: var(--faint); font-weight: 400; }
+  .st td.price { padding-left: 14px; }
+  @media (max-width: 560px) {
+    .st { font-size: 0.88rem; }
+    .st td.price { padding-left: 8px; }
+    .st .addr { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: bottom; }
+  }
+
   /* Google Maps embed — Google's own display, keyless */
   .map-switch { margin: 14px 0 0; font-size: 0.85rem; }
   #gmapFrame { width: 100%; height: 300px; border: 1px solid var(--rule-soft); border-radius: 4px; background: #0a0a0a; display: block; }
@@ -1305,11 +1317,7 @@
     <h2 data-i18n="secStations">Stations nearby</h2>
     <p class="sec-note" id="updatedNote"></p>
     <table class="st">
-      <thead><tr>
-        <th data-i18n="colStation">Station</th>
-        <th class="num" data-i18n="colDist">km</th>
-        <th class="num" data-i18n="colPrice">€ / L</th>
-      </tr></thead>
+      <thead><tr id="stHead"></tr></thead>
       <tbody id="stBody"></tbody>
     </table>
     <p class="show-more" id="showMoreWrap" hidden><button class="link" id="btnShowMore"></button></p>
@@ -1592,13 +1600,15 @@ function applyI18n(){
 }
 
 /* ---------------- settings ---------------- */
+const BUILD = "v2026-07-06.2";
 const DEFAULT_KEY = "8dae584c-91a2-4ca1-bfd8-77eed2e2d64f";
 const DEFAULTS = { radiusKm: 5, fuel: "e10", inflation: 2.3, apiKey: DEFAULT_KEY, googleKey: "" };
 let settings = { ...DEFAULTS, ...store.get("bz-settings") };
 if (!settings.apiKey) settings.apiKey = DEFAULT_KEY;
 function saveSettings(){ store.set("bz-settings", settings); }
 
-let ui = { range: 5, real: false, gmap: true, ...store.get("bz-ui") };   // Google map view is the default
+let ui = { range: 5, real: false, gmap: false, ...store.get("bz-ui") };
+if (!ui.mapV2){ ui.gmap = false; ui.mapV2 = 1; }   // back to the app map by default (Google view stays one tap away)
 function saveUi(){ store.set("bz-ui", ui); }
 
 /* ---------------- German market knowledge ---------------- */
@@ -1925,7 +1935,7 @@ function renderAll(){
   else if (loc && !liveMode && (liveError || keyChecked === false)) msg = keyChecked === false ? t("keyNotice") : t("liveBlocked");
   notice.hidden = !msg;
   if (msg) notice.innerHTML = `<span>${msg}</span> <button class="link" id="btnRetryLive">${t("retryLive")}</button>`;
-  $("#footNote").textContent = liveSource === "google" ? t("footGoogle") : liveMode ? t("footLive") : t("footEst");
+  $("#footNote").textContent = (liveSource === "google" ? t("footGoogle") : liveMode ? t("footLive") : t("footEst")) + " · " + BUILD;
   updateMapMode();
   requestAnimationFrame(() => map && map.invalidateSize());
 }
@@ -1967,7 +1977,7 @@ function renderVerdict(){
   const save = v.wait
     ? `<span class="fig-save"><span>${t("now")} ${fmtEUR(now)}</span>` +
       `<span class="arrow">→</span>` +
-      `<span class="best">${fmtHour(v.wait.h)} ${fmtEUR(now - v.save / 100)}</span>` +
+      `<span class="best">${fmtHour(v.wait.h)} ≈${fmtEUR(now - v.save / 100)}</span>` +
       `<span class="chip">−${v.save} ct</span></span>`
     : "";
   figures.innerHTML =
@@ -2004,20 +2014,37 @@ function renderStations(){
   const updBase = lastUpdate ? t("updatedAgo")(Math.floor((Date.now() - lastUpdate) / 60e3)) + " · " + fmtTime(lastUpdate) : "";
   $("#updatedNote").innerHTML = updBase;
 
+  /* all fuel grades listed side by side — selected one highlighted with the bar */
+  $("#stHead").innerHTML = `<th>${t("colStation")}</th>` +
+    Object.entries(FUELS).map(([k, label]) =>
+      `<th class="num fuelcol ${k === fuel ? "on" : ""}" data-f="${k}" role="button">${label.replace("Super ", "")}</th>`).join("");
+  $("#stHead").querySelectorAll("th[data-f]").forEach(th => th.addEventListener("click", () => {
+    settings.fuel = th.dataset.f;
+    saveSettings();
+    syncControls();
+    finishLoad();
+  }));
+
   const limit = 12;
   const rows = showAll ? priced : priced.slice(0, limit);
   const vlo = rows[0].prices[fuel], vhi = rows[rows.length - 1].prices[fuel], vspan = vhi - vlo;
   body.innerHTML = rows.map((s, i) => {
-    const p = s.prices[fuel];
-    const k = vspan > 0 ? (p - vlo) / vspan : 0;            // 0 cheapest … 1 priciest (in view)
-    const w = Math.round((1 - k) * 88 + 12);               // fuller bar = cheaper
-    const col = k < 0.34 ? "var(--good)" : k < 0.67 ? "#d9c58a" : "var(--bad)";
     const closed = s.isOpen === false ? `<span class="tag-closed">${t("closed")}</span>` : "";
     const cheap = i === 0 ? `<span class="cheap-note">— ${t("cheapNote")}</span>` : "";
+    const cells = Object.keys(FUELS).map(k => {
+      const p = s.prices[k];
+      if (!(p > 0)) return `<td class="num price off">—</td>`;
+      if (k === fuel){
+        const kk = vspan > 0 ? (p - vlo) / vspan : 0;
+        const w = Math.round((1 - kk) * 88 + 12);
+        const col = kk < 0.34 ? "var(--good)" : kk < 0.67 ? "#d9c58a" : "var(--bad)";
+        return `<td class="num price"><span class="pnum">${fmtSign(p)}</span><span class="barwrap"><i class="barfill" style="width:${w}%;background:${col}"></i></span></td>`;
+      }
+      return `<td class="num price dim">${fmtSign(p)}</td>`;
+    }).join("");
     return `<tr data-id="${esc(s.id)}" class="${i === 0 ? "cheapest" : ""}" style="--rd:${Math.min(i, 14) * 32}ms">
-      <td><span class="name">${esc(s.name)}</span>${closed}${cheap}<br><span class="addr">${esc(s.detail || "")}</span></td>
-      <td class="num dist">${s.dist.toFixed(1)}</td>
-      <td class="num price"><span class="pnum">${fmtSign(p)}</span><span class="barwrap"><i class="barfill" style="width:${w}%;background:${col}"></i></span></td>
+      <td><span class="name">${esc(s.name)}</span>${closed}${cheap}<br><span class="addr">${s.dist.toFixed(1)} km${s.detail ? " · " + esc(s.detail) : ""}</span></td>
+      ${cells}
     </tr>`;
   }).join("");
 
@@ -2305,6 +2332,12 @@ function init(){
     ui.gmap = !ui.gmap;
     saveUi();
     updateMapMode();
+  });
+
+  /* keep prices current while the page stays open */
+  setInterval(() => { if (loc && !document.hidden) loadStations(true); }, 5 * 60e3);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && loc && Date.now() - lastUpdate > 5 * 60e3) loadStations(true);
   });
 
   $("#btnSave").addEventListener("click", () => {
