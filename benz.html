@@ -1240,6 +1240,20 @@
   .key-notice::before { content: "▲"; font-size: 0.66rem; transform: translateY(-1px); flex: none; }
   .key-notice[hidden] { display: none; }
   .calib-hint { color: var(--faint); }
+
+  /* Google Maps embed — Google's own display, keyless */
+  .map-switch { margin: 14px 0 0; font-size: 0.85rem; }
+  #gmapFrame { width: 100%; height: 300px; border: 1px solid var(--rule-soft); border-radius: 4px; background: #0a0a0a; display: block; }
+  #gmapFrame[hidden] { display: none; }
+  @media (min-width: 980px) {
+    #stationsSec #map, #stationsSec #gmapFrame { grid-row: 3 / span 3 !important; }
+    #stationsSec #gmapFrame {
+      grid-column: 2;
+      height: min(34vw, 420px) !important;
+      min-height: 320px !important;
+      margin-top: 0 !important;
+    }
+  }
 </style>
 </head>
 <body>
@@ -1299,7 +1313,9 @@
       <tbody id="stBody"></tbody>
     </table>
     <p class="show-more" id="showMoreWrap" hidden><button class="link" id="btnShowMore"></button></p>
+    <p class="map-switch"><button class="link" id="btnMapMode"></button></p>
     <div id="map"></div>
+    <iframe id="gmapFrame" title="Google Maps" loading="lazy" referrerpolicy="no-referrer-when-downgrade" hidden></iframe>
   </section>
   <p class="empty-note" id="stEmpty" hidden></p>
 
@@ -1385,6 +1401,8 @@ const I18N = {
     googleNone: "Google returned no prices for this area — showing official MTS-K live prices instead.",
     onGoogle: "Price on Google Maps",
     checkGoogle: "check on Google Maps",
+    showGoogleMap: "Switch to Google Maps view — their live display, click a row to see Google's card",
+    showAppMap: "Switch back to the app map",
     calibHint: "tap a price to fix it",
     calibTitle: "Click to correct this price",
     bestWindow: "cheapest ~19h",
@@ -1443,6 +1461,8 @@ const I18N = {
     googleNone: "Google liefert für diese Gegend keine Preise — stattdessen offizielle MTS-K-Echtzeitpreise.",
     onGoogle: "Preis auf Google Maps",
     checkGoogle: "auf Google Maps prüfen",
+    showGoogleMap: "Zur Google-Maps-Ansicht wechseln — deren Live-Anzeige, Zeile anklicken für Googles Karte",
+    showAppMap: "Zurück zur App-Karte",
     calibHint: "Preis antippen zum Korrigieren",
     calibTitle: "Klicken und Preis korrigieren",
     bestWindow: "günstigste ~19 Uhr",
@@ -1501,6 +1521,8 @@ const I18N = {
     googleNone: "Google не дає цін для цієї місцевості — натомість офіційні живі ціни MTS-K.",
     onGoogle: "Ціна в Google Maps",
     checkGoogle: "перевірити в Google Maps",
+    showGoogleMap: "Перемкнути на карту Google — їхній живий показ, клацни рядок для картки Google",
+    showAppMap: "Назад до карти застосунку",
     calibHint: "торкнись ціни, щоб виправити",
     calibTitle: "Клацни, щоб виправити ціну",
     bestWindow: "найдешевше ~19:00",
@@ -1570,7 +1592,7 @@ let settings = { ...DEFAULTS, ...store.get("bz-settings") };
 if (!settings.apiKey) settings.apiKey = DEFAULT_KEY;
 function saveSettings(){ store.set("bz-settings", settings); }
 
-let ui = { range: 5, real: false, ...store.get("bz-ui") };
+let ui = { range: 5, real: false, gmap: true, ...store.get("bz-ui") };   // Google map view is the default
 function saveUi(){ store.set("bz-ui", ui); }
 
 /* ---------------- German market knowledge ---------------- */
@@ -1646,6 +1668,26 @@ const fmtTime = ts => new Intl.DateTimeFormat(locale(), { hour: "2-digit", minut
 function esc(s){ return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 /* open this station in Google Maps (to read Google's own price) */
 function gmapsUrl(s){ return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((s.name || "Tankstelle") + " " + s.lat + "," + s.lon)}`; }
+
+/* keyless Google Maps embed: Google's own map of stations around loc */
+function gmapEmbedUrl(){
+  const z = settings.radiusKm <= 2 ? 15 : settings.radiusKm <= 5 ? 14 : settings.radiusKm <= 10 ? 13 : 12;
+  const hl = lang === "de" ? "de" : lang === "uk" ? "uk" : "en";
+  return `https://maps.google.com/maps?q=tankstelle&ll=${loc.lat},${loc.lon}&z=${z}&hl=${hl}&output=embed`;
+}
+function updateMapMode(){
+  const btn = $("#btnMapMode"), frame = $("#gmapFrame"), lmap = $("#map");
+  const useG = !!ui.gmap && !!loc;
+  btn.textContent = useG ? t("showAppMap") : t("showGoogleMap");
+  lmap.style.display = useG ? "none" : "";
+  frame.hidden = !useG;
+  if (useG){
+    const src = gmapEmbedUrl();
+    if (frame.dataset.src !== src){ frame.src = src; frame.dataset.src = src; }
+  } else {
+    requestAnimationFrame(() => map && map.invalidateSize());
+  }
+}
 
 /* ---------------- state ---------------- */
 let loc = store.get("bz-loc");
@@ -1919,6 +1961,7 @@ function renderAll(){
   notice.hidden = !msg;
   if (msg) notice.innerHTML = `<span>${msg}</span> <button class="link" id="btnRetryLive">${t("retryLive")}</button>`;
   $("#footNote").textContent = liveSource === "google" ? t("footGoogle") : liveMode ? t("footLive") : t("footEst");
+  updateMapMode();
   requestAnimationFrame(() => map && map.invalidateSize());
 }
 
@@ -2020,6 +2063,14 @@ function renderStations(){
     row.addEventListener("click", () => {
       const s = stations.find(x => x.id === row.dataset.id);
       if (!s) return;
+      if (ui.gmap){
+        /* Google view: show this station's own Google card (their price included) */
+        const frame = $("#gmapFrame");
+        const src = `https://maps.google.com/maps?q=${encodeURIComponent((s.name || "Tankstelle") + " " + s.lat + "," + s.lon)}&z=16&hl=${lang === "de" ? "de" : lang === "uk" ? "uk" : "en"}&output=embed`;
+        frame.src = src; frame.dataset.src = src;
+        frame.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
       map.setView([s.lat, s.lon], 15);
       $("#map").scrollIntoView({ behavior: "smooth", block: "center" });
       markerLayer.eachLayer(l => {
@@ -2314,6 +2365,12 @@ function init(){
   });
 
   $("#btnShowMore").addEventListener("click", () => { showAll = !showAll; renderStations(); });
+
+  $("#btnMapMode").addEventListener("click", () => {
+    ui.gmap = !ui.gmap;
+    saveUi();
+    updateMapMode();
+  });
 
   $("#btnSave").addEventListener("click", () => {
     settings.apiKey = $("#apiKeyInput").value.trim();
