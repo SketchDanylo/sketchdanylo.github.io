@@ -167,6 +167,10 @@
   .leaflet-popup-tip { background: #141519; }
   .pop-name { font-weight: 650; font-size: 0.88rem; }
   .pop-price { font-size: 1.05rem; font-weight: 700; margin: 1px 0; font-variant-numeric: tabular-nums; }
+  .pop-row { display: flex; justify-content: space-between; gap: 14px; font-size: 0.84rem; color: #9a9a9a; font-variant-numeric: tabular-nums; }
+  .pop-row.on { color: #f4f4f4; }
+  .pop-row.on b { color: #86dcab; }
+  .pop-row b { font-weight: 650; }
   .pop-gmaps { display: inline-block; margin-top: 5px; font-size: 0.78rem; color: #8ab4f8; }
   .fig-gmaps { color: #8ab4f8; text-decoration-color: rgba(138,180,248,.5); font-weight: 500; }
   .pop-meta { color: #9a9a9a; font-size: 0.76rem; }
@@ -1600,7 +1604,7 @@ function applyI18n(){
 }
 
 /* ---------------- settings ---------------- */
-const BUILD = "v2026-07-06.2";
+const BUILD = "v2026-07-06.3";
 const DEFAULT_KEY = "8dae584c-91a2-4ca1-bfd8-77eed2e2d64f";
 const DEFAULTS = { radiusKm: 5, fuel: "e10", inflation: 2.3, apiKey: DEFAULT_KEY, googleKey: "" };
 let settings = { ...DEFAULTS, ...store.get("bz-settings") };
@@ -2089,7 +2093,12 @@ function renderMap(){
     const color = k < 0.34 ? "#86dcab" : k < 0.67 ? "#d9c58a" : "#f0958b";
     L.circleMarker([s.lat, s.lon], { radius: 7, color: "#0a0a0a", weight: 2, fillColor: color, fillOpacity: 0.95 })
       .addTo(markerLayer)
-      .bindPopup(`<div class="pop-name">${esc(s.name)}</div><div class="pop-price">${fmtEUR(s.prices[fuel])} €/L</div><div class="pop-meta">${s.dist.toFixed(1)} km · ${FUELS[fuel]}</div>` +
+      .bindPopup(`<div class="pop-name">${esc(s.name)}</div>` +
+        Object.entries(FUELS).map(([k, label]) =>
+          s.prices[k] > 0
+            ? `<div class="pop-row${k === fuel ? " on" : ""}"><span>${label}</span><b>${fmtEUR(s.prices[k])} €</b></div>`
+            : "").join("") +
+        `<div class="pop-meta">${s.dist.toFixed(1)} km</div>` +
         `<a class="pop-gmaps" href="${gmapsUrl(s)}" target="_blank" rel="noopener">${t("onGoogle")} ↗</a>`);
   });
 }
