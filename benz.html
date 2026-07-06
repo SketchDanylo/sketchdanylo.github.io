@@ -1395,8 +1395,10 @@ const I18N = {
     backHome: "← Danylo's Tools",
     heroAsk: "Should you fill up now, or wait?",
     heroLede: "Find the cheaper stop nearby and whether waiting is worth it.",
-    keyNotice: "Your API key came back inactive, so these are estimates.",
-    liveBlocked: "Couldn't reach the live price service (ad-blocker or offline?) — showing estimates.",
+    keyNotice: "The API key came back inactive — live prices can't load.",
+    liveBlocked: "Couldn't reach the live price service (ad-blocker or offline?).",
+    liveFailHead: "Can't load live prices.",
+    liveFailLede: "This page only shows real prices — never guesses. Check your connection or ad-blocker, then retry below.",
     retryLive: "Retry live prices",
     googleNone: "Google returned no prices for this area — showing official MTS-K live prices instead.",
     onGoogle: "Price on Google Maps",
@@ -1455,8 +1457,10 @@ const I18N = {
     backHome: "← Danylos Tools",
     heroAsk: "Jetzt tanken oder warten?",
     heroLede: "Finde die günstigere Tankstelle in der Nähe und ob Warten Sinn ergibt.",
-    keyNotice: "Dein API-Key kam als inaktiv zurück, daher Schätzungen.",
-    liveBlocked: "Live-Preisdienst nicht erreichbar (Ad-Blocker oder offline?) — es werden Schätzungen gezeigt.",
+    keyNotice: "Der API-Key kam als inaktiv zurück — Live-Preise können nicht geladen werden.",
+    liveBlocked: "Live-Preisdienst nicht erreichbar (Ad-Blocker oder offline?).",
+    liveFailHead: "Live-Preise können nicht geladen werden.",
+    liveFailLede: "Diese Seite zeigt nur echte Preise — niemals Schätzungen. Verbindung oder Ad-Blocker prüfen und unten erneut versuchen.",
     retryLive: "Live-Preise erneut laden",
     googleNone: "Google liefert für diese Gegend keine Preise — stattdessen offizielle MTS-K-Echtzeitpreise.",
     onGoogle: "Preis auf Google Maps",
@@ -1515,8 +1519,10 @@ const I18N = {
     backHome: "← Інструменти Данила",
     heroAsk: "Заправлятися зараз чи почекати?",
     heroLede: "Знайди дешевшу заправку поруч і чи варто чекати.",
-    keyNotice: "API-ключ повернувся як неактивний, тож це оцінки.",
-    liveBlocked: "Не вдалося з'єднатися із сервісом живих цін (блокувальник реклами чи офлайн?) — показано оцінки.",
+    keyNotice: "API-ключ повернувся як неактивний — живі ціни не завантажуються.",
+    liveBlocked: "Не вдалося з'єднатися із сервісом живих цін (блокувальник реклами чи офлайн?).",
+    liveFailHead: "Не вдається завантажити живі ціни.",
+    liveFailLede: "Ця сторінка показує лише реальні ціни — ніколи не вгадує. Перевір з'єднання чи блокувальник реклами та спробуй ще раз нижче.",
     retryLive: "Повторити живі ціни",
     googleNone: "Google не дає цін для цієї місцевості — натомість офіційні живі ціни MTS-K.",
     onGoogle: "Ціна в Google Maps",
@@ -1701,7 +1707,7 @@ let liveError = false;      // live fetch threw (blocked / offline), not a key p
 let liveSource = "";        // "google" | "mtsk"
 let googleReady = null;     // memoised Maps JS SDK loader
 let lastUpdate = 0;
-let showAll = false;
+let showAll = true;   // list everything by default — no taps needed
 let map, markerLayer, userMarker, todayChart, histChart;
 
 function setStatus(msg, err){
@@ -1855,54 +1861,15 @@ async function loadStations(forceFresh){
     } catch { liveError = true; }   // request blocked (ad-blocker) or offline
   }
 
-  if (!ok){
-    try {
-      const q = `[out:json][timeout:25];(node["amenity"="fuel"](around:${r * 1000},${loc.lat},${loc.lon});way["amenity"="fuel"](around:${r * 1000},${loc.lat},${loc.lon}););out center tags;`;
-      const js = await (await fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: "data=" + encodeURIComponent(q) })).json();
-      const now = new Date();
-      stations = (js.elements || []).map(e => {
-        const lat = e.lat ?? e.center?.lat, lon = e.lon ?? e.center?.lon;
-        const name = e.tags?.brand || e.tags?.name || "Tankstelle";
-        const bd = brandDelta(name);
-        const seed = hashStr(e.type + e.id);
-        const prices = {};
-        /* German price signs end in 9: round to the cent, then …9 */
-        for (const f in FUELS){
-          const p = BASE_NOW[f] + (calib[f] || 0) + bd + intradayAt(now) / 100 + ((seed % 13) - 6) / 1000;
-          prices[f] = +(Math.round(p * 100) / 100 - 0.001).toFixed(3);
-        }
-        return {
-          id: "osm-" + e.type + e.id, name,
-          detail: [e.tags?.["addr:street"], e.tags?.["addr:city"]].filter(Boolean).join(", "),
-          lat, lon, dist: haversine(loc.lat, loc.lon, lat, lon),
-          isOpen: null, live: false, prices,
-        };
-      }).filter(s => s.lat != null);
-      ok = true;
-    } catch {
-      stations = [];
-      setStatus(t("statusFail"), true);
-    }
-  }
-
+  /* No estimates, ever: if live prices can't be fetched, show nothing but an
+     honest error + retry. Every number on this page is a real price. */
+  if (!ok) stations = [];
   if (ok) lastUpdate = Date.now();
   finishLoad();
 }
 
 function finishLoad(){
   stations.sort((a, b) => (a.prices[settings.fuel] ?? 9) - (b.prices[settings.fuel] ?? 9));
-  renderAll();
-}
-
-/* user corrected one estimate → shift all estimates for that fuel
-   (kept in memory for this visit only — prices are never stored) */
-function applyCalib(fuel, delta){
-  calib[fuel] = +(((calib[fuel] || 0) + delta).toFixed(3));
-  for (const s of stations){
-    if (!s.live && s.prices[fuel] > 0)
-      s.prices[fuel] = +(Math.round((s.prices[fuel] + delta) * 100) / 100 - 0.001).toFixed(3);
-  }
-  stations.sort((a, b) => (a.prices[fuel] ?? 9) - (b.prices[fuel] ?? 9));
   renderAll();
 }
 
@@ -1954,10 +1921,8 @@ function renderAll(){
   renderKeyState();
   const notice = $("#keyNotice");
   let msg = null;
-  if (stations.length){
-    if (settings.googleKey && liveSource !== "google") msg = t("googleNone");        // never swap sources silently
-    else if (settings.apiKey && !liveMode) msg = keyChecked === false ? t("keyNotice") : t("liveBlocked");
-  }
+  if (stations.length && settings.googleKey && liveSource !== "google") msg = t("googleNone");   // never swap sources silently
+  else if (loc && !liveMode && (liveError || keyChecked === false)) msg = keyChecked === false ? t("keyNotice") : t("liveBlocked");
   notice.hidden = !msg;
   if (msg) notice.innerHTML = `<span>${msg}</span> <button class="link" id="btnRetryLive">${t("retryLive")}</button>`;
   $("#footNote").textContent = liveSource === "google" ? t("footGoogle") : liveMode ? t("footLive") : t("footEst");
@@ -1979,7 +1944,10 @@ function renderVerdict(){
   if (!v){
     figures.hidden = true;
     lede.hidden = false;
-    if (loc && lastUpdate && !stations.length){
+    if (loc && !stations.length && (liveError || keyChecked === false)){
+      setHeadline(h, t("liveFailHead"));
+      lede.textContent = t("liveFailLede");
+    } else if (loc && lastUpdate && !stations.length){
       setHeadline(h, t("heroNoData"));
       lede.textContent = t("heroNoDataLede");
     } else {
@@ -2034,7 +2002,7 @@ function renderStations(){
   sec.hidden = false;
   empty.hidden = true;
   const updBase = lastUpdate ? t("updatedAgo")(Math.floor((Date.now() - lastUpdate) / 60e3)) + " · " + fmtTime(lastUpdate) : "";
-  $("#updatedNote").innerHTML = updBase + (!liveMode ? ` · <span class="calib-hint">${t("calibHint")}</span>` : "");
+  $("#updatedNote").innerHTML = updBase;
 
   const limit = 12;
   const rows = showAll ? priced : priced.slice(0, limit);
@@ -2080,39 +2048,6 @@ function renderStations(){
     });
   });
 
-  /* estimate mode: click a price to type the real one → recalibrate */
-  if (!liveMode){
-    body.querySelectorAll("td.price").forEach(cell => {
-      cell.title = t("calibTitle");
-      cell.style.cursor = "text";
-      cell.addEventListener("click", e => {
-        e.stopPropagation();
-        if (cell.querySelector("input")) return;
-        const row = cell.closest("tr");
-        const st = stations.find(x => x.id === row.dataset.id);
-        if (!st) return;
-        const old = st.prices[settings.fuel];
-        cell.innerHTML = `<input type="number" step="0.001" min="0.5" max="5" value="${old.toFixed(3)}"
-          style="width:90px;background:transparent;border:0;border-bottom:1px solid var(--rule);
-                 color:var(--text);font:inherit;text-align:right;outline:none">`;
-        const inp = cell.querySelector("input");
-        inp.focus(); inp.select();
-        let done = false;
-        const commit = () => {
-          if (done) return;
-          done = true;
-          const v = parseFloat(inp.value);
-          if (isFinite(v) && v > 0.5 && v < 5 && Math.abs(v - old) > 0.0005) applyCalib(settings.fuel, v - old);
-          else renderStations();
-        };
-        inp.addEventListener("keydown", ev => {
-          if (ev.key === "Enter") commit();
-          else if (ev.key === "Escape"){ done = true; renderStations(); }
-        });
-        inp.addEventListener("blur", commit);
-      });
-    });
-  }
 }
 
 function renderMap(){
