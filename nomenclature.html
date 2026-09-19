@@ -2987,7 +2987,7 @@ function playgroundPayload(){
   out.forEach(a=>{a.x=+(a.x-cx).toFixed(4);a.y=+(a.y-cy).toFixed(4);a.z=+(a.z-cz).toFixed(4);});
   const sig=molecularSignature(); let smiles=null; try{smiles=toSMILES();}catch(e){}
   return {format:"chem-playground/molecule@1",id:Date.now().toString(36)+Math.random().toString(36).slice(2,7),
-    name:lastNamed&&lastNamed.sig===sig?lastNamed.name:null,formula:molFormula().str,smiles,atoms:out,bonds:outBonds,source:"nomenclature",created:Date.now()};
+    name:lastNamed&&lastNamed.sig===sig?lastNamed.name:null,formula:molFormula().str,smiles,atoms:out,bonds:outBonds,units:"angstrom",geometry:"drawing-seed",source:"nomenclature",created:Date.now()};
 }
 function b64url(str){ return btoa(unescape(encodeURIComponent(str))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
 async function sendToPlayground(){

@@ -92,15 +92,8 @@ function bindingEnergy(A, B, shift) {
 { const r = bindingEnergy(H2O, [['O', 0, 0, 0], ['H', 0.6, 0.75, 0], ['H', 0.6, -0.75, 0]], [2.95, 0.3, 0]); report('water dimer binding', r.dE, -21, 'kJ/mol', 8); let oo = dist(r.e, 0, 3); report('water dimer O···O', oo, 2.91, 'Å', 0.25); }
 { const r = bindingEnergy(CH4, CH4, [3.9, 0, 0]); report('methane dimer binding', r.dE, -2.2, 'kJ/mol', 2.5); }
 
-/* 4. H + H2 → H2 + H: collinear symmetric barrier */
-{
-  let best = Infinity, rb = 0;
-  for (let r = 0.74; r < 1.6; r += 0.005) {
-    const e = build([['H', 0, 0, 0], ['H', r, 0, 0], ['H', 2 * r, 0, 0]]);
-    const E = energy(e); if (E < best) { best = E; rb = r; }
-  }
-  report('H+H2 barrier', best + 436, 40, 'kJ/mol', 15);
-}
+/* 4. Reaction barriers live in playground/tests/reactions.cjs (relaxed minimum-energy paths).
+      A symmetric-line scan underestimates them, so only the relaxed CH4 abstraction is checked here. */
 /* 5. CH4 + H abstraction barrier: collinear H···H–C, relaxed scan (C, H_b, H_a pinned; CH3 umbrella relaxes) */
 {
   const e0 = relaxed(CH4);

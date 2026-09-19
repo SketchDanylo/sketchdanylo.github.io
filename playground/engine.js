@@ -32,7 +32,13 @@ const COUL = 1389.35458;            // kJ·Å/(mol·e²)
 const BAR = 16605.39;               // (kJ/mol)/Å³ → bar
 const KAPPA = 0.32;                 // e per unit Pauling electronegativity difference per bond
 const Q_MAX = 1.1;                  // saturation of bond-polarisation charge (e)
-const TUNE = { c1: 1.3, c4: 20 };   // saturation p(x) = 1/(1 + c1·x + c4·x⁴)
+// Reactive-model constants, fitted to barriers of H + H₂, H + CH₄, H + Cl₂, F + H₂, O + H₂, OH + H₂ and
+// H + O₂ → HO₂ (playground/tests/reactions.cjs) while keeping closed-shell dimers non-sticky:
+//   saturation p(x) = 1/(1 + c1·x + c4·x^k);  valence-use decay β = kb·a (a = Morse exponent);
+//   wpiOO = weight of the O=O π bond in oxygen's used valence (triplet O₂ is a diradical);
+//   oo3e = extra O–O bond order when only one oxygen is unpaired (three-electron bond, HO₂·);
+//   mu   = strength weighting of excess valence (Evans–Polanyi: exothermic transfers get lower barriers).
+const TUNE = { c1: 0.6, c4: 10.82, k: 6, kb: 1.3, yoff: 3.0, wpiOO: 0.78, oo3e: 0.45, mu: 0.5 };
 const RAMP_W = 0.15;
 const Y_ON = 3.6, Y_OFF = 5.6;      // Morse taper window (in units of a·(r − re))
 const COORD_R1 = 1.22, COORD_R2 = 1.50; // structural coordination switch (× single-bond length)
@@ -99,7 +105,7 @@ const BOND_DATA = {
   'H|Li': { 1: [1.60, 243, 103] }, 'H|Na': { 1: [1.89, 186, 78] }, 'H|K': { 1: [2.24, 175, 56] },
   'C|C': { 1: [1.54, 348, 450], 2: [1.34, 614, 950], 3: [1.20, 839, 1600] },
   'C|N': { 1: [1.47, 293, 490], 2: [1.28, 615, 1000], 3: [1.16, 891, 1790] },
-  'C|O': { 1: [1.43, 358, 540], 2: [1.21, 745, 1200], 3: [1.13, 1072, 1900] },
+  'C|O': { 1: [1.43, 358, 540], 2: [1.19, 780, 1250], 3: [1.13, 1072, 1900] }, // C=O: between ketone (745) and CO₂ (804)
   'C|F': { 1: [1.35, 485, 590] }, 'C|Cl': { 1: [1.77, 328, 340] }, 'Br|C': { 1: [1.94, 276, 290] },
   'C|I': { 1: [2.14, 240, 230] }, 'C|S': { 1: [1.82, 272, 300], 2: [1.60, 573, 700] },
   'C|Si': { 1: [1.87, 318, 300] }, 'C|P': { 1: [1.84, 264, 300], 2: [1.67, 513, 600] }, 'B|C': { 1: [1.56, 356, 380] },
@@ -134,7 +140,8 @@ function buildPairParams(ei, ej) {
     bond: canBond, maxOrder: Math.max(1, Math.min(ei.maxOrder, ej.maxOrder)),
     re: [0, 0, 0, 0], De: [0, 0, 0, 0], a: [0, 0, 0, 0], r1: 0, r2: 0,
     ljX: Math.sqrt(ei.ljX * ej.ljX), ljD: Math.sqrt(ei.ljD * ej.ljD),
-    core: 0.6 * (ei.rcov[0] + ej.rcov[0])
+    core: 0.6 * (ei.rcov[0] + ej.rcov[0]),
+    oo: ei.sym === 'O' && ej.sym === 'O'
   };
   if (canBond) {
     const data = BOND_DATA[pairKey(ei.sym, ej.sym)] || {};
@@ -157,12 +164,22 @@ function buildPairParams(ei, ej) {
     pp.r1 = COORD_R1 * pp.re[1];
     pp.r2 = COORD_R2 * pp.re[1];
     pp.s1 = pp.re[1];
-    pp.s2 = pp.re[1] + BO_OFF;
   }
   return pp;
 }
 const PAIR = new Array(NT * NT);
 for (let i = 0; i < NT; i++) for (let j = 0; j < NT; j++) PAIR[i * NT + j] = buildPairParams(ELEMENTS[i], ELEMENTS[j]);
+/* Saturation bond order decays like the pair's own Morse attraction, β = kb·a, so a stretched bond
+   counts as much used valence as the attraction it still provides; window ends where s ≈ e^(−yoff). */
+function refreshSaturation() {
+  for (const pp of PAIR) {
+    if (!pp.bond) continue;
+    pp.sBeta = TUNE.kb * pp.a[1];
+    pp.sOff = BO_CAP + TUNE.yoff / pp.sBeta; pp.sOn = BO_CAP + 0.6 * TUNE.yoff / pp.sBeta;
+    pp.s2 = pp.s1 + pp.sOff;
+  }
+}
+refreshSaturation();
 
 /* ---------- helpers ---------- */
 function mulberry(state) { // returns [value, newState]
@@ -186,12 +203,12 @@ let SF = 0, SFD = 0;
 function satF(r, pp) {
   const d = r - pp.s1;
   if (d <= BO_CAP) { SF = 1; SFD = 0; return; }
-  if (d >= BO_OFF) { SF = 0; SFD = 0; return; }
-  const x = d - BO_CAP;
+  if (d >= pp.sOff) { SF = 0; SFD = 0; return; }
+  const x = d - BO_CAP, beta = pp.sBeta;
   let s, ds;
   if (x < BO_W) { s = x * x / (2 * BO_W); ds = x / BO_W; } else { s = x - BO_W / 2; ds = 1; }
-  const e = Math.exp(-BO_BETA * s), de = -BO_BETA * ds * e;
-  smoothSwitch(d, BO_ON, BO_OFF);
+  const e = Math.exp(-beta * s), de = -beta * ds * e;
+  smoothSwitch(d, pp.sOn, pp.sOff);
   SF = e * SW; SFD = de * SW + e * SWD;
 }
 let SP = 0, SPD = 0;          // saturation p(x), dp/dx
@@ -199,12 +216,28 @@ function sat(x) { // p(x) = 1 / (1 + c1·r + c4·r⁴), r = smooth ramp(x)
   if (x <= 0) { SP = 1; SPD = 0; return; }
   let r, dr;
   if (x < RAMP_W) { r = x * x / (2 * RAMP_W); dr = x / RAMP_W; } else { r = x - RAMP_W / 2; dr = 1; }
-  const c1 = TUNE.c1, c4 = TUNE.c4, r3 = r * r * r, den = 1 + c1 * r + c4 * r3 * r;
-  SP = 1 / den; SPD = -(c1 + 4 * c4 * r3) * dr / (den * den);
+  const c1 = TUNE.c1, c4 = TUNE.c4, k = TUNE.k, r2 = r * r, rk1 = k === 6 ? r2 * r2 * r : Math.pow(r, k - 1), den = 1 + c1 * r + c4 * rk1 * r;
+  SP = 1 / den; SPD = -(c1 + k * c4 * rk1) * dr / (den * den);
+}
+/* Bond-strength weight of a pair at bond order n: (De(n)/400)^μ. */
+function bondWeight(pp, n, mu) {
+  if (mu === 0) return 1;
+  const lo = Math.min(2, Math.floor(n)), t = n - lo, De = pp.De[lo] + (pp.De[Math.min(lo + 1, 3)] - pp.De[lo]) * t;
+  return mu === 0.5 ? Math.sqrt(De / 400) : mu === 1 ? De / 400 : Math.pow(De / 400, mu);
+}
+/* Strength-weighted excess valence: x = (C + 1 − V)·ratio, ratio = (W + εD)/((C + ε)·D), where C and W
+   are the plain and strength-weighted valence used by the *other* bonds. XA = ∂x/∂u_k − D_k·XB, XB = ∂x/∂(D_k·u_k). */
+let XS = 0, XA = 1, XB = 0;
+const EX_EPS = 0.05;
+function excess(C, W, V, D, mu) {
+  const base = C + 1 - V;
+  if (mu === 0) { XS = base; XA = 1; XB = 0; return; }
+  const den = (C + EX_EPS) * D, ratio = (W + EX_EPS * D) / den;
+  XS = base * ratio; XA = ratio - base * ratio / (C + EX_EPS); XB = base / den;
 }
 /* Shielded Lennard-Jones split into Pauli (LR) and shifted-force attraction (LA), each with d/dr.
    Shielding: r_s⁶ = r⁶ + s⁶, so the Pauli wall stays finite at contact. x2 = r_min², eps = depth. */
-let LR = 0, LDR = 0, LA = 0, LDA = 0;
+let LR = 0, LDR = 0, LA = 0, LDA = 0, LXR = 0, LXA = 0;
 const S6 = Math.pow(LJ_SHIELD, 6);
 function lj(r, x2, eps, rc) {
   const x6 = x2 * x2 * x2, r2 = r * r, r6 = r2 * r2 * r2, d6 = r6 + S6 * x6;
@@ -212,11 +245,20 @@ function lj(r, x2, eps, rc) {
   const rc2 = rc * rc, rc6 = rc2 * rc2 * rc2, uc6 = x6 / (rc6 + S6 * x6);
   const ljc = eps * (uc6 * uc6 - 2 * uc6), dljc = eps * (2 * uc6 - 2) * (-6 * uc6 * rc2 * rc2 * rc / (rc6 + S6 * x6));
   const v = eps * (u6 * u6 - 2 * u6), dv = eps * (2 * u6 - 2) * du6;
+  // Derivatives with respect to x2 are needed when a polar H radius changes with charge.
+  const dx6 = 3 * x2 * x2, dc6 = rc6 + S6 * x6;
+  const ux = dx6 * r6 / (d6 * d6), ucx = dx6 * rc6 / (dc6 * dc6);
+  const ucr = -6 * rc2 * rc2 * rc * x6 / (dc6 * dc6);
+  const ucrx = -6 * rc2 * rc2 * rc * dx6 * (rc6 - S6 * x6) / (dc6 * dc6 * dc6);
+  const vcx = eps * (2 * uc6 - 2) * ucx;
+  const dvcx = eps * (2 * ucx * ucr + (2 * uc6 - 2) * ucrx);
+  const vx = eps * (2 * u6 - 2) * ux;
   if (u6 > 1) { // inside r_min: Pauli wall, attraction held at its (shifted) value at r_min
     LR = v + eps; LDR = dv;
     const rm = Math.sqrt(Math.cbrt(x6 - S6 * x6));
     LA = -eps - ljc - dljc * (rm - rc); LDA = 0;
-  } else { LR = 0; LDR = 0; LA = v - ljc - dljc * (r - rc); LDA = dv - dljc; }
+    LXR = vx; LXA = -vcx - dvcx * (rm - rc) - dljc * rm / (2 * x2);
+  } else { LR = 0; LDR = 0; LA = v - ljc - dljc * (r - rc); LDA = dv - dljc; LXR = 0; LXA = vx - vcx - dvcx * (r - rc); }
 }
 
 /* Effective valence and lone pairs for an element carrying a formal charge. */
@@ -272,7 +314,7 @@ class Engine {
     const f64 = n => new Float64Array(n);
     const arrays = {
       pos: f64(3 * cap), vel: f64(3 * cap), frc: f64(3 * cap), prev: f64(3 * cap), built: f64(3 * cap),
-      mass: f64(cap), phi: f64(cap), Zs: f64(cap), qg: f64(cap), Gz: f64(cap), formal: f64(cap), q: f64(cap), Z: f64(cap), cos0: f64(cap), G: f64(cap), ljx: f64(cap), lje: f64(cap),
+      mass: f64(cap), phi: f64(cap), Zs: f64(cap), Zw: f64(cap), Gb: f64(cap), qg: f64(cap), Gz: f64(cap), formal: f64(cap), q: f64(cap), Z: f64(cap), cos0: f64(cap), G: f64(cap), ljx: f64(cap), ljq: f64(cap), lje: f64(cap),
       type: new Int16Array(cap), val: new Int8Array(cap), lp: new Int8Array(cap), pinned: new Uint8Array(cap),
       ids: new Uint32Array(cap), cStart: new Int32Array(cap + 1), cCount: new Int32Array(cap)
     };
@@ -284,7 +326,7 @@ class Engine {
     const keep = this.pairCap ? { pI: this.pI, pJ: this.pJ, pN: this.pN } : null;
     this.pI = new Int32Array(cap); this.pJ = new Int32Array(cap); this.pN = f64(cap);
     this.pR = f64(cap); this.pDx = f64(cap); this.pDy = f64(cap); this.pDz = f64(cap);
-    this.pF = f64(cap); this.pFp = f64(cap); this.pS = f64(cap); this.pSp = f64(cap); this.pScr = f64(cap); this.pSraw = f64(cap);
+    this.pF = f64(cap); this.pFp = f64(cap); this.pS = f64(cap); this.pSp = f64(cap); this.pScr = f64(cap); this.pSraw = f64(cap); this.pSpRaw = f64(cap); this.pD = f64(cap); this.gAb = f64(cap); this.gBb = f64(cap);
     if (!this.tri) { this.tri = new Int32Array(4096); this.nTri = 0; } this.pB = f64(cap); this.gA = f64(cap); this.gB = f64(cap);
     this.cList = new Int32Array(2 * cap);
     if (keep) { this.pI.set(keep.pI.subarray(0, this.nPairs)); this.pJ.set(keep.pJ.subarray(0, this.nPairs)); this.pN.set(keep.pN.subarray(0, this.nPairs)); }
@@ -434,13 +476,14 @@ class Engine {
   }
 
   /* ---------- forces ---------- */
-  computeForces() {
+  computeForces(relaxDt = 0) {
     const N = this.N, P = this.nPairs, pos = this.pos, F = this.frc, Z = this.Z, q = this.q, type = this.type, val = this.val;
     const pI = this.pI, pJ = this.pJ, pR = this.pR, pDx = this.pDx, pDy = this.pDy, pDz = this.pDz, pF = this.pF, pFp = this.pFp;
     const rc = this.rc, rc2 = rc * rc;
     F.fill(0, 0, 3 * N);
     const phi = this.phi, Zs = this.Zs, pS = this.pS, pSp = this.pSp, qg = this.qg;
-    for (let i = 0; i < N; i++) { Z[i] = 0; Zs[i] = 0; q[i] = 0; this.G[i] = 0; this.cCount[i] = 0; phi[i] = 0; }
+    const Zw = this.Zw, Gb = this.Gb, pD = this.pD, mu = TUNE.mu;
+    for (let i = 0; i < N; i++) { Z[i] = 0; Zs[i] = 0; Zw[i] = 0; Gb[i] = 0; q[i] = 0; this.G[i] = 0; this.cCount[i] = 0; phi[i] = 0; }
     let E = 0;
 
     // Pass A — geometry, coordination numbers, bond-polarisation charges
@@ -448,14 +491,14 @@ class Engine {
       const i = pI[p], j = pJ[p];
       const dx = pos[3 * j] - pos[3 * i], dy = pos[3 * j + 1] - pos[3 * i + 1], dz = pos[3 * j + 2] - pos[3 * i + 2];
       const r2 = dx * dx + dy * dy + dz * dz;
-      pF[p] = 0; pFp[p] = 0; pS[p] = 0; pSp[p] = 0;
+      pF[p] = 0; pFp[p] = 0; pS[p] = 0; pSp[p] = 0; this.pSpRaw[p] = 0;
       if (r2 > rc2) { pR[p] = -1; continue; }
       const r = Math.sqrt(r2) || 1e-6;
       pR[p] = r; pDx[p] = dx; pDy[p] = dy; pDz[p] = dz;
       const pp = PAIR[type[i] * NT + type[j]];
       if (pp.bond && r < pp.s2) {
         satF(r, pp);
-        if (SF > 0) { pS[p] = SF; pSp[p] = SFD; }
+        if (SF > 0) { pS[p] = SF; pSp[p] = SFD; this.pSpRaw[p] = SFD; }
       }
       if (pp.bond && r < pp.r2) {
         smoothSwitch(r, pp.r1, pp.r2);
@@ -463,18 +506,15 @@ class Engine {
           pF[p] = SW; pFp[p] = SWD;
           Z[i] += SW; Z[j] += SW;
           this.cCount[i]++; this.cCount[j]++;
-          const dq = KAPPA * SW * (CHI[type[j]] - CHI[type[i]]);
+          const raw = KAPPA * SW * (CHI[type[j]] - CHI[type[i]]);
+          const dq = raw / Math.pow(1 + (raw / Q_MAX) ** 4, 0.25);
           q[i] += dq; q[j] -= dq;
         }
       }
     }
-    // Bond-polarisation charge saturates smoothly (an atom cannot give away unlimited charge):
-    // q = formal + raw / (1 + (raw/qmax)⁴)^¼,  dq/draw = (1 + (raw/qmax)⁴)^(−5/4)
-    // (qg declared above)
-    for (let i = 0; i < N; i++) {
-      const raw = q[i], u = raw / Q_MAX, u4 = u * u * u * u, den = Math.pow(1 + u4, 0.25);
-      q[i] = this.formal[i] + raw / den; qg[i] = 1 / (den * (1 + u4));
-    }
+    // Saturate each bond's transfer, then add equal and opposite charges.
+    // Saturating net atomic charges separately used to create spurious total charge.
+    for (let i = 0; i < N; i++) q[i] += this.formal[i];
     // coordination adjacency (CSR of pair indices)
     const cStart = this.cStart, cList = this.cList;
     cStart[0] = 0;
@@ -504,43 +544,60 @@ class Engine {
       }
     }
     this.nTri = nt;
+    // Only integration / minimisation advances this internal model variable.
+    // A force query or display refresh must not change the physical state.
+    if (relaxDt > 0) this._updateBondOrders(relaxDt);
     for (let p = 0; p < P; p++) {
       if (pS[p] === 0) continue;
-      const S = scr[p] * this.pN[p]; // valence used = screened bond order × multiplicity
+      // valence used = screened bond order × multiplicity; the π part of O=O counts only partly,
+      // because ground-state O₂ is a triplet diradical that radicals add to without a barrier
+      const n = this.pN[p], S = scr[p] * (PAIR[type[pI[p]] * NT + type[pJ[p]]].oo ? 1 + TUNE.wpiOO * (n - 1) : n);
       pS[p] *= S; pSp[p] *= S;
       Zs[pI[p]] += pS[p]; Zs[pJ[p]] += pS[p];
+      const Dp = pD[p] = bondWeight(PAIR[type[pI[p]] * NT + type[pJ[p]]], this.pN[p], mu);
+      Zw[pI[p]] += pS[p] * Dp; Zw[pJ[p]] += pS[p] * Dp;
     }
     // polar hydrogens get a small Pauli radius (hydrogen bonding)
     const ljx = this.ljx;
     for (let i = 0; i < N; i++) {
       const el = ELEMENTS[type[i]];
-      if (el.Z === 1) { const t = Math.min(1, Math.max(0, (q[i] - this.formal[i] - 0.15) / 0.15)); ljx[i] = el.ljX + (1.7 - el.ljX) * t; }
+      this.ljq[i] = 0;
+      if (el.Z === 1) {
+        const t = (q[i] - this.formal[i] - 0.15) / 0.15;
+        ljx[i] = el.ljX + (1.7 - el.ljX) * Math.min(1, Math.max(0, t));
+        if (t > 0 && t < 1) this.ljq[i] = (1.7 - el.ljX) / 0.15;
+      }
     }
 
-    // Pass B — relax continuous bond orders toward the spare-valence target
-    this._updateBondOrders();
-
     // Pass C — pair energies
-    const pB = this.pB, gA = this.gA, gB = this.gB, pN = this.pN, G = this.G, lje = this.lje;
+    const pB = this.pB, gA = this.gA, gB = this.gB, gAb = this.gAb, gBb = this.gBb, pN = this.pN, G = this.G, lje = this.lje;
     const gc = 1 / Math.sqrt(rc * rc + COUL_D2), dgc = -rc * gc * gc * gc;
     for (let p = 0; p < P; p++) {
       const r = pR[p];
-      gA[p] = 0; gB[p] = 0; pB[p] = 0;
+      gA[p] = 0; gB[p] = 0; gAb[p] = 0; gBb[p] = 0; pB[p] = 0;
       if (r < 0) continue;
       const i = pI[p], j = pJ[p], ti = type[i], tj = type[j];
       const pp = PAIR[ti * NT + tj], f = pF[p], fp = pFp[p], fs = pS[p];
-      let e = 0, dEdr = 0, lam = 0, pi = 0, pj = 0, dpi = 0, dpj = 0, b = 0;
+      let e = 0, dEdr = 0, lam = 0, pi = 0, pj = 0, dpi = 0, dpj = 0, b = 0, ai = 1, bi = 0, aj = 1, bj = 0;
+      // Lennard-Jones (shielded) first: its Pauli part decides whether b matters for a distant pair
+      lj(r, ljx[i] * ljx[j], lje[i] * lje[j], rc);
       if (pp.bond) {
-        if (val[i] > 0) { sat(Zs[i] - fs + 1 - val[i]); pi = SP; dpi = SPD; }
-        if (val[j] > 0) { sat(Zs[j] - fs + 1 - val[j]); pj = SP; dpj = SPD; }
-        b = pi * pj;
         // Morse with bond-order-interpolated parameters
         const n = pN[p], lo = Math.min(2, Math.floor(n)), t = n - lo, hi = lo + 1;
-        const tl = 1 - Math.pow(1 - t, 1.6); // bond length contracts fastest at low fractional order (Pauling/resonance)
+        const tl = t === 0 ? 0 : 1 - Math.pow(1 - t, 1.6); // bond length contracts fastest at low fractional order (Pauling/resonance)
         const re = pp.re[lo] + (pp.re[Math.min(hi, 3)] - pp.re[lo]) * tl;
         const De = pp.De[lo] + (pp.De[Math.min(hi, 3)] - pp.De[lo]) * t;
         const a = pp.a[lo] + (pp.a[Math.min(hi, 3)] - pp.a[lo]) * t;
         const y = a * (r - re);
+        if (y < Y_OFF || LR !== 0) { // b only matters inside Morse range or the Pauli wall
+          // Excess valence x = (used − this pair + 1 − V), scaled when over-crowded by the strength of the
+          // competing bonds relative to this one (weights D = (De/400)^μ): a stronger incoming bond
+          // displaces a weaker one more easily (Evans–Polanyi); an atom at its normal valence is unaffected.
+          const Dj = mu === 0 ? 1 : mu === 0.5 ? Math.sqrt(De / 400) : bondWeight(pp, n, mu);
+          if (val[i] > 0) { excess(Zs[i] - fs, Zw[i] - fs * Dj, val[i], Dj, mu); sat(XS); pi = SP; dpi = SPD; ai = XA; bi = XB; }
+          if (val[j] > 0) { excess(Zs[j] - fs, Zw[j] - fs * Dj, val[j], Dj, mu); sat(XS); pj = SP; dpj = SPD; aj = XA; bj = XB; }
+          b = pi * pj;
+        }
         if (y < Y_OFF) {
           smoothSwitch(y, Y_ON, Y_OFF);
           const ey = Math.exp(-y), VR = De * ey * ey, VA = 2 * De * ey;
@@ -552,19 +609,24 @@ class Engine {
       pB[p] = b;
       // hard core: nuclei never overlap, E = A·(rc/r − 1)² inside rc = 0.6·r(single bond)
       if (pp.core > 0 && r < pp.core) { const u = pp.core / r - 1; e += CORE_A * u * u; dEdr += -2 * CORE_A * u * pp.core / (r * r); }
-      // Lennard-Jones (shielded); Pauli part weighted by (1 − b)
-      lj(r, ljx[i] * ljx[j], lje[i] * lje[j], rc);
-      e += (1 - b) * LR; dEdr += (1 - b) * LDR; lam -= LR;
+      // LJ Pauli wall acts at contact distances; inside the bonding window (s > 0) the Morse term
+      // already carries the repulsion, so the wall fades there: weight (1 − b)·(1 − s)
+      const sr = this.pSraw[p], srp = this.pSpRaw[p], wP = (1 - b) * (1 - sr);
+      e += wP * LR; dEdr += wP * LDR - (1 - b) * LR * srp; lam -= (1 - sr) * LR;
       // excluded (1-2) dispersion + electrostatics
       const qq = q[i] * q[j];
       let h = 0, dh = 0;
       if (qq !== 0 || q[i] !== 0 || q[j] !== 0) { const g = 1 / Math.sqrt(r * r + COUL_D2); h = g - gc - dgc * (r - rc); dh = -r * g * g * g - dgc; }
       const ex = LA + COUL * qq * h, dex = LDA + COUL * qq * dh;
       e += (1 - f) * ex; dEdr += (1 - f) * dex - fp * ex;
+      const radiusGrad = wP * LXR + (1 - f) * LXA;
+      phi[i] += radiusGrad * ljx[j] * this.ljq[i];
+      phi[j] += radiusGrad * ljx[i] * this.ljq[j];
       if (h !== 0) { const c = (1 - f) * COUL * h; phi[i] += c * q[j]; phi[j] += c * q[i]; }
       if (lam !== 0 && pp.bond) {
-        const ga = lam * pj * dpi, gb = lam * pi * dpj;
-        gA[p] = ga; gB[p] = gb; G[i] += ga; G[j] += gb;
+        const ga = lam * pj * dpi, gb = lam * pi * dpj; // dE/dx on each side
+        gA[p] = ga * ai; gAb[p] = ga * bi; gB[p] = gb * aj; gBb[p] = gb * bj;
+        G[i] += gA[p]; Gb[i] += gAb[p]; G[j] += gB[p]; Gb[j] += gBb[p];
       }
       E += e;
       if (dEdr !== 0) {
@@ -581,7 +643,8 @@ class Engine {
     for (let p = 0; p < P; p++) {
       const fp = pSp[p]; if (fp === 0) continue;
       const i = pI[p], j = pJ[p];
-      const coef = (G[i] - gA[p]) + (G[j] - gB[p]);
+      const D = pD[p];
+      const coef = (G[i] + Gb[i] * D - gA[p] - gAb[p] * D) + (G[j] + Gb[j] * D - gB[p] - gBb[p] * D);
       if (coef === 0) continue;
       const s = coef * fp / pR[p], fx = s * pDx[p], fy = s * pDy[p], fz = s * pDz[p];
       F[3 * i] += fx; F[3 * i + 1] += fy; F[3 * i + 2] += fz;
@@ -594,7 +657,9 @@ class Engine {
       const fp = pFp[p]; if (fp === 0) continue;
       const i = pI[p], j = pJ[p];
       const dchi = CHI[type[j]] - CHI[type[i]];
-      const dEdr = KAPPA * fp * dchi * (phi[i] * qg[i] - phi[j] * qg[j]) + (Gz[i] + Gz[j]) * fp;
+      const raw = KAPPA * pF[p] * dchi;
+      const transferGrad = Math.pow(1 + (raw / Q_MAX) ** 4, -1.25);
+      const dEdr = KAPPA * fp * dchi * transferGrad * (phi[i] - phi[j]) + (Gz[i] + Gz[j]) * fp;
       if (dEdr === 0) continue;
       const s = dEdr / pR[p], fx = s * pDx[p], fy = s * pDy[p], fz = s * pDz[p];
       F[3 * i] += fx; F[3 * i + 1] += fy; F[3 * i + 2] += fz;
@@ -629,7 +694,7 @@ class Engine {
     const rc = this.rc, g = 1 / Math.sqrt(r * r + COUL_D2), gc = 1 / Math.sqrt(rc * rc + COUL_D2);
     return COUL * qq * (-r * g * g * g + rc * gc * gc * gc);
   }
-  _updateBondOrders() {
+  _updateBondOrders(dt) {
     const N = this.N, Z = this.Z, val = this.val, cStart = this.cStart, cList = this.cList, pF = this.pF, pI = this.pI, pJ = this.pJ, pN = this.pN, type = this.type;
     const spare = this._spare && this._spare.length >= N ? this._spare : (this._spare = new Float64Array(this.cap));
     const D = this._D && this._D.length >= N ? this._D : (this._D = new Float64Array(this.cap));
@@ -639,7 +704,7 @@ class Engine {
       for (let c = cStart[i]; c < cStart[i + 1]; c++) { const p = cList[c], k = pI[p] === i ? pJ[p] : pI[p]; s += pF[p] * Math.min(2, spare[k]); }
       D[i] = s;
     }
-    const rate = 0.08 * (this._rate || 1); // relaxation per fs, independent of sub-stepping
+    const rate = -Math.expm1(Math.log(0.92) * dt); // identical decay over any subdivision
     for (let p = 0; p < this.nPairs; p++) {
       const f = pF[p];
       let target = 1;
@@ -651,6 +716,8 @@ class Engine {
           const sj = spare[j] * f * Math.min(2, spare[i]) / D[j];
           target = 1 + Math.min(si, sj, pp.maxOrder - 1);
         }
+        // three-electron O–O bond (HO₂·, RO₂·): one oxygen keeps an unpaired valence, the other does not
+        if (pp.oo) target = Math.min(pp.maxOrder, target + TUNE.oo3e * f * Math.min(1, Math.abs(spare[i] - spare[j])));
       }
       if (pN[p] !== target) { const d = target - pN[p]; pN[p] = Math.abs(d) < 1e-4 ? target : pN[p] + d * rate; }
     }
@@ -718,7 +785,9 @@ class Engine {
     for (let t = 0; t < this.nTri; t++) {
       const q = tri[4 * t], pa = tri[4 * t + 1], pb = tri[4 * t + 2];
       const j = pI[q], k = pJ[q];
-      const dEdS = pS[q] * pN[q] * ((G[j] - gA[q]) + (G[k] - gB[q]));
+      const nEff = PAIR[this.type[j] * NT + this.type[k]].oo ? 1 + TUNE.wpiOO * (pN[q] - 1) : pN[q];
+      const D = this.pD[q], Gb = this.Gb;
+      const dEdS = pS[q] * nEff * ((G[j] + Gb[j] * D - gA[q] - this.gAb[q] * D) + (G[k] + Gb[k] * D - gB[q] - this.gBb[q] * D));
       if (dEdS === 0) continue;
       const m = 1 - pF[q], w = pF[pa] * pF[pb] * m, one = 1 - w;
       let others; // Π over the other shared neighbours
@@ -726,7 +795,9 @@ class Engine {
       else { others = 1; for (let u = 0; u < this.nTri; u++) if (u !== t && tri[4 * u] === q) others *= 1 - pF[tri[4 * u + 1]] * pF[tri[4 * u + 2]] * m; }
       const dEdw = -dEdS * others;
       // w = f(r_a)·f(r_b)·(1 − f(r_jk)): push along each arm of the triple and along j–k
-      for (const [p, dw] of [[pa, pFp[pa] * pF[pb] * m], [pb, pF[pa] * pFp[pb] * m], [q, -pF[pa] * pF[pb] * pFp[q]]]) {
+      for (let arm = 0; arm < 3; arm++) {
+        const p = arm === 0 ? pa : arm === 1 ? pb : q;
+        const dw = arm === 0 ? pFp[pa] * pF[pb] * m : arm === 1 ? pF[pa] * pFp[pb] * m : -pF[pa] * pF[pb] * pFp[q];
         if (dw === 0) continue;
         const s = dEdw * dw / pR[p], a = pI[p], b = pJ[p];
         const fx = s * pDx[p], fy = s * pDy[p], fz = s * pDz[p];
@@ -742,8 +813,9 @@ class Engine {
     if (r > this.rc) return 0;
     const pp = PAIR[tj * NT + tk];
     // b for (j,k) with current coordination (held fixed for the exclusion)
-    let b = 0, fjk = 0, fpjk = 0, X = 0, dX = 0, dpj = 0, dpk = 0, bpj = 0, bpk = 0;
+    let b = 0, fjk = 0, fpjk = 0, X = 0, dX = 0, dpj = 0, dpk = 0, bpj = 0, bpk = 0, sr = 0, srp = 0;
     if (pp.bond) {
+      if (r < pp.s2) { satF(r, pp); sr = SF; srp = SFD; }
       smoothSwitch(r, pp.r1, pp.r2); fjk = SW; fpjk = SWD;
       const sjk = 0; // a 1-3 pair is screened by the shared neighbour
       let pj = 0, pk = 0;
@@ -755,12 +827,16 @@ class Engine {
     }
     lj(r, this.ljx[j] * this.ljx[k], this.lje[j] * this.lje[k], this.rc);
     const qq = this.q[j] * this.q[k], h = this._coulH(r);
-    X += (1 - b) * LR + LA + COUL * qq * h;
-    dX += (1 - b) * LDR + LDA + this._dcoul(r, qq);
+    const wP = (1 - b) * (1 - sr);
+    X += wP * LR + LA + COUL * qq * h;
+    dX += wP * LDR - (1 - b) * LR * srp + LDA + this._dcoul(r, qq);
     const m = 1 - fjk; // do not double-exclude a pair that is itself bonded (3-rings)
+    const radiusGrad = -w * m * (wP * LXR + LXA);
+    this.phi[j] += radiusGrad * this.ljx[k] * this.ljq[j];
+    this.phi[k] += radiusGrad * this.ljx[j] * this.ljq[k];
     const Esub = -w * m * X;
     // Esub depends on b = p_j·p_k through the Pauli term: dEsub/db = w·m·LR → saturation coefficients
-    if (LR !== 0 && (dpj !== 0 || dpk !== 0)) { const c = w * m * LR; this.G[j] += c * bpk * dpj; this.G[k] += c * bpj * dpk; }
+    if (LR !== 0 && (dpj !== 0 || dpk !== 0)) { const c = w * m * (1 - sr) * LR; this.G[j] += c * bpk * dpj; this.G[k] += c * bpj * dpk; }
     if (h !== 0) { const c = w * m * COUL * h; this.phi[j] -= c * this.q[k]; this.phi[k] -= c * this.q[j]; }
     // gradient wrt r_jk
     const dEdr = -w * (m * dX - fpjk * X);
@@ -812,8 +888,8 @@ class Engine {
     let nsub = Math.max(1, Math.min(SUB_MAX, this.nextSub || 1));
     const canCheck = !this.tweezer && N > 0;
     let E0 = 0, K0 = 0;
-    if (canCheck) { K0 = this.kinetic(); E0 = this.Epot + K0; this._save(); }
-    else this.Fold = this._copy(this.Fold, F, n3);
+    this._save();
+    if (canCheck) { K0 = this.kinetic(); E0 = this.Epot + K0; }
     for (;;) {
       this._integrate(nsub, forceRebuild);
       if (!canCheck || nsub >= SUB_MAX) break;
@@ -835,15 +911,17 @@ class Engine {
     }
     const need = Math.sqrt(w2max) * dt / 1.0;
     this.nextSub = need > 1 ? Math.min(SUB_MAX, Math.ceil(need)) : 1;
+    // Safety net: a numerically broken state is rolled back and paused; a merely very fast atom
+    // (rare after sub-stepping) is capped at 60 km/s and counted, so hot gases keep running.
     let clamped = 0;
     for (let i = 0; i < N; i++) {
       if (this.pinned[i]) continue;
       const v2 = vel[3 * i] ** 2 + vel[3 * i + 1] ** 2 + vel[3 * i + 2] ** 2;
-      if (!(v2 < VMAX * VMAX)) { // also catches NaN
-        clamped++;
-        if (!Number.isFinite(v2)) { vel[3 * i] = vel[3 * i + 1] = vel[3 * i + 2] = 0; for (let d = 0; d < 3; d++) if (!Number.isFinite(pos[3 * i + d])) pos[3 * i + d] = this.prev[3 * i + d]; }
-        else { const s = VMAX / Math.sqrt(v2); vel[3 * i] *= s; vel[3 * i + 1] *= s; vel[3 * i + 2] *= s; }
+      if (!Number.isFinite(v2) || !Number.isFinite(pos[3 * i] + pos[3 * i + 1] + pos[3 * i + 2])) {
+        this._load(); this.needForces = true;
+        throw new Error('Simulation paused: numerical failure. Separate overlapping atoms or lower the temperature.');
       }
+      if (v2 >= VMAX * VMAX) { clamped++; const s = VMAX / Math.sqrt(v2); vel[3 * i] *= s; vel[3 * i + 1] *= s; vel[3 * i + 2] *= s; }
     }
     this.clamped += clamped;
     if (this.thermostat) this._csvr();
@@ -863,15 +941,13 @@ class Engine {
       }
       if (sub === 0 && forceRebuild) this.needRebuild = true;
       this._checkRebuild();
-      this._rate = h;
-      this.computeForces();
+      this.computeForces(h);
       for (let i = 0; i < N; i++) {
         if (this.pinned[i]) continue;
         const hk = 0.5 * h * ACC / this.mass[i];
         for (let d = 3 * i; d < 3 * i + 3; d++) vel[d] += hk * F[d];
       }
     }
-    this._rate = 1;
   }
   _copy(dst, src, n) { if (!dst || dst.length < n) dst = new Float64Array(Math.max(n, 64)); dst.set(src.subarray(0, n)); return dst; }
   _save() { // lightweight state for redoing one step
@@ -905,19 +981,26 @@ class Engine {
     const r1 = this.gauss(), sum = Nf > 1 ? 2 * this.gamma((Nf - 1) / 2) : 0;
     let Kn = K + (1 - c) * (Kt * (r1 * r1 + sum) / Nf - K) + 2 * r1 * Math.sqrt(c * (1 - c) * Kt * K / Nf);
     if (Kn < 0) Kn = 0;
-    const s = Math.sqrt(Kn / K), v = this.vel;
-    for (let k = 0; k < 3 * this.N; k++) v[k] *= s;
+    // CSVR includes the sign of alpha, required for the canonical transition kernel.
+    const sign = Kt > 0 && r1 + Math.sqrt(c * K * Nf / ((1 - c) * Kt)) < 0 ? -1 : 1;
+    const s = sign * Math.sqrt(Kn / K), v = this.vel;
+    for (let i = 0; i < this.N; i++) {
+      if (this.pinned[i]) { v.fill(0, 3 * i, 3 * i + 3); continue; }
+      for (let k = 3 * i; k < 3 * i + 3; k++) v[k] *= s;
+    }
   }
   thermalize(T, list) {
+    if (!Number.isFinite(T) || T < 0) throw new RangeError('Temperature must be finite and non-negative');
     const idx = list || Array.from({ length: this.N }, (_, i) => i);
     for (const i of idx) {
+      if (this.pinned[i]) { this.vel.fill(0, 3 * i, 3 * i + 3); continue; }
       const s = Math.sqrt(KB * T / (this.mass[i] * KEU));
       this.vel[3 * i] = s * this.gauss(); this.vel[3 * i + 1] = s * this.gauss(); this.vel[3 * i + 2] = s * this.gauss();
     }
   }
   scaleVelocities(list, f) { for (const i of list) { this.vel[3 * i] *= f; this.vel[3 * i + 1] *= f; this.vel[3 * i + 2] *= f; } }
   zeroMomentum(list) {
-    const idx = list || Array.from({ length: this.N }, (_, i) => i);
+    const idx = (list || Array.from({ length: this.N }, (_, i) => i)).filter(i => !this.pinned[i]);
     let px = 0, py = 0, pz = 0, M = 0;
     for (const i of idx) { const m = this.mass[i]; px += m * this.vel[3 * i]; py += m * this.vel[3 * i + 1]; pz += m * this.vel[3 * i + 2]; M += m; }
     if (!M) return;
@@ -933,7 +1016,7 @@ class Engine {
     let dt = 0.2, alpha = 0.1, npos = 0;
     const dtMax = 1.2;
     v.fill(0, 0, 3 * N);
-    this._checkRebuild(); this.computeForces();
+    this._checkRebuild(); this.computeForces(1);
     for (let it = 0; it < maxIter; it++) {
       let P = 0, vn = 0, fn = 0, fmax = 0;
       for (let k = 0; k < 3 * N; k++) { P += F[k] * v[k]; vn += v[k] * v[k]; fn += F[k] * F[k]; fmax = Math.max(fmax, Math.abs(F[k])); }
@@ -948,7 +1031,7 @@ class Engine {
         const h = dt * ACC / this.mass[i];
         for (let d = 3 * i; d < 3 * i + 3; d++) { v[d] += h * F[d]; let s = v[d] * dt; if (s > 0.1) s = 0.1; else if (s < -0.1) s = -0.1; pos[d] += s; }
       }
-      this._checkRebuild(); this.computeForces();
+      this._checkRebuild(); this.computeForces(1);
     }
     v.fill(0, 0, 3 * N);
     return maxIter;
@@ -1009,6 +1092,11 @@ class Engine {
     for (let p = 0; p < this.nPairs; p++) if (this.pN[p] !== 1) bo.push(this._key(this.pI[p], this.pJ[p]), this.pN[p]);
     return {
       N, time: this.time, stepCount: this.stepCount, rng: this.rngState, nextId: this.nextId,
+      box: { ...this.box }, sphere: this.sphere && { ...this.sphere }, T: this.T, tau: this.tau, thermostat: this.thermostat,
+      nextSub: this.nextSub || 1, lastSub: this.lastSub || 1, Epot: this.Epot, Ewall: this.Ewall,
+      wallForce: this.wallForce, wallArea: this.wallArea, pressureBar: this.pressureBar, pressureEMA: this.pressureEMA,
+      needForces: this.needForces, needRebuild: this.needRebuild, redone: this.redone, clamped: this.clamped,
+      built: this.built.slice(0, n3), pI: this.pI.slice(0, this.nPairs), pJ: this.pJ.slice(0, this.nPairs), pN: this.pN.slice(0, this.nPairs),
       pos: this.pos.slice(0, n3), vel: this.vel.slice(0, n3), frc: this.frc.slice(0, n3),
       type: this.type.slice(0, N), formal: this.formal.slice(0, N), val: this.val.slice(0, N), lp: this.lp.slice(0, N),
       pinned: this.pinned.slice(0, N), ids: this.ids.slice(0, N), cos0: this.cos0.slice(0, N), bo: Float64Array.from(bo)
@@ -1017,6 +1105,10 @@ class Engine {
   restore(s) {
     if (s.N > this.cap) this._alloc(Math.max(s.N, 2 * this.cap));
     this.N = s.N; this.time = s.time; this.stepCount = s.stepCount; this.rngState = s.rng; this.nextId = s.nextId;
+    if (s.box) this.box = { ...s.box };
+    this.sphere = s.sphere ? { ...s.sphere } : null;
+    for (const key of ['T', 'tau', 'thermostat', 'nextSub', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
+    this.tweezer = null;
     this.pos.set(s.pos); this.vel.set(s.vel); this.frc.set(s.frc); this.prev.set(s.pos);
     this.type.set(s.type); this.formal.set(s.formal); this.val.set(s.val); this.lp.set(s.lp); this.pinned.set(s.pinned); this.ids.set(s.ids); this.cos0.set(s.cos0);
     for (let i = 0; i < this.N; i++) { const el = ELEMENTS[this.type[i]]; this.mass[i] = el.mass; this.ljx[i] = el.ljX; this.lje[i] = Math.sqrt(el.ljD); }
@@ -1028,12 +1120,20 @@ class Engine {
     this.needRebuild = true; this.needForces = false;
     // recompute derived per-pair data (Z, q, b) for display without touching forces
     const f = this.frc.slice(0, 3 * this.N), pn = this.pN.slice(0, this.nPairs), c0 = this.cos0.slice(0, this.N);
-    this._rebuild(); this.computeForces(); this.frc.set(f); this.pN.set(pn.subarray(0, Math.min(pn.length, this.nPairs))); this.cos0.set(c0);
-    this.needRebuild = true;
+    if (s.pI) {
+      if (s.pI.length > this.pairCap) this._allocPairs(s.pI.length);
+      this.nPairs = s.pI.length; this.pI.set(s.pI); this.pJ.set(s.pJ); this.pN.set(s.pN); this.built.set(s.built);
+      this.pairMap = new Map();
+      for (let p = 0; p < this.nPairs; p++) this.pairMap.set(this.pI[p] * 1048576 + this.pJ[p], p);
+    }
+    this.computeForces(); this.frc.set(f); this.cos0.set(c0);
+    if (!s.pI) this.pN.set(pn.subarray(0, Math.min(pn.length, this.nPairs)));
+    for (const key of ['Epot', 'Ewall', 'wallForce', 'wallArea', 'pressureBar', 'pressureEMA']) if (s[key] !== undefined) this[key] = s[key];
+    this.needRebuild = s.needRebuild ?? true; this.needForces = s.needForces ?? false;
   }
   _checkpoint() {
     const s = this.snapshot();
-    const bytes = s.pos.byteLength * 3 + s.N * 40 + s.bo.byteLength + 200;
+    const bytes = s.pos.byteLength * 4 + s.N * 40 + s.bo.byteLength + s.pN.byteLength * 2 + 400;
     this.checkpoints.push(s);
     const max = Math.max(8, Math.floor(this.ckBudget / bytes));
     if (this.checkpoints.length > max) this.checkpoints.splice(0, this.checkpoints.length - max);
@@ -1070,5 +1170,5 @@ class Engine {
   }
 }
 
-return { Engine, ELEMENTS, BY_SYM, PAIR, TUNE, KB, KEU, BAR, valenceFor, lonePairs };
+return { Engine, ELEMENTS, BY_SYM, PAIR, TUNE, refreshSaturation, KB, KEU, BAR, valenceFor, lonePairs };
 });

@@ -5,14 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0c1522">
 <title>Chem Playground</title>
-<meta name="description" content="A reactive molecular-dynamics sandbox: atoms and molecules at true scale, 1 fs per step.">
+<meta name="description" content="Explore atoms and molecules in a 3D molecular-dynamics sandbox. Experimental chemistry, physical units, and a one-femtosecond clock.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&family=Martian+Mono:wdth,wght@87.5,300;87.5,400;100,500;100,600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<canvas id="field" aria-label="Simulation field"></canvas>
+<canvas id="field" aria-label="Simulation field. Choose an element, then click to place. Drag empty space to pan; scroll to zoom."></canvas>
+<div class="top-line" aria-hidden="true"></div>
 
 <!-- wordmark + live inventory -->
 <header class="mark" id="mark">
@@ -22,8 +23,9 @@
       <path class="iso i2" d="M15.6 9.6c4.3 0 6.9 2.8 6.9 6.5s-3 6.3-6.6 6.3-6.5-2.6-6.5-6.4 2.1-6.4 6.2-6.4z"/>
       <circle class="nuc" cx="16" cy="16" r="2.4"/>
     </svg>
-    <span class="word">chem playground</span>
+    <span class="word">chem<span class="word-light"> playground</span></span>
   </a>
+  <div class="workspace-meta"><span class="status-dot" id="statusDot"></span><span id="runState">PAUSED</span><span class="meta-divider">/</span><span>MOLECULAR LAB</span></div>
   <div class="inventory" id="inventory" aria-live="polite"></div>
 </header>
 
@@ -34,7 +36,7 @@
     <span class="scrub" id="tField" data-unit="K" title="Target temperature — drag, scroll or click to type"></span>
     <span class="measured" id="tMeasured" title="Measured kinetic temperature"></span>
   </div>
-  <div class="gauge" id="gP" title="Pressure measured on the container walls">
+  <div class="gauge" id="gP" role="button" tabindex="0" aria-label="Wall pressure and box dimensions" title="Mean normal wall stress, averaged over about 1 ps">
     <svg class="gi" viewBox="0 0 16 16"><path d="M2.5 11.5a5.5 5.5 0 1 1 11 0"/><path d="M8 11.5l2.8-3.6"/></svg>
     <span class="val" id="pVal">—</span>
   </div>
@@ -42,6 +44,24 @@
     <svg class="gi" viewBox="0 0 16 16"><rect x="1.5" y="4" width="13" height="8.5" rx="1.6"/><path d="M4 6.8h.01M6.5 6.8h.01M9 6.8h.01M11.5 6.8h.01M5 9.7h6"/></svg>
   </button>
 </section>
+
+<nav class="view-controls" aria-label="Display and camera">
+  <div class="view-seg" aria-label="Atom representation">
+    <button data-view="balls" aria-pressed="false">Ball &amp; stick</button>
+    <button data-view="space" aria-pressed="false">Space filling</button>
+    <button data-view="density" aria-pressed="false">Contours</button>
+  </div>
+  <button id="fitBtn" class="view-fit" title="Fit chamber (F)" aria-label="Fit chamber">↗<span> Fit</span></button>
+</nav>
+<aside class="lab-readout" aria-label="Live measurements">
+  <div class="readout-heading">LIVE OBSERVATIONS <span id="atomCount">0 atoms</span></div>
+  <div><span>Kinetic temperature</span><strong id="liveTemperature">—</strong></div>
+  <div><span>Total energy</span><strong id="liveEnergy">—</strong></div>
+  <div><span>Bath</span><button id="bathBtn" aria-pressed="true">298 K · on</button></div>
+  <div class="readout-foot">3D chamber <span>1 fs / step</span></div>
+</aside>
+<button class="model-pill" id="modelBtn" aria-haspopup="dialog"><span>i</span> Experimental model <span class="model-arrow">↗</span></button>
+<div class="tool-context" id="toolContext">Drag to pan · scroll to zoom</div>
 
 <!-- tool + element dock -->
 <nav class="dock" id="dock" aria-label="Tools and elements">
@@ -91,7 +111,7 @@
   <div class="tray-panel" id="trayPanel">
     <div class="tray-head">
       <span>From Nomenclature</span>
-      <a id="openNom" href="../nomenclature" target="_blank" rel="noopener">Draw one ↗</a>
+      <a id="openNom" href="../nomenclature.html" target="_blank" rel="noopener">Draw one ↗</a>
     </div>
     <div class="tray-list" id="trayList"></div>
   </div>
@@ -103,14 +123,15 @@
   <div class="sheet-body">
     <div class="sheet-title"><span id="sheetName"></span><small id="sheetFormula"></small></div>
     <div class="seg" id="condSeg" role="radiogroup">
-      <button data-v="normal" role="radio">Room<small>298 K · 1 atm</small></button>
-      <button data-v="zero" role="radio">Absolute zero<small>0 K · relaxed</small></button>
+      <button data-v="normal" role="radio">Room<small>298 K</small></button>
+      <button data-v="zero" role="radio">Zero K<small>classical minimum</small></button>
       <button data-v="custom" role="radio">Custom<small id="customSmall">set below</small></button>
     </div>
     <div class="custom" id="customRow">
       <label>T <span class="scrub" id="cT" data-unit="K"></span></label>
-      <label>P <span class="scrub" id="cP" data-unit="bar"></span></label>
+      <label title="Ideal-gas pressure used only to estimate the confinement size; no barostat">P estimate <span class="scrub" id="cP" data-unit="bar"></span></label>
     </div>
+    <p class="condition-note">Isolated molecule preview. Pressure sets a nominal cell size; it is not an equilibrated bulk sample.</p>
     <div class="cond-status" id="condStatus"><i id="condBar"></i><span id="condText"></span></div>
     <div class="sheet-actions">
       <button class="ghost" id="condCancel">Cancel <kbd>Esc</kbd></button>
@@ -143,13 +164,34 @@
 </div>
 
 <div class="hint-empty" id="emptyHint">
-  <p>Pick an element on the left and click the field to drop atoms.<br>Scatter some <b>H</b> and <b>O</b>, heat to 3000 K, and watch water form.</p>
-  <p class="sub">Molecules arrive from <a href="../nomenclature" target="_blank" rel="noopener">Nomenclature</a> → <em>Playground</em>.</p>
+  <div class="welcome-illustration" aria-hidden="true"><i></i><i></i><i></i><span>H</span><span>O</span><span>H</span><b>0.096 nm</b></div>
+  <p class="eyebrow">SMALL WORLD. ROOM TO EXPERIMENT.</p>
+  <h1>Chemistry, in motion.</h1>
+  <p class="welcome-copy">Place an atom. Bring a molecule.<br>Explore what happens, one femtosecond at a time.</p>
+  <div class="welcome-actions"><button class="primary" id="startAtom">Place your first atom <span>↗</span></button><a href="../nomenclature.html" target="_blank" rel="noopener">Draw a molecule ↗</a></div>
+  <div class="welcome-guide"><span><kbd>Space</kbd> play / pause</span><span><kbd>scroll</kbd> zoom</span><span><kbd>?</kbd> shortcuts</span></div>
 </div>
+
+<dialog id="modelDialog" class="model-dialog" aria-labelledby="modelTitle">
+  <div class="dialog-head"><div><p class="eyebrow">ABOUT THIS LAB</p><h2 id="modelTitle">A model, with limits.</h2></div><button class="x" id="modelClose" aria-label="Close model notes">×</button></div>
+  <p>Bonds are never scripted: they form and break from a reactive force field fitted to measured bond lengths, bond energies and reaction barriers. Structures and heats of reaction are close to experiment; individual barriers can be off by 20–40 kJ/mol, so treat rates as qualitative.</p>
+  <dl class="model-facts">
+    <div><dt>Physical clock</dt><dd>Each step advances 1 fs. At 1×, the target is 20,000 steps/s: <b>20 ps per real second</b>. At 0.1×, one step takes one second. × is a playback setting.</dd></div>
+    <div><dt>Why room temperature looks dead</dt><dd>Real kinetics, not a bug. A second here covers tens of nanoseconds; an H₂/O₂ mixture at 298 K needs years to ignite. To see a textbook reaction, <b>raise the temperature to 1500–4000 K</b>, or drop in single atoms — radicals react at once.</dd></div>
+    <div><dt>What is checked</dt><dd>H₂ 0.741 Å / 436 kJ/mol, water 104.2°, the water dimer at −18 kJ/mol, 2 H₂ + O₂ → 2 H₂O at −486 (lit. −484), H + H₂ barrier 43 (lit. 40). Na + Cl₂ → NaCl runs at 300 K; CH₄ + O₂ at 3500 K passes through CH₂O and OH·.</dd></div>
+    <div><dt>Known to be wrong</dt><dd>Spin is absent (O₂ is patched to act as the triplet diradical it is). Cl + H₂ and OH + H₂ have barriers that are too high, H + O₂ → OH + O too low. CO gets a double bond instead of a triple. No tunnelling, excited states or solvent.</dd></div>
+    <div><dt>Three dimensions</dt><dd>A top-down orthographic view of a soft-walled 3D slab. Zoom changes the view, never atom sizes or the chamber volume.</dd></div>
+    <div><dt>Energy &amp; pressure</dt><dd>Forces are exact gradients of the energy, so an isolated box conserves energy (&lt;2 kJ/mol over 2 ps). The heat bath exchanges energy on purpose. Wall pressure is averaged normal stress; there is no pressure controller.</dd></div>
+    <div><dt>What you see</dt><dd>Space filling uses tabulated van der Waals radii. Ball &amp; stick reduces those radii for clarity. Contours are a Gaussian illustration, not calculated electron density.</dd></div>
+    <div><dt>Zero kelvin</dt><dd>A classical geometry minimum with zero initial velocities. Quantum zero-point motion is not represented.</dd></div>
+  </dl>
+  <p class="model-source">Methods: <a href="https://manual.gromacs.org/current/reference-manual/algorithms/molecular-dynamics.html" target="_blank" rel="noopener">MD integration ↗</a> <a href="https://docs.lammps.org/pair_reaxff.html" target="_blank" rel="noopener">Validated reactive force fields ↗</a>. This engine is not ReaxFF.</p>
+</dialog>
 
 <div class="toasts" id="toasts"></div>
 
 <script src="engine.js"></script>
+<script src="protocol.js"></script>
 <script src="render.js"></script>
 <script src="app.js"></script>
 </body>
