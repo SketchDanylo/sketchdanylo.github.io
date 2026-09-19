@@ -42,7 +42,7 @@
     }
     return 0;
   };
-  const alphabetical = s => s.replace(/\d+[a-z]?[,-]?/g, '').replace(/[^a-z]/gi, '').toLowerCase();
+  const alphabetical = s => s.replace(/\((?:\d+[RSrsEZ],?)+\)-?/g,'').replace(/\d+[a-z]?[,-]?/g, '').replace(/[^a-z]/gi, '').toLowerCase();
   const compound = s => /[\d()[\]{}, -]/.test(s)
     || /(?:amino|hydroxy|oxo|sulfanyl|oxy|carboxy|fluoro|chloro|bromo|iodo).*yl$|ylamino$|ylsulfanyl$/.test(s);
   const wrap = s => s.includes('{') ? '(' + s + ')' : s.includes('[') ? '{' + s + '}' : s.includes('(') ? '[' + s + ']' : '(' + s + ')';
@@ -98,6 +98,11 @@
         fail('Explicit isotopes or stereochemical annotations require another naming method.');
       this.g = input.map(a => ({ el: a.el, h: a.h ?? 0, charge: a.charge || 0,
         nb: (a.nb || []).map(e => ({ n: e.n, o: e.o })) }));
+      this.stereo=options.stereo||{atoms:[],bonds:[]};
+      if(this.stereo.atoms.some(x=>!this.g[x.atom]||this.g[x.atom].el!=='C'||!/^[RSrs]$/.test(x.label)))
+        fail('The assigned heteroatom stereocenter needs a naming method not yet supported.');
+      if(this.stereo.bonds.some(x=>!/^[EZ]$/.test(x.label)||!this.g[x.a]?.nb.some(e=>e.n===x.b&&e.o===2)))
+        fail('Invalid stereochemical bond assignment.');
       this.work = 0;
       this.limit = options.maxWork ?? 250000;
       this.depth = 0;
@@ -498,14 +503,20 @@
         || (c.ring && !c.hetero && !c.poly && !suffixType && mode === 'parent' && items.length === 1)
         || (!c.ring && c.arr.length === 2 && !suffixType && mode === 'parent' && items.length === 1));
       let name = join(prefixes(items, omit), base);
-      if (alkyls.length) {
-        if (alkyls.length !== count || new Set(alkyls).size !== 1) fail('Mixed ester substituents require an additional naming method.');
-        name = multi(alkyls.length, compound(alkyls[0])) + groupName(alkyls[0]) + ' ' + name;
-      }
       const retained = { 'benzen-1-ol': 'phenol', 'benzen-1-amine': 'aniline',
         'benzenecarboxylic acid': 'benzoic acid', 'benzenecarboxylate': 'benzoate',
         'benzenecarbaldehyde': 'benzaldehyde', 'benzenecarboxamide': 'benzamide', 'benzenecarbonitrile': 'benzonitrile' };
       name = retained[name] || name;
+      const descriptors=this.stereo.atoms.filter(x=>c.pos.has(x.atom)).map(x=>({loc:c.pos.get(x.atom),label:x.label}));
+      for(const b of this.stereo.bonds){
+        if(c.pos.has(b.a)&&c.pos.has(b.b)) descriptors.push({loc:Math.min(c.pos.get(b.a),c.pos.get(b.b)),label:b.label});
+      }
+      descriptors.sort((a,b)=>a.loc-b.loc||a.label.localeCompare(b.label));
+      if(descriptors.length) name='('+descriptors.map(x=>x.loc+x.label).join(',')+')-'+name;
+      if (alkyls.length) {
+        if (alkyls.length !== count || new Set(alkyls).size !== 1) fail('Mixed ester substituents require an additional naming method.');
+        name = multi(alkyls.length, compound(alkyls[0])) + groupName(alkyls[0]) + ' ' + name;
+      }
       const alpha = [...items].sort((a, b) => alphabetical(a.name).localeCompare(alphabetical(b.name)) || String(a.loc).localeCompare(String(b.loc), 'en', { numeric: true }))
         .map(x => alphabetical(x.name) + ':' + String(x.loc).padStart(5, '0')).join(';');
       return { name, alpha, coveredAtoms: used.size };
@@ -513,9 +524,13 @@
     run() {
       const set = new Set(this.g.map((_, i) => i));
       const result = this.specialParent(set) || this.describe(set);
+      // Conservative guard: never return a connectivity-only name when a
+      // stereodescriptor falls outside the selected parent/substituent paths.
+      if((result.name.match(/\d+[RSrsEZ](?=[,)])/g)||[]).length!==this.stereo.atoms.length+this.stereo.bonds.length)
+        fail('Not every specified stereogenic unit can be represented by the current naming rules.');
       return { status: 'ok', name: result.name, coveredAtoms: result.coveredAtoms,
-        atomCount: this.g.length, nomenclature: 'systematic-connectivity',
-        notes: ['Offline systematic connectivity name. Stereochemistry (R/S, E/Z, D/L, α/β) is not assigned. This is not a guarantee of the preferred IUPAC name.'] };
+        atomCount: this.g.length, nomenclature: this.stereo.atoms.length||this.stereo.bonds.length?'systematic-stereochemical':'systematic-connectivity',
+        notes: ['Offline systematic name. Only explicitly specified stereochemistry is assigned; preferred IUPAC names may differ.'] };
     }
     specialParent(set) {
       const g = this.g;
@@ -589,5 +604,5 @@
       throw error;
     }
   }
-  return Object.freeze({ name, stem, version: '2.0.0' });
+  return Object.freeze({ name, stem, version: '2.1.0' });
 });

@@ -63,10 +63,49 @@ const server = http.createServer((req, res) => {
     assert.match(await page.locator('#resultsBody').innerText(), /Not yet supported offline/);
     assert.equal(await page.locator('.the-name').count(), 0);
     assert.deepEqual(errors, []);
-    // The no-worker path also works for browsers restricting workers/file URLs.
+    // The fallback works for HTTP(S) pages in browsers restricting workers.
     await page.evaluate(() => { window.Worker = class { constructor() { throw new Error('blocked'); } }; });
     await load('CCO'); await page.evaluate(() => runNaming());
     assert.equal(await page.locator('.the-name').first().innerText(), 'ethanol');
+    // Stereo UI controls, biochemical annotations, persistence, and exports.
+    await page.reload();
+    const stereoFixtures=require('./stereo-fixtures.json');
+    const loadModel=async(model)=>page.evaluate(m=>{closeDrawer();atoms=m.atoms;bonds=m.bonds;selAtom=selBond=-1;hidePopover();skeletal=true;snap();afterChange();fitView();},structuredClone(model));
+    await page.setViewportSize({width:1440,height:900});
+    await loadModel(stereoFixtures[0].model);
+    await page.evaluate(()=>selectAtom(atoms.findIndex(a=>a.cip),true));
+    await page.locator('#cpStereo').selectOption('R');
+    await page.evaluate(()=>runNaming());
+    assert.match(await page.locator('.the-name').first().innerText(),/^\(2R\)/);
+    assert.match(await page.locator('#resultsBody').innerText(),/D amino-acid configuration/);
+    await page.locator('#drawerClose').click();await page.locator('#undoBtn').click();await page.evaluate(()=>runNaming());
+    assert.match(await page.locator('.the-name').first().innerText(),/^\(2S\)/);
+    await page.locator('#drawerClose').click();await page.locator('#redoBtn').click();await page.evaluate(()=>runNaming());
+    assert.match(await page.locator('.the-name').first().innerText(),/^\(2R\)/);
+    await loadModel(stereoFixtures[9].model);
+    await page.evaluate(()=>selectBond(bonds.findIndex(b=>b.order===2),true));
+    await page.locator('#cpStereo').selectOption('Z');await page.evaluate(()=>runNaming());
+    assert.equal(await page.locator('.the-name').first().innerText(),'(2Z)-but-2-ene');
+    await page.route('https://pubchem.ncbi.nlm.nih.gov/**',async route=>{
+      assert(/[\/\\]|%2F|%5C/.test(decodeURIComponent(route.request().url()).split('/smiles/')[1]?.split('/property/')[0]||''),'Stereo missing from PubChem query');
+      await route.fulfill({status:404,body:'{}'});
+    });
+    await page.getByRole('button',{name:'Look up on PubChem'}).click();await page.getByText(/Database lookup unavailable/).waitFor();
+    await loadModel(stereoFixtures[19].model);await page.evaluate(()=>runNaming());
+    assert.match(await page.locator('#resultsBody').innerText(),/α-D-glucopyranose/);
+    if(process.env.STEREO_SCREENSHOT){await page.evaluate(()=>{view.k*=.72;view.x-=100;redraw();});await page.screenshot({path:process.env.STEREO_SCREENSHOT,fullPage:true,animations:'disabled'});}
+    const wedge=structuredClone(stereoFixtures[0].model),center=wedge.atoms.findIndex(a=>a.cip);wedge.atoms.forEach(a=>delete a.cip);
+    const wb=wedge.bonds.find(b=>b.a===center||b.b===center);if(wb.b===center)[wb.a,wb.b]=[wb.b,wb.a];wb.stereo='wedge';
+    await loadModel(wedge);await page.evaluate(()=>runNaming());
+    const before=await page.locator('.the-name').first().innerText();
+    await page.locator('#drawerClose').click();await page.locator('#cleanBtn').click();await page.waitForFunction(()=>!bonds.some(b=>b.stereo==='wedge'));
+    await page.evaluate(()=>runNaming());assert.equal(await page.locator('.the-name').first().innerText(),before,'Tidy changed absolute configuration');
+    await page.evaluate(()=>{structures.push({name:'stereo-test',atoms:structuredClone(atoms),bonds:structuredClone(bonds)});atoms=[];bonds=[];insertStructAt(structures.length-1,500,400);});
+    await page.evaluate(()=>runNaming());assert.equal(await page.locator('.the-name').first().innerText(),before,'Saved structure lost configuration');
+    await page.evaluate(()=>{closeDrawer();selectAtom(0,true);});await page.locator('#cpStereo').selectOption('R');await page.evaluate(()=>runNaming());
+    assert.equal(await page.locator('.the-name').count(),0);assert.equal(await page.getByRole('button',{name:'Look up on PubChem'}).count(),0);
+    assert.deepEqual(errors,[]);
+    await load('CCO');
     await page.evaluate(async () => { const job=runNaming(); atoms[0].x+=10; await job; });
     assert.equal(await page.locator('.the-name').first().innerText(), 'ethanol');
     await page.evaluate(async () => { atoms.push({el:'H',x:0,y:0,charge:0}); afterChange(); await runNaming(); });
@@ -77,6 +116,6 @@ const server = http.createServer((req, res) => {
       atoms.push({el:'H',x:0,y:0,charge:0}); bonds.push({a:2,b:3,order:1}); afterChange(); await runNaming();
     });
     assert.equal(await page.locator('.the-name').first().innerText(), 'ethanol');
-    console.log('Browser checks passed: worker, offline naming, both screenshots, copy, failed optional lookup, mobile wrapping, edit cancellation, unsupported structures, worker fallback.');
+    console.log('Browser checks passed: worker, offline naming, screenshot regressions, copy, optional lookup, mobile wrapping, cancellation, worker fallback, R/S and E/Z controls, D/L and alpha/beta labels, undo/redo, stereo export, tidy and saved-structure preservation.');
   } finally { await browser.close(); server.close(); }
 })().catch(error => { console.error(error); server.close(); process.exitCode = 1; });

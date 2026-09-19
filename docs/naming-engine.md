@@ -1,8 +1,19 @@
 # Offline nomenclature engine
 
-`nomenclature.html` uses `src/js/native-namer.js`, a pure JavaScript structure-to-name engine, through `src/js/naming-worker.js`. It ships with the page, needs no API key, and performs no network requests. PubChem is an optional, explicitly selected database lookup. A database miss is not treated as a chemical error.
+`nomenclature.html` uses `src/js/native-namer.js`, a pure JavaScript structure-to-name engine, through `src/js/naming-worker.js`. The stereochemistry pipeline uses a locally bundled RDKit WebAssembly runtime. Everything ships with the page, needs no API key, and performs no external chemistry requests. PubChem is an optional, explicitly selected database lookup. A database miss is not treated as a chemical error.
 
-The output is a **systematic connectivity name**, not a certified preferred IUPAC name (PIN). The editor does not specify tetrahedral stereochemistry, and the engine does not assign R/S, E/Z, D/L or alpha/beta descriptors. The previous coordinate-based CIP approximation has been removed from naming and export because it could falsely imply stereochemical certainty. English names are generated directly; German names remain automatic translations.
+The output is a **systematic name with specified stereochemistry**, not a certified preferred IUPAC name (PIN). The engine assigns R/S and E/Z from explicit configuration labels or wedge/dash bonds. It also derives D/L and alpha/beta annotations for supported amino-acid and sugar units. Unmarked drawings remain stereochemically unspecified. English names are generated directly; German names remain automatic translations.
+
+## Stereochemistry
+
+- Right-click an atom (tap on touch devices) to set R or S, or choose Unspecified. Right-click a single bond for solid/dashed wedge; its **narrow endpoint** is the stereocenter. The reverse button swaps the narrow endpoint. Use one marked bond per center. Right-click a double bond to set E or Z explicitly.
+- R/S and E/Z labels specify configuration independently of the layout. Wedges use the drawn geometry and the narrow endpoint. Moving a wedge-connected drawing invalidates its previous result; unmarked coordinates never imply configuration. Tidy converts validated wedges into equivalent R/S labels before rearranging coordinates. Undo/redo and saved structures preserve the annotations.
+- `stereochemistry.js` uses RDKit's accurate CIP labeler, validates valence and hydrogen counts, and checks that every requested assignment survives serialization. Contradictory or nonstereogenic labels produce an error. Unspecified stereogenic units produce a notice. `naming-pipeline.js` maps raw atom indices into the hydrogen-folded graph and integrates descriptors into the corresponding parent/substituent names. A conservative descriptor-count check rejects names that omit assigned units.
+- `biochemical-stereo.js` measures relative configuration against chemical reference ligands. It does **not** equate L with S: L-cysteine is correctly recognized with an R alpha carbon. D/L labels describe individual alpha-amino-acid units, including peptide residues, rather than assigning an unverified retained name to an entire molecule.
+- For ordinary unbranched aldoses through six carbons and 2-ketoses through seven, sugar D/L uses the highest-numbered configurational atom. Alpha/beta uses the anomeric/reference relationship in five- or six-membered O-rings. Complete configurations identify standard aldose families through hexoses and ketoses through hexoses; incomplete configurations yield only the justified series annotation. Substituted glycosides are labeled as configured sugar units. No optical rotation is inferred.
+- Optional PubChem lookup receives validated **isomeric SMILES**. A stereo-validation error disables lookup rather than exporting a stripped, potentially different stereoisomer.
+
+RDKit `@rdkit/rdkit` **2026.03.6** is vendored under `src/vendor/rdkit/` with its BSD-3-Clause license. Its WebAssembly file is about 7.3 MB and initializes locally on first naming. Serve the page over HTTP(S), including localhost; direct `file:` loading is not supported. No CDN or online RDKit service is required.
 
 ## What changed
 
@@ -11,7 +22,7 @@ The output is a **systematic connectivity name**, not a certified preferred IUPA
 - Functional groups inside branches, ester alcohol/acyl fragments and amide N-substituents are named recursively.
 - Parent selection considers principal groups, chain length, unsaturation and locants. Tied numberings are resolved independently of atom insertion order. Chains are never created by cutting open rings.
 - Long carbon stems and multiplying prefixes are generated through 100 carbons instead of relying on the old 30-entry array.
-- Bounded graph search, memoization, a worker and an 8-second UI deadline keep large requests from hanging the editor. Graph edits cancel pending work and invalidate previous results. Moving atoms does not change connectivity names.
+- Bounded graph search, memoization, a worker and a 20-second UI deadline keep large requests from hanging the editor. Graph edits cancel pending work and invalidate previous results. A browser blocking workers uses the main-thread fallback for at most 256 heavy atoms. Moving atoms does not change connectivity or explicitly labeled R/S/E/Z configurations; wedge geometry is significant.
 - Formula-only special-name matching has been removed. Ethanol and dimethyl ether remain distinct despite sharing a formula.
 
 ## Coverage
@@ -20,12 +31,13 @@ Supported combinations include acyclic saturated/unsaturated hydrocarbons; halog
 
 The ring rules cover carbon monocyclic parents and substituents, benzene, multiple independently linked rings, saturated all-carbon bicycles (including simple fused/bridged bicycles) and two-ring spiro systems. A fixed-numbering library covers 30 heterocyclic parents, including pyridine, pyrimidine, imidazole, furan, thiophene, piperidine, piperazine, morpholine, oxolane and oxane. Carbonyl derivatives of supported saturated heterocycles can also be named.
 
-Biochemical structures are handled through these same structural rules, not by guessing a biological name from a formula. The regression corpus includes 18 amino-acid skeletons, peptides through a 12-residue example, open-chain and cyclic sugars, a glycosidic disaccharide, fatty esters, and glycerol phosphate. These are connectivity names: the engine cannot distinguish a specific stereoisomer of a sugar or amino acid without stereochemical information.
+Biochemical structures are handled through these same structural rules, not by guessing a biological name from a formula. The regression corpus includes 18 amino-acid skeletons, peptides through a 12-residue connectivity example, open-chain and cyclic sugars, a glycosidic disaccharide, fatty esters, and glycerol phosphate. Additional configured fixtures cover amino acids, dipeptides, sugar anomers, a glycoside, esters and nested chiral substituents. A specific stereoisomer requires explicit stereochemical information.
 
 Current explicit limits:
 
-- 1024 heavy atoms, 100 atoms per carbon parent, 64 nested substituent levels, and a bounded search budget. These are ceilings, not guarantees that every structure below them is supported.
-- Arbitrary fused aromatic or heterocyclic systems, larger polycycles, steroids, porphyrins, general nucleotides, polymers, coordination/organometallic compounds, most charged nitrogen environments, polyphosphates, mixed ester substituents, isotope labels and stereochemical naming remain outside coverage.
+- 1024 atoms including explicit hydrogens for stereo validation, 100 atoms per carbon parent, 64 nested substituent levels, and a bounded search budget. These are ceilings, not guarantees that every structure below them is supported.
+- Arbitrary fused aromatic or heterocyclic systems, larger polycycles, steroids, porphyrins, general nucleotides, polymers, coordination/organometallic compounds, most charged nitrogen environments, polyphosphates, mixed ester substituents and isotope naming remain outside coverage.
+- Supported stereochemical naming focuses on tetrahedral carbon centers and ordinary E/Z double bonds. Axial/planar/helical chirality, general heteroatom stereochemistry, enhanced stereo groups, racemate notation, and comprehensive pseudoasymmetric/interdependent configurations are not guaranteed. Sugar annotations do not cover general deoxy/amino/branched/multiply bridged sugars or complex multiple configurational prefixes. Unsupported assignments are rejected; these limits must not be described as universal stereochemical coverage.
 - Multiple disconnected fragments and salts need a separate naming method.
 - Unattached explicit hydrogens are rejected before creating the heavy-atom view. Attached explicit hydrogens are folded into hydrogen counts.
 - A successful full-atom coverage check prevents omitted fragments; it is not by itself a proof that every IUPAC rule has been implemented.
@@ -43,6 +55,7 @@ Run the dependency-free engine suite:
 
 ```sh
 node --test tests/native-namer.test.cjs
+node --test tests/stereochemistry.test.cjs
 ```
 
 It tests expected names, invalid/unsupported structures, atom accounting, unchanged inputs, search limits, long chains and five shuffled atom/bond orders per positive fixture. Tests deliberately include same-formula isomers and nonalternating rings.
@@ -53,15 +66,16 @@ Run browser checks with Playwright available on the Node module search path:
 node tests/naming-browser.cjs
 ```
 
-The default browser channel is `msedge`; override `BROWSER_CHANNEL` for another installed Chromium channel. Optional `NAMING_SCREENSHOT` saves a screenshot. The script hosts the page temporarily on loopback, tests workers, both screenshot regressions, no automatic PubChem request, copy, failed optional lookup, narrow-screen name wrapping, edit cancellation, unsupported output and worker fallback.
+The default browser channel is `msedge`; override `BROWSER_CHANNEL` for another installed Chromium channel. Optional `NAMING_SCREENSHOT` and `STEREO_SCREENSHOT` save screenshots. The script hosts the page temporarily on loopback, tests workers, both screenshot regressions, no automatic PubChem request, copy, failed optional lookup, narrow-screen name wrapping, edit cancellation, unsupported output and worker fallback. Stereo checks exercise R/S and E/Z controls, D/L and alpha/beta results, undo/redo, isomeric export, saved structures and tidy preservation.
 
 For independent chemical reconstruction, install [OPSIN](https://github.com/dan2097/opsin/releases/tag/2.9.0) and RDKit **as development tools**, then set `OPSIN_JAR` to the CLI JAR, `CHEM_PYTHON` to a Python executable with RDKit, and `PYTHONPATH` if necessary:
 
 ```sh
 node tests/opsin-roundtrip.cjs
+node tests/stereo-roundtrip.cjs
 ```
 
-The script generates names locally, sends them to a local OPSIN process, and compares the resulting structures with the input SMILES using RDKit canonical SMILES. OPSIN is a name-to-structure parser; it is not used to generate names or as an online runtime fallback. At implementation time all 115 positive fixtures passed this independent check, and all 124 engine tests passed. This verifies structural equivalence on the corpus, not universal IUPAC/PIN compliance.
+The scripts generate names locally, send them to a local OPSIN process, and compare the resulting structures with the input SMILES using RDKit canonical isomeric SMILES. OPSIN is a name-to-structure parser; it is not used to generate runtime names or as an online fallback. Validation covers 115 connectivity fixtures plus 46 configured reference structures, with 124 core tests and 52 stereo tests. Stereo references are independently built from names in `tests/stereo-reference-names.json`; regenerate the checked-in structures with `node tests/build-stereo-fixtures.cjs` using the same development dependencies. Tests include L-cysteine, meso structures, mixed R/S and E/Z, D/L sugar anomers, peptides, chiral ester fragments, explicit H, wedge inversion, conflicting specifications and reordered atoms. This verifies structural equivalence on the corpus, not universal IUPAC/PIN compliance.
 
 ## Rule references
 
@@ -70,3 +84,7 @@ The script generates names locally, sends them to a local OPSIN process, and com
 - [P-5, especially P-57: substituent naming and complex prefixes](https://iupac.qmul.ac.uk/BlueBook/P5.html).
 - [P-6: amines, ethers, hydroxy compounds, carbonyl compounds and acid derivatives](https://iupac.qmul.ac.uk/BlueBook/P6.html).
 - [OPSIN documentation: independent conversion from systematic names to structures](https://www.ebi.ac.uk/opsin/).
+- [IUPAC/IUBMB amino-acid configuration, 3AA-3](https://iupac.qmul.ac.uk/AminoAcid/AA3t5.html).
+- [Carbohydrate D/L configurations, 2-Carb-4](https://iupac.qmul.ac.uk/2carb/03n04.html).
+- [Carbohydrate alpha/beta relationships, 2-Carb-6](https://iupac.qmul.ac.uk/2carb/06n07.html).
+- [RDKit MinimalLib implementation of stereo tags and CIP assignment](https://github.com/rdkit/rdkit/blob/Release_2026_03/Code/MinimalLib/minilib.cpp).

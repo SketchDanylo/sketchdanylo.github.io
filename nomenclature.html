@@ -336,6 +336,8 @@ footer.credit{display:none}
         <svg class="ico" viewBox="0 0 24 24" style="width:16px;height:16px"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/></svg>
       </button>
       <span class="cp-sep" id="cpSep"></span>
+      <select id="cpStereo" aria-label="Stereochemistry" style="background:#171b24;color:#e7e9ee;border:1px solid #394252;border-radius:6px;padding:6px;max-width:148px"></select>
+      <button id="cpReverse" title="Reverse wedge: swap the narrow endpoint">⇄</button>
       <button class="cp-danger" id="cpDelete" title="Delete">
         <svg class="ico" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M3 6h18M8 6V4h8v2m-9 0l1 14h8l1-14"/></svg>
       </button>
@@ -428,6 +430,10 @@ footer.credit{display:none}
 <div class="toast-zone" id="toastZone"></div>
 
 <script src="src/js/native-namer.js"></script>
+<script src="src/vendor/rdkit/dist/RDKit_minimal.js"></script>
+<script src="src/js/stereochemistry.js"></script>
+<script src="src/js/biochemical-stereo.js"></script>
+<script src="src/js/naming-pipeline.js"></script>
 <script>
 "use strict";
 /* ================= ELEMENT DATA ================= */
@@ -614,6 +620,7 @@ function drawBondLine(x1,y1,x2,y2,order,color,width,side){
 function skelHiddenH(i){
   if(!skeletal) return false;
   const a=atoms[i]; if(a.el!=="H"||a.charge) return false;
+  if(bonds.some(b=>(b.a===i||b.b===i)&&b.stereo)) return false;
   let nb=-1,cnt=0;
   for(const b of bonds){ if(b.a===i){nb=b.b;cnt++;} else if(b.b===i){nb=b.a;cnt++;} }
   return cnt===1 && atoms[nb].el!=="H";
@@ -646,7 +653,20 @@ function redraw(){
     const sel = bi===selBond;
     const msel = multiSel.has(b.a)&&multiSel.has(b.b);
     const color = sel? "#5b8cf0" : msel? "#cf9a2e" : "rgba(231,233,238,.68)";
-    drawBondLine(A.x,A.y,B.x,B.y,b.order, color, (sel||msel?3:2)*Math.min(view.k,1.4), bondSide(b));
+    if(b.stereo==='wedge'||b.stereo==='hash'){
+      const length=Math.hypot(B.x-A.x,B.y-A.y)||1, dx=-(B.y-A.y)/length,dy=(B.x-A.x)/length;
+      const w=6*Math.min(view.k,1.6);ctx.fillStyle=color;ctx.strokeStyle=color;ctx.lineWidth=1.5;
+      if(b.stereo==='wedge'){
+        ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x+dx*w,B.y+dy*w);ctx.lineTo(B.x-dx*w,B.y-dy*w);ctx.closePath();ctx.fill();
+      }else for(let t=.12;t<=1;t+=.12){
+        const x=A.x+(B.x-A.x)*t,y=A.y+(B.y-A.y)*t;
+        ctx.beginPath();ctx.moveTo(x-dx*w*t,y-dy*w*t);ctx.lineTo(x+dx*w*t,y+dy*w*t);ctx.stroke();
+      }
+    }else drawBondLine(A.x,A.y,B.x,B.y,b.order, color, (sel||msel?3:2)*Math.min(view.k,1.4), bondSide(b));
+    if(b.stereo==='E'||b.stereo==='Z'){
+      ctx.font='bold 12px Inter';ctx.textAlign='center';ctx.fillStyle='#83b9ff';
+      ctx.fillText('('+b.stereo+')',(A.x+B.x)/2,(A.y+B.y)/2-12);
+    }
   });
   // select-tool highlight halo (drawn under the atom glyphs)
   if(multiSel.size){
@@ -679,6 +699,7 @@ function redraw(){
     if(skelHiddenH(i)) return;
     const P=W2S(a), rr=R_ATOM*view.k;
     const col=elColor(a.el);
+    if(a.cip){ctx.font='bold 12px Inter';ctx.textAlign='left';ctx.fillStyle='#83b9ff';ctx.fillText('('+a.cip+')',P.x+12,P.y-15);}
 
     if(skeletal){
       const isVertexC = a.el==="C" && atomDeg(i)>0;
@@ -906,7 +927,7 @@ canvas.addEventListener("pointerup",e=>{
     } else redraw();
   } else if(kind==="moveAtom"){
     if(!drag.moved){ selectAtom(drag.from, e.pointerType!=="mouse"); }
-    else { snap(); redraw(); }
+    else { snap(); if(bonds.some(b=>b.stereo==='wedge'||b.stereo==='hash')) afterChange(); else redraw(); }
   } else if(kind==="marquee"){
     const rc=drag.rect;
     if(rc){
@@ -922,7 +943,7 @@ canvas.addEventListener("pointerup",e=>{
     }
     drag.rect=null; redraw();
   } else if(kind==="moveSel"){
-    if(drag.moved) snap();
+    if(drag.moved){ snap(); if(bonds.some(b=>b.stereo==='wedge'||b.stereo==='hash')) afterChange(); }
     redraw();
   } else if(kind==="selectAdd"){ multiSel.add(drag.from); redraw();
   } else if(kind==="selectRemove"){ multiSel.delete(drag.from); redraw();
@@ -1029,7 +1050,7 @@ function setBondOrder(bi,order){
     if(c1.charge!==null) atoms[b.a].charge=c1.charge;
     if(c2.charge!==null) atoms[b.b].charge=c2.charge;
   }
-  b.order=order; snap(); afterChange();
+  b.order=order; delete b.stereo; snap(); afterChange();
 }
 function deleteAtom(i){
   bonds=bonds.filter(b=>b.a!==i&&b.b!==i);
@@ -1068,7 +1089,7 @@ function saveSelection(){
   const idxs=[...multiSel].sort((a,b)=>a-b);
   const remap=new Map(idxs.map((orig,newI)=>[orig,newI]));
   const subAtoms=idxs.map(i=>JSON.parse(JSON.stringify(atoms[i])));
-  const subBonds=bonds.filter(b=>remap.has(b.a)&&remap.has(b.b)).map(b=>({a:remap.get(b.a),b:remap.get(b.b),order:b.order}));
+  const subBonds=bonds.filter(b=>remap.has(b.a)&&remap.has(b.b)).map(b=>({...b,a:remap.get(b.a),b:remap.get(b.b)}));
   askName("Save selection","Selection "+(structures.length+1),name=>{
     const bakA=atoms, bakB=bonds;
     atoms=subAtoms; bonds=subBonds;
@@ -1205,14 +1226,35 @@ function positionPopover(){
   $("cpPlus").style.display = isAtom? "":"none";
   $("cpOrder").style.display = isAtom? "none":"";
   $("cpSep").style.display = "";
+  const sb=bonds[selBond], options=isAtom?[['','Unspecified'],['R','R'],['S','S']]:sb?.order===1?[['','Plain bond'],['wedge','Solid wedge'],['hash','Dashed wedge']]:sb?.order===2?[['','Unspecified'],['E','E'],['Z','Z']]:[['','No stereo']];
+  const selector=$("cpStereo"), current=isAtom?atoms[selAtom].cip:sb?.stereo;
+  const optionsKey=JSON.stringify(options);
+  if(selector.dataset.options!==optionsKey){selector.replaceChildren(...options.map(([value,label])=>new Option(label,value)));selector.dataset.options=optionsKey;}
+  selector.value=current||'';
+  selector.title=isAtom?'Atom '+(selAtom+1)+': tetrahedral configuration':'Wedge narrow end: atom '+((sb?.a??0)+1);
+  $("cpReverse").style.display=!isAtom&&['wedge','hash'].includes(sb?.stereo)?'':'none';
   if(isAtom) $("cpCharge").textContent = atoms[selAtom].charge||0;
   let P;
   if(isAtom) P=W2S(atoms[selAtom]);
   else { const b=bonds[selBond]; if(!b){hidePopover();return;} const A=W2S(atoms[b.a]),B=W2S(atoms[b.b]); P={x:(A.x+B.x)/2,y:(A.y+B.y)/2}; }
-  pop.style.left=P.x+"px"; pop.style.top=(P.y-(isAtom?R_ATOM*view.k:0))+"px";
+  const half=pop.offsetWidth/2, bounds=wrap.getBoundingClientRect();
+  pop.style.left=Math.max(half+6,Math.min(bounds.width-half-6,P.x))+"px";
+  pop.style.top=Math.max(pop.offsetHeight+18,P.y-(isAtom?R_ATOM*view.k:0))+"px";
 }
-$("cpPlus").onclick=()=>{ if(selAtom<0)return; atoms[selAtom].charge=(atoms[selAtom].charge||0)+1; atoms[selAtom].manualCharge=true; snap(); redraw(); };
-$("cpMinus").onclick=()=>{ if(selAtom<0)return; atoms[selAtom].charge=(atoms[selAtom].charge||0)-1; atoms[selAtom].manualCharge=true; snap(); redraw(); };
+$("cpPlus").onclick=()=>{ if(selAtom<0)return; atoms[selAtom].charge=(atoms[selAtom].charge||0)+1; atoms[selAtom].manualCharge=true; snap(); afterChange(); };
+$("cpMinus").onclick=()=>{ if(selAtom<0)return; atoms[selAtom].charge=(atoms[selAtom].charge||0)-1; atoms[selAtom].manualCharge=true; snap(); afterChange(); };
+$("cpStereo").onchange=()=>{
+  const value=$("cpStereo").value;
+  if(selAtom>=0){
+    if(value) atoms[selAtom].cip=value;else delete atoms[selAtom].cip;
+    bonds.filter(b=>b.a===selAtom&&['wedge','hash'].includes(b.stereo)).forEach(b=>delete b.stereo);
+  }else if(selBond>=0){
+    const b=bonds[selBond];if(value)b.stereo=value;else delete b.stereo;
+    if(['wedge','hash'].includes(value))delete atoms[b.a].cip;
+  }
+  snap();afterChange();
+};
+$("cpReverse").onclick=()=>{const b=bonds[selBond];if(!b)return;[b.a,b.b]=[b.b,b.a];snap();afterChange();};
 $("cpOrder").onclick=()=>{ if(selBond<0)return; setBondOrder(selBond, bonds[selBond].order%3+1); };
 $("cpDelete").onclick=()=>{
   if(selAtom>=0) deleteAtom(selAtom);
@@ -1368,8 +1410,8 @@ function insertStructAt(i,clientX,clientY){
   let cx=0,cy=0; s.atoms.forEach(a=>{cx+=a.x;cy+=a.y;});
   cx/=s.atoms.length; cy/=s.atoms.length;
   const off=atoms.length;
-  s.atoms.forEach(a=>atoms.push({el:a.el,x:a.x-cx+c.x,y:a.y-cy+c.y,charge:a.charge||0,manualCharge:a.manualCharge}));
-  s.bonds.forEach(b=>bonds.push({a:b.a+off,b:b.b+off,order:b.order}));
+  s.atoms.forEach(a=>atoms.push({...a,x:a.x-cx+c.x,y:a.y-cy+c.y,charge:a.charge||0}));
+  s.bonds.forEach(b=>bonds.push({...b,a:b.a+off,b:b.b+off}));
   snap(); afterChange();
   toast('"'+s.name+'" inserted',"ok");
 }
@@ -1521,8 +1563,16 @@ function idealLayout(){
   atoms.forEach((a,i)=>{ if(pos[i]){ a.x=pos[i].x; a.y=pos[i].y; } });
   return true;
 }
-$("cleanBtn").onclick=()=>{
+$("cleanBtn").onclick=async()=>{
   if(atoms.length<2) return;
+  if(bonds.some(b=>['wedge','hash'].includes(b.stereo))){
+    const signature=molecularSignature(),assigned=await Stereochemistry.assign(stereoModel());
+    if(signature!==molecularSignature())return;
+    if(!assigned.ok){toast(assigned.reason,'err');return;}
+    assigned.atoms.forEach(a=>atoms[a.atom].cip=a.label);
+    bonds.forEach(b=>{if(['wedge','hash'].includes(b.stereo))delete b.stereo;});
+    toast('Wedges preserved as explicit R/S labels before tidying','ok');
+  }
   const L=52;
   const adjIdx=atoms.map(()=>[]);
   const bondOrderAt=atoms.map(()=>[]);
@@ -1603,7 +1653,7 @@ $("cleanBtn").onclick=()=>{
     atoms.forEach((a,i)=>{a.x+=fx[i];a.y+=fy[i]; maxF=Math.max(maxF,Math.abs(fx[i]),Math.abs(fy[i]));});
     if(maxF<0.045 && it>120) break;      // converged
   }
-  snap(); fitView(); toast("Layout tidied","ok");
+  snap(); afterChange(); fitView(); toast("Layout tidied · specified configurations preserved","ok");
 };
 
 /* ================= GRAPH HELPERS + FORMULA ================= */
@@ -1710,11 +1760,13 @@ function isBenzeneRing(hv,ring){
 }
 
 
-/* Coordinates are not part of connectivity; moving atoms cannot change names. */
+/* Wedge interpretation depends on geometry; explicit R/S and E/Z do not. */
 function molecularSignature(){
-  return JSON.stringify({atoms:atoms.map(a=>({el:a.el,charge:a.charge||0})),
-    bonds:bonds.map(b=>({a:b.a,b:b.b,order:b.order}))});
+  const geometric=bonds.some(b=>b.stereo==='wedge'||b.stereo==='hash');
+  return JSON.stringify({atoms:atoms.map(a=>({el:a.el,charge:a.charge||0,cip:a.cip,x:geometric?a.x:undefined,y:geometric?a.y:undefined})),
+    bonds:bonds.map(b=>({a:b.a,b:b.b,order:b.order,stereo:b.stereo}))});
 }
+function stereoModel(){return {atoms:atoms.map((a,i)=>({...a,h:implicitH(i)})),bonds:bonds.map(b=>({...b}))};}
 function explicitHydrogenError(){
   for(let i=0;i<atoms.length;i++){
     if(atoms[i].el!=="H") continue;
@@ -1859,7 +1911,7 @@ function esc(s){return String(s).replace(/[<>&]/g,c=>({"<":"&lt;",">":"&gt;","&"
 let namingSequence=0;
 let activeNamingWorker=null;
 let cancelNamingJob=null;
-function nativeNameAsync(graph,id){
+function nativeNameAsync(graph,id,model){
   if(cancelNamingJob) cancelNamingJob();
   return new Promise(resolve=>{
     let finished=false, timer;
@@ -1870,16 +1922,17 @@ function nativeNameAsync(graph,id){
       activeNamingWorker=null; cancelNamingJob=null; resolve(result);
     };
     cancelNamingJob=()=>finish({status:"cancelled"});
-    const fallback=()=>{
-      try { finish(NativeNamer.name(graph)); }
+    const fallback=async()=>{
+      if(graph.length>256){finish({status:'unsupported',reason:'This browser blocks workers. Large stereochemical structures require worker support.'});return;}
+      try { finish(await NamingPipeline.name(graph,model)); }
       catch(_) { finish({status:"unsupported",reason:"The local naming engine could not complete this structure."}); }
     };
     try{
       activeNamingWorker=new Worker("src/js/naming-worker.js");
       activeNamingWorker.onmessage=event=>{ if(event.data.id===id) finish(event.data.result); };
       activeNamingWorker.onerror=()=>fallback();
-      activeNamingWorker.postMessage({graph,id});
-      timer=setTimeout(()=>finish({status:"unsupported",reason:"The local naming time limit was reached. No partial name was returned."}),8000);
+      activeNamingWorker.postMessage({graph,id,model});
+      timer=setTimeout(()=>finish({status:"unsupported",reason:"The local naming time limit was reached. No partial name was returned."}),20000);
     }catch(_){ fallback(); }
   });
 }
@@ -1901,7 +1954,7 @@ async function runNaming(){
   const fRow='<div class="meta">Formula: <b>'+esc(formula)+'</b></div>';
   const waiting=card('<div class="meta">Naming the complete structure offline…</div>');
   body.appendChild(waiting);
-  const res=await nativeNameAsync(graph,id);
+  const res=await nativeNameAsync(graph,id,stereoModel());
   if(id!==namingSequence || snapshot!==molecularSignature()) return;
   if(res.status==="cancelled") return;
   body.innerHTML="";
@@ -1909,25 +1962,29 @@ async function runNaming(){
     const resultCard=card('<div class="lang-row"><span class="lang">EN</span><span class="the-name">'+esc(res.name)+'</span></div>'+
       '<div class="lang-row"><span class="lang">DE</span><span class="the-name">'+esc(deFromEN(res.name))+'</span></div>'+fRow+
       '<div class="meta">Offline systematic name · '+res.coveredAtoms+' / '+res.atomCount+' heavy atoms represented. German is an automatic translation.</div>'+
-      '<div class="meta">Stereochemistry is not assigned; this name describes connectivity. Preferred IUPAC names may differ.</div>');
+      '<div class="meta">'+(res.stereo?.atoms.length||res.stereo?.bonds.length?'Specified R/S and E/Z configurations included.':'No absolute configuration specified.')+' Preferred IUPAC names may differ.</div>');
     addCopyButton(resultCard,res.name); body.appendChild(resultCard);
   }else{
     body.appendChild(card('<strong>Not yet supported offline</strong><div class="meta">'+esc(res.reason)+
       '</div><div class="meta">No incomplete name has been substituted. Your drawing is preserved.</div>'+fRow,"warn"));
   }
-  const lookup=card('<div class="meta">Optional database lookup sends this structure to PubChem. A database miss does not mean the molecule is invalid.</div>',"warn");
+  const details=[...(res.stereo?.warnings||[]),...(res.biochemical?.labels||[]).map(x=>x.text),...(res.biochemical?.notes||[])];
+  if(details.length)body.appendChild(card(details.map(s=>'<div class="meta">'+esc(s)+'</div>').join('')));
+  body.appendChild(card('<div class="meta">Right-click an atom for R/S, or a bond for wedge/dash or E/Z (tap on touch). The narrow wedge endpoint is the stereocenter. D/L and α/β are derived for supported amino-acid and sugar units.</div>'));
+  if(res.stereoError||!res.isomericSMILES)return;
+  const lookup=card('<div class="meta">Optional database lookup sends this structure, including specified stereochemistry, to PubChem. A database miss does not mean the molecule is invalid.</div>',"warn");
   const button=document.createElement("button"); button.className="copy"; button.textContent="Look up on PubChem";
   lookup.appendChild(button); body.appendChild(lookup);
   button.onclick=async()=>{
     if(snapshot!==molecularSignature() || id!==namingSequence){ button.textContent="Structure changed — name it again"; return; }
     button.disabled=true; button.textContent="Looking up…";
     try{
-      const smiles=toSMILES(); if(!smiles) throw new Error("No exportable structure");
+      const smiles=res.isomericSMILES; if(!smiles) throw new Error("No validated stereochemical export is available");
       const nm=await pubchemName(smiles);
       if(snapshot!==molecularSignature() || id!==namingSequence) return;
       const match=card('<div class="lang-row"><span class="lang">EN</span><span class="the-name">'+esc(nm)+'</span></div>'+
         '<div class="lang-row"><span class="lang">DE</span><span class="the-name">'+esc(deFromEN(nm))+'</span></div>'+
-        '<div class="meta">PubChem database name · connectivity lookup; stereochemistry is not assigned. German is an automatic translation.</div>');
+        '<div class="meta">PubChem database name · query includes specified stereochemistry. German is an automatic translation.</div>');
       addCopyButton(match,nm); lookup.replaceWith(match);
     }catch(err){
       if(id!==namingSequence || snapshot!==molecularSignature()) return;
