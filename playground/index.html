@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0c1522">
+<title>Chem Playground</title>
+<meta name="description" content="A reactive molecular-dynamics sandbox: atoms and molecules at true scale, 1 fs per step.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&family=Martian+Mono:wdth,wght@87.5,300;87.5,400;100,500;100,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="field" aria-label="Simulation field"></canvas>
+
+<!-- wordmark + live inventory -->
+<header class="mark" id="mark">
+  <a class="brand" href="../" title="All tools">
+    <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+      <path class="iso i1" d="M16 5.5c6.6 0 11 4.3 11 10.3S22.2 26.5 16 26.5 5 22.4 5 16.1 9.4 5.5 16 5.5z"/>
+      <path class="iso i2" d="M15.6 9.6c4.3 0 6.9 2.8 6.9 6.5s-3 6.3-6.6 6.3-6.5-2.6-6.5-6.4 2.1-6.4 6.2-6.4z"/>
+      <circle class="nuc" cx="16" cy="16" r="2.4"/>
+    </svg>
+    <span class="word">chem playground</span>
+  </a>
+  <div class="inventory" id="inventory" aria-live="polite"></div>
+</header>
+
+<!-- conditions -->
+<section class="gauges" id="gauges" aria-label="Conditions">
+  <div class="gauge" id="gT">
+    <span class="bb" id="bbDot"></span>
+    <span class="scrub" id="tField" data-unit="K" title="Target temperature — drag, scroll or click to type"></span>
+    <span class="measured" id="tMeasured" title="Measured kinetic temperature"></span>
+  </div>
+  <div class="gauge" id="gP" title="Pressure measured on the container walls">
+    <svg class="gi" viewBox="0 0 16 16"><path d="M2.5 11.5a5.5 5.5 0 1 1 11 0"/><path d="M8 11.5l2.8-3.6"/></svg>
+    <span class="val" id="pVal">—</span>
+  </div>
+  <button class="gauge icon" id="keysBtn" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">
+    <svg class="gi" viewBox="0 0 16 16"><rect x="1.5" y="4" width="13" height="8.5" rx="1.6"/><path d="M4 6.8h.01M6.5 6.8h.01M9 6.8h.01M11.5 6.8h.01M5 9.7h6"/></svg>
+  </button>
+</section>
+
+<!-- tool + element dock -->
+<nav class="dock" id="dock" aria-label="Tools and elements">
+  <div class="tools" id="tools"></div>
+  <div class="rule"></div>
+  <div class="elements" id="elements"></div>
+  <button class="more" id="moreEl" title="More elements" aria-label="More elements">
+    <svg viewBox="0 0 16 16"><circle cx="3.5" cy="8" r="1.1"/><circle cx="8" cy="8" r="1.1"/><circle cx="12.5" cy="8" r="1.1"/></svg>
+  </button>
+</nav>
+
+<!-- transport -->
+<section class="transport" id="transport" aria-label="Time">
+  <button class="tbtn" id="backBtn" title="Step back 1 fs (hold to rewind)" aria-label="Step back">
+    <svg viewBox="0 0 20 20"><path d="M13.5 5v10L6.5 10z"/><rect x="4" y="5" width="1.8" height="10" rx=".6"/></svg>
+  </button>
+  <button class="tbtn play" id="playBtn" title="Play / pause" aria-label="Play">
+    <svg viewBox="0 0 20 20"><path id="playA" d="M6 4 L10.5 6.6 L10.5 13.4 L6 16 Z"/><path id="playB" d="M10.5 6.6 L15 9.2 L15 10.8 L10.5 13.4 Z"/></svg>
+  </button>
+  <button class="tbtn" id="fwdBtn" title="Step forward 1 fs (hold to run)" aria-label="Step forward">
+    <svg viewBox="0 0 20 20"><path d="M6.5 5v10l7-5z"/><rect x="14.2" y="5" width="1.8" height="10" rx=".6"/></svg>
+  </button>
+  <div class="vr"></div>
+  <div class="speed" id="speed">
+    <span class="scrub" id="speedField" title="Simulation speed — drag, scroll or click to type"></span>
+    <button class="caret" id="speedMenuBtn" aria-label="Speed presets"><svg viewBox="0 0 10 10"><path d="M2 3.8l3 3 3-3"/></svg></button>
+  </div>
+  <div class="vr"></div>
+  <div class="clock">
+    <span class="t" id="clock">0 fs</span>
+    <span class="rate" id="rate"></span>
+  </div>
+</section>
+
+<!-- reaction feed -->
+<ol class="feed" id="feed" aria-live="polite" aria-label="Reactions"></ol>
+
+<!-- scale bar -->
+<div class="scale" id="scale"><i></i><span></span></div>
+
+<!-- molecule tray -->
+<section class="tray" id="tray" aria-label="Molecules">
+  <button class="tray-pill" id="trayPill">
+    <svg viewBox="0 0 16 16"><circle cx="5" cy="10" r="2.3"/><circle cx="11.2" cy="5.2" r="1.7"/><path d="M6.7 8.5l3.2-2.4"/></svg>
+    <span>Molecules</span><b id="trayCount">0</b>
+  </button>
+  <div class="tray-panel" id="trayPanel">
+    <div class="tray-head">
+      <span>From Nomenclature</span>
+      <a id="openNom" href="../nomenclature" target="_blank" rel="noopener">Draw one ↗</a>
+    </div>
+    <div class="tray-list" id="trayList"></div>
+  </div>
+</section>
+
+<!-- conditioning sheet -->
+<section class="sheet" id="sheet" aria-label="Condition molecule" hidden>
+  <canvas id="sheetCanvas" width="300" height="220"></canvas>
+  <div class="sheet-body">
+    <div class="sheet-title"><span id="sheetName"></span><small id="sheetFormula"></small></div>
+    <div class="seg" id="condSeg" role="radiogroup">
+      <button data-v="normal" role="radio">Room<small>298 K · 1 atm</small></button>
+      <button data-v="zero" role="radio">Absolute zero<small>0 K · relaxed</small></button>
+      <button data-v="custom" role="radio">Custom<small id="customSmall">set below</small></button>
+    </div>
+    <div class="custom" id="customRow">
+      <label>T <span class="scrub" id="cT" data-unit="K"></span></label>
+      <label>P <span class="scrub" id="cP" data-unit="bar"></span></label>
+    </div>
+    <div class="cond-status" id="condStatus"><i id="condBar"></i><span id="condText"></span></div>
+    <div class="sheet-actions">
+      <button class="ghost" id="condCancel">Cancel <kbd>Esc</kbd></button>
+      <button class="primary" id="condPlace">Place <kbd>↵</kbd></button>
+    </div>
+  </div>
+</section>
+
+<!-- popovers -->
+<div class="pop" id="speedPop" role="menu"></div>
+<div class="pop" id="tPop"></div>
+<div class="pop" id="pPop"></div>
+<div class="pop periodic" id="elPop"></div>
+<div class="tip" id="tip"></div>
+
+<!-- keybinds -->
+<div class="veil" id="keysVeil" hidden>
+  <div class="dialog keys" role="dialog" aria-label="Keyboard shortcuts">
+    <div class="dialog-head"><h2>Shortcuts</h2><span class="hint">Click a key to rebind it</span><button class="ghost" id="keysReset">Reset</button><button class="x" id="keysClose" aria-label="Close">×</button></div>
+    <div class="keys-grid" id="keysGrid"></div>
+  </div>
+</div>
+
+<!-- command palette -->
+<div class="veil" id="cmdVeil" hidden>
+  <div class="dialog cmd" role="dialog" aria-label="Command palette">
+    <input id="cmdInput" autocomplete="off" spellcheck="false" placeholder="Type an action, an element, or “500 K”, “2x”, “3 bar”…">
+    <ul id="cmdList"></ul>
+  </div>
+</div>
+
+<div class="hint-empty" id="emptyHint">
+  <p>Pick an element on the left and click the field to drop atoms.<br>Scatter some <b>H</b> and <b>O</b>, heat to 3000 K, and watch water form.</p>
+  <p class="sub">Molecules arrive from <a href="../nomenclature" target="_blank" rel="noopener">Nomenclature</a> → <em>Playground</em>.</p>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script src="engine.js"></script>
+<script src="render.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
