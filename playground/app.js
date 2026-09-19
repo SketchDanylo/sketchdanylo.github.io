@@ -545,7 +545,7 @@ function boxEdgeAt(sx, sy) {
   const nearX = Math.abs(sx - x1) < t && sy > y0 - t && sy < y1 + t, nearY = Math.abs(sy - y1) < t && sx > x0 - t && sx < x1 + t;
   return nearX && nearY ? 'xy' : nearX ? 'x' : nearY ? 'y' : null;
 }
-function fragmentOf(i) { const fr = eng.fragments(0.5); return fr.list[fr.comp[i]]; }
+function fragmentOf(i) { const fr = eng.fragments(); return fr.list[fr.comp[i]]; }
 
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('pointerdown', e => {
@@ -694,7 +694,7 @@ const bondTrack = { set: new Map(), reset: true, pending: [] };
 const flashes = [];
 const feedItems = [];
 function speciesNow() {
-  const fr = eng.fragments(0.5), map = new Map(), frags = [], byId = new Map();
+  const fr = eng.fragments(), map = new Map(), frags = [], byId = new Map();
   fr.list.forEach((g, k) => {
     const f = eng.formulaOf(g) + (eng.isRadical(g) ? '·' : '');
     map.set(f, (map.get(f) || 0) + 1);
@@ -901,7 +901,7 @@ function tickConditioning(budgetMs) {
     }
   }
   // status
-  const fr = e.fragments(0.5), parts = fr.list.length;
+  const fr = e.fragments(), parts = fr.list.length;
   const st = $('condStatus'), bar = $('condBar');
   st.classList.toggle('warn', parts > 1 && c.phase !== 'relax');
   let text;
@@ -918,7 +918,7 @@ function tickConditioning(budgetMs) {
   // camera follows the molecule
   let cx = 0, cy = 0; for (let i = 0; i < e.N; i++) { cx += e.pos[3 * i]; cy += e.pos[3 * i + 1]; } cx /= e.N; cy /= e.N;
   condR.cam.cx += (cx - condR.cam.cx) * 0.2; condR.cam.cy += (cy - condR.cam.cy) * 0.2;
-  const n3 = 3 * e.N, bonds = e.bonds(0.3);
+  const n3 = 3 * e.N, bonds = e.bonds();
   condR.draw({ N: e.N, type: e.type, pos: e.pos.subarray(0, n3), bonds, now: performance.now() });
   // container outline
   const ctx = condR.ctx, [sx, sy] = condR.toScreen(e.sphere.x, e.sphere.y), rr = e.sphere.R * condR.scale;
@@ -948,7 +948,7 @@ function beginPlacing() {
   cx /= M; cy /= M; cz /= M; vx /= M; vy /= M; vz /= M;
   const atoms = [];
   for (let i = 0; i < e.N; i++) atoms.push({ t: e.type[i], sym: ELEMENTS[e.type[i]].sym, x: e.pos[3 * i] - cx, y: e.pos[3 * i + 1] - cy, z: e.pos[3 * i + 2] - cz, v: [e.vel[3 * i] - vx, e.vel[3 * i + 1] - vy, e.vel[3 * i + 2] - vz], q: e.formal[i], V: e.val[i] });
-  const bonds = e.bonds(0.5).map(b => ({ a: b.i, b: b.j, order: b.order }));
+  const bonds = e.bonds(0.35).map(b => ({ a: b.i, b: b.j, order: b.order }));
   placing = { name: cond.mol.name || pretty(cond.mol.formula), atoms, bonds, mass: M, rot: 0, x: lastMouse.wx, y: lastMouse.wy, T: cond.T };
   closeSheet(); refreshDock();
   toast('Click to place · drag to throw · Q/E rotate · Shift-click places several · Esc stops');
@@ -1216,7 +1216,7 @@ function frame(now) {
   const P = eng.pos, Q = eng.prev;
   for (let k = 0; k < n3; k++) rp[k] = Q[k] + (P[k] - Q[k]) * alpha;
   if (eng.needForces) eng.refresh(); // edits while paused
-  const bonds = eng.bonds(0.3);
+  const bonds = eng.bonds();
   updateBondEvents(bonds, now);
   if (time.playing || species.reset) updateSpecies(now);
   if ((eng.N > 0) === !$('emptyHint').classList.contains('gone')) updateEmpty();

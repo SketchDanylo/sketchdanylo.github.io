@@ -1038,23 +1038,30 @@ class Engine {
   }
 
   /* ---------- analysis ---------- */
-  /* Bonds as {i, j, order, strength}: strength = f·b in 0…1, order = continuous bond order. */
-  bonds(threshold = 0.3) {
+  /* Bond strength in 0…1: the pair's saturation b times how much of the bond is left. Uses the wider
+     saturation bond order as well as the structural switch, so a stretched or soft bond (a hot diatomic,
+     an ionic contact) still counts as a bond. */
+  bondStrength(p) {
+    const f = this.pF[p], sr = this.pSraw[p];
+    return this.pB[p] * (f > sr ? f : sr);
+  }
+  /* Bonds as {i, j, order, strength}. */
+  bonds(threshold = 0.2) {
     const out = [];
     for (let p = 0; p < this.nPairs; p++) {
-      const f = this.pF[p]; if (f <= 0) continue;
-      const s = f * this.pB[p]; if (s < threshold) continue;
+      if (this.pF[p] <= 0 && this.pSraw[p] <= 0) continue;
+      const s = this.bondStrength(p); if (s < threshold) continue;
       out.push({ i: this.pI[p], j: this.pJ[p], order: this.pN[p], strength: s });
     }
     return out;
   }
-  /* Connected fragments using bonds with strength > 0.5. Returns {comp: Int32Array, list: [[indices]]}. */
-  fragments(threshold = 0.5) {
+  /* Connected fragments using bonds with strength > 0.25. Returns {comp: Int32Array, list: [[indices]]}. */
+  fragments(threshold = 0.25) {
     const N = this.N, parent = new Int32Array(N);
     for (let i = 0; i < N; i++) parent[i] = i;
     const find = i => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
     for (let p = 0; p < this.nPairs; p++) {
-      if (this.pF[p] * this.pB[p] > threshold) { const a = find(this.pI[p]), b = find(this.pJ[p]); if (a !== b) parent[a] = b; }
+      if (this.bondStrength(p) > threshold) { const a = find(this.pI[p]), b = find(this.pJ[p]); if (a !== b) parent[a] = b; }
     }
     const comp = new Int32Array(N), groups = new Map();
     for (let i = 0; i < N; i++) { const r = find(i); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(i); }
@@ -1078,7 +1085,10 @@ class Engine {
     if (!this._boSum || this._boSum.length < this.N) this._boSum = new Float64Array(this.cap);
     if (this._boStamp !== this.stepCount + ':' + this.N + ':' + this.Epot) {
       const s = this._boSum; s.fill(0, 0, this.N);
-      for (let p = 0; p < this.nPairs; p++) { const f = this.pF[p]; if (f > 0) { const v = f * this.pN[p]; s[this.pI[p]] += v; s[this.pJ[p]] += v; } }
+      for (let p = 0; p < this.nPairs; p++) {
+        if (this.bondStrength(p) <= 0.25) continue; // a bond counts in full, however stretched it is
+        const v = this.pN[p]; s[this.pI[p]] += v; s[this.pJ[p]] += v;
+      }
       this._boStamp = this.stepCount + ':' + this.N + ':' + this.Epot;
     }
     for (const i of indices) if (this.val[i] - this._boSum[i] > 0.5) return true;
