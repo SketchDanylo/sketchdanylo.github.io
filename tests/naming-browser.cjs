@@ -19,7 +19,8 @@ const server = http.createServer((req, res) => {
   const browser = await chromium.launch({ channel: process.env.BROWSER_CHANNEL || 'msedge', headless: true });
   try {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ['clipboard-read', 'clipboard-write'] });
-    const page = await context.newPage(), errors = [], requests = [];
+    const page = await context.newPage(), errors = [], requests = [], workers=[];
+    page.on('worker',worker=>workers.push(worker.url()));
     page.on('pageerror', error => errors.push(error.message));
     page.on('request', request => requests.push(request.url()));
     await page.route('https://pubchem.ncbi.nlm.nih.gov/**', route => route.fulfill({ status: 404, body: '{}' }));
@@ -39,7 +40,8 @@ const server = http.createServer((req, res) => {
     await page.locator('#nameBtn').click();
     await page.getByText('4-(cyclohexylamino)-3-hydroxypentan-2-one', { exact: true }).waitFor();
     assert.match(await page.locator('#resultsBody').innerText(), /14 \/ 14 heavy atoms/);
-    assert(requests.some(url => url.includes('naming-worker.js')), 'Worker did not load');
+    assert(workers.some(url=>url.startsWith('blob:')), 'Embedded worker did not load');
+    assert(!requests.some(url=>/\.(js|wasm)(\?|$)/.test(url)), 'Standalone page fetched a runtime dependency');
     assert(!requests.some(url => url.includes('pubchem')), 'Offline naming sent a network lookup');
     await page.getByRole('button', { name: 'Copy EN', exact: true }).click();
     assert.equal(await page.evaluate(() => navigator.clipboard.readText()), '4-(cyclohexylamino)-3-hydroxypentan-2-one');

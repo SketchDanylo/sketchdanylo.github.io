@@ -12,8 +12,21 @@
   async function init(){
     if(!runtime){
       if(typeof module==='object'&&module.exports) runtime=require('../vendor/rdkit/dist/RDKit_minimal.js')();
-      else runtime=initRDKitModule({locateFile:file=>new URL('../vendor/rdkit/dist/'+file,
-        typeof document!=='undefined'?new URL('src/js/stereochemistry.js',document.baseURI).href:self.location.href).href});
+      else {
+        const embedded=globalThis.NAMING_WASM_BASE64||(typeof document!=='undefined'?document.getElementById('naming-wasm')?.textContent.trim():null);
+        if(embedded){
+          const bytes=Uint8Array.from(atob(embedded),c=>c.charCodeAt(0));
+          // This MinimalLib build exposes instantiateWasm, but does not consume
+          // the generic Emscripten wasmBinary option. Instantiate bytes directly.
+          runtime=new Promise((resolve,reject)=>{
+            initRDKitModule({instantiateWasm(imports,receive){
+              WebAssembly.instantiate(bytes,imports).then(result=>receive(result.instance)).catch(reject);
+              return {};
+            }}).then(resolve,reject);
+          });
+        }else runtime=initRDKitModule({locateFile:file=>new URL('../vendor/rdkit/dist/'+file,
+          typeof document!=='undefined'?new URL('src/js/stereochemistry.js',document.baseURI).href:self.location.href).href});
+      }
     }
     return runtime;
   }

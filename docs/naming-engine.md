@@ -1,6 +1,10 @@
 # Offline nomenclature engine
 
-`nomenclature.html` uses `src/js/native-namer.js`, a pure JavaScript structure-to-name engine, through `src/js/naming-worker.js`. The stereochemistry pipeline uses a locally bundled RDKit WebAssembly runtime. Everything ships with the page, needs no API key, and performs no external chemistry requests. PubChem is an optional, explicitly selected database lookup. A database miss is not treated as a chemical error.
+`nomenclature.html` is the self-contained deployable engine: styles, JavaScript, the worker source and the RDKit WebAssembly runtime are embedded in this single file. It needs no API key or external runtime assets. PubChem is an optional, explicitly selected database lookup. A database miss is not treated as a chemical error. The readable development sources remain in `src/`; they are not runtime dependencies of the generated HTML.
+
+## Single-file build
+
+Run `node scripts/build-nomenclature.cjs` after editing `src/nomenclature.template.html` or the modules under `src/js/`. The builder embeds the runtime and its BSD license, uses a Blob worker, and instantiates WebAssembly directly from embedded bytes. System fonts avoid external stylesheet/font requests. Only the resulting `nomenclature.html` is required for publication or local use; it is approximately 10 MB. It also works opened directly from disk with the network disabled. Do not edit the generated HTML by hand.
 
 The output is a **systematic name with specified stereochemistry**, not a certified preferred IUPAC name (PIN). The engine assigns R/S and E/Z from explicit configuration labels or wedge/dash bonds. It also derives D/L and alpha/beta annotations for supported amino-acid and sugar units. Unmarked drawings remain stereochemically unspecified. English names are generated directly; German names remain automatic translations.
 
@@ -13,7 +17,7 @@ The output is a **systematic name with specified stereochemistry**, not a certif
 - For ordinary unbranched aldoses through six carbons and 2-ketoses through seven, sugar D/L uses the highest-numbered configurational atom. Alpha/beta uses the anomeric/reference relationship in five- or six-membered O-rings. Complete configurations identify standard aldose families through hexoses and ketoses through hexoses; incomplete configurations yield only the justified series annotation. Substituted glycosides are labeled as configured sugar units. No optical rotation is inferred.
 - Optional PubChem lookup receives validated **isomeric SMILES**. A stereo-validation error disables lookup rather than exporting a stripped, potentially different stereoisomer.
 
-RDKit `@rdkit/rdkit` **2026.03.6** is vendored under `src/vendor/rdkit/` with its BSD-3-Clause license. Its WebAssembly file is about 7.3 MB and initializes locally on first naming. Serve the page over HTTP(S), including localhost; direct `file:` loading is not supported. No CDN or online RDKit service is required.
+RDKit `@rdkit/rdkit` **2026.03.6** is vendored under `src/vendor/rdkit/` with its BSD-3-Clause license for reproducible builds. Its WebAssembly binary is about 7.3 MB before base64 encoding and initializes locally on first naming. The generated HTML supports HTTP(S) and direct `file:` loading. No CDN or online RDKit service is required.
 
 ## What changed
 
@@ -64,9 +68,12 @@ Run browser checks with Playwright available on the Node module search path:
 
 ```sh
 node tests/naming-browser.cjs
+node tests/standalone-naming.cjs
 ```
 
 The default browser channel is `msedge`; override `BROWSER_CHANNEL` for another installed Chromium channel. Optional `NAMING_SCREENSHOT` and `STEREO_SCREENSHOT` save screenshots. The script hosts the page temporarily on loopback, tests workers, both screenshot regressions, no automatic PubChem request, copy, failed optional lookup, narrow-screen name wrapping, edit cancellation, unsupported output and worker fallback. Stereo checks exercise R/S and E/Z controls, D/L and alpha/beta results, undo/redo, isomeric export, saved structures and tidy preservation.
+
+The standalone check opens the generated file directly with all HTTP(S) requests blocked. It verifies embedded worker/WASM operation, configured molecules, biochemical annotations, and the fallback when workers are blocked. The HTTP browser suite also asserts that no JavaScript or WASM dependencies are fetched.
 
 For independent chemical reconstruction, install [OPSIN](https://github.com/dan2097/opsin/releases/tag/2.9.0) and RDKit **as development tools**, then set `OPSIN_JAR` to the CLI JAR, `CHEM_PYTHON` to a Python executable with RDKit, and `PYTHONPATH` if necessary:
 
