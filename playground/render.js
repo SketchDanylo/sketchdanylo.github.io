@@ -53,16 +53,9 @@ class FieldRenderer {
     if (this.showGrid) this._grid(sc);
     if (this.showBox && sc.box) this._boxUnder(sc.box);
     const atoms = this._atomsView(sc);
-    if (this.mode === 'density') {
-      this._density(sc, atoms);
-      this._bonds(sc, 'hair');
-      this._nuclei(sc, atoms, 0.17);
-    } else if (this.mode === 'balls') {
-      this._bonds(sc, 'stick');
-      this._spheres(sc, atoms, 0.3);
-    } else {
-      this._spheres(sc, atoms, 1);
-    }
+    this._density(sc, atoms);
+    this._bonds(sc, 'hair');
+    this._nuclei(sc, atoms, 0.17);
     if (sc.ghost) this._ghost(sc.ghost);
     this._flashes(sc);
     this._overlay(sc);
@@ -264,7 +257,7 @@ class FieldRenderer {
     const ctx = this.ctx, s = this.scale, P = sc.pos, T = sc.type;
     for (const i of atoms) {
       const t = T[i], z = P[3 * i + 2];
-      const r = ELEMENTS[t].rvdw * k * s * (1 + Math.max(-0.2, Math.min(0.2, z * 0.02)));
+      const r = ELEMENTS[t].rvdw * k * s; // Orthographic view: depth changes shading, never physical radius.
       const [x, y] = this.toScreen(P[3 * i], P[3 * i + 1]);
       const dim = z < -2 ? 0 : z < 1 ? 1 : 2;
       if (r > 220) {

@@ -23,5 +23,13 @@
       seen.add(key); return true;
     });
   }
-  return { stepsPerSecond, validMolecule };
+  // Maxwell–Boltzmann translation of one molecule: each COM component has
+  // variance kBT/M. Units match the engine (amu, Å/fs, kJ/mol).
+  function thermalTranslation(mass, temperature, gaussian) {
+    if (!Number.isFinite(mass) || mass <= 0 || !Number.isFinite(temperature) || temperature < 0) throw new RangeError('Invalid molecular thermal state');
+    if (temperature === 0) return [0, 0, 0];
+    const sigma = Math.sqrt(0.0083144626 * temperature / (mass * 1e4));
+    return [sigma * gaussian(), sigma * gaussian(), sigma * gaussian()];
+  }
+  return { stepsPerSecond, validMolecule, thermalTranslation };
 });

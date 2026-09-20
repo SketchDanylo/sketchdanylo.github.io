@@ -13,13 +13,21 @@ const pretty = f => f.replace(/(\d+)(?=[+−-]$)/, m => m).replace(/([A-Za-z\)])
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const STP_T = 298.15, ATM = 1.01325;
 const SPS1 = 20000;                 // 1.0× = 20 000 steps (20 ps) of 1 fs per real second
-const SPAN_MIN = 0.5, SPAN_MAX = 50; // visible width 0.05 – 5 nm
+const SPAN_MIN = 0.5, SPAN_MAX = 150; // manual visible width 0.05–15 nm; Fit may go wider
 
 function toggleBath() {
+  pushUndo();
   eng.thermostat = !eng.thermostat;
+  if (eng.thermostat) eng.setTemperature(eng.T);
   eng.checkpoints.length = 0;
   store.set('thermostat', eng.thermostat);
-  renderTPop();
+  tField.render(); paintT(); scheduleSave();
+  if ($('tPop').classList.contains('open')) openTPop();
+}
+function resampleMotion() {
+  if (!eng.N) return toast('Place atoms or molecules first');
+  pushUndo(); eng.thermalize(eng.T); edited();
+  toast('Fresh thermal velocities at ' + fmtT(eng.T) + ' K · press play to run');
 }
 function safeStep(engine) {
   try { engine.step(); return true; }
@@ -29,17 +37,17 @@ function safeStep(engine) {
     return false;
   }
 }
-function paintViews() {
-  document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', b.dataset.view === R.mode));
-}
+function paintViews() {} // contours are the only field representation
 function updateLab() {
   $('runState').textContent = time.playing ? 'RUNNING' : 'PAUSED';
   $('statusDot').classList.toggle('running', time.playing);
   $('atomCount').textContent = eng.N + (eng.N === 1 ? ' atom' : ' atoms');
   $('liveTemperature').textContent = eng.N ? eng.temperature().toFixed(1) + ' K' : '—';
   $('liveEnergy').textContent = eng.N ? (eng.Epot + eng.kinetic()).toFixed(1) + ' kJ/mol' : '—';
-  $('bathBtn').textContent = fmtT(eng.T) + ' K · ' + (eng.thermostat ? 'on' : 'off');
+  $('bathBtn').textContent = eng.thermostat ? (eng.wallT - 273.15).toFixed(1) + ' °C wall' : 'Off · direct setting';
   $('bathBtn').setAttribute('aria-pressed', eng.thermostat);
+  $('physicsNotice').hidden = !eng.clamped;
+  $('physicsNotice').textContent = eng.clamped ? eng.clamped + ' safety speed clamps · energy affected' : '';
   $('toolContext').textContent = placing ? 'Click to place · Q/E rotate · Esc cancel' : armed ? armed + ' selected · click to place · drag to throw' : tool === 'heat' ? 'Drag to heat · Shift-drag to cool' : tool === 'erase' ? 'Click an atom to erase · Alt: molecule' : 'Drag to pan · scroll to zoom';
 }
 
@@ -50,15 +58,24 @@ eng.thermostat = store.get('thermostat', true);
 eng.recording = true;
 
 const canvas = $('field');
+const inspector = new AtomInspector({ engine: eng, pause: () => setPlaying(false), focus: () => canvas.focus(), remove: id => {
+  const i = eng.ids.subarray(0, eng.N).indexOf(id);
+  if (i < 0) return;
+  pushUndo(); eng.removeAtoms([i]); edited();
+} });
 const R = new FieldRenderer(canvas);
-R.mode = store.get('mode', 'balls');
-if (!['balls', 'space', 'density'].includes(R.mode)) R.mode = 'balls';
+R.mode = 'density';
 $('fitBtn').onclick = () => fitBox(true);
+$('measurementsBtn').onclick = () => {
+  const panel = $('measurementsPanel'), open = !panel.classList.contains('open');
+  panel.classList.toggle('open', open); panel.inert = !open;
+  $('measurementsBtn').setAttribute('aria-expanded', open);
+};
 $('bathBtn').onclick = toggleBath;
+$('resampleBtn').onclick = resampleMotion;
 $('startAtom').onclick = () => arm('H');
 $('modelBtn').onclick = () => $('modelDialog').showModal();
 $('modelClose').onclick = () => $('modelDialog').close();
-document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { R.mode = b.dataset.view; store.set('mode', R.mode); paintViews(); });
 document.addEventListener('visibilitychange', () => {
   time.last = performance.now(); time.acc = 0;
   if (document.hidden && time.playing) { setPlaying(false); toast('Paused while this tab is hidden'); }
@@ -90,6 +107,7 @@ function pushUndo() {
 function applySnap(o) {
   eng.box = { ...o.box };
   eng.restore(o.s);
+  tField.render(); paintT();
   eng.checkpoints.length = 0;
   edited();
 }
@@ -113,7 +131,7 @@ function toast(msg, cls) {
 /* ======================= camera ======================= */
 function fitBox(animate) {
   const b = eng.box, W = R.W, H = R.H;
-  const span = clamp(Math.max((b.x1 - b.x0) * 1.12, (b.y1 - b.y0) * 1.18 * W / H), SPAN_MIN, SPAN_MAX);
+  const span = clamp(Math.max((b.x1 - b.x0) * 1.12, (b.y1 - b.y0) * 1.18 * W / H), SPAN_MIN, 5000);
   camTo((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2 + 1.2 * span / W * 20, span, animate);
 }
 let camAnim = null;
@@ -123,7 +141,7 @@ function camTo(cx, cy, span, animate) {
 }
 function zoomAt(sx, sy, factor) {
   const [wx, wy] = R.toWorld(sx, sy);
-  const span = clamp(R.cam.span * factor, SPAN_MIN, SPAN_MAX);
+  const span = clamp(R.cam.span * factor, SPAN_MIN, Math.max(SPAN_MAX, R.cam.span));
   const k = span / R.cam.span;
   R.cam.cx = wx - (wx - R.cam.cx) * k; R.cam.cy = wy - (wy - R.cam.cy) * k; R.cam.span = span;
   camAnim = null; clampCam();
@@ -156,7 +174,7 @@ function scrub(el, o) {
       const v = o.get(), p = toP(v);
       el.innerHTML = esc(o.fmt(v)) + (o.unit ? '<span class="u">' + o.unit + '</span>' : '');
       el.style.setProperty('--p', clamp(p, 0, 1));
-      el.setAttribute('aria-valuenow', v);
+      el.setAttribute('aria-valuenow', o.ariaValue ? o.ariaValue(v) : v);
       el.setAttribute('aria-valuetext', o.fmt(v) + (o.unit || ''));
       el.classList.toggle('over', p > 1.0001 || p < -0.0001);
     },
@@ -242,8 +260,8 @@ function blackbody(T) { // approximate sRGB of a blackbody (Tanner Helland fit),
 }
 function setT(T, quiet) {
   if (!Number.isFinite(T)) return;
-  eng.checkpoints.length = 0;
-  eng.T = clamp(T, 0, 50000); store.set('T', eng.T); tField.render(); paintT();
+  eng.setTemperature(clamp(T, 0, 50000));
+  store.set('T', eng.T); tField.render(); paintT(); scheduleSave();
   if (!quiet) renderTPop();
 }
 function paintT() {
@@ -252,8 +270,11 @@ function paintT() {
 }
 const fmtT = v => v >= 10000 ? (v / 1000).toFixed(1) + 'k' : v >= 100 ? Math.round(v).toString() : v >= 10 ? v.toFixed(1) : v.toFixed(2);
 const tField = scrub($('tField'), {
-  get: () => eng.T, set: v => setT(v, true), min: 0, max: 6000, off: 40, map: 'log', unit: 'K', hardMin: 0, hardMax: 50000,
-  fmt: fmtT, edit: v => String(+v.toFixed(2)), parse: txt => parseTemp(txt)
+  get: () => eng.T, set: v => setT(v, true), get min() { return eng.thermostat ? 288.15 : 0; }, get max() { return eng.thermostat ? 623.15 : 6000; }, off: 40, map: 'log', get unit() { return eng.thermostat ? '°C' : 'K'; }, hardMin: 0, hardMax: 50000,
+  fmt: v => eng.thermostat ? (v - 273.15).toFixed(1) : fmtT(v),
+  ariaValue: v => eng.thermostat ? v - 273.15 : v,
+  edit: v => String(+(eng.thermostat ? v - 273.15 : v).toFixed(2)),
+  parse: txt => parseTemp(eng.thermostat && /^-?[\d.,]+$/.test(txt.trim()) ? txt + ' C' : txt)
 });
 function parseTemp(txt) {
   const m = txt.trim().toLowerCase().replace(',', '.').match(/^(-?[\d.]+)\s*(k|°?c|°?f)?$/);
@@ -275,7 +296,7 @@ function showPop(pop, anchor, place) {
   if (place === 'below') { x = clamp(a.right - w, 8, innerWidth - w - 8); y = a.bottom + 8; pop.style.setProperty('--oy', '0%'); }
   else if (place === 'right') { x = a.right + 10; y = clamp(a.top + a.height / 2 - h / 2, 8, innerHeight - h - 8); pop.style.setProperty('--ox', '0%'); pop.style.setProperty('--oy', '50%'); }
   else { x = clamp(a.left + a.width / 2 - w / 2, 8, innerWidth - w - 8); y = a.top - h - 10; pop.style.setProperty('--oy', '100%'); }
-  pop.style.left = x + 'px'; pop.style.top = y + 'px';
+  pop.style.left = clamp(x, 8, Math.max(8, innerWidth - w - 8)) + 'px'; pop.style.top = clamp(y, 8, Math.max(8, innerHeight - h - 8)) + 'px';
 }
 function closePop() { if (openPop) { openPop.pop.classList.remove('open'); openPop = null; } }
 document.addEventListener('pointerdown', e => {
@@ -287,14 +308,20 @@ function renderTPop() {
   pop.querySelector('.head b').textContent = eng.temperature().toFixed(1) + ' K';
   pop.querySelectorAll('.row[data-t]').forEach(r => r.classList.toggle('on', Math.abs(+r.dataset.t - eng.T) < 0.01));
   pop.querySelector('.toggle').classList.toggle('on', eng.thermostat);
+  pop.querySelector('.toggle').setAttribute('aria-pressed', eng.thermostat);
+  const wall = $('wallNow'); if (wall) wall.textContent = (eng.wallT - 273.15).toFixed(2) + ' °C';
+  const heat = $('wallHeat'); if (heat) heat.textContent = eng.heatToSample.toFixed(2) + ' kJ/mol';
 }
 function openTPop() {
   const pop = $('tPop');
+  const presets = eng.thermostat ? [[288.15, 'Cool', '15 °C'], [298.15, 'Room', '25 °C'], [373.15, 'Warm', '100 °C'], [473.15, 'Hot', '200 °C'], [623.15, 'Maximum', '350 °C']] : T_PRESETS;
   pop.innerHTML = '<div class="head">Measured <b></b></div><canvas class="spark" id="tSpark"></canvas><div class="sep"></div>' +
-    T_PRESETS.map((p, i) => '<button class="row" style="--i:' + i + '" data-t="' + p[0] + '"><span class="sw" style="background:' + blackbody(p[0]) + ';box-shadow:0 0 8px ' + blackbody(p[0]) + '"></span><span class="k">' + fmtT(p[0]) + ' K</span><span class="lbl">' + p[1] + '</span><span class="note">' + p[2] + '</span></button>').join('') +
-    '<div class="sep"></div><button class="toggle" title="On: a heat bath holds the target temperature. Off: no heat exchange; model energy drift remains possible.">Heat bath (thermostat)<i></i></button>';
-  pop.querySelectorAll('.row').forEach(r => r.onclick = () => { setT(+r.dataset.t); toast('Target ' + fmtT(+r.dataset.t) + ' K — ' + r.querySelector('.lbl').textContent); });
-  pop.querySelector('.toggle').onclick = () => { toggleBath(); renderTPop(); toast(eng.thermostat ? 'Heat bath on — temperature is held at the target' : 'Heat bath off — monitor energy drift'); };
+    presets.map((p, i) => '<button class="row" style="--i:' + i + '" data-t="' + p[0] + '"><span class="sw" style="background:' + blackbody(p[0]) + '"></span><span class="k">' + (eng.thermostat ? (p[0] - 273.15).toFixed(0) + ' °C' : fmtT(p[0]) + ' K') + '</span><span class="lbl">' + p[1] + '</span></button>').join('') +
+    '<div class="sep"></div><button class="toggle">Wall thermostat<i></i></button>' +
+    (eng.thermostat ? '<div class="kv"><span>Wall now</span><span id="wallNow"></span></div><div class="kv"><span>Heat into sample</span><span id="wallHeat"></span></div><div class="kv"><span>Heater response τ</span><span class="scrub" id="wallTau"></span></div><p class="thermal-note">The wall reaches 63% of a temperature change in τ. Time is simulated, not playback time. Only the 0.2 nm boundary layer contacts the reservoir; the interior warms through interactions. This is a specified nanoscale heater, not a calibrated household thermostat.</p>' : '<p class="thermal-note">Editing temperature immediately sets the sample’s kinetic temperature. Then it evolves without a heat bath. This changes the velocities, not the geometry or phase.</p>');
+  pop.querySelectorAll('.row[data-t]').forEach(r => r.onclick = () => { setT(+r.dataset.t); });
+  pop.querySelector('.toggle').onclick = toggleBath;
+  if (eng.thermostat) scrub($('wallTau'), { get: () => eng.wallTau / 1000, set: v => { eng.wallTau = v * 1000; eng.checkpoints.length = 0; scheduleSave(); }, min: 1, max: 100, hardMin: .01, hardMax: 1e15, unit: 'ps', fmt: v => String(+v.toPrecision(4)) });
   showPop(pop, $('gT'), 'below'); renderTPop();
 }
 $('gT').addEventListener('click', e => { if (e.target.closest('.scrub')) return; openPop && openPop.pop.id === 'tPop' ? closePop() : openTPop(); });
@@ -306,9 +333,9 @@ function openPPop() {
     '<div class="kv"><span>Volume</span><span id="pVol"></span></div><div class="kv"><span>Ideal-gas estimate (fragments)</span><span id="pIdeal"></span></div><div class="kv"><span>Atoms</span><span id="pAtoms"></span></div>' +
     '<div class="sep"></div><div class="kv"><span>Box width</span><span class="scrub" id="bW"></span></div><div class="kv"><span>Box height</span><span class="scrub" id="bH"></span></div><div class="kv"><span>Slab depth</span><span class="scrub" id="bD"></span></div>';
   const mk = (id, get, set, min, max) => scrub($(id), { get, set: (v, c) => { set(v); eng.touch(); if (c) { saveBox(); scheduleSave(); } }, min, max, unit: 'nm', fmt: v => v.toFixed(2), hardMin: min, hardMax: max });
-  mk('bW', () => (eng.box.x1 - eng.box.x0) / 10, v => { eng.box.x1 = eng.box.x0 + v * 10; }, 1, 5);
-  mk('bH', () => (eng.box.y1 - eng.box.y0) / 10, v => { eng.box.y1 = eng.box.y0 + v * 10; }, 1, 5);
-  mk('bD', () => (eng.box.z1 - eng.box.z0) / 10, v => { eng.box.z0 = -v * 5; eng.box.z1 = v * 5; }, 0.4, 3);
+  mk('bW', () => (eng.box.x1 - eng.box.x0) / 10, v => { eng.box.x1 = eng.box.x0 + v * 10; }, 1, 50);
+  mk('bH', () => (eng.box.y1 - eng.box.y0) / 10, v => { eng.box.y1 = eng.box.y0 + v * 10; }, 1, 50);
+  mk('bD', () => (eng.box.z1 - eng.box.z0) / 10, v => { eng.box.z0 = -v * 5; eng.box.z1 = v * 5; }, 0.4, 50);
   showPop(pop, $('gP'), 'below'); renderPPop();
 }
 function renderPPop() {
@@ -532,7 +559,7 @@ const selection = new Set();
 const brush = { r: store.get('brushR', 4), active: false, cool: false, x: 0, y: 0 };
 function hitAtom(wx, wy, extra = 0) {
   let best = -1, bd = Infinity;
-  const k = R.mode === 'space' ? 1 : R.mode === 'balls' ? 0.45 : 0.5;
+  const k = 0.5;
   for (let i = 0; i < eng.N; i++) {
     const dx = rp[3 * i] - wx, dy = rp[3 * i + 1] - wy, d = dx * dx + dy * dy;
     const r = Math.max(ELEMENTS[eng.type[i]].rvdw * k, 7 / R.scale) + extra;
@@ -559,12 +586,12 @@ canvas.addEventListener('pointerdown', e => {
   }
   const [wx, wy] = R.toWorld(e.clientX, e.clientY);
   const hit = hitAtom(wx, wy);
+  if (e.button === 2 && hit >= 0) { inspector.open(hit); return; }
   if (e.button === 1 || (e.button === 0 && spaceHeld)) { gesture = { type: 'pan', sx: e.clientX, sy: e.clientY, cx: R.cam.cx, cy: R.cam.cy }; canvas.className = 'grabbing'; return; }
   if (placing) { gesture = { type: 'placeMol', sx: e.clientX, sy: e.clientY, wx, wy }; return; }
   if (armed && e.button === 0) { gesture = { type: 'placeAtom', sx: e.clientX, sy: e.clientY, wx, wy }; return; }
   if (e.button === 2) {
     if (tool === 'heat') { brush.active = true; brush.cool = true; gesture = { type: 'brush' }; return; }
-    if (hit >= 0) { pushUndo(); eng.removeAtoms(e.altKey ? fragmentOf(hit) : [hit]); edited(); return; }
     gesture = { type: 'pan', sx: e.clientX, sy: e.clientY, cx: R.cam.cx, cy: R.cam.cy }; canvas.className = 'grabbing'; return;
   }
   if (tool === 'erase') { pushUndo(); gesture = { type: 'erase', alt: e.altKey }; eraseAt(wx, wy, e.altKey); return; }
@@ -597,7 +624,7 @@ canvas.addEventListener('pointermove', e => {
     const edge = !armed && !placing && tool === 'grab' ? boxEdgeAt(e.clientX, e.clientY) : null;
     boxHot = edge && hoverAtom < 0 ? edge : null;
     if (boxHot) canvas.className = 'resize-' + boxHot; else refreshDock();
-    if (hoverAtom >= 0 && tool === 'grab') showTipAt(e.clientX, e.clientY, atomTip(hoverAtom)); else hideTip();
+    if (hoverAtom >= 0 && tool === 'grab') showTipAt(e.clientX, e.clientY, '<b>' + ELEMENTS[eng.type[hoverAtom]].name + '</b><div class="row">Right-click to inspect</div>'); else hideTip();
     return;
   }
   hideTip();
@@ -618,8 +645,8 @@ canvas.addEventListener('pointermove', e => {
   else if (g.type === 'marquee') { g.x1 = wx; g.y1 = wy; }
   else if (g.type === 'box') {
     const b = eng.box;
-    if (g.edge.includes('x')) b.x1 = clamp(wx, b.x0 + 10, b.x0 + 50);
-    if (g.edge.includes('y')) b.y1 = clamp(wy, b.y0 + 10, b.y0 + 50);
+    if (g.edge.includes('x')) b.x1 = clamp(wx, b.x0 + 10, b.x0 + 500);
+    if (g.edge.includes('y')) b.y1 = clamp(wy, b.y0 + 10, b.y0 + 500);
     eng.touch();
   } else if (g.type === 'placeAtom' || g.type === 'placeMol') { g.cx = wx; g.cy = wy; }
 });
@@ -851,16 +878,16 @@ function startConditioning(mol) {
   if (!validMol(mol)) { toast('Invalid molecule'); return; }
   placing = null; armed = null; refreshDock();
   $('sheet').hidden = false; $('sheet').classList.remove('leaving');
-  if (!condR) { condR = new FieldRenderer($('sheetCanvas'), { showBox: false, cell: 4 }); condR.mode = 'balls'; }
+  if (!condR) { condR = new FieldRenderer($('sheetCanvas'), { showBox: false, cell: 4 }); condR.mode = 'density'; }
   const [w, h] = condCanvasSize(); condR.resize(w, h);
   $('sheetName').textContent = mol.name || pretty(mol.formula);
   $('sheetFormula').textContent = pretty(mol.formula) + ' · ' + mol.atoms.length + ' atoms' + (mol.smiles ? ' · ' + mol.smiles : '');
   cond = { mol };
-  paintSeg(); buildCondEngine();
+  paintSeg(); buildCondEngine(); updateEmpty();
 }
 function buildCondEngine() {
   const mol = cond.mol, { T, P } = condParams();
-  const e = new Engine({ T, thermostat: true, tau: 60, seed: 7 });
+  const e = new Engine({ T, thermostat: true, thermostatMode: 'csvr', tau: 60, seed: 7 });
   e.recording = false;
   e.box = { x0: -1e3, x1: 1e3, y0: -1e3, y1: 1e3, z0: -1e3, z1: 1e3 };
   const sum = new Array(mol.atoms.length).fill(0);
@@ -927,6 +954,7 @@ function tickConditioning(budgetMs) {
 function paintSeg() {
   $('condSeg').querySelectorAll('button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === condPrefs.preset)));
   $('customRow').classList.toggle('show', condPrefs.preset === 'custom');
+  $('customRow').inert = condPrefs.preset !== 'custom';
   $('customSmall').textContent = fmtT(condPrefs.T) + ' K · ' + fmtP(condPrefs.P);
   cTField.render(); cPField.render();
 }
@@ -936,6 +964,7 @@ const cPField = scrub($('cP'), { get: () => condPrefs.P, set: (v, c) => { condPr
 function closeSheet() {
   if (!cond && $('sheet').hidden) return;
   cond = null; const s = $('sheet'); s.classList.add('leaving');
+  updateEmpty();
   setTimeout(() => { if (!cond) s.hidden = true; s.classList.remove('leaving'); }, 240);
 }
 $('condCancel').onclick = closeSheet;
@@ -947,9 +976,9 @@ function beginPlacing() {
   for (let i = 0; i < e.N; i++) { const m = e.mass[i]; cx += m * e.pos[3 * i]; cy += m * e.pos[3 * i + 1]; cz += m * e.pos[3 * i + 2]; vx += m * e.vel[3 * i]; vy += m * e.vel[3 * i + 1]; vz += m * e.vel[3 * i + 2]; M += m; }
   cx /= M; cy /= M; cz /= M; vx /= M; vy /= M; vz /= M;
   const atoms = [];
-  for (let i = 0; i < e.N; i++) atoms.push({ t: e.type[i], sym: ELEMENTS[e.type[i]].sym, x: e.pos[3 * i] - cx, y: e.pos[3 * i + 1] - cy, z: e.pos[3 * i + 2] - cz, v: [e.vel[3 * i] - vx, e.vel[3 * i + 1] - vy, e.vel[3 * i + 2] - vz], q: e.formal[i], V: e.val[i] });
+  for (let i = 0; i < e.N; i++) atoms.push({ t: e.type[i], sym: ELEMENTS[e.type[i]].sym, x: e.pos[3 * i] - cx, y: e.pos[3 * i + 1] - cy, z: e.pos[3 * i + 2] - cz, v: $('placeAtRest').checked ? [0, 0, 0] : [e.vel[3 * i] - vx, e.vel[3 * i + 1] - vy, e.vel[3 * i + 2] - vz], q: e.formal[i], V: e.val[i] });
   const bonds = e.bonds(0.35).map(b => ({ a: b.i, b: b.j, order: b.order }));
-  placing = { name: cond.mol.name || pretty(cond.mol.formula), atoms, bonds, mass: M, rot: 0, x: lastMouse.wx, y: lastMouse.wy, T: cond.T };
+  placing = { name: cond.mol.name || pretty(cond.mol.formula), atoms, bonds, mass: M, rot: 0, x: lastMouse.wx, y: lastMouse.wy, T: cond.T, atRest: $('placeAtRest').checked };
   closeSheet(); refreshDock();
   toast('Click to place · drag to throw · Q/E rotate · Shift-click places several · Esc stops');
 }
@@ -970,8 +999,11 @@ function dropMolecule(x, y, fling, keep) {
   if (!ghostOK(g)) { toast('No room here — move the ghost to a free spot inside the box'); return; }
   pushUndo();
   const c = Math.cos(placing.rot), s = Math.sin(placing.rot), base = eng.N;
+  // Conditioning removes center-of-mass motion. Restore thermal translation
+  // once per molecule, otherwise isolated imports vibrate forever in place.
+  const drift = placing.atRest ? [0, 0, 0] : fling ? [fling[0], fling[1], 0] : ChemProtocol.thermalTranslation(placing.mass, placing.T, () => eng.gauss());
   placing.atoms.forEach((a, k) => {
-    const v = [a.v[0] * c - a.v[1] * s + (fling ? fling[0] : 0), a.v[0] * s + a.v[1] * c + (fling ? fling[1] : 0), a.v[2]];
+    const v = [a.v[0] * c - a.v[1] * s + drift[0], a.v[0] * s + a.v[1] * c + drift[1], a.v[2] + drift[2]];
     eng.addAtom(a.sym, g[k].x, g[k].y, g[k].z, { v, charge: a.q, V: a.V });
   });
   eng.refresh();
@@ -996,17 +1028,22 @@ act('tool.heat', 'Tools', 'Heat brush', ['B'], () => setTool('heat'));
 act('el.more', 'Tools', 'All elements…', ['E'], () => openElPop());
 for (const [sym, key] of [['H', 'H'], ['C', 'C'], ['N', 'N'], ['O', 'O'], ['F', 'F'], ['S', 'S'], ['P', 'P'], ['Cl', 'L'], ['Na', 'A'], ['Br', ''], ['I', ''], ['He', ''], ['Ar', '']])
   act('el.' + sym, 'Elements', BY_SYM[sym].name, key ? [key] : [], () => arm(armed === sym ? null : sym));
-act('cond.zero', 'Conditions', 'Absolute zero (0 K)', ['Z'], () => { setT(0); toast('Target 0 K — the heat bath drains all motion'); });
+function directTemperature(T) {
+  pushUndo(); eng.thermostat = false; store.set('thermostat', false); setT(T);
+  if ($('tPop').classList.contains('open')) openTPop();
+  toast('Sample set to ' + fmtT(T) + ' K · wall thermostat off');
+}
+act('cond.zero', 'Conditions', 'Set sample to 0 K; thermostat off', ['Z'], () => directTemperature(0));
 act('cond.room', 'Conditions', 'Room temperature', ['R'], () => { setT(STP_T); toast('Target 298 K'); });
-act('cond.flame', 'Conditions', 'Flame (3000 K)', ['Shift+R'], () => { setT(3000); toast('Target 3000 K'); });
+act('cond.flame', 'Conditions', 'Set sample to 3000 K; thermostat off', ['Shift+R'], () => directTemperature(3000));
 act('cond.hotter', 'Conditions', 'Hotter ×1.25', ['Shift+ArrowUp'], () => setT(eng.T < 5 ? 25 : eng.T * 1.25));
 act('cond.colder', 'Conditions', 'Colder ÷1.25', ['Shift+ArrowDown'], () => setT(eng.T < 5 ? 0 : eng.T / 1.25));
 act('cond.typeT', 'Conditions', 'Type a temperature', ['T'], () => tField.startEdit());
-act('cond.bath', 'Conditions', 'Heat bath on / off', [], () => { toggleBath(); toast(eng.thermostat ? 'Heat bath on' : 'Heat bath off — monitor energy drift'); });
+act('cond.bath', 'Conditions', 'Wall thermostat on / off', [], () => { toggleBath(); toast(eng.thermostat ? 'Wall thermostat on' : 'Wall thermostat off'); });
+act('cond.resample', 'Conditions', 'Resample thermal motion', ['Shift+T'], resampleMotion);
 act('view.in', 'View', 'Zoom in', ['='], () => zoomAt(innerWidth / 2, innerHeight / 2, 1 / 1.35));
 act('view.out', 'View', 'Zoom out', ['-'], () => zoomAt(innerWidth / 2, innerHeight / 2, 1.35));
 act('view.fit', 'View', 'Fit the box', ['0'], () => fitBox(true));
-act('view.mode', 'View', 'Cycle look: density / ball-and-stick / space-filling', ['D'], cycleMode);
 act('edit.undo', 'Edit', 'Undo', ['Ctrl+Z'], undo);
 act('edit.redo', 'Edit', 'Redo', ['Ctrl+Shift+Z', 'Ctrl+Y'], redo);
 act('edit.delete', 'Edit', 'Delete selection', ['Delete', 'Backspace'], deleteSelection);
@@ -1022,10 +1059,7 @@ function nextSpeed(d) {
   if (d > 0) return list.find(v => v > time.speed + 1e-9) ?? list[list.length - 1];
   return [...list].reverse().find(v => v < time.speed - 1e-9) ?? list[0];
 }
-function cycleMode() {
-  const modes = ['density', 'balls', 'space'], names = { density: 'Illustrative contours (not electron density)', balls: 'Ball and stick', space: 'Space-filling (van der Waals)' };
-  R.mode = modes[(modes.indexOf(R.mode) + 1) % 3]; store.set('mode', R.mode); paintViews(); toast(names[R.mode]);
-}
+
 function deleteSelection() {
   if (!selection.size) { if (hoverAtom >= 0) { pushUndo(); eng.removeAtoms([hoverAtom]); edited(); } return; }
   pushUndo(); eng.removeAtoms([...selection]); selection.clear(); edited();
@@ -1109,7 +1143,7 @@ function openKeys() {
   const groups = [...new Set(ACTIONS.map(a => a.group))];
   $('keysGrid').innerHTML = groups.map(g => '<div class="kgroup"><h3>' + g + '</h3>' + ACTIONS.filter(a => a.group === g).map(a =>
     '<div class="krow"><span>' + esc(a.name) + '</span><button class="kcap' + ((keymap[a.id] || []).length ? '' : ' empty') + '" data-id="' + a.id + '">' + ((keymap[a.id] || []).length ? esc(prettyKey(keymap[a.id][0])) : 'add') + '</button></div>').join('') + '</div>').join('') +
-    '<div class="kgroup"><h3>Mouse</h3>' + [['Scroll', 'Zoom (0.05 – 5 nm)'], ['Drag empty space', 'Pan'], ['Drag an atom', 'Pull it (running) / move its molecule (paused)'], ['Alt + drag atom', 'Move one atom (paused)'], ['Shift + drag', 'Select a region'], ['Right-click atom', 'Delete (Alt: whole molecule)'], ['Drag while placing', 'Throw with that velocity'], ['Drag box edge', 'Resize the container'], ['Q / E', 'Rotate a molecule before placing']].map(r => '<div class="krow"><span>' + r[1] + '</span><span class="kcap" style="border:0;background:none;color:var(--faint)">' + r[0] + '</span></div>').join('') + '</div>';
+    '<div class="kgroup"><h3>Mouse</h3>' + [['Scroll', 'Zoom (0.05–15 nm; Fit can show larger boxes)'], ['Drag empty space', 'Pan'], ['Drag an atom', 'Pull it (running) / move its molecule (paused)'], ['Alt + drag atom', 'Move one atom (paused)'], ['Shift + drag', 'Select a region'], ['Right-click atom', 'Atom inspector and calculated molecular electron density'], ['Drag while placing', 'Throw with that velocity'], ['Drag box edge', 'Resize the container'], ['Q / E', 'Rotate a molecule before placing']].map(r => '<div class="krow"><span>' + r[1] + '</span><span class="kcap" style="border:0;background:none;color:var(--faint)">' + r[0] + '</span></div>').join('') + '</div>';
   $('keysGrid').querySelectorAll('button.kcap').forEach(b => b.onclick = () => {
     document.querySelectorAll('.kcap.listening').forEach(x => x.classList.remove('listening'));
     listening = b; b.classList.add('listening'); b.textContent = 'press a key';
@@ -1174,6 +1208,7 @@ function loadScene() {
     if (!s || !Array.isArray(s.atoms)) return;
     for (const a of s.atoms) if (BY_SYM[a[0]]) eng.addAtom(a[0], a[1], a[2], a[3], { v: [a[4], a[5], a[6]], charge: a[7], V: a[8] });
     eng.time = s.time || 0;
+    for (const key of ['wallT', 'wallTarget', 'wallTau', 'heatToSample', 'heaterWork']) if (Number.isFinite(s[key])) eng[key] = s[key];
   } catch (e) { }
 }
 window.addEventListener('beforeunload', saveScene);
@@ -1283,5 +1318,5 @@ paintSeg();
 updateEmpty();
 readHash();
 requestAnimationFrame(t => { time.last = t; frame(t); });
-window.chemPlayground = { eng, R, receive, setT, setSpeed, togglePlay, startConditioning, beginPlacing, dropMolecule, tickConditioning, get cond() { return cond; }, get placing() { return placing; } }; // console / test hooks
+window.chemPlayground = { eng, R, receive, setT, setSpeed, togglePlay, pause: () => setPlaying(false), startConditioning, beginPlacing, dropMolecule, tickConditioning, get cond() { return cond; }, get placing() { return placing; } }; // console / test hooks
 })();

@@ -16,7 +16,7 @@
  *   - Non-bonded: shielded Lennard-Jones (UFF) — the Pauli part is switched off (1 − b) between
  *       atoms that can bond — plus shielded, shifted-force Coulomb between bond-polarisation
  *       charges (electronegativity) and formal charges. 1-2 and 1-3 pairs are excluded smoothly.
- *   - Velocity-Verlet, fixed dt = 1 fs, Bussi CSVR thermostat, soft container walls whose
+ *   - Velocity-Verlet, fixed dt = 1 fs, local wall heat exchange (CSVR for conditioning), soft walls whose
  *       normal force gives the measured pressure.
  */
 (function (root, factory) {
@@ -30,15 +30,15 @@ const ACC = 1e-4;                   // (kJ/mol/Å)/amu → Å/fs²
 const KEU = 1e4;                    // amu·(Å/fs)² → kJ/mol
 const COUL = 1389.35458;            // kJ·Å/(mol·e²)
 const BAR = 16605.39;               // (kJ/mol)/Å³ → bar
-const KAPPA = 0.32;                 // e per unit Pauling electronegativity difference per bond
 const Q_MAX = 1.1;                  // saturation of bond-polarisation charge (e)
 // Reactive-model constants, fitted to barriers of H + H₂, H + CH₄, H + Cl₂, F + H₂, O + H₂, OH + H₂ and
 // H + O₂ → HO₂ (playground/tests/reactions.cjs) while keeping closed-shell dimers non-sticky:
 //   saturation p(x) = 1/(1 + c1·x + c4·x^k);  valence-use decay β = kb·a (a = Morse exponent);
-//   wpiOO = weight of the O=O π bond in oxygen's used valence (triplet O₂ is a diradical);
+//   wpi  = how much a π bond blocks a newcomer (weaker and more polarizable than a σ bond);
+//   wpiOO = the same for O=O, lower still (triplet O₂ is a diradical);
 //   oo3e = extra O–O bond order when only one oxygen is unpaired (three-electron bond, HO₂·);
 //   mu   = strength weighting of excess valence (Evans–Polanyi: exothermic transfers get lower barriers).
-const TUNE = { c1: 0.6, c4: 10.82, k: 6, kb: 1.3, yoff: 3.0, wpiOO: 0.78, oo3e: 0.45, mu: 0.5 };
+const TUNE = { kappa: 0.38, c1: 0.6, c4: 10.82, k: 6, kb: 1.3, yoff: 3.0, wpi: 0.85, wpiOO: 0.78, oo3e: 0.45, mu: 0.5, kbo: 0.4, tsStab: 0, pauliOpen: 0 };
 const RAMP_W = 0.15;
 const Y_ON = 3.6, Y_OFF = 5.6;      // Morse taper window (in units of a·(r − re))
 const COORD_R1 = 1.22, COORD_R2 = 1.50; // structural coordination switch (× single-bond length)
@@ -46,6 +46,7 @@ const BO_CAP = 0.10, BO_W = 0.08, BO_BETA = 3.6; // saturation bond order: 1 up 
 const BO_ON = 0.50, BO_OFF = 0.85;  // …tapered to zero between r₁+on and r₁+off (Å)
 const COUL_D2 = 0.3;                // Coulomb short-range shielding (Å²)
 const LJ_SHIELD = 0.55;             // LJ shielding radius as a fraction of r_min
+const OPEN_W = 0.25;                // smoothing width of the free-valence ramp
 const SUB_MAX = 16, SUB_ETOL = 6;  // at most 16 sub-steps; redo a step whose energy error exceeds 6 kJ/mol
 const CORE_A = 800;                 // kJ/mol, strength of the nuclear hard core
 const VMAX = 0.6;                   // Å/fs safety speed limit (60 km/s)
@@ -288,6 +289,16 @@ class Engine {
     this.T = opts.T ?? 298.15;
     this.tau = opts.tau ?? 250;     // thermostat coupling time, fs
     this.thermostat = opts.thermostat ?? true;
+    // The sample exchanges heat only in a thin boundary layer. CSVR remains available
+    // for preparing isolated molecules, not as the laboratory's thermostat.
+    this.thermostatMode = opts.thermostatMode || 'wall';
+    this.wallT = opts.wallT ?? this.T;
+    this.wallTarget = opts.wallTarget ?? Math.max(288.15, Math.min(623.15, this.T));
+    this.wallTau = opts.wallTau ?? 10000; // fs, C_wall / conductance of heater
+    this.wallCapacity = opts.wallCapacity ?? 1000 * KB; // kJ/(mol K), effective reservoir
+    this.wallSkin = opts.wallSkin ?? 2; // Å; zero direct coupling in the interior
+    this.wallCoupling = opts.wallCoupling ?? 100; // fs at the surface
+    this.heatToSample = 0; this.heaterWork = 0;
     this.rc = opts.rc || 8.0;
     this.skin = 1.0;
     this.rngState = (opts.seed ?? 12345) >>> 0;
@@ -314,7 +325,7 @@ class Engine {
     const f64 = n => new Float64Array(n);
     const arrays = {
       pos: f64(3 * cap), vel: f64(3 * cap), frc: f64(3 * cap), prev: f64(3 * cap), built: f64(3 * cap),
-      mass: f64(cap), phi: f64(cap), Zs: f64(cap), Zw: f64(cap), Gb: f64(cap), qg: f64(cap), Gz: f64(cap), formal: f64(cap), q: f64(cap), Z: f64(cap), cos0: f64(cap), G: f64(cap), ljx: f64(cap), ljq: f64(cap), lje: f64(cap),
+      mass: f64(cap), phi: f64(cap), Zs: f64(cap), openVal: f64(cap), Zw: f64(cap), Gb: f64(cap), qg: f64(cap), Gz: f64(cap), formal: f64(cap), q: f64(cap), Z: f64(cap), cos0: f64(cap), G: f64(cap), ljx: f64(cap), ljq: f64(cap), lje: f64(cap),
       type: new Int16Array(cap), val: new Int8Array(cap), lp: new Int8Array(cap), pinned: new Uint8Array(cap),
       ids: new Uint32Array(cap), cStart: new Int32Array(cap + 1), cCount: new Int32Array(cap)
     };
@@ -326,7 +337,7 @@ class Engine {
     const keep = this.pairCap ? { pI: this.pI, pJ: this.pJ, pN: this.pN } : null;
     this.pI = new Int32Array(cap); this.pJ = new Int32Array(cap); this.pN = f64(cap);
     this.pR = f64(cap); this.pDx = f64(cap); this.pDy = f64(cap); this.pDz = f64(cap);
-    this.pF = f64(cap); this.pFp = f64(cap); this.pS = f64(cap); this.pSp = f64(cap); this.pScr = f64(cap); this.pSraw = f64(cap); this.pSpRaw = f64(cap); this.pD = f64(cap); this.gAb = f64(cap); this.gBb = f64(cap);
+    this.pF = f64(cap); this.pFp = f64(cap); this.pS = f64(cap); this.pSp = f64(cap); this.pScr = f64(cap); this.pSraw = f64(cap); this.pSpRaw = f64(cap); this.pSig = f64(cap); this.pD = f64(cap); this.gAb = f64(cap); this.gBb = f64(cap);
     if (!this.tri) { this.tri = new Int32Array(4096); this.nTri = 0; } this.pB = f64(cap); this.gA = f64(cap); this.gB = f64(cap);
     this.cList = new Int32Array(2 * cap);
     if (keep) { this.pI.set(keep.pI.subarray(0, this.nPairs)); this.pJ.set(keep.pJ.subarray(0, this.nPairs)); this.pN.set(keep.pN.subarray(0, this.nPairs)); }
@@ -506,7 +517,7 @@ class Engine {
           pF[p] = SW; pFp[p] = SWD;
           Z[i] += SW; Z[j] += SW;
           this.cCount[i]++; this.cCount[j]++;
-          const raw = KAPPA * SW * (CHI[type[j]] - CHI[type[i]]);
+          const raw = TUNE.kappa * SW * (CHI[type[j]] - CHI[type[i]]);
           const dq = raw / Math.pow(1 + (raw / Q_MAX) ** 4, 0.25);
           q[i] += dq; q[j] -= dq;
         }
@@ -551,11 +562,30 @@ class Engine {
       if (pS[p] === 0) continue;
       // valence used = screened bond order × multiplicity; the π part of O=O counts only partly,
       // because ground-state O₂ is a triplet diradical that radicals add to without a barrier
-      const n = this.pN[p], S = scr[p] * (PAIR[type[pI[p]] * NT + type[pJ[p]]].oo ? 1 + TUNE.wpiOO * (n - 1) : n);
+      const n = this.pN[p], S = scr[p] * (1 + (PAIR[type[pI[p]] * NT + type[pJ[p]]].oo ? TUNE.wpiOO : TUNE.wpi) * (n - 1));
       pS[p] *= S; pSp[p] *= S;
       Zs[pI[p]] += pS[p]; Zs[pJ[p]] += pS[p];
       const Dp = pD[p] = bondWeight(PAIR[type[pI[p]] * NT + type[pJ[p]]], this.pN[p], mu);
       Zw[pI[p]] += pS[p] * Dp; Zw[pJ[p]] += pS[p] * Dp;
+    }
+    // Free (unpaired) valence per atom, smoothed so forces stay continuous. A half-filled orbital
+    // feels much less Pauli repulsion than a closed shell, which is why radicals add without a barrier.
+    const open = this.openVal;
+    for (let i = 0; i < N; i++) {
+      const x = val[i] - Zs[i];
+      open[i] = x <= 0 ? 0 : x < OPEN_W ? x * x / (2 * OPEN_W) : Math.min(1, x - OPEN_W / 2);
+    }
+    // Partly-formed valence is stabilised (the delocalisation a half-made bond enjoys, ReaxFF's
+    // under-coordination term). It vanishes at whole valence, so reactants, products and every fitted
+    // bond energy are untouched; it only lowers the cost of being half-way through a reaction.
+    if (TUNE.tsStab > 0) {
+      const lam = TUNE.tsStab;
+      for (let i = 0; i < N; i++) {
+        const spare = val[i] - Zs[i];
+        if (spare <= 0 || spare >= 1) continue;
+        E -= lam * 4 * spare * (1 - spare);
+        this.G[i] += 4 * lam * (1 - 2 * spare);
+      }
     }
     // polar hydrogens get a small Pauli radius (hydrogen bonding)
     const ljx = this.ljx;
@@ -611,8 +641,23 @@ class Engine {
       if (pp.core > 0 && r < pp.core) { const u = pp.core / r - 1; e += CORE_A * u * u; dEdr += -2 * CORE_A * u * pp.core / (r * r); }
       // LJ Pauli wall acts at contact distances; inside the bonding window (s > 0) the Morse term
       // already carries the repulsion, so the wall fades there: weight (1 − b)·(1 − s)
-      const sr = this.pSraw[p], srp = this.pSpRaw[p], wP = (1 - b) * (1 - sr);
-      e += wP * LR; dEdr += wP * LDR - (1 - b) * LR * srp; lam -= (1 - sr) * LR;
+      const sr = this.pSraw[p], srp = this.pSpRaw[p];
+      // open-shell partners screen each other less: the wall fades with their free valence
+      let openF = 1, dOpenI = 0, dOpenJ = 0;
+      if (TUNE.pauliOpen > 0) {
+        const o = open[i] + open[j];
+        if (o > 0) {
+          const t = o < 1 ? o * o * (3 - 2 * o) : 1, dt = o < 1 ? 6 * o * (1 - o) : 0;
+          openF = 1 - TUNE.pauliOpen * t;
+          const d = -TUNE.pauliOpen * dt;
+          dOpenI = open[i] > 0 && open[i] < 1 ? d : 0; dOpenJ = open[j] > 0 && open[j] < 1 ? d : 0;
+        }
+      }
+      const wP = (1 - b) * (1 - sr) * openF;
+      e += wP * LR; dEdr += wP * LDR - (1 - b) * openF * LR * srp; lam -= (1 - sr) * openF * LR;
+      // dE/dZs through the open-shell factor (dopen/dZs = −1 inside the ramp)
+      if (dOpenI !== 0) G[i] -= dOpenI * (1 - b) * (1 - sr) * LR;
+      if (dOpenJ !== 0) G[j] -= dOpenJ * (1 - b) * (1 - sr) * LR;
       // excluded (1-2) dispersion + electrostatics
       const qq = q[i] * q[j];
       let h = 0, dh = 0;
@@ -657,9 +702,9 @@ class Engine {
       const fp = pFp[p]; if (fp === 0) continue;
       const i = pI[p], j = pJ[p];
       const dchi = CHI[type[j]] - CHI[type[i]];
-      const raw = KAPPA * pF[p] * dchi;
+      const raw = TUNE.kappa * pF[p] * dchi;
       const transferGrad = Math.pow(1 + (raw / Q_MAX) ** 4, -1.25);
-      const dEdr = KAPPA * fp * dchi * transferGrad * (phi[i] - phi[j]) + (Gz[i] + Gz[j]) * fp;
+      const dEdr = TUNE.kappa * fp * dchi * transferGrad * (phi[i] - phi[j]) + (Gz[i] + Gz[j]) * fp;
       if (dEdr === 0) continue;
       const s = dEdr / pR[p], fx = s * pDx[p], fy = s * pDy[p], fz = s * pDz[p];
       F[3 * i] += fx; F[3 * i + 1] += fy; F[3 * i + 2] += fz;
@@ -694,19 +739,43 @@ class Engine {
     const rc = this.rc, g = 1 / Math.sqrt(r * r + COUL_D2), gc = 1 / Math.sqrt(rc * rc + COUL_D2);
     return COUL * qq * (-r * g * g * g + rc * gc * gc * gc);
   }
+  /* Multiple bonds follow the sigma bonding each atom already has, measured with the same
+     long-ranged bond order the saturation uses (screened, so 1-3 neighbours do not count). A radical
+     approaching a double bond therefore weakens the pi bond while its own bond forms — bond order is
+     conserved along the path instead of the pi bond having to break first. */
   _updateBondOrders(dt) {
-    const N = this.N, Z = this.Z, val = this.val, cStart = this.cStart, cList = this.cList, pF = this.pF, pI = this.pI, pJ = this.pJ, pN = this.pN, type = this.type;
+    const N = this.N, val = this.val, cStart = this.cStart, cList = this.cList, pI = this.pI, pJ = this.pJ, pN = this.pN, type = this.type;
+    const sig = this.pSig, scr = this.pScr, praw = this.pSraw;
     const spare = this._spare && this._spare.length >= N ? this._spare : (this._spare = new Float64Array(this.cap));
     const D = this._D && this._D.length >= N ? this._D : (this._D = new Float64Array(this.cap));
-    for (let i = 0; i < N; i++) spare[i] = Math.max(0, val[i] - Z[i]);
+    const Zs = this._Zsig && this._Zsig.length >= N ? this._Zsig : (this._Zsig = new Float64Array(this.cap));
+    for (let p = 0; p < this.nPairs; p++) {
+      const raw = scr[p] * praw[p];
+      // kbo < 1 starts the response while the partner is still approaching, so the pi bond gives way
+      // as the new bond forms instead of afterwards
+      sig[p] = raw <= 0 || raw >= 1 ? raw : Math.pow(raw, TUNE.kbo);
+    }
+    // Two passes: a partner consumes valence only to the extent that it can bond at all, so a radical
+    // approaching a double bond frees the pi bond while a saturated molecule drifting past does not.
+    // An already-formed bond (sigma ≈ 1) always counts in full.
+    for (let pass = 0; pass < 2; pass++) {
+      Zs.fill(0, 0, N);
+      for (let p = 0; p < this.nPairs; p++) {
+        const v = sig[p]; if (v <= 0) continue;
+        const i = pI[p], j = pJ[p];
+        const wi = pass === 0 ? 1 : Math.min(1, spare[j] + v), wj = pass === 0 ? 1 : Math.min(1, spare[i] + v);
+        Zs[i] += v * wi; Zs[j] += v * wj;
+      }
+      for (let i = 0; i < N; i++) spare[i] = Math.max(0, val[i] - Zs[i]);
+    }
     for (let i = 0; i < N; i++) {
       let s = 0;
-      for (let c = cStart[i]; c < cStart[i + 1]; c++) { const p = cList[c], k = pI[p] === i ? pJ[p] : pI[p]; s += pF[p] * Math.min(2, spare[k]); }
+      for (let c = cStart[i]; c < cStart[i + 1]; c++) { const p = cList[c], k = pI[p] === i ? pJ[p] : pI[p]; s += sig[p] * Math.min(2, spare[k]); }
       D[i] = s;
     }
     const rate = -Math.expm1(Math.log(0.92) * dt); // identical decay over any subdivision
     for (let p = 0; p < this.nPairs; p++) {
-      const f = pF[p];
+      const f = sig[p];
       let target = 1;
       if (f > 0) {
         const i = pI[p], j = pJ[p];
@@ -785,7 +854,7 @@ class Engine {
     for (let t = 0; t < this.nTri; t++) {
       const q = tri[4 * t], pa = tri[4 * t + 1], pb = tri[4 * t + 2];
       const j = pI[q], k = pJ[q];
-      const nEff = PAIR[this.type[j] * NT + this.type[k]].oo ? 1 + TUNE.wpiOO * (pN[q] - 1) : pN[q];
+      const nEff = 1 + (PAIR[this.type[j] * NT + this.type[k]].oo ? TUNE.wpiOO : TUNE.wpi) * (pN[q] - 1);
       const D = this.pD[q], Gb = this.Gb;
       const dEdS = pS[q] * nEff * ((G[j] + Gb[j] * D - gA[q] - this.gAb[q] * D) + (G[k] + Gb[k] * D - gB[q] - this.gBb[q] * D));
       if (dEdS === 0) continue;
@@ -924,7 +993,10 @@ class Engine {
       if (v2 >= VMAX * VMAX) { clamped++; const s = VMAX / Math.sqrt(v2); vel[3 * i] *= s; vel[3 * i + 1] *= s; vel[3 * i + 2] *= s; }
     }
     this.clamped += clamped;
-    if (this.thermostat) this._csvr();
+    if (this.thermostat) {
+      if (this.thermostatMode === 'csvr') this._csvr();
+      else this._wallBath(dt);
+    }
     this.time += dt; this.stepCount++;
     // pressure from wall forces, exponentially averaged over ~1 ps
     const Pinst = this.wallArea > 0 ? this.wallForce / this.wallArea * BAR : 0;
@@ -973,6 +1045,69 @@ class Engine {
   }
   dof() { let n = 0; for (let i = 0; i < this.N; i++) if (!this.pinned[i]) n += 3; return n; }
   temperature() { const nf = this.dof(); return nf ? 2 * this.kinetic() / (nf * KB) : 0; }
+  /* Finite-capacity wall reservoir with a first-order heater, then an exact
+     Ornstein–Uhlenbeck velocity update at fixed position in the boundary layer.
+     Noise and drag obey fluctuation–dissipation. Both act on the SAME atoms.
+     Wall heat is accounted separately from mechanical work and reaction energy.
+     All time constants use simulated fs, independent of rendering/playback. */
+  _wallBath(dt) {
+    const target = Math.max(288.15, Math.min(623.15, this.wallTarget));
+    const dT = (target - this.wallT) * -Math.expm1(-dt / this.wallTau);
+    this.wallT += dT;
+    this.heaterWork += this.wallCapacity * dT;
+    let heat = 0;
+    this._bathBefore = this._copy(this._bathBefore, this.vel, 3 * this.N);
+    const b = this.box, v = this.vel, p = this.pos;
+    for (let i = 0; i < this.N; i++) {
+      if (this.pinned[i]) continue;
+      const k = 3 * i;
+      const distance = this.sphere ? this.sphere.R - Math.hypot(p[k] - this.sphere.x, p[k + 1] - this.sphere.y, p[k + 2] - this.sphere.z) :
+        Math.min(p[k] - b.x0, b.x1 - p[k], p[k + 1] - b.y0, b.y1 - p[k + 1], p[k + 2] - b.z0, b.z1 - p[k + 2]);
+      if (distance >= this.wallSkin) continue;
+      const u = Math.max(0, distance / this.wallSkin);
+      const weight = (1 - u) ** 2;
+      const c = Math.exp(-dt * weight / this.wallCoupling);
+      const variance = -Math.expm1(-2 * dt * weight / this.wallCoupling) * KB * this.wallT / (this.mass[i] * KEU);
+      const sigma = Math.sqrt(Math.max(0, variance));
+      for (let d = k; d < k + 3; d++) {
+        const before = v[d];
+        v[d] = c * before + sigma * this.gauss();
+        heat += 0.5 * KEU * this.mass[i] * (v[d] ** 2 - before ** 2);
+      }
+    }
+    // Positive heat enters the sample and leaves the wall. A finite reservoir
+    // must not provide more energy than it owns; callers choose a macroscopic C.
+    if (heat > this.wallCapacity * this.wallT) {
+      // Reject an impossible reservoir exchange without corrupting the state.
+      this.vel.set(this._bathBefore.subarray(0, 3 * this.N));
+      return;
+    }
+    this.wallT -= heat / this.wallCapacity;
+    this.heatToSample += heat;
+  }
+  setTemperature(T) {
+    if (!Number.isFinite(T) || T < 0) throw new RangeError('Temperature must be finite and non-negative');
+    this.checkpoints.length = 0;
+    if (this.thermostat && this.thermostatMode === 'wall') {
+      this.wallTarget = Math.max(288.15, Math.min(623.15, T));
+      this.T = this.wallTarget;
+      return; // heater setpoint changes; neither walls nor sample jump
+    }
+    this.T = T;
+    if (!this.thermostat) {
+      // This is an explicit user intervention, not thermostatted dynamics.
+      const current = this.temperature();
+      if (T === 0) this.vel.fill(0, 0, 3 * this.N);
+      else if (this.dof()) {
+        if (current <= 1e-20) this.thermalize(T);
+        const scale = Math.sqrt(T / this.temperature());
+        for (let i = 0; i < this.N; i++) {
+          if (this.pinned[i]) this.vel.fill(0, 3 * i, 3 * i + 3);
+          else for (let d = 3 * i; d < 3 * i + 3; d++) this.vel[d] *= scale;
+        }
+      }
+    }
+  }
   _csvr() {
     const Nf = this.dof(); if (!Nf) return;
     const K = this.kinetic(), Kt = 0.5 * Nf * KB * Math.max(0, this.T);
@@ -1103,6 +1238,9 @@ class Engine {
     return {
       N, time: this.time, stepCount: this.stepCount, rng: this.rngState, nextId: this.nextId,
       box: { ...this.box }, sphere: this.sphere && { ...this.sphere }, T: this.T, tau: this.tau, thermostat: this.thermostat,
+      thermostatMode: this.thermostatMode, wallT: this.wallT, wallTarget: this.wallTarget,
+      wallTau: this.wallTau, wallCapacity: this.wallCapacity, wallSkin: this.wallSkin, wallCoupling: this.wallCoupling,
+      heatToSample: this.heatToSample, heaterWork: this.heaterWork,
       nextSub: this.nextSub || 1, lastSub: this.lastSub || 1, Epot: this.Epot, Ewall: this.Ewall,
       wallForce: this.wallForce, wallArea: this.wallArea, pressureBar: this.pressureBar, pressureEMA: this.pressureEMA,
       needForces: this.needForces, needRebuild: this.needRebuild, redone: this.redone, clamped: this.clamped,
@@ -1117,7 +1255,7 @@ class Engine {
     this.N = s.N; this.time = s.time; this.stepCount = s.stepCount; this.rngState = s.rng; this.nextId = s.nextId;
     if (s.box) this.box = { ...s.box };
     this.sphere = s.sphere ? { ...s.sphere } : null;
-    for (const key of ['T', 'tau', 'thermostat', 'nextSub', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
+    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'heatToSample', 'heaterWork', 'nextSub', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
     this.tweezer = null;
     this.pos.set(s.pos); this.vel.set(s.vel); this.frc.set(s.frc); this.prev.set(s.pos);
     this.type.set(s.type); this.formal.set(s.formal); this.val.set(s.val); this.lp.set(s.lp); this.pinned.set(s.pinned); this.ids.set(s.ids); this.cos0.set(s.cos0);
@@ -1176,7 +1314,7 @@ class Engine {
   toJSON() {
     const atoms = [];
     for (let i = 0; i < this.N; i++) atoms.push([ELEMENTS[this.type[i]].sym, +this.pos[3 * i].toFixed(4), +this.pos[3 * i + 1].toFixed(4), +this.pos[3 * i + 2].toFixed(4), +this.vel[3 * i].toFixed(6), +this.vel[3 * i + 1].toFixed(6), +this.vel[3 * i + 2].toFixed(6), this.formal[i], this.val[i]]);
-    return { format: 'chem-playground/scene@1', box: this.box, T: this.T, tau: this.tau, thermostat: this.thermostat, time: this.time, atoms };
+    return { format: 'chem-playground/scene@1', box: this.box, T: this.T, tau: this.tau, thermostat: this.thermostat, thermostatMode: this.thermostatMode, wallT: this.wallT, wallTarget: this.wallTarget, wallTau: this.wallTau, heatToSample: this.heatToSample, heaterWork: this.heaterWork, time: this.time, atoms };
   }
 }
 

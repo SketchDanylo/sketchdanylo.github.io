@@ -1,8 +1,21 @@
 # Chem Playground
 
-A reactive molecular-dynamics sandbox at true scale. Atoms and molecules live in a 3D slab, 1.2 nm deep by default, which you view from above, so reactions cannot drift away along z. The view zooms from 0.05 nm to 5 nm. Bonds are never scripted: they form and break from the potential energy surface.
+A reactive molecular-dynamics sandbox at true scale. Atoms and molecules live in a 3D slab, 1.2 nm deep by default, which you view from above, so reactions cannot drift away along z. The manual view zooms from 0.05 nm to 15 nm. Chamber dimensions extend to 50 nm; Fit can zoom farther out to show the complete box. In the sandbox, bonds form and break from an experimental potential energy model.
 
 Open `playground/` on the site. Molecules come only from [Nomenclature](../nomenclature.html) → **Playground**; single atoms come from the dock.
+
+## Boundary thermostat
+
+The laboratory uses a **spatial wall thermostat**, not a global velocity rescale:
+
+- Heater targets are **15–350 °C**. Changing the target does not jump the sample or wall temperature.
+- The wall follows `dT/dt = (T_target - T_wall) / tau`; its response time is adjustable in **simulated ps**, default 10 ps. This specifies a nanoscale thermal reservoir, not the heating time of a particular laboratory appliance.
+- Only atoms within **0.2 nm of a wall** couple to the reservoir. The coupling vanishes quadratically at the inner edge. An exact Ornstein–Uhlenbeck velocity update combines drag and Gaussian noise with fluctuation–dissipation variance. Interparticle forces carry energy through the interior.
+- Effective wall heat capacity is 1000 k_B. Heat given to the sample is subtracted from the wall; heater work and sample heat are recorded separately and included in deterministic snapshots. This finite reservoir approximation is not an explicit solid-wall atomistic model.
+- With the thermostat **off**, editing temperature immediately rescales kinetic energy to the requested temperature, including an initialization from rest. Pinned atoms remain fixed. Subsequent dynamics have no thermostat.
+- Isolated molecule conditioning retains a separate CSVR sampling bath.
+
+[Spatial Langevin thermostat methodology](https://docs.lammps.org/fix_langevin.html). This engine uses its own exact OU update, not the LAMMPS integration algorithm.
 
 ## Time
 
@@ -14,8 +27,7 @@ Open `playground/` on the site. Molecules come only from [Nomenclature](../nomen
 
 ## Force field
 
-A compact bond-order reactive force field in the Tersoff / Brenner / ReaxFF family, written for this app
-and fitted to measured data.
+A custom, experimental bond-order model inspired by reactive force-field ideas. It is not an implementation of Tersoff, Brenner, or ReaxFF, and its fitted examples do not establish general chemical accuracy.
 
 | Term | Form | Data |
 | --- | --- | --- |
@@ -28,7 +40,7 @@ and fitted to measured data.
 | Angles | VSEPR, θ₀ a smooth function of the continuous steric number | 109.5°, 107°, 104.5°, 120°, 180° |
 | Non-bonded | Shielded Lennard-Jones (UFF); its Pauli wall fades where the Morse term already repels, and between atoms that can still bond. Shifted-force Coulomb between saturating bond-polarisation charges | UFF, Pauling electronegativity |
 | Walls | Soft harmonic container; the normal force on the walls is the displayed pressure | — |
-| Heat bath | Bussi CSVR thermostat (canonical); switch it off for an isolated box | — |
+| Wall reservoir | Local OU coupling at the boundary; finite heat capacity, gradual heater response | Model parameters, not a calibrated apparatus |
 
 Every force is the exact gradient of the energy, including the many-body saturation, screening, charge and
 VSEPR terms; `physics-check.cjs` verifies this numerically (errors ≈1e-6 kJ/mol/Å). The only lagged
@@ -84,10 +96,7 @@ Mixtures that react on their own (40 ps each, `--dyn`):
 - CH₄ + O₂ at 3500 K goes through CH₂O, OH· and H₂O — the real combustion intermediates.
 - Scattered H and O atoms build H₂, O₂, OH· and H₂O.
 
-**Why nothing happens at room temperature.** This is real kinetics, not a bug. A second of simulation
-covers tens of nanoseconds, while a hydrogen–oxygen mixture at 298 K takes years to ignite by itself.
-To see a textbook reaction, either raise the temperature (1500–4000 K), or start the chain yourself by
-placing single atoms — radicals react immediately.
+**Why a mixture may appear inactive.** At the default target rate, one wall-clock second covers only 20 picoseconds (often less when CPU-bound). A reaction may need activation, a catalyst, solvent, or a mechanism this model cannot represent. Lack of a reaction here is not evidence that a real mixture is unreactive. Heating the sandbox or adding radicals explores this model only.
 
 **Limits.** A classical reactive model, not quantum chemistry. Spin is absent: O₂ is patched to behave
 like the triplet diradical it is, but the general case is not. Some barriers are off by 20–40 kJ/mol
@@ -101,12 +110,33 @@ metals, hypervalent geometry, tunnelling, excited states and solvent chemistry a
 
 In the Playground, a molecule is first **conditioned** in a spherical cell:
 
-- **Room**: 298 K and 1 atm.
-- **Absolute zero**: energy-minimised and motionless.
-- **Custom**: any T and P. The cell radius follows the ideal-gas volume per molecule, so only high pressure squeezes it.
+- **Room**: a 298 K sampling bath; nominal confinement size estimated from 1 atm.
+- **Zero K**: classical geometry minimisation and zero initial velocity; no quantum zero-point motion.
+- **Custom**: temperature and a nominal pressure used to estimate confinement size. This cell has no barostat and does not establish bulk pressure. A 2 ps preview is sampling, not proof of equilibration.
 
-Then you place it: click to drop it, drag to throw it (the arrow shows speed and kinetic energy), Q/E to rotate, Shift-click to place several.
+Then click to place, drag to throw, Q/E to rotate, or Shift-click to place several. **Place with zero initial velocity** disables both internal and translational velocities, including a drag launch; forces can still accelerate the molecule after placement. Otherwise conditioned internal motion and Maxwell molecular translation are retained.
 
 ## Controls
 
 Press `?` for every shortcut. Click a key to rebind it; conflicts move automatically, and bindings persist. Letter bindings follow the physical key, so they work on any keyboard layout. `Ctrl+K` opens a command palette that also understands `500 K`, `80 °C` and `2x`.
+
+## Additional checks and model limitations
+
+Run `node playground/tests/regression.cjs` for force-query invariance, charge conservation, variable-radius force gradients, hot rewind across checkpoints, pinned atoms, failure handling, and malformed imports.
+
+Bond multiplicity relaxes as an internal heuristic variable. Fixed-state force gradient checks do not prove total energy conservation during reactions. The heat bath exchanges energy; the engine also counts safety velocity clamps in extreme collisions. Neither behavior should be mistaken for isolated, rigorously conservative dynamics. The UI reports those clamps when they occur.
+
+The camera is orthographic: depth changes shading, not apparent atomic radii. Contours are summed Gaussians, not electron-density calculations. Playback speed is a nonlinear UI setting, not a multiplier of physical real time.
+
+Imported molecules now receive Maxwell–Boltzmann center-of-mass translation at their conditioning temperature. Previously, removing this motion for preview alignment and never restoring it left molecules vibrating in place. A drag-to-throw overrides that translation; 0 K placements remain motionless. Existing scenes can use **Resample thermal motion** (in the temperature menu, live observations, or **Shift+T**) to draw fresh thermal velocities. This is an explicit state edit and can be undone.
+
+
+## Current physics work
+
+The scripted reaction notebook has been removed. No reaction recipes select products or animate an imposed trajectory.
+
+`node playground/tests/thermal-walls.cjs` checks spatial isolation, heater response, heat accounting, velocity statistics, direct temperature edits, setpoint limits and wall-state rewind.
+
+`node playground/tests/radical-addition.cjs` is a **diagnostic, not a passing validation**. The current constrained Cl· approach to ethene has a spurious entrance barrier of approximately 128 kJ/mol. Bond multiplicity begins to respond too late. This remains unresolved; the thermostat work does not fix it. Reference: [Cl + ethylene potential-energy surface](https://doi.org/10.1021/jp001221u).
+
+Bulk water phase behavior and molecular electron-density calculations have not been validated or implemented. A water-dimer check does not establish an ice melting point. 273.15 K alone does not ensure a nucleated ice structure; pressure, density, finite size and model-dependent phase equilibria matter. See [water models including TIP4P/Ice](https://docs.lammps.org/stable/Howto_tip4p.html).

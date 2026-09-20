@@ -1,0 +1,15 @@
+{
+  "repository": "https://github.com/W1neSkin/quantum-field-molecules",
+  "commit": "c82e243ed7324d488d46ab55031cff3575680d55",
+  "license": "MIT",
+  "files": {
+    "LICENSE": "7b6d7d5ceee7d437dbbeb7fe78954f7c693b985f4ca6c176ef8eddc24cf31750",
+    "basis.js": "f75f70771c69aadfb4f43d24b793e92bfd13e1eb3a1295c4b39bbb60a55f980a",
+    "linalg.js": "17804b470dc4c6aec27a026976805fb9c39429484c1b73cd7713dcb8283a0959",
+    "integrals.js": "3e0f0f7e5e101bcd1ec86c011d92235b225e9b96fea3ad28e528610220622afe",
+    "eri.js": "213c560597da4b398f2ae3c5382fcebb4717f95039034d67a69b3ab0c2f26b48",
+    "scf.js": "01742dd9ffd474ba76811518ab34ebcbe5c2c752051085b04b63b0adf79c0513",
+    "uhf.js": "27cb94901ca412524f8d1e7c1b77899f7c74ddc0a2197de0d51136959a041d39",
+    "props.js": "17263ad35e079511e24cc9622f501402a46ff8ab26eb45ba76d4733b26418bc0"
+  }
+}

@@ -32,7 +32,7 @@
 <!-- conditions -->
 <section class="gauges" id="gauges" aria-label="Conditions">
   <div class="gauge" id="gT">
-    <span class="bb" id="bbDot"></span>
+    <button class="bb" id="bbDot" aria-label="Temperature and wall thermostat settings" title="Temperature settings"></button>
     <span class="scrub" id="tField" data-unit="K" title="Target temperature — drag, scroll or click to type"></span>
     <span class="measured" id="tMeasured" title="Measured kinetic temperature"></span>
   </div>
@@ -45,24 +45,21 @@
   </button>
 </section>
 
-<nav class="view-controls" aria-label="Display and camera">
-  <div class="view-seg" aria-label="Atom representation">
-    <button data-view="balls" aria-pressed="false">Ball &amp; stick</button>
-    <button data-view="space" aria-pressed="false">Space filling</button>
-    <button data-view="density" aria-pressed="false">Contours</button>
-  </div>
-  <button id="fitBtn" class="view-fit" title="Fit chamber (F)" aria-label="Fit chamber">↗<span> Fit</span></button>
+<nav class="view-controls" aria-label="Lab controls">
+  <button id="measurementsBtn" class="view-fit" aria-expanded="false" aria-controls="measurementsPanel">◷<span> Measurements</span></button>
+  <button id="fitBtn" class="view-fit" title="Fit chamber (0)" aria-label="Fit chamber">↗<span> Fit</span></button>
 </nav>
-<aside class="lab-readout" aria-label="Live measurements">
+<aside class="lab-readout" id="measurementsPanel" aria-label="Live measurements" inert>
   <div class="readout-heading">LIVE OBSERVATIONS <span id="atomCount">0 atoms</span></div>
   <div><span>Kinetic temperature</span><strong id="liveTemperature">—</strong></div>
   <div><span>Total energy</span><strong id="liveEnergy">—</strong></div>
   <div><span>Bath</span><button id="bathBtn" aria-pressed="true">298 K · on</button></div>
+  <button id="resampleBtn" class="resample" title="Sample fresh thermal velocities at the target temperature (Shift+T)">Resample thermal motion ↗</button>
   <div class="readout-foot">3D chamber <span>1 fs / step</span></div>
+  <p id="physicsNotice" class="physics-notice" role="status" hidden></p>
 </aside>
 <button class="model-pill" id="modelBtn" aria-haspopup="dialog"><span>i</span> Experimental model <span class="model-arrow">↗</span></button>
 <div class="tool-context" id="toolContext">Drag to pan · scroll to zoom</div>
-
 <!-- tool + element dock -->
 <nav class="dock" id="dock" aria-label="Tools and elements">
   <div class="tools" id="tools"></div>
@@ -131,6 +128,7 @@
       <label>T <span class="scrub" id="cT" data-unit="K"></span></label>
       <label title="Ideal-gas pressure used only to estimate the confinement size; no barostat">P estimate <span class="scrub" id="cP" data-unit="bar"></span></label>
     </div>
+    <label class="placement-rest"><input type="checkbox" id="placeAtRest"> Place with zero initial velocity</label>
     <p class="condition-note">Isolated molecule preview. Pressure sets a nominal cell size; it is not an equilibrated bulk sample.</p>
     <div class="cond-status" id="condStatus"><i id="condBar"></i><span id="condText"></span></div>
     <div class="sheet-actions">
@@ -168,21 +166,21 @@
   <p class="eyebrow">SMALL WORLD. ROOM TO EXPERIMENT.</p>
   <h1>Chemistry, in motion.</h1>
   <p class="welcome-copy">Place an atom. Bring a molecule.<br>Explore what happens, one femtosecond at a time.</p>
-  <div class="welcome-actions"><button class="primary" id="startAtom">Place your first atom <span>↗</span></button><a href="../nomenclature.html" target="_blank" rel="noopener">Draw a molecule ↗</a></div>
+  <div class="welcome-actions"><button id="startAtom" class="primary">Place an atom <span>+</span></button><a href="../nomenclature.html" target="_blank" rel="noopener">Draw ↗</a></div>
   <div class="welcome-guide"><span><kbd>Space</kbd> play / pause</span><span><kbd>scroll</kbd> zoom</span><span><kbd>?</kbd> shortcuts</span></div>
 </div>
 
 <dialog id="modelDialog" class="model-dialog" aria-labelledby="modelTitle">
   <div class="dialog-head"><div><p class="eyebrow">ABOUT THIS LAB</p><h2 id="modelTitle">A model, with limits.</h2></div><button class="x" id="modelClose" aria-label="Close model notes">×</button></div>
-  <p>Bonds are never scripted: they form and break from a reactive force field fitted to measured bond lengths, bond energies and reaction barriers. Structures and heats of reaction are close to experiment; individual barriers can be off by 20–40 kJ/mol, so treat rates as qualitative.</p>
+  <p>The sandbox uses an experimental reactive force field with fitted molecular examples. Its reactions and rates are qualitative.</p>
   <dl class="model-facts">
     <div><dt>Physical clock</dt><dd>Each step advances 1 fs. At 1×, the target is 20,000 steps/s: <b>20 ps per real second</b>. At 0.1×, one step takes one second. × is a playback setting.</dd></div>
-    <div><dt>Why room temperature looks dead</dt><dd>Real kinetics, not a bug. A second here covers tens of nanoseconds; an H₂/O₂ mixture at 298 K needs years to ignite. To see a textbook reaction, <b>raise the temperature to 1500–4000 K</b>, or drop in single atoms — radicals react at once.</dd></div>
+    <div><dt>Why a mixture may seem inactive</dt><dd>A second at the target sandbox rate covers only 20 picoseconds. A reaction may need activation, solvent, or chemistry this model cannot represent. For stationary imports, use <b>Resample thermal motion</b>.</dd></div>
     <div><dt>What is checked</dt><dd>H₂ 0.741 Å / 436 kJ/mol, water 104.2°, the water dimer at −18 kJ/mol, 2 H₂ + O₂ → 2 H₂O at −486 (lit. −484), H + H₂ barrier 43 (lit. 40). Na + Cl₂ → NaCl runs at 300 K; CH₄ + O₂ at 3500 K passes through CH₂O and OH·.</dd></div>
     <div><dt>Known to be wrong</dt><dd>Spin is absent (O₂ is patched to act as the triplet diradical it is). Cl + H₂ and OH + H₂ have barriers that are too high, H + O₂ → OH + O too low. CO gets a double bond instead of a triple. No tunnelling, excited states or solvent.</dd></div>
     <div><dt>Three dimensions</dt><dd>A top-down orthographic view of a soft-walled 3D slab. Zoom changes the view, never atom sizes or the chamber volume.</dd></div>
-    <div><dt>Energy &amp; pressure</dt><dd>Forces are exact gradients of the energy, so an isolated box conserves energy (&lt;2 kJ/mol over 2 ps). The heat bath exchanges energy on purpose. Wall pressure is averaged normal stress; there is no pressure controller.</dd></div>
-    <div><dt>What you see</dt><dd>Space filling uses tabulated van der Waals radii. Ball &amp; stick reduces those radii for clarity. Contours are a Gaussian illustration, not calculated electron density.</dd></div>
+    <div><dt>Energy &amp; pressure</dt><dd>Force checks hold internal bond orders fixed. Changing those heuristic orders can cause energy drift; extreme-collision speed clamps also remove energy. The wall reservoir exchanges heat near the boundaries. Its temperature approaches the setpoint over a specified simulation time, while collisions and interactions carry heat through the sample. Wall pressure is averaged normal stress, with no pressure controller.</dd></div>
+    <div><dt>What you see</dt><dd>The field contours show tabulated atomic sizes through Gaussian surfaces. They are not a quantum electron-density calculation.</dd></div>
     <div><dt>Zero kelvin</dt><dd>A classical geometry minimum with zero initial velocities. Quantum zero-point motion is not represented.</dd></div>
   </dl>
   <p class="model-source">Methods: <a href="https://manual.gromacs.org/current/reference-manual/algorithms/molecular-dynamics.html" target="_blank" rel="noopener">MD integration ↗</a> <a href="https://docs.lammps.org/pair_reaxff.html" target="_blank" rel="noopener">Validated reactive force fields ↗</a>. This engine is not ReaxFF.</p>
@@ -193,6 +191,7 @@
 <script src="engine.js"></script>
 <script src="protocol.js"></script>
 <script src="render.js"></script>
+<script src="inspector.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
