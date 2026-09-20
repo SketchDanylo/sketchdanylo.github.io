@@ -36,9 +36,11 @@ A custom, experimental bond-order model inspired by reactive force-field ideas. 
 | Saturation | `b = p_i·p_j`, `p = 1/(1 + 0.6x + 10.8x⁶)`, x = excess valence if this bond were fully formed | Fitted to the barriers below while keeping closed-shell dimers non-sticky |
 | Evans–Polanyi | Excess valence is weighted by `√(De_competing / De_new)`, so a stronger incoming bond displaces a weaker one more easily. An atom at its normal valence is unaffected | Fitted to F + H₂ and H + Cl₂ |
 | Screening | Two atoms bonded to a common neighbour do not compete for each other's valence, unless they are bonded themselves | — |
-| Bond order | Spare valence shared between neighbours → C=C, C≡C, O=O, N≡N, CO₂, aromatic 1.5. O₂'s π bond counts as only 0.78 of oxygen's valence (triplet O₂ is a diradical), and an O–O bond with one unpaired oxygen gains 0.45 order (the three-electron bond of HO₂·) | O₂ and HO₂ chemistry |
+| Bond order | Spare valence shared between neighbours → C=C, C≡C, O=O, N≡N, CO₂, aromatic 1.5. It follows the same long-ranged, screened bond order the saturation uses, so a partner weakens a π bond *while* its own bond forms; a partner claims valence only insofar as it can bond at all, so a radical frees the π bond and a saturated molecule drifting past does not | Radical addition to alkenes |
+| π blocking | A π bond blocks an incoming partner at 0.85 of a σ bond, being weaker and more polarizable. O₂'s π counts 0.78 (triplet O₂ is a diradical) and an O–O bond with one unpaired oxygen gains 0.45 order (the three-electron bond of HO₂·) | Cl + ethene; O₂ and HO₂ chemistry |
 | Angles | VSEPR, θ₀ a smooth function of the continuous steric number | 109.5°, 107°, 104.5°, 120°, 180° |
 | Non-bonded | Shielded Lennard-Jones (UFF); its Pauli wall fades where the Morse term already repels, and between atoms that can still bond. Shifted-force Coulomb between saturating bond-polarisation charges | UFF, Pauling electronegativity |
+| Charge scale | 0.38 e per unit electronegativity difference per bond, calibrated on condensed water rather than the gas-phase dimer — the same deliberate over-polarisation the TIP3P family uses. Covalent bonds, NaCl and HCl are unaffected | Water cohesion, O–O distance |
 | Walls | Soft harmonic container; the normal force on the walls is the displayed pressure | — |
 | Wall reservoir | Local OU coupling at the boundary; finite heat capacity, gradual heater response | Model parameters, not a calibrated apparatus |
 
@@ -101,8 +103,10 @@ Mixtures that react on their own (40 ps each, `--dyn`):
 **Limits.** A classical reactive model, not quantum chemistry. Spin is absent: O₂ is patched to behave
 like the triplet diradical it is, but the general case is not. Some barriers are off by 20–40 kJ/mol
 (Cl + H₂ and OH + H₂ too high, H + O₂ → OH + O too low), so *relative rates are qualitative*. CO is
-modelled with a double instead of a triple bond, so carbon-monoxide energetics are wrong. Transition
-metals, hypervalent geometry, tunnelling, excited states and solvent chemistry are not represented.
+modelled with a double instead of a triple bond, so carbon-monoxide energetics are wrong. Water condenses
+but freezes far too cold, and π stacking is over-bound (benzene dimer ≈ −18 kJ/mol against ≈ −10).
+Transition metals, hypervalent geometry, tunnelling, excited states and solvent chemistry are not
+represented.
 
 ## Nomenclature bridge
 
@@ -137,6 +141,27 @@ The scripted reaction notebook has been removed. No reaction recipes select prod
 
 `node playground/tests/thermal-walls.cjs` checks spatial isolation, heater response, heat accounting, velocity statistics, direct temperature edits, setpoint limits and wall-state rewind.
 
-`node playground/tests/radical-addition.cjs` is a **diagnostic, not a passing validation**. The current constrained Cl· approach to ethene has a spurious entrance barrier of approximately 128 kJ/mol. Bond multiplicity begins to respond too late. This remains unresolved; the thermostat work does not fix it. Reference: [Cl + ethylene potential-energy surface](https://doi.org/10.1021/jp001221u).
+### Radical addition to π bonds — fixed
 
-Bulk water phase behavior and molecular electron-density calculations have not been validated or implemented. A water-dimer check does not establish an ice melting point. 273.15 K alone does not ensure a nucleated ice structure; pressure, density, finite size and model-dependent phase equilibria matter. See [water models including TIP4P/Ice](https://docs.lammps.org/stable/Howto_tip4p.html).
+`node playground/tests/radical-addition.cjs` reports the constrained Cl· approach to ethene. The entrance
+barrier was about 128 kJ/mol because the π bond only released once the newcomer was bonded, while the
+newcomer could not bond until the π released. Bond order now responds at the range where bonding actually
+begins, and a π bond blocks a newcomer less than a σ bond does. The constrained path is now downhill
+(≈ −1 kJ/mol at the top), and chlorine radicals chlorinate ethene at 300 K in dynamics, including radical
+oligomerisation. Every single-bond barrier in the table above is numerically unchanged by this.
+Reference: [Cl + ethylene potential-energy surface](https://doi.org/10.1021/jp001221u).
+
+### Condensed water — partly fixed
+
+With the calibrated charge scale, a relaxed water cluster has a cohesive energy of **−42 kJ/mol per
+molecule** (experiment ≈ −44, the enthalpy of vaporisation) at a mean nearest O–O distance of **2.86 Å**
+(experiment 2.8). Water therefore condenses: at 273–330 K a cluster stays together as a hydrogen-bonded
+liquid droplet with about 2 hydrogen bonds per molecule, and it boils between 350 and 500 K.
+
+It does **not** freeze at 273 K. Cooling turns the droplet glassy only below roughly 150 K, and the network
+carries ~2–2.5 hydrogen bonds per molecule where real water has 3.5–4. The missing ingredient is acceptor
+directionality: the model places one negative charge on the oxygen, with no lone-pair geometry, so the
+tetrahedral network that makes ice is never strongly preferred. Water models that reproduce ice
+(TIP4P/Ice, TIP5P) add off-atom charge sites for exactly this reason. A small cluster also melts far below
+bulk ice in reality, so part of the gap is finite size. See
+[water models including TIP4P/Ice](https://docs.lammps.org/stable/Howto_tip4p.html).

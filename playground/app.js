@@ -38,9 +38,10 @@ function safeStep(engine) {
   }
 }
 function paintViews() {} // contours are the only field representation
+let hintTimer = 0;
 function updateLab() {
-  $('runState').textContent = time.playing ? 'RUNNING' : 'PAUSED';
   $('statusDot').classList.toggle('running', time.playing);
+  $('statusDot').title = time.playing ? 'Running' : 'Paused';
   $('atomCount').textContent = eng.N + (eng.N === 1 ? ' atom' : ' atoms');
   $('liveTemperature').textContent = eng.N ? eng.temperature().toFixed(1) + ' K' : '—';
   $('liveEnergy').textContent = eng.N ? (eng.Epot + eng.kinetic()).toFixed(1) + ' kJ/mol' : '—';
@@ -48,7 +49,12 @@ function updateLab() {
   $('bathBtn').setAttribute('aria-pressed', eng.thermostat);
   $('physicsNotice').hidden = !eng.clamped;
   $('physicsNotice').textContent = eng.clamped ? eng.clamped + ' safety speed clamps · energy affected' : '';
-  $('toolContext').textContent = placing ? 'Click to place · Q/E rotate · Esc cancel' : armed ? armed + ' selected · click to place · drag to throw' : tool === 'heat' ? 'Drag to heat · Shift-drag to cool' : tool === 'erase' ? 'Click an atom to erase · Alt: molecule' : 'Drag to pan · scroll to zoom';
+  const hint = placing ? 'Click to place · Q/E rotate · Esc cancel' : armed ? armed + ' selected · click to place · drag to throw' : tool === 'heat' ? 'Drag to heat · Shift-drag to cool' : tool === 'erase' ? 'Click an atom to erase · Alt: molecule' : 'Drag to pan · scroll to zoom';
+  const ctx = $('toolContext');
+  if (ctx.textContent !== hint) {
+    ctx.textContent = hint; ctx.classList.add('show');
+    clearTimeout(hintTimer); hintTimer = setTimeout(() => ctx.classList.remove('show'), 2600);
+  }
 }
 
 /* ======================= engine ======================= */
@@ -458,6 +464,9 @@ const TOOLS = [['grab', 'Grab & pan', 'Drag atoms (pulls while running, moves th
   ['heat', 'Heat brush', 'Drag to heat atoms under the brush; Shift or right-drag cools. Alt+scroll resizes.']];
 let tool = 'grab', armed = null; // armed element symbol for placing
 const dockEls = store.get('dockEls', ['H', 'C', 'N', 'O', 'F', 'S', 'P', 'Cl']);
+function staggerDock() { // the dock deals itself out on first paint
+  document.querySelectorAll('.dock .tool, .dock .el').forEach((b, i) => b.style.animationDelay = (0.16 + i * 0.022).toFixed(3) + 's');
+}
 function buildDock() {
   $('tools').innerHTML = TOOLS.map(t => '<button class="tool" data-tool="' + t[0] + '" aria-label="' + t[1] + '">' + TOOL_ICONS[t[0]] + '<sup></sup></button>').join('');
   $('elements').innerHTML = dockEls.map(s => '<button class="el" data-el="' + s + '" style="--c:' + BY_SYM[s].color + '" aria-label="' + BY_SYM[s].name + '">' + s + '<i></i><sup></sup></button>').join('');
@@ -469,7 +478,7 @@ function buildDock() {
     b.onclick = () => arm(armed === b.dataset.el ? null : b.dataset.el);
     tipOn(b, () => elTip(b.dataset.el), 'right');
   });
-  refreshDock(); refreshKeyHints();
+  refreshDock(); refreshKeyHints(); staggerDock();
 }
 function elTip(sym) {
   const e = BY_SYM[sym];

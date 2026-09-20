@@ -24,8 +24,8 @@
       <circle class="nuc" cx="16" cy="16" r="2.4"/>
     </svg>
     <span class="word">chem<span class="word-light"> playground</span></span>
+    <span class="status-dot" id="statusDot" title="Paused"></span>
   </a>
-  <div class="workspace-meta"><span class="status-dot" id="statusDot"></span><span id="runState">PAUSED</span><span class="meta-divider">/</span><span>MOLECULAR LAB</span></div>
   <div class="inventory" id="inventory" aria-live="polite"></div>
 </header>
 
@@ -40,6 +40,9 @@
     <svg class="gi" viewBox="0 0 16 16"><path d="M2.5 11.5a5.5 5.5 0 1 1 11 0"/><path d="M8 11.5l2.8-3.6"/></svg>
     <span class="val" id="pVal">—</span>
   </div>
+  <button class="gauge icon" id="modelBtn" title="About this model" aria-label="About this model" aria-haspopup="dialog">
+    <svg class="gi" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.4"/><path d="M8 7.2v4"/><path d="M8 4.9h.01"/></svg>
+  </button>
   <button class="gauge icon" id="keysBtn" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">
     <svg class="gi" viewBox="0 0 16 16"><rect x="1.5" y="4" width="13" height="8.5" rx="1.6"/><path d="M4 6.8h.01M6.5 6.8h.01M9 6.8h.01M11.5 6.8h.01M5 9.7h6"/></svg>
   </button>
@@ -58,7 +61,6 @@
   <div class="readout-foot">3D chamber <span>1 fs / step</span></div>
   <p id="physicsNotice" class="physics-notice" role="status" hidden></p>
 </aside>
-<button class="model-pill" id="modelBtn" aria-haspopup="dialog"><span>i</span> Experimental model <span class="model-arrow">↗</span></button>
 <div class="tool-context" id="toolContext">Drag to pan · scroll to zoom</div>
 <!-- tool + element dock -->
 <nav class="dock" id="dock" aria-label="Tools and elements">

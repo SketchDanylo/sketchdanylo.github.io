@@ -362,3 +362,50 @@ kbd{font:500 9.5px var(--mono);padding:1px 5px;border:1px solid var(--line-hi);b
 @keyframes quantumSpin{to{transform:rotate(360deg)}}
 @media(max-width:760px){.atom-inspector{top:113px;right:10px;bottom:76px;width:min(358px,calc(100vw - 20px));padding:17px}.atom-properties{gap:10px 15px}.inspector-head h2{font-size:21px}.density-view{min-height:210px}}
 @media(prefers-reduced-motion:reduce){.atom-inspector{transition:none}.density-view .calculating:before{animation:none}}
+
+/* --- atom inspector artwork --- */
+.atom-identity canvas{width:96px;height:96px;flex-shrink:0;filter:drop-shadow(0 6px 14px #0006)}
+.nucleus-legend{display:flex;flex-wrap:wrap;gap:8px 14px;margin:8px 0 2px;font:400 8.5px var(--mono);color:var(--dim)}
+.nucleus-legend .pt{display:inline-flex;align-items:center;gap:6px}
+.nucleus-legend i{width:9px;height:9px;border-radius:50%;box-shadow:inset 0 1px 1px #fff6}
+.nucleus-legend .p i{background:radial-gradient(circle at 32% 30%,#ffd6aa,#e07c40 60%,#783016)}
+.nucleus-legend .n i{background:radial-gradient(circle at 32% 30%,#e2f0ff,#8cb0ce 60%,#385068)}
+.nucleus-legend .e i{width:6px;height:6px;background:radial-gradient(circle at 34% 30%,#eaffff,#63d7f5 55%,#1f7fa8);box-shadow:0 0 7px #63d7f5aa}
+.density-view canvas{animation:densityIn .5s cubic-bezier(.2,.8,.2,1)}
+@keyframes densityIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.density-view canvas{animation:none}}
+
+/* --- quieter chrome: status on the mark, hints that speak up then leave --- */
+.brand .status-dot{width:5px;height:5px;border-radius:50%;background:var(--faint);margin-left:2px}
+.tool-context{opacity:0;transform:translate(-50%,6px);transition:opacity .3s,transform .4s cubic-bezier(.2,.8,.2,1)}
+.tool-context.show{opacity:1;transform:translateX(-50%)}
+.inventory{opacity:.62;transition:opacity .25s}
+.inventory:hover,.mark:hover .inventory{opacity:1}
+.mark{pointer-events:auto}
+@media(max-width:760px){.tool-context{transform:none}.tool-context.show{transform:none}}
+@media(prefers-reduced-motion:reduce){.tool-context{transition:none}}
+
+/* --- motion: a calm entrance, and feedback where the hand lands --- */
+@keyframes riseIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes dropIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+@keyframes armPulse{0%{box-shadow:0 0 0 0 rgba(255,178,63,.55)}100%{box-shadow:0 0 0 13px rgba(255,178,63,0)}}
+/* elements whose position relies on a transform only fade, so nothing drifts off-centre */
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.mark,.gauges{animation:dropIn .55s cubic-bezier(.2,.8,.2,1) both}
+.gauges{animation-delay:.06s}
+.view-controls{animation:fadeIn .5s ease .12s both}
+.dock{animation:fadeIn .5s ease .1s both}
+.transport{animation:fadeIn .5s ease .16s both}
+.tray,.scale{animation:riseIn .6s cubic-bezier(.2,.8,.2,1) .22s both}
+.dock .el,.dock .tool{animation:riseIn .4s cubic-bezier(.2,.8,.2,1) both}
+.el.on{animation:armPulse .5s ease-out}
+/* measurements panel: grows out of its button instead of appearing */
+.lab-readout{opacity:0;visibility:hidden;transform:translateY(-8px) scale(.97);transform-origin:top right;
+  transition:opacity .22s,transform .38s cubic-bezier(.18,.8,.2,1),visibility .22s}
+.lab-readout.open{opacity:1;visibility:visible;transform:none}
+.view-fit{transition:color .2s,transform .25s cubic-bezier(.2,.8,.2,1)}
+.view-fit:active{transform:scale(.94)}
+@media(prefers-reduced-motion:reduce){
+  .mark,.gauges,.view-controls,.dock,.transport,.tray,.scale,.dock .el,.dock .tool,.el.on{animation:none}
+  .lab-readout{transition:none}
+}

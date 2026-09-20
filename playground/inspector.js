@@ -9,7 +9,7 @@ class AtomInspector {
     this.panel=document.createElement('aside');this.panel.className='atom-inspector';this.panel.inert=true;
     this.panel.setAttribute('role','dialog');this.panel.setAttribute('aria-label','Atom inspector');
     this.panel.innerHTML=`<div class="inspector-head"><div><p class="eyebrow">UNDER THE SURFACE</p><h2 id="inspectName"></h2></div><button class="x" id="inspectClose" aria-label="Close atom inspector">×</button></div>
-      <div class="atom-identity"><span id="inspectSymbol"></span><div id="inspectIdentity"></div><canvas id="nucleusCanvas" width="100" height="100" aria-label="Schematic reference nucleus, enlarged"></canvas></div>
+      <div class="atom-identity"><span id="inspectSymbol"></span><div id="inspectIdentity"></div><canvas id="nucleusCanvas" width="96" height="96" aria-label="Schematic reference nucleus, enlarged"></canvas></div><div class="nucleus-legend" id="nucleusLegend"></div>
       <p class="nucleus-note" id="nucleusNote"></p><dl class="atom-properties" id="atomProperties"></dl>
       <section class="quantum-section"><div class="quantum-heading"><h3>Electron density</h3><span id="quantumMethod">Molecular calculation</span></div>
       <div class="density-view"><canvas id="electronCanvas" width="320" height="280" aria-label="Calculated molecular electron density in a plane through the selected atom"></canvas><div id="quantumStatus" role="status"></div><span class="density-plane">xy slice through this nucleus</span></div>
@@ -24,7 +24,7 @@ class AtomInspector {
     this.el('quantumRecalc').onclick=()=>this.calculate();
     this.panel.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();this.close();}});
   }
-  close(){this.worker?.terminate();this.worker=null;this.panel.classList.remove('open');this.panel.inert=true;this.i=-1;this.actions.focus?.();}
+  close(){this.worker?.terminate();this.worker=null;cancelAnimationFrame(this.nucleusRaf);this.panel.classList.remove('open');this.panel.inert=true;this.i=-1;this.actions.focus?.();}
   open(i){
     const e=this.actions.engine,E=root.ChemEngine.ELEMENTS,el=E[e.type[i]];
     this.actions.pause();this.worker?.terminate();this.atomId=e.ids[i];this.i=i;
@@ -44,17 +44,51 @@ class AtomInspector {
     const v=Math.hypot(...e.vel.subarray(a3,a3+3));
     const rows=[['Protons',el.Z],['Neutrons in reference isotope',A-el.Z],['Molecular electrons',electrons],['MD partial charge',`${e.q[i]>=0?'+':''}${e.q[i].toFixed(3)} e`],['Formal charge',`${e.formal[i]} e`],['Atomic mass',`${e.mass[i].toFixed(3)} u`],['Speed',`${(v*100).toFixed(3)} km/s`],['Kinetic energy',`${(.5*e.mass[i]*v*v*1e4).toFixed(3)} kJ/mol`]];
     this.el('atomProperties').replaceChildren(...rows.map(([key,value])=>{const d=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=key;dd.textContent=value;d.append(dt,dd);return d;}));
-    this.drawNucleus(el.Z,A);
+    this.electronCount=electrons;this.startNucleus(el.Z,A);
     this.el('inspectTime').textContent=`Paused snapshot · ${(e.time/1000).toFixed(3)} ps`;
     this.panel.inert=false;this.panel.classList.add('open');this.el('inspectClose').focus();this.calculate();
   }
-  drawNucleus(Z,A){
-    const ctx=this.el('nucleusCanvas').getContext('2d');ctx.clearRect(0,0,100,100);
-    const dots=[];for(let k=0;k<A;k++){const z=1-2*(k+.5)/A,r=Math.sqrt(1-z*z),theta=k*2.399963;dots.push({x:50+24*r*Math.cos(theta),y:50+24*r*Math.sin(theta),z,p:(k*Z)%A<Z});}
-    // Exactly Z proton symbols; placement is schematic, not a nuclear wavefunction.
-    const order=[...dots].sort((a,b)=>a.x-b.x);order.forEach((d,k)=>d.p=k<Z);
-    dots.sort((a,b)=>a.z-b.z);
-    for(const d of dots){const r=6.5*(.85+.15*d.z),g=ctx.createRadialGradient(d.x-2,d.y-2,0,d.x,d.y,r);g.addColorStop(0,d.p?'#ffd0a0':'#c8e4fa');g.addColorStop(1,d.p?'#a45635':'#466d8b');ctx.beginPath();ctx.arc(d.x,d.y,r,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();if(d.p&&A<45){ctx.fillStyle='#542a19';ctx.font='8px sans-serif';ctx.textAlign='center';ctx.fillText('+',d.x,d.y+3);}}
+  /* Nucleus artwork: A nucleons packed in a ball, lit and depth-sorted, turning slowly.
+     Placement is schematic — a nucleus has no fixed particle arrangement. */
+  startNucleus(Z,A){
+    cancelAnimationFrame(this.nucleusRaf);
+    const canvas=this.el('nucleusCanvas'),dpr=Math.min(2,devicePixelRatio||1),W=canvas.clientWidth||96,H=canvas.clientHeight||96;
+    canvas.width=W*dpr;canvas.height=H*dpr;
+    const ctx=canvas.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);
+    // deterministic ball packing: Fibonacci shells so nucleons never overlap oddly
+    const nucleons=[];
+    for(let k=0;k<A;k++){
+      const t=(k+.5)/A,z=1-2*t,rho=Math.sqrt(Math.max(0,1-z*z)),theta=k*2.399963229;
+      const shell=Math.cbrt((k+.5)/A);
+      nucleons.push({x:rho*Math.cos(theta)*shell,y:rho*Math.sin(theta)*shell,z:z*shell,proton:false});
+    }
+    // assign protons evenly through the packing so the render reads as a mixed nucleus
+    nucleons.map((n,i)=>({n,i})).sort((a,b)=>((a.i*2654435761)%A)-((b.i*2654435761)%A)).forEach((e,rank)=>e.n.proton=rank<Z);
+    const R=Math.min(W,H)*.5-6,scale=R/Math.max(1,Math.cbrt(A)*.62),rad=Math.max(2.4,scale*.58);
+    const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const frame=now=>{
+      const a=reduce?.6:now/2600,ca=Math.cos(a),sa=Math.sin(a),tilt=.42,ct=Math.cos(tilt),st=Math.sin(tilt);
+      ctx.clearRect(0,0,W,H);
+      const cx=W/2,cy=H/2;
+      const halo=ctx.createRadialGradient(cx,cy,R*.2,cx,cy,R*1.5);
+      halo.addColorStop(0,'rgba(255,190,130,.14)');halo.addColorStop(.55,'rgba(120,170,220,.07)');halo.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle=halo;ctx.beginPath();ctx.arc(cx,cy,R*1.5,0,7);ctx.fill();
+      const view=nucleons.map(n=>{
+        const x1=n.x*ca-n.z*sa,z1=n.x*sa+n.z*ca,y1=n.y*ct-z1*st,z2=n.y*st+z1*ct;
+        return{x:cx+x1*scale,y:cy+y1*scale,z:z2,proton:n.proton};
+      }).sort((p,q)=>p.z-q.z);
+      for(const p of view){
+        const depth=(p.z+1)/2,r=rad*(.82+.22*depth),shade=.55+.45*depth;
+        const g=ctx.createRadialGradient(p.x-r*.4,p.y-r*.45,r*.08,p.x,p.y,r);
+        if(p.proton){g.addColorStop(0,`rgba(255,${Math.round(214*shade)},${Math.round(170*shade)},1)`);g.addColorStop(.55,`rgba(${Math.round(235*shade)},${Math.round(124*shade)},${Math.round(64*shade)},1)`);g.addColorStop(1,`rgba(${Math.round(120*shade)},${Math.round(48*shade)},${Math.round(22*shade)},1)`);}
+        else{g.addColorStop(0,`rgba(${Math.round(226*shade)},${Math.round(240*shade)},255,1)`);g.addColorStop(.55,`rgba(${Math.round(140*shade)},${Math.round(176*shade)},${Math.round(206*shade)},1)`);g.addColorStop(1,`rgba(${Math.round(56*shade)},${Math.round(80*shade)},${Math.round(104*shade)},1)`);}
+        ctx.beginPath();ctx.arc(p.x,p.y,r,0,7);ctx.fillStyle=g;ctx.fill();
+        ctx.beginPath();ctx.arc(p.x-r*.34,p.y-r*.38,r*.26,0,7);ctx.fillStyle=`rgba(255,255,255,${.28*depth+.08})`;ctx.fill();
+      }
+      if(!reduce) this.nucleusRaf=requestAnimationFrame(frame);
+    };
+    this.nucleusRaf=requestAnimationFrame(frame);
+    this.el('nucleusLegend').innerHTML=`<span class="pt p"><i></i>${Z} proton${Z===1?'':'s'}</span><span class="pt n"><i></i>${A-Z} neutron${A-Z===1?'':'s'}</span><span class="pt e"><i></i>${this.electronCount} electron${this.electronCount===1?'':'s'}</span>`;
   }
   calculate(){
     if(!this.input)return;this.worker?.terminate();
