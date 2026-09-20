@@ -286,6 +286,18 @@ class Engine {
     this.box = { x0: 0, x1: opts.width || 50, y0: 0, y1: opts.height || 32, z0: -(opts.depth || 10) / 2, z1: (opts.depth || 10) / 2 };
     this.sphere = null;             // {x,y,z,R} spherical container (used by the conditioning chamber)
     this.wallK = 60;                // kJ/mol/Å²
+    // Boundary character. 'solid' is a stiff wall that starts exactly at the chamber face;
+    // 'forcefield' is a soft cushion that begins fieldRange inside it and keeps growing outward,
+    // so an atom is turned around gradually and may briefly cross the face.
+    this.boundsMode = opts.boundsMode || 'solid';
+    this.fieldK = opts.fieldK ?? 6;         // kJ/mol/Å², forcefield stiffness
+    this.fieldRange = opts.fieldRange ?? 3; // Å the forcefield reaches inward
+    // Void wall: what the region beyond the chamber face does to what reaches it.
+    this.voidTemperature = opts.voidTemperature ?? false; // kinetic energy drains away out there
+    this.voidPressure = opts.voidPressure ?? false;       // the face absorbs impulse instead of reporting it
+    this.voidTau = opts.voidTau ?? 40;      // fs, drain time at full depth
+    this.voidDepth = opts.voidDepth ?? 2;   // Å beyond the face for a full-strength drain
+    this.voidHeat = 0; this.voidForce = 0;  // energy and impulse lost to the void, for the readout
     this.T = opts.T ?? 298.15;
     this.tau = opts.tau ?? 250;     // thermostat coupling time, fs
     this.thermostat = opts.thermostat ?? true;
@@ -919,9 +931,17 @@ class Engine {
     F[3 * i] -= cu * ux + cv * vx; F[3 * i + 1] -= cu * uy + cv * vy; F[3 * i + 2] -= cu * uz + cv * vz;
     return Esub;
   }
+  /* The chamber face. Solid bounds are the stiff harmonic that starts at the face; forcefield
+     bounds are the same harmonic, softer and shifted fieldRange inward, so it always turns an
+     atom around but lets it lean into the boundary first. Void pressure keeps the restoring
+     force — the atom is still pushed back — while the impulse is absorbed rather than counted,
+     so the gauge reads what an open chamber would read. */
   _walls() {
-    const N = this.N, pos = this.pos, F = this.frc, K = this.wallK;
-    let E = 0, Fsum = 0;
+    const N = this.N, pos = this.pos, F = this.frc;
+    const field = this.boundsMode === 'forcefield' && !this.sphere;
+    const K = field ? this.fieldK : this.wallK, reach = field ? this.fieldRange : 0;
+    const counts = !this.voidPressure;
+    let E = 0, Fsum = 0, Fvoid = 0;
     if (this.sphere) {
       const s = this.sphere;
       for (let i = 0; i < N; i++) {
@@ -933,14 +953,42 @@ class Engine {
       const b = this.box, lo = [b.x0, b.y0, b.z0], hi = [b.x1, b.y1, b.z1];
       for (let i = 0; i < N; i++) for (let d = 0; d < 3; d++) {
         const x = pos[3 * i + d];
-        if (x < lo[d]) { const e = lo[d] - x; E += 0.5 * K * e * e; F[3 * i + d] += K * e; Fsum += K * e; }
-        else if (x > hi[d]) { const e = x - hi[d]; E += 0.5 * K * e * e; F[3 * i + d] -= K * e; Fsum += K * e; }
+        let e = 0, dir = 0;
+        if (x < lo[d] + reach) { e = lo[d] + reach - x; dir = 1; }
+        else if (x > hi[d] - reach) { e = x - (hi[d] - reach); dir = -1; }
+        if (e <= 0) continue;
+        E += 0.5 * K * e * e; F[3 * i + d] += dir * K * e;
+        if (counts) Fsum += K * e; else Fvoid += K * e;
       }
       const Lx = b.x1 - b.x0, Ly = b.y1 - b.y0, Lz = b.z1 - b.z0;
       this.wallArea = 2 * (Lx * Ly + Lx * Lz + Ly * Lz);
     }
-    this.Ewall = E; this.wallForce = Fsum;
+    this.Ewall = E; this.wallForce = Fsum; this.voidForce = Fvoid;
     return E;
+  }
+
+  /* Void wall, temperature: past the chamber face there is nothing to hold energy, so an atom
+     out there loses its motion on voidTau — not a thermostat pulling it towards a temperature,
+     a one-way drain. The energy is tallied, never returned. */
+  _voidBath(dt) {
+    const N = this.N, pos = this.pos, vel = this.vel, b = this.box;
+    let lost = 0;
+    for (let i = 0; i < N; i++) {
+      if (this.pinned[i]) continue;
+      const k = 3 * i;
+      let out;
+      if (this.sphere) out = Math.hypot(pos[k] - this.sphere.x, pos[k + 1] - this.sphere.y, pos[k + 2] - this.sphere.z) - this.sphere.R;
+      else out = Math.max(b.x0 - pos[k], pos[k] - b.x1, b.y0 - pos[k + 1], pos[k + 1] - b.y1, b.z0 - pos[k + 2], pos[k + 2] - b.z1);
+      if (out <= 0) continue;
+      const u = Math.min(1, out / this.voidDepth);
+      const c = Math.exp(-dt * u / this.voidTau);
+      for (let d = k; d < k + 3; d++) {
+        const before = vel[d];
+        vel[d] = c * before;
+        lost += 0.5 * KEU * this.mass[i] * (before * before - vel[d] * vel[d]);
+      }
+    }
+    this.voidHeat += lost;
   }
 
   /* ---------- integration ---------- */
@@ -997,6 +1045,7 @@ class Engine {
       if (this.thermostatMode === 'csvr') this._csvr();
       else this._wallBath(dt);
     }
+    if (this.voidTemperature) this._voidBath(dt);
     this.time += dt; this.stepCount++;
     // pressure from wall forces, exponentially averaged over ~1 ps
     const Pinst = this.wallArea > 0 ? this.wallForce / this.wallArea * BAR : 0;
@@ -1239,6 +1288,9 @@ class Engine {
       N, time: this.time, stepCount: this.stepCount, rng: this.rngState, nextId: this.nextId,
       box: { ...this.box }, sphere: this.sphere && { ...this.sphere }, T: this.T, tau: this.tau, thermostat: this.thermostat,
       thermostatMode: this.thermostatMode, wallT: this.wallT, wallTarget: this.wallTarget,
+      boundsMode: this.boundsMode, fieldK: this.fieldK, fieldRange: this.fieldRange,
+      voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, voidTau: this.voidTau, voidDepth: this.voidDepth,
+      voidHeat: this.voidHeat, voidForce: this.voidForce,
       wallTau: this.wallTau, wallCapacity: this.wallCapacity, wallSkin: this.wallSkin, wallCoupling: this.wallCoupling,
       heatToSample: this.heatToSample, heaterWork: this.heaterWork,
       nextSub: this.nextSub || 1, lastSub: this.lastSub || 1, Epot: this.Epot, Ewall: this.Ewall,
@@ -1255,7 +1307,7 @@ class Engine {
     this.N = s.N; this.time = s.time; this.stepCount = s.stepCount; this.rngState = s.rng; this.nextId = s.nextId;
     if (s.box) this.box = { ...s.box };
     this.sphere = s.sphere ? { ...s.sphere } : null;
-    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'heatToSample', 'heaterWork', 'nextSub', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
+    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidTau', 'voidDepth', 'voidHeat', 'voidForce', 'heatToSample', 'heaterWork', 'nextSub', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
     this.tweezer = null;
     this.pos.set(s.pos); this.vel.set(s.vel); this.frc.set(s.frc); this.prev.set(s.pos);
     this.type.set(s.type); this.formal.set(s.formal); this.val.set(s.val); this.lp.set(s.lp); this.pinned.set(s.pinned); this.ids.set(s.ids); this.cos0.set(s.cos0);
@@ -1314,7 +1366,7 @@ class Engine {
   toJSON() {
     const atoms = [];
     for (let i = 0; i < this.N; i++) atoms.push([ELEMENTS[this.type[i]].sym, +this.pos[3 * i].toFixed(4), +this.pos[3 * i + 1].toFixed(4), +this.pos[3 * i + 2].toFixed(4), +this.vel[3 * i].toFixed(6), +this.vel[3 * i + 1].toFixed(6), +this.vel[3 * i + 2].toFixed(6), this.formal[i], this.val[i]]);
-    return { format: 'chem-playground/scene@1', box: this.box, T: this.T, tau: this.tau, thermostat: this.thermostat, thermostatMode: this.thermostatMode, wallT: this.wallT, wallTarget: this.wallTarget, wallTau: this.wallTau, heatToSample: this.heatToSample, heaterWork: this.heaterWork, time: this.time, atoms };
+    return { format: 'chem-playground/scene@1', box: this.box, T: this.T, tau: this.tau, thermostat: this.thermostat, thermostatMode: this.thermostatMode, boundsMode: this.boundsMode, voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, wallT: this.wallT, wallTarget: this.wallTarget, wallTau: this.wallTau, heatToSample: this.heatToSample, heaterWork: this.heaterWork, time: this.time, atoms };
   }
 }
 

@@ -32,19 +32,22 @@
 <!-- conditions -->
 <section class="gauges" id="gauges" aria-label="Conditions">
   <div class="gauge" id="gT">
-    <button class="bb" id="bbDot" aria-label="Temperature and wall thermostat settings" title="Temperature settings"></button>
+    <button class="bb" id="bbDot" aria-label="Temperature and wall thermostat settings" title="Temperature settings">
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <path class="stem" d="M6.2 8.9V3.6a1.8 1.8 0 0 1 3.6 0v5.3a3 3 0 1 1-3.6 0z"/>
+        <path class="ticks" d="M9.9 4.6h1.6M9.9 6.4h1.2M9.9 8.2h1.6"/>
+        <circle class="bulb" cx="8" cy="11.1" r="1.9"/>
+      </svg>
+    </button>
     <span class="scrub" id="tField" data-unit="K" title="Target temperature — drag, scroll or click to type"></span>
-    <span class="measured" id="tMeasured" title="Measured kinetic temperature"></span>
+    <span class="measured" id="tMeasured" title="Measured kinetic temperature, averaged over about 1 ps"><b id="tMeasuredVal"></b><i id="tMeasuredBand" aria-hidden="true"></i></span>
   </div>
   <div class="gauge" id="gP" role="button" tabindex="0" aria-label="Wall pressure and box dimensions" title="Mean normal wall stress, averaged over about 1 ps">
     <svg class="gi" viewBox="0 0 16 16"><path d="M2.5 11.5a5.5 5.5 0 1 1 11 0"/><path d="M8 11.5l2.8-3.6"/></svg>
     <span class="val" id="pVal">—</span>
   </div>
-  <button class="gauge icon" id="modelBtn" title="About this model" aria-label="About this model" aria-haspopup="dialog">
-    <svg class="gi" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.4"/><path d="M8 7.2v4"/><path d="M8 4.9h.01"/></svg>
-  </button>
-  <button class="gauge icon" id="keysBtn" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">
-    <svg class="gi" viewBox="0 0 16 16"><rect x="1.5" y="4" width="13" height="8.5" rx="1.6"/><path d="M4 6.8h.01M6.5 6.8h.01M9 6.8h.01M11.5 6.8h.01M5 9.7h6"/></svg>
+  <button class="gauge icon" id="menuBtn" title="Console — environment, shortcuts, notes (M)" aria-label="Open the console" aria-expanded="false" aria-controls="console">
+    <svg class="gi apps" viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="5" rx="1.4"/><rect x="9" y="2" width="5" height="5" rx="1.4"/><rect x="2" y="9" width="5" height="5" rx="1.4"/><rect x="9" y="9" width="5" height="5" rx="1.4"/></svg>
   </button>
 </section>
 
@@ -147,14 +150,6 @@
 <div class="pop periodic" id="elPop"></div>
 <div class="tip" id="tip"></div>
 
-<!-- keybinds -->
-<div class="veil" id="keysVeil" hidden>
-  <div class="dialog keys" role="dialog" aria-label="Keyboard shortcuts">
-    <div class="dialog-head"><h2>Shortcuts</h2><span class="hint">Click a key to rebind it</span><button class="ghost" id="keysReset">Reset</button><button class="x" id="keysClose" aria-label="Close">×</button></div>
-    <div class="keys-grid" id="keysGrid"></div>
-  </div>
-</div>
-
 <!-- command palette -->
 <div class="veil" id="cmdVeil" hidden>
   <div class="dialog cmd" role="dialog" aria-label="Command palette">
@@ -163,30 +158,23 @@
   </div>
 </div>
 
-<div class="hint-empty" id="emptyHint">
-  <div class="welcome-illustration" aria-hidden="true"><i></i><i></i><i></i><span>H</span><span>O</span><span>H</span><b>0.096 nm</b></div>
-  <p class="eyebrow">SMALL WORLD. ROOM TO EXPERIMENT.</p>
-  <h1>Chemistry, in motion.</h1>
-  <p class="welcome-copy">Place an atom. Bring a molecule.<br>Explore what happens, one femtosecond at a time.</p>
-  <div class="welcome-actions"><button id="startAtom" class="primary">Place an atom <span>+</span></button><a href="../nomenclature.html" target="_blank" rel="noopener">Draw ↗</a></div>
-  <div class="welcome-guide"><span><kbd>Space</kbd> play / pause</span><span><kbd>scroll</kbd> zoom</span><span><kbd>?</kbd> shortcuts</span></div>
+<!-- console: apps that sit on the scene rather than over it -->
+<div class="console" id="console" hidden>
+  <section class="console-win" id="consoleWin" role="dialog" aria-label="Console">
+    <header class="console-bar" id="consoleBar">
+      <span class="console-grip" aria-hidden="true"><i></i><i></i><i></i></span>
+      <h2 id="consoleTitle">Environment</h2>
+      <span class="console-held" id="consoleHeld">held at <b id="consoleClock">0 fs</b></span>
+      <button class="console-x" id="consoleClose" aria-label="Close the console">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.6 4.6l6.8 6.8M11.4 4.6l-6.8 6.8"/></svg>
+      </button>
+    </header>
+    <div class="console-body">
+      <nav class="console-rail" id="consoleRail" role="tablist" aria-label="Apps"></nav>
+      <div class="console-stage" id="consoleStage"></div>
+    </div>
+  </section>
 </div>
-
-<dialog id="modelDialog" class="model-dialog" aria-labelledby="modelTitle">
-  <div class="dialog-head"><div><p class="eyebrow">ABOUT THIS LAB</p><h2 id="modelTitle">A model, with limits.</h2></div><button class="x" id="modelClose" aria-label="Close model notes">×</button></div>
-  <p>The sandbox uses an experimental reactive force field with fitted molecular examples. Its reactions and rates are qualitative.</p>
-  <dl class="model-facts">
-    <div><dt>Physical clock</dt><dd>Each step advances 1 fs. At 1×, the target is 20,000 steps/s: <b>20 ps per real second</b>. At 0.1×, one step takes one second. × is a playback setting.</dd></div>
-    <div><dt>Why a mixture may seem inactive</dt><dd>A second at the target sandbox rate covers only 20 picoseconds. A reaction may need activation, solvent, or chemistry this model cannot represent. For stationary imports, use <b>Resample thermal motion</b>.</dd></div>
-    <div><dt>What is checked</dt><dd>H₂ 0.741 Å / 436 kJ/mol, water 104.2°, the water dimer at −18 kJ/mol, 2 H₂ + O₂ → 2 H₂O at −486 (lit. −484), H + H₂ barrier 43 (lit. 40). Na + Cl₂ → NaCl runs at 300 K; CH₄ + O₂ at 3500 K passes through CH₂O and OH·.</dd></div>
-    <div><dt>Known to be wrong</dt><dd>Spin is absent (O₂ is patched to act as the triplet diradical it is). Cl + H₂ and OH + H₂ have barriers that are too high, H + O₂ → OH + O too low. CO gets a double bond instead of a triple. No tunnelling, excited states or solvent.</dd></div>
-    <div><dt>Three dimensions</dt><dd>A top-down orthographic view of a soft-walled 3D slab. Zoom changes the view, never atom sizes or the chamber volume.</dd></div>
-    <div><dt>Energy &amp; pressure</dt><dd>Force checks hold internal bond orders fixed. Changing those heuristic orders can cause energy drift; extreme-collision speed clamps also remove energy. The wall reservoir exchanges heat near the boundaries. Its temperature approaches the setpoint over a specified simulation time, while collisions and interactions carry heat through the sample. Wall pressure is averaged normal stress, with no pressure controller.</dd></div>
-    <div><dt>What you see</dt><dd>The field contours show tabulated atomic sizes through Gaussian surfaces. They are not a quantum electron-density calculation.</dd></div>
-    <div><dt>Zero kelvin</dt><dd>A classical geometry minimum with zero initial velocities. Quantum zero-point motion is not represented.</dd></div>
-  </dl>
-  <p class="model-source">Methods: <a href="https://manual.gromacs.org/current/reference-manual/algorithms/molecular-dynamics.html" target="_blank" rel="noopener">MD integration ↗</a> <a href="https://docs.lammps.org/pair_reaxff.html" target="_blank" rel="noopener">Validated reactive force fields ↗</a>. This engine is not ReaxFF.</p>
-</dialog>
 
 <div class="toasts" id="toasts"></div>
 

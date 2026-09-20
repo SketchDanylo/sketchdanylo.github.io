@@ -8,8 +8,11 @@ self.onmessage = async ({data}) => {
   try {
     await ready;
     const result = ChemQuantum.compute(data.input, status => self.postMessage({status}));
+    self.postMessage({status:'Free-atom references'});
+    const atomSlice=ChemQuantum.slice(result,data.selected,160,'atom');
     self.postMessage({status:'Sampling electron density'});
-    const slice=ChemQuantum.slice(result,data.selected);
-    self.postMessage({result:{method:result.method,scf:result.scf,mult:result.mult,electronTrace:result.electronTrace,slice}},[slice.data.buffer]);
+    const totalSlice=ChemQuantum.slice(result,data.selected,160,'total');
+    self.postMessage({result:{method:result.method,scf:result.scf,mult:result.mult,electronTrace:result.electronTrace,atomSlice,totalSlice}},
+      [atomSlice.data.buffer,totalSlice.data.buffer]);
   } catch(error) { self.postMessage({error:error.message}); }
 };

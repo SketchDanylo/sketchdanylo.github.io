@@ -17,6 +17,17 @@ The laboratory uses a **spatial wall thermostat**, not a global velocity rescale
 
 [Spatial Langevin thermostat methodology](https://docs.lammps.org/fix_langevin.html). This engine uses its own exact OU update, not the LAMMPS integration algorithm.
 
+## Bounds and the void wall
+
+The **Environment** app in the console sets what the chamber face does.
+
+- **Bounds — Solid**: the default stiff harmonic wall, 60 kJ/mol/Å², beginning exactly at the face. An atom bounces on contact.
+- **Bounds — Forcefield**: a softer harmonic, 6 kJ/mol/Å², shifted 3 Å inside the face and continuing outward without limit. An atom is turned around gradually and can lean past the face, but a finite energy can never escape a harmonic that keeps growing.
+- **Void wall — Temperature**: an absorbing boundary. Beyond the face, kinetic energy drains with a 40 fs time constant that reaches full strength 2 Å out. The energy is tallied in `voidHeat` and never returned, so the sample cools at its edges. This is an open system: total energy is deliberately not conserved.
+- **Void wall — Pressure**: the face still applies its restoring force — atoms are pushed back exactly as before — but the impulse is booked to `voidForce` instead of `wallForce`, so the pressure gauge reads what an open chamber would read.
+
+Both void options can be on at once, and both are part of snapshots, of the deterministic replay used by step-back, and of the saved scene. `node playground/tests/bounds.cjs` checks containment, energy conservation with no void selected, drainage only outside the face, absorbed pressure, and replay.
+
 ## Time
 
 - Every step is exactly **1 fs**: velocity Verlet in a render-decoupled accumulator (`while (acc >= 1) { step(); acc -= 1 }`), drawn with interpolation between the last two steps.
@@ -120,6 +131,32 @@ In the Playground, a molecule is first **conditioned** in a spherical cell:
 
 Then click to place, drag to throw, Q/E to rotate, or Shift-click to place several. **Place with zero initial velocity** disables both internal and translational velocities, including a drag launch; forces can still accelerate the molecule after placement. Otherwise conditioned internal motion and Maxwell molecular translation are retained.
 
+## The console
+
+The apps icon in the gauges opens a window that sits **on** the scene rather than over it. Opening it holds the clock where it stands and closing hands time back exactly where it was left; nothing in the simulation changes in between. The field keeps drawing behind it, so a change made in **Environment** shows in the chamber while it is still being made. The window can be dragged by its title bar and remembers where it was put.
+
+Three apps: **Environment** (bounds, void wall, chamber size, thermostat, and a live account of what the boundary has absorbed), **About** (the model notes below), and **Keybinds**.
+
+## Seeing the third dimension
+
+The view is orthographic and looks straight down z by default. **Right-drag empty space** turns the slab about its own centre; **double right-click** faces it again. While the view is turned, the chamber is drawn as a wireframe with its near edges bright, and every pointer gesture — dragging an atom, placing one, the heat brush, the tweezer — works in the plane you are looking at, because pointer positions are mapped back through the same rotation. Chamber-edge resizing is disabled while the view is turned, since the faces are no longer screen-aligned.
+
+## The atom inspector
+
+Right-click an atom. The card is pinned beside it with a leader line drawn on the field, and follows the atom as the camera moves.
+
+**Electron cloud** shows that one atom's share of the fragment's calculated density, by Hirshfeld's stockholder rule:
+
+    w_A(r) = rho_A_free(|r - R_A|) / sum_B rho_B_free(|r - R_B|),    rho_A(r) = w_A(r) rho_mol(r)
+
+The free-atom references are ground-state atoms in the same STO-3G basis, spherically averaged over 26 directions onto a radial table. The molecular density being divided is a real self-consistent Hartree–Fock solution for the whole fragment at the geometry it has at that instant, so the shape shown is that atom as its neighbours — bonded and not — and the present thermal geometry have made it. **Whole fragment** switches back to the undivided density. Both are computed in one worker pass, so the toggle is instant.
+
+Hirshfeld shares sum exactly to the molecular density and no share can exceed it; `node playground/tests/quantum.cjs` checks both.
+
+## Temperature readings
+
+The gauge shows a running mean of the kinetic temperature with the measured spread beside it. The instantaneous value genuinely wanders — a sample of N atoms has relative fluctuations of about `sqrt(2/3N)`, so twenty atoms swing by tens of kelvin from one instant to the next. That is the sample being small, not friction or a numerical fault. Hovering the gauge gives the mean, the spread, the instantaneous value and the expected fluctuation for the current atom count.
+
 ## Controls
 
 Press `?` for every shortcut. Click a key to rebind it; conflicts move automatically, and bindings persist. Letter bindings follow the physical key, so they work on any keyboard layout. `Ctrl+K` opens a command palette that also understands `500 K`, `80 °C` and `2x`.
@@ -130,7 +167,7 @@ Run `node playground/tests/regression.cjs` for force-query invariance, charge co
 
 Bond multiplicity relaxes as an internal heuristic variable. Fixed-state force gradient checks do not prove total energy conservation during reactions. The heat bath exchanges energy; the engine also counts safety velocity clamps in extreme collisions. Neither behavior should be mistaken for isolated, rigorously conservative dynamics. The UI reports those clamps when they occur.
 
-The camera is orthographic: depth changes shading, not apparent atomic radii. Contours are summed Gaussians, not electron-density calculations. Playback speed is a nonlinear UI setting, not a multiplier of physical real time.
+The camera is orthographic: depth changes shading, not apparent atomic radii, and turning the view changes nothing physical. Chamber contours are summed Gaussians, not electron-density calculations; the inspector's cloud is a real Hartree–Fock calculation and the only quantum result in the app. Playback speed is a nonlinear UI setting, not a multiplier of physical real time. With a void wall selected the chamber is an open system by design, and total energy is not conserved.
 
 Imported molecules now receive Maxwell–Boltzmann center-of-mass translation at their conditioning temperature. Previously, removing this motion for preview alignment and never restoring it left molecules vibrating in place. A drag-to-throw overrides that translation; 0 K placements remain motionless. Existing scenes can use **Resample thermal motion** (in the temperature menu, live observations, or **Shift+T**) to draw fresh thermal velocities. This is an explicit state edit and can be undone.
 

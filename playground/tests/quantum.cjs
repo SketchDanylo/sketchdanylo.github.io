@@ -34,4 +34,39 @@ test('Chlorine radical uses an open-shell molecular calculation',()=>{
 test('Invalid charges, spins, unsupported elements and overlapping nuclei fail explicitly',()=>{
   for(const input of [{atoms:[atom(1)],charge:.3},{atoms:[atom(1)],mult:1},{atoms:[atom(35)]},{atoms:[atom(1),atom(1)]}]) assert.throws(()=>Q.compute(input));
 });
+test('Free-atom references are positive, spherical and decay outward',()=>{
+  const O=Q.freeAtomRadial(8);
+  assert.ok(O[0]>0);
+  for(let k=1;k<40;k++) assert.ok(O[k]<=O[k-1]+1e-12,'radial density never grows outward');
+  near(Q.freeDensity(O,9),0,1e-12);
+});
+test("Hirshfeld shares partition the molecular density exactly",()=>{
+  const w=Q.compute({atoms:[atom(8),atom(1,.758130,0,.635742),atom(1,-.758130,0,.635742)]});
+  const shares=[0,1,2].map(i=>Q.slice(w,i===0?0:0,48,'atom'));  // same frame for all three
+  const total=Q.slice(w,0,48,'total');
+  // sum the three atoms' weights at each point of the oxygen-centred frame
+  const tables=[8,1,1].map(Z=>Q.freeAtomRadial(Z));
+  const C=w.atoms.map(a=>a.xyz.map(v=>v*Q.BOHR));
+  const vals=new Float64Array(w.basis.length);
+  for(const p of [[0,0,0],[.4,.2,0],[-.7,.6,.1],[1.6,.2,-.3]]){
+    const rho=Q.densityAt(w,...p,vals);
+    let sum=0,all=0;
+    for(let b=0;b<3;b++) all+=Q.freeDensity(tables[b],Math.hypot(p[0]-C[b][0],p[1]-C[b][1],p[2]-C[b][2]));
+    for(let b=0;b<3;b++) sum+=rho*Q.freeDensity(tables[b],Math.hypot(p[0]-C[b][0],p[1]-C[b][1],p[2]-C[b][2]))/all;
+    near(sum,rho,1e-9);
+  }
+  // and no share ever exceeds the whole
+  for(let k=0;k<total.data.length;k++) assert.ok(shares[0].data[k]<=total.data[k]+1e-9);
+});
+test("An atom's share is smaller than the fragment total wherever a neighbour competes",()=>{
+  const w=Q.compute({atoms:[atom(8),atom(1,.758130,0,.635742),atom(1,-.758130,0,.635742)]});
+  const tables=[Q.freeAtomRadial(8),Q.freeAtomRadial(1)];
+  const C=w.atoms.map(a=>a.xyz.map(v=>v*Q.BOHR));
+  // at the hydrogen nucleus the oxygen keeps only a minority of the density
+  const hp=C[1];
+  const wO=Q.freeDensity(tables[0],Math.hypot(...hp.map((v,k)=>v-C[0][k])));
+  const wH=Q.freeDensity(tables[1],0);
+  assert.ok(wH/(wH+2*wO)>.4,'the hydrogen owns most of the density at its own nucleus');
+  assert.ok(wO/(wH+2*wO)<.6);
+});
 console.log(`${count} quantum checks passed. References: Szabo/Ostlund H2 and upstream canonical STO-3G water geometry. These are implementation checks, not general chemical-accuracy claims.`);

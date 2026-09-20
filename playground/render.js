@@ -51,7 +51,8 @@ class FieldRenderer {
     g.addColorStop(0, '#0f1b2b'); g.addColorStop(1, '#09111c');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     if (this.showGrid) this._grid(sc);
-    if (this.showBox && sc.box) this._boxUnder(sc.box);
+    if (this.showBox && sc.box && !sc.box3) this._boxUnder(sc.box);
+    if (this.showBox && sc.box3) this._box3(sc.box3, 'under');
     const atoms = this._atomsView(sc);
     this._density(sc, atoms);
     this._bonds(sc, 'hair');
@@ -59,7 +60,9 @@ class FieldRenderer {
     if (sc.ghost) this._ghost(sc.ghost);
     this._flashes(sc);
     this._overlay(sc);
-    if (this.showBox && sc.box) this._boxOver(sc.box, sc.boxHot);
+    if (sc.inspect) this._leader(sc.inspect, sc.now);
+    if (this.showBox && sc.box3) this._box3(sc.box3, 'over');
+    else if (this.showBox && sc.box) this._boxOver(sc.box, sc.boxHot);
   }
 
   _atomsView(sc) {
@@ -135,6 +138,55 @@ class FieldRenderer {
     const rx = Math.min(x1 + 10, this.W - 10), my = (Math.max(y0, 0) + Math.min(y1, this.H)) / 2;
     ctx.save(); ctx.translate(rx, my); ctx.rotate(-Math.PI / 2);
     ctx.fillStyle = hot && hot.includes('y') ? hotCol : dimCol; ctx.fillText(hl, 0, 0); ctx.restore();
+    ctx.restore();
+  }
+
+  /* Tilted chamber: the caller hands over the eight corners already in view coordinates, so the
+     wireframe, the atoms and the contours all live in the same rotated frame. Edges that run
+     behind the sample are drawn faint, which is the whole cue for which way the box is turned. */
+  _box3(corners, pass) {
+    const ctx = this.ctx;
+    const P = corners.map(c => this.toScreen(c[0], c[1]));
+    const zs = corners.map(c => c[2]);
+    const zmin = Math.min(...zs), zmax = Math.max(...zs), span = Math.max(1e-6, zmax - zmin);
+    const EDGES = [[0, 1], [1, 3], [3, 2], [2, 0], [4, 5], [5, 7], [7, 6], [6, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
+    ctx.save();
+    if (pass === 'under') {
+      for (const [a, b] of EDGES) {
+        const depth = ((zs[a] + zs[b]) / 2 - zmin) / span;
+        if (depth > 0.5) continue;                       // far edges only
+        ctx.strokeStyle = 'rgba(127,167,201,' + (0.12 + 0.12 * depth) + ')';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(P[a][0], P[a][1]); ctx.lineTo(P[b][0], P[b][1]); ctx.stroke();
+      }
+    } else {
+      for (const [a, b] of EDGES) {
+        const depth = ((zs[a] + zs[b]) / 2 - zmin) / span;
+        if (depth <= 0.5) continue;                      // near edges over the sample
+        ctx.strokeStyle = 'rgba(160,197,226,' + (0.3 + 0.35 * depth) + ')';
+        ctx.lineWidth = 1.1;
+        ctx.beginPath(); ctx.moveTo(P[a][0], P[a][1]); ctx.lineTo(P[b][0], P[b][1]); ctx.stroke();
+      }
+      ctx.fillStyle = 'rgba(233,228,216,.6)';
+      for (let i = 0; i < 8; i++) { const near = (zs[i] - zmin) / span > 0.5; if (near) ctx.fillRect(P[i][0] - 1.5, P[i][1] - 1.5, 3, 3); }
+    }
+    ctx.restore();
+  }
+
+  /* Ties the inspector card to its atom: a ring on the atom and a hairline to the card edge. */
+  _leader(ins, now) {
+    const ctx = this.ctx, [x, y] = this.toScreen(ins.x, ins.y);
+    const r = Math.max(9, ins.r * 0.5 * this.scale);
+    const pulse = 0.5 + 0.5 * Math.sin((now || 0) / 520);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,178,63,' + (0.5 + 0.3 * pulse) + ')'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,178,63,.3)'; ctx.lineWidth = 1; ctx.setLineDash([3, 4]);
+    const dx = ins.ax - x, dy = ins.ay - y, d = Math.hypot(dx, dy) || 1;
+    ctx.beginPath(); ctx.moveTo(x + dx / d * (r + 3), y + dy / d * (r + 3)); ctx.lineTo(ins.ax, ins.ay); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255,178,63,.75)';
+    ctx.beginPath(); ctx.arc(ins.ax, ins.ay, 2.2, 0, 7); ctx.fill();
     ctx.restore();
   }
 

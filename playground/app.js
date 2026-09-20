@@ -49,7 +49,7 @@ function updateLab() {
   $('bathBtn').setAttribute('aria-pressed', eng.thermostat);
   $('physicsNotice').hidden = !eng.clamped;
   $('physicsNotice').textContent = eng.clamped ? eng.clamped + ' safety speed clamps · energy affected' : '';
-  const hint = placing ? 'Click to place · Q/E rotate · Esc cancel' : armed ? armed + ' selected · click to place · drag to throw' : tool === 'heat' ? 'Drag to heat · Shift-drag to cool' : tool === 'erase' ? 'Click an atom to erase · Alt: molecule' : 'Drag to pan · scroll to zoom';
+  const hint = placing ? 'Click to place · Q/E rotate · right-click for the hand' : armed ? armed + ' selected · click to place · right-click for the hand' : tool === 'heat' ? 'Drag to heat · Shift-drag to cool' : tool === 'erase' ? 'Click an atom to erase · Alt: molecule' : viewTilted() ? 'Right-drag to turn · double right-click to face it' : 'Drag to pan · right-drag to turn · scroll to zoom';
   const ctx = $('toolContext');
   if (ctx.textContent !== hint) {
     ctx.textContent = hint; ctx.classList.add('show');
@@ -61,10 +61,17 @@ function updateLab() {
 const savedBox = store.get('box', { w: 36, h: 20, d: 12 });
 const eng = new Engine({ width: savedBox.w, height: savedBox.h, depth: savedBox.d, T: store.get('T', STP_T) });
 eng.thermostat = store.get('thermostat', true);
+const savedBounds = store.get('bounds', null);
+if (savedBounds) {
+  if (savedBounds.mode === 'forcefield' || savedBounds.mode === 'solid') eng.boundsMode = savedBounds.mode;
+  eng.voidTemperature = !!savedBounds.vt; eng.voidPressure = !!savedBounds.vp;
+}
 eng.recording = true;
 
 const canvas = $('field');
-const inspector = new AtomInspector({ engine: eng, pause: () => setPlaying(false), focus: () => canvas.focus(), remove: id => {
+const inspector = new AtomInspector({ engine: eng, pause: () => setPlaying(false), focus: () => canvas.focus(),
+  screenOf: i => R.toScreen(rp[3 * i], rp[3 * i + 1]),
+  remove: id => {
   const i = eng.ids.subarray(0, eng.N).indexOf(id);
   if (i < 0) return;
   pushUndo(); eng.removeAtoms([i]); edited();
@@ -79,9 +86,6 @@ $('measurementsBtn').onclick = () => {
 };
 $('bathBtn').onclick = toggleBath;
 $('resampleBtn').onclick = resampleMotion;
-$('startAtom').onclick = () => arm('H');
-$('modelBtn').onclick = () => $('modelDialog').showModal();
-$('modelClose').onclick = () => $('modelDialog').close();
 document.addEventListener('visibilitychange', () => {
   time.last = performance.now(); time.acc = 0;
   if (document.hidden && time.playing) { setPlaying(false); toast('Paused while this tab is hidden'); }
@@ -124,7 +128,7 @@ function edited() { // topology changed by the user: no reaction/bond events for
   eng.touch(); eng.refresh();
   editTick++; bondTrack.reset = true; species.reset = true;
   selection.forEach(i => { if (i >= eng.N) selection.delete(i); });
-  updateEmpty(); scheduleSave();
+  scheduleSave();
 }
 
 /* ======================= toasts ======================= */
@@ -270,9 +274,29 @@ function setT(T, quiet) {
   store.set('T', eng.T); tField.render(); paintT(); scheduleSave();
   if (!quiet) renderTPop();
 }
-function paintT() {
-  const c = blackbody(eng.T), d = $('bbDot');
-  d.style.background = c; d.style.color = c;
+function paintT() { $('bbDot').style.color = blackbody(eng.T); }
+/* The kinetic temperature of a handful of atoms genuinely wanders: its relative spread is
+   about sqrt(2/3N), so twenty atoms swing by tens of kelvin between one instant and the next.
+   That is the sample being small, not friction. The gauge reads a running mean and shows the
+   measured spread beside it, so the number is stable while the physics stays honest. */
+const tStat = { mean: 0, var: 0, live: false };
+function readTemperature() {
+  const val = $('tMeasuredVal'), band = $('tMeasuredBand'), gauge = $('tMeasured');
+  if (!eng.N) { tStat.live = false; val.textContent = ''; band.style.opacity = '0'; return; }
+  const T = eng.temperature();
+  if (!tStat.live) { tStat.mean = T; tStat.var = 0; tStat.live = true; }
+  const a = 0.09, d = T - tStat.mean;
+  tStat.mean += a * d;
+  tStat.var = (1 - a) * (tStat.var + a * d * d);
+  const sd = Math.sqrt(tStat.var), mean = tStat.mean;
+  val.textContent = mean.toFixed(mean < 10 ? 2 : 0) + ' K';
+  band.style.opacity = '1';
+  const half = clamp(sd / Math.max(1, mean) * 130, 1.5, 46);
+  band.style.setProperty('--lo', (50 - half) + '%');
+  band.style.setProperty('--hi', (50 - half) + '%');
+  gauge.title = 'Measured kinetic temperature ' + mean.toFixed(1) + ' K ± ' + sd.toFixed(1) +
+    ' K (now ' + T.toFixed(1) + ' K). A sample of ' + eng.N + ' atoms fluctuates by about ' +
+    (mean * Math.sqrt(2 / (3 * Math.max(1, eng.N)))).toFixed(1) + ' K — that is its size, not friction.';
 }
 const fmtT = v => v >= 10000 ? (v / 1000).toFixed(1) + 'k' : v >= 100 ? Math.round(v).toString() : v >= 10 ? v.toFixed(1) : v.toFixed(2);
 const tField = scrub($('tField'), {
@@ -500,7 +524,7 @@ function arm(sym) {
     if (dockEls.length >= 9) dockEls.pop();
     dockEls.push(sym); store.set('dockEls', dockEls); buildDock();
   }
-  armed = sym; placing = null; refreshDock(); updateEmpty();
+  armed = sym; placing = null; refreshDock();
 }
 // periodic flyout
 const PT54 = 'H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn Ga Ge As Se Br Kr Rb Sr Y Zr Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I Xe'.split(' ');
@@ -548,18 +572,78 @@ function tooClose(x, y, z, minD) {
   for (let i = 0; i < eng.N; i++) { const dx = eng.pos[3 * i] - x, dy = eng.pos[3 * i + 1] - y, dz = eng.pos[3 * i + 2] - z; if (dx * dx + dy * dy + dz * dz < minD * minD) return true; }
   return false;
 }
+/* (x, y) arrive in the frame the pointer works in; the atom itself is born in world coordinates,
+   a little off the mid-plane so nothing lands exactly on top of anything else. */
 function placeAtom(sym, x, y, v) {
-  const z = (eng.rand() - 0.5) * 0.6;
-  if (tooClose(x, y, z, 1.1)) { toast('Too close to another atom'); return; }
+  const jitter = (eng.rand() - 0.5) * 0.6;
+  const w = viewTilted() ? fromView(x, y, viewPivot()[2] + jitter) : [x, y, jitter];
+  if (tooClose(w[0], w[1], w[2], 1.1)) { toast('Too close to another atom'); return; }
   pushUndo();
   const tv = thermalVel(sym, eng.T);
-  eng.addAtom(sym, x, y, z, { v: v ? [v[0] + tv[0] * 0.3, v[1] + tv[1] * 0.3, tv[2] * 0.3] : tv });
+  const fl = v ? viewDelta(v[0], v[1]) : null;
+  eng.addAtom(sym, w[0], w[1], w[2], { v: fl ? [fl[0] + tv[0] * 0.3, fl[1] + tv[1] * 0.3, fl[2] + tv[2] * 0.3] : tv });
   edited();
   bondTrack.pending.push({ x, y, t0: performance.now(), dur: 420, kind: 'form', big: true });
 }
 // fling: screen drag → velocity (Å/fs). 10 Å of drag ≈ 0.02 Å/fs (2 km/s)
 function flingVel(dx, dy) { const k = 0.002, v = [dx * k, dy * k]; const s = Math.hypot(v[0], v[1]), cap = 0.12; if (s > cap) { v[0] *= cap / s; v[1] *= cap / s; } return v; }
 function flingLabel(v, mass) { const ke = 0.5 * mass * (v[0] * v[0] + v[1] * v[1]) * 1e4; return (Math.hypot(v[0], v[1]) * 1e5 / 1000).toFixed(1) + ' km/s · ' + ke.toFixed(ke < 10 ? 1 : 0) + ' kJ/mol'; }
+
+/* ======================= view rotation ======================= */
+/* The chamber is a real 3D slab; the default view looks straight down the z axis at it.
+   Right-dragging empty space turns the slab about its own centre. Everything the pointer does
+   keeps working because the render positions, the hit test and the pointer all share one frame:
+   world coordinates go through `toView` once per frame, and anything that writes back into the
+   engine — dragging an atom, placing one, the tweezer — comes back through `fromView`. */
+const view = { yaw: 0, pitch: 0 };
+R.view = view;
+const viewTilted = () => Math.abs(view.yaw) > 1e-6 || Math.abs(view.pitch) > 1e-6;
+function viewPivot() { const b = eng.box; return [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, (b.z0 + b.z1) / 2]; }
+function toView(x, y, z) {
+  const p = viewPivot(), cy = Math.cos(view.yaw), sy = Math.sin(view.yaw), cp = Math.cos(view.pitch), sp = Math.sin(view.pitch);
+  const dx = x - p[0], dy = y - p[1], dz = z - p[2];
+  const x1 = cy * dx + sy * dz, z1 = cy * dz - sy * dx;
+  return [p[0] + x1, p[1] + cp * dy - sp * z1, p[2] + sp * dy + cp * z1];
+}
+function fromView(x, y, z) {
+  const p = viewPivot(), cy = Math.cos(view.yaw), sy = Math.sin(view.yaw), cp = Math.cos(view.pitch), sp = Math.sin(view.pitch);
+  const dx = x - p[0], dy = y - p[1], dz = z - p[2];
+  const y1 = cp * dy + sp * dz, z1 = cp * dz - sp * dy;
+  return [p[0] + cy * dx - sy * z1, p[1] + y1, p[2] + sy * dx + cy * z1];
+}
+/* A pointer names a point on the plane through the chamber centre that faces the viewer. */
+function pointerWorld(sx, sy) {
+  const [vx, vy] = R.toWorld(sx, sy);
+  if (!viewTilted()) return [vx, vy, viewPivot()[2]];
+  return fromView(vx, vy, viewPivot()[2]);
+}
+function viewDelta(dvx, dvy, dvz) { return viewDelta3([dvx, dvy, dvz || 0]); }
+function viewDelta3(v) {         // a vector seen on screen, expressed in world axes
+  if (!viewTilted()) return [v[0], v[1], v[2] || 0];
+  const p = viewPivot();
+  const a = fromView(p[0], p[1], p[2]), b = fromView(p[0] + v[0], p[1] + v[1], p[2] + (v[2] || 0));
+  return [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+}
+function boxCorners() {
+  const b = eng.box, out = [];
+  for (const z of [b.z0, b.z1]) for (const y of [b.y0, b.y1]) for (const x of [b.x0, b.x1]) out.push(toView(x, y, z));
+  return out;
+}
+function setTilt(yaw, pitch, animate) {
+  view.yaw = yaw;
+  view.pitch = clamp(pitch, -Math.PI / 2 + 0.02, Math.PI / 2 - 0.02);
+  if (animate) { /* the caller animates by stepping this each frame */ }
+}
+function faceChamber() {
+  const from = { yaw: view.yaw, pitch: view.pitch }, t0 = performance.now();
+  if (!viewTilted()) return;
+  const spin = () => {
+    const k = Math.min(1, (performance.now() - t0) / 380), e = 1 - Math.pow(1 - k, 3);
+    view.yaw = from.yaw * (1 - e); view.pitch = from.pitch * (1 - e);
+    if (k < 1) requestAnimationFrame(spin);
+  };
+  spin();
+}
 
 /* ======================= pointer on the field ======================= */
 const pointers = new Map();
@@ -577,6 +661,7 @@ function hitAtom(wx, wy, extra = 0) {
   return best;
 }
 function boxEdgeAt(sx, sy) {
+  if (viewTilted()) return null;                 // the faces are no longer screen-aligned
   const b = eng.box, [x0, y0] = R.toScreen(b.x0, b.y0), [x1, y1] = R.toScreen(b.x1, b.y1), t = 7;
   const nearX = Math.abs(sx - x1) < t && sy > y0 - t && sy < y1 + t, nearY = Math.abs(sy - y1) < t && sx > x0 - t && sx < x1 + t;
   return nearX && nearY ? 'xy' : nearX ? 'x' : nearY ? 'y' : null;
@@ -585,7 +670,7 @@ function fragmentOf(i) { const fr = eng.fragments(); return fr.list[fr.comp[i]];
 
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('pointerdown', e => {
-  canvas.setPointerCapture(e.pointerId);
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) { }
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   closePop(); hideTip();
   if (pointers.size === 2) { // pinch
@@ -595,13 +680,22 @@ canvas.addEventListener('pointerdown', e => {
   }
   const [wx, wy] = R.toWorld(e.clientX, e.clientY);
   const hit = hitAtom(wx, wy);
+  if (e.button === 2 && (placing || armed)) {   // put it down and take the hand back
+    const what = placing ? 'Molecule' : BY_SYM[armed].name;
+    placing = null; arm(null); setTool('grab');
+    toast(what + ' put down · hand tool');
+    return;
+  }
   if (e.button === 2 && hit >= 0) { inspector.open(hit); return; }
   if (e.button === 1 || (e.button === 0 && spaceHeld)) { gesture = { type: 'pan', sx: e.clientX, sy: e.clientY, cx: R.cam.cx, cy: R.cam.cy }; canvas.className = 'grabbing'; return; }
   if (placing) { gesture = { type: 'placeMol', sx: e.clientX, sy: e.clientY, wx, wy }; return; }
   if (armed && e.button === 0) { gesture = { type: 'placeAtom', sx: e.clientX, sy: e.clientY, wx, wy }; return; }
   if (e.button === 2) {
     if (tool === 'heat') { brush.active = true; brush.cool = true; gesture = { type: 'brush' }; return; }
-    gesture = { type: 'pan', sx: e.clientX, sy: e.clientY, cx: R.cam.cx, cy: R.cam.cy }; canvas.className = 'grabbing'; return;
+    if (e.detail >= 2) { faceChamber(); toast('Facing the chamber'); return; }
+    // empty scene: turn the chamber in its third dimension
+    gesture = { type: 'orbit', sx: e.clientX, sy: e.clientY, yaw: view.yaw, pitch: view.pitch };
+    canvas.className = 'orbiting'; return;
   }
   if (tool === 'erase') { pushUndo(); gesture = { type: 'erase', alt: e.altKey }; eraseAt(wx, wy, e.altKey); return; }
   if (tool === 'heat') { brush.active = true; brush.cool = e.shiftKey; gesture = { type: 'brush' }; return; }
@@ -609,7 +703,7 @@ canvas.addEventListener('pointerdown', e => {
   if (edge && hit < 0) { pushUndo(); gesture = { type: 'box', edge }; return; }
   if (e.shiftKey) { gesture = { type: 'marquee', x0: wx, y0: wy, x1: wx, y1: wy }; return; }
   if (hit >= 0) {
-    if (time.playing) { gesture = { type: 'tweezer', i: hit }; eng.tweezer = { i: hit, x: wx, y: wy, k: 30 }; eng.checkpoints.length = 0; }
+    if (time.playing) { const w = pointerWorld(e.clientX, e.clientY); gesture = { type: 'tweezer', i: hit }; eng.tweezer = { i: hit, x: w[0], y: w[1], k: 30 }; eng.checkpoints.length = 0; }
     else {
       pushUndo();
       const set = e.altKey ? [hit] : (selection.has(hit) ? [...selection] : fragmentOf(hit));
@@ -645,10 +739,14 @@ canvas.addEventListener('pointermove', e => {
     g.d = d; g.mx = mx; g.my = my; return;
   }
   if (g.type === 'pan') { R.cam.cx = g.cx - (e.clientX - g.sx) / R.scale; R.cam.cy = g.cy - (e.clientY - g.sy) / R.scale; camAnim = null; clampCam(); }
-  else if (g.type === 'tweezer') { if (eng.tweezer) { eng.tweezer.x = wx; eng.tweezer.y = wy; eng.needForces = true; } }
+  else if (g.type === 'orbit') {
+    view.yaw = g.yaw + (e.clientX - g.sx) * 0.006;
+    view.pitch = clamp(g.pitch - (e.clientY - g.sy) * 0.006, -Math.PI / 2 + 0.02, Math.PI / 2 - 0.02);
+  }
+  else if (g.type === 'tweezer') { if (eng.tweezer) { const w = pointerWorld(e.clientX, e.clientY); eng.tweezer.x = w[0]; eng.tweezer.y = w[1]; eng.needForces = true; } }
   else if (g.type === 'move') {
-    const dx = wx - g.wx, dy = wy - g.wy; g.wx = wx; g.wy = wy; g.moved = true;
-    for (const i of g.set) { eng.pos[3 * i] += dx; eng.pos[3 * i + 1] += dy; eng.prev[3 * i] = eng.pos[3 * i]; eng.prev[3 * i + 1] = eng.pos[3 * i + 1]; }
+    const d = viewDelta(wx - g.wx, wy - g.wy); g.wx = wx; g.wy = wy; g.moved = true;
+    for (const i of g.set) for (let c = 0; c < 3; c++) { eng.pos[3 * i + c] += d[c]; eng.prev[3 * i + c] = eng.pos[3 * i + c]; }
     eng.needRebuild = true; eng.needForces = true;
   } else if (g.type === 'erase') eraseAt(wx, wy, g.alt);
   else if (g.type === 'marquee') { g.x1 = wx; g.y1 = wy; }
@@ -717,7 +815,11 @@ let spaceHeld = false, boxHot = null;
 function applyBrush(dt) {
   if (!brush.active) return;
   const f = brush.cool ? Math.exp(-dt * 4) : Math.exp(dt * 2.2), r2 = brush.r * brush.r, list = [];
-  for (let i = 0; i < eng.N; i++) { const dx = eng.pos[3 * i] - brush.x, dy = eng.pos[3 * i + 1] - brush.y; if (dx * dx + dy * dy < r2) list.push(i); }
+  for (let i = 0; i < eng.N; i++) {
+    const v = viewTilted() ? toView(eng.pos[3 * i], eng.pos[3 * i + 1], eng.pos[3 * i + 2]) : eng.pos.subarray(3 * i, 3 * i + 3);
+    const dx = v[0] - brush.x, dy = v[1] - brush.y;
+    if (dx * dx + dy * dy < r2) list.push(i);
+  }
   if (!list.length) return;
   // give frozen atoms a seed velocity so heating works from absolute zero
   for (const i of list) { const v2 = eng.vel[3 * i] ** 2 + eng.vel[3 * i + 1] ** 2 + eng.vel[3 * i + 2] ** 2; if (!brush.cool && v2 < 1e-8) { const tv = thermalVel(ELEMENTS[eng.type[i]].sym, 30); eng.vel.set(tv, 3 * i); } }
@@ -892,7 +994,7 @@ function startConditioning(mol) {
   $('sheetName').textContent = mol.name || pretty(mol.formula);
   $('sheetFormula').textContent = pretty(mol.formula) + ' · ' + mol.atoms.length + ' atoms' + (mol.smiles ? ' · ' + mol.smiles : '');
   cond = { mol };
-  paintSeg(); buildCondEngine(); updateEmpty();
+  paintSeg(); buildCondEngine();
 }
 function buildCondEngine() {
   const mol = cond.mol, { T, P } = condParams();
@@ -973,7 +1075,6 @@ const cPField = scrub($('cP'), { get: () => condPrefs.P, set: (v, c) => { condPr
 function closeSheet() {
   if (!cond && $('sheet').hidden) return;
   cond = null; const s = $('sheet'); s.classList.add('leaving');
-  updateEmpty();
   setTimeout(() => { if (!cond) s.hidden = true; s.classList.remove('leaving'); }, 240);
 }
 $('condCancel').onclick = closeSheet;
@@ -995,11 +1096,14 @@ function ghostAtoms(x, y) {
   const c = Math.cos(placing.rot), s = Math.sin(placing.rot);
   return placing.atoms.map(a => ({ t: a.t, x: x + a.x * c - a.y * s, y: y + a.x * s + a.y * c, z: a.z }));
 }
+// a ghost atom as the engine would receive it: the preview is drawn in the frame you see
+function ghostWorld(a) { return viewTilted() ? fromView(a.x, a.y, viewPivot()[2] + a.z) : [a.x, a.y, a.z]; }
 function ghostOK(g) {
   const b = eng.box;
   for (const a of g) {
-    if (a.x < b.x0 || a.x > b.x1 || a.y < b.y0 || a.y > b.y1 || a.z < b.z0 || a.z > b.z1) return false;
-    if (tooClose(a.x, a.y, a.z, 1.5)) return false;
+    const w = ghostWorld(a);
+    if (w[0] < b.x0 || w[0] > b.x1 || w[1] < b.y0 || w[1] > b.y1 || w[2] < b.z0 || w[2] > b.z1) return false;
+    if (tooClose(w[0], w[1], w[2], 1.5)) return false;
   }
   return true;
 }
@@ -1010,10 +1114,13 @@ function dropMolecule(x, y, fling, keep) {
   const c = Math.cos(placing.rot), s = Math.sin(placing.rot), base = eng.N;
   // Conditioning removes center-of-mass motion. Restore thermal translation
   // once per molecule, otherwise isolated imports vibrate forever in place.
-  const drift = placing.atRest ? [0, 0, 0] : fling ? [fling[0], fling[1], 0] : ChemProtocol.thermalTranslation(placing.mass, placing.T, () => eng.gauss());
+  const thrown = fling ? viewDelta(fling[0], fling[1]) : null;
+  const drift = placing.atRest ? [0, 0, 0] : thrown || ChemProtocol.thermalTranslation(placing.mass, placing.T, () => eng.gauss());
   placing.atoms.forEach((a, k) => {
-    const v = [a.v[0] * c - a.v[1] * s + drift[0], a.v[0] * s + a.v[1] * c + drift[1], a.v[2] + drift[2]];
-    eng.addAtom(a.sym, g[k].x, g[k].y, g[k].z, { v, charge: a.q, V: a.V });
+    const w = ghostWorld(g[k]);
+    const vv = [a.v[0] * c - a.v[1] * s, a.v[0] * s + a.v[1] * c, a.v[2]];
+    const vw = viewTilted() ? viewDelta3(vv) : vv;
+    eng.addAtom(a.sym, w[0], w[1], w[2], { v: [vw[0] + drift[0], vw[1] + drift[1], vw[2] + drift[2]], charge: a.q, V: a.V });
   });
   eng.refresh();
   for (const b of placing.bonds) if (b.order > 1.05) eng.setBondOrder(base + b.a, base + b.b, b.order);
@@ -1061,7 +1168,8 @@ act('edit.pin', 'Edit', 'Pin / unpin selection', ['K'], pinSelection);
 act('edit.clear', 'Edit', 'Clear the field', ['Shift+Delete'], () => { if (!eng.N) return; pushUndo(); eng.clear(); selection.clear(); edited(); toast('Field cleared — Ctrl+Z brings it back'); });
 act('edit.stopMotion', 'Edit', 'Stop all motion now', [], () => { eng.vel.fill(0); eng.checkpoints.length = 0; toast('All velocities set to zero'); });
 act('ui.molecules', 'Panels', 'Molecules tray', ['M'], toggleTray);
-act('ui.keys', 'Panels', 'Shortcuts', ['?'], openKeys);
+act('ui.keys', 'Panels', 'Shortcuts', ['?'], () => openConsole('keys'));
+act('ui.console', 'Panels', 'Console', ['Shift+M'], () => toggleConsole());
 act('ui.palette', 'Panels', 'Command palette', ['Ctrl+K', '/'], openPalette);
 function nextSpeed(d) {
   const list = SPEEDS.map(s => s[0]);
@@ -1121,12 +1229,11 @@ let listening = null;
 window.addEventListener('keydown', e => {
   if (listening) { e.preventDefault(); e.stopPropagation(); captureKey(e); return; }
   const t = e.target;
-  if ($('modelDialog').open) return;
   if (t && t.closest('button, a, select') && [' ', 'Enter'].includes(e.key)) return;
   if (t && (t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
   if (e.key === ' ') spaceHeld = true;
   if (e.key === 'Escape') {
-    if (!$('keysVeil').hidden) { closeKeys(); return; }
+    if (consoleIsOpen()) { closeConsole(); return; }
     if (!$('cmdVeil').hidden) { closePalette(); return; }
     if (openPop) { closePop(); return; }
     if (placing) { placing = null; refreshDock(); return; }
@@ -1147,36 +1254,344 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => { if (e.key === ' ') spaceHeld = false; });
 
-function openKeys() {
-  closePop();
+/* The keybind grid is an app inside the console; it paints into whatever stage is mounted. */
+function paintKeys() {
+  const grid = $('keysGrid'); if (!grid) return;
   const groups = [...new Set(ACTIONS.map(a => a.group))];
-  $('keysGrid').innerHTML = groups.map(g => '<div class="kgroup"><h3>' + g + '</h3>' + ACTIONS.filter(a => a.group === g).map(a =>
+  grid.innerHTML = groups.map(g => '<div class="kgroup"><h3>' + g + '</h3>' + ACTIONS.filter(a => a.group === g).map(a =>
     '<div class="krow"><span>' + esc(a.name) + '</span><button class="kcap' + ((keymap[a.id] || []).length ? '' : ' empty') + '" data-id="' + a.id + '">' + ((keymap[a.id] || []).length ? esc(prettyKey(keymap[a.id][0])) : 'add') + '</button></div>').join('') + '</div>').join('') +
-    '<div class="kgroup"><h3>Mouse</h3>' + [['Scroll', 'Zoom (0.05–15 nm; Fit can show larger boxes)'], ['Drag empty space', 'Pan'], ['Drag an atom', 'Pull it (running) / move its molecule (paused)'], ['Alt + drag atom', 'Move one atom (paused)'], ['Shift + drag', 'Select a region'], ['Right-click atom', 'Atom inspector and calculated molecular electron density'], ['Drag while placing', 'Throw with that velocity'], ['Drag box edge', 'Resize the container'], ['Q / E', 'Rotate a molecule before placing']].map(r => '<div class="krow"><span>' + r[1] + '</span><span class="kcap" style="border:0;background:none;color:var(--faint)">' + r[0] + '</span></div>').join('') + '</div>';
-  $('keysGrid').querySelectorAll('button.kcap').forEach(b => b.onclick = () => {
+    '<div class="kgroup"><h3>Mouse</h3>' + [['Scroll', 'Zoom (0.05–15 nm; Fit can show larger boxes)'], ['Drag empty space', 'Pan'], ['Right-drag empty space', 'Tilt the chamber in 3D'], ['Double right-click empty space', 'Face the chamber again'], ['Drag an atom', 'Pull it (running) / move its molecule (paused)'], ['Alt + drag atom', 'Move one atom (paused)'], ['Shift + drag', 'Select a region'], ['Right-click atom', 'Atom inspector with its calculated electron cloud'], ['Right-click while placing', 'Put the atom or molecule down and take the hand'], ['Drag while placing', 'Throw with that velocity'], ['Drag box edge', 'Resize the chamber'], ['Q / E', 'Rotate a molecule before placing']].map(r => '<div class="krow"><span>' + r[1] + '</span><span class="kcap" style="border:0;background:none;color:var(--faint)">' + r[0] + '</span></div>').join('') + '</div>';
+  grid.querySelectorAll('button.kcap').forEach(b => b.onclick = () => {
     document.querySelectorAll('.kcap.listening').forEach(x => x.classList.remove('listening'));
     listening = b; b.classList.add('listening'); b.textContent = 'press a key';
   });
-  $('keysVeil').hidden = false;
 }
 function captureKey(e) {
   const b = listening; listening = null; b.classList.remove('listening');
   const id = b.dataset.id;
-  if (e.key === 'Escape') { openKeys(); return; }
-  if (e.key === 'Backspace' && !keymap[id]?.length) { openKeys(); return; }
-  const combo = comboOf(e); if (!combo) { openKeys(); return; }
+  if (e.key === 'Escape') { paintKeys(); return; }
+  if (e.key === 'Backspace' && !keymap[id]?.length) { paintKeys(); return; }
+  const combo = comboOf(e); if (!combo) { paintKeys(); return; }
   let moved = null;
   for (const a of ACTIONS) if (a.id !== id && (keymap[a.id] || []).includes(combo)) { keymap[a.id] = keymap[a.id].filter(k => k !== combo); moved = a.name; }
   keymap[id] = [combo];
   store.set('keys', keymap);
-  openKeys(); refreshKeyHints();
-  const nb = $('keysGrid').querySelector('[data-id="' + id + '"]'); nb && nb.classList.add('flash');
+  paintKeys(); refreshKeyHints();
+  const nb = $('keysGrid') && $('keysGrid').querySelector('[data-id="' + id + '"]'); nb && nb.classList.add('flash');
   if (moved) toast(prettyKey(combo) + ' moved here from “' + moved + '”');
 }
-function closeKeys() { listening = null; $('keysVeil').hidden = true; }
-$('keysBtn').onclick = openKeys; $('keysClose').onclick = closeKeys;
-$('keysReset').onclick = () => { keymap = Object.assign({}, defaultKeys); store.set('keys', keymap); openKeys(); refreshKeyHints(); toast('Shortcuts reset'); };
-$('keysVeil').addEventListener('pointerdown', e => { if (e.target === $('keysVeil')) closeKeys(); });
+
+
+/* ======================= console ======================= */
+/* Apps live on the scene rather than over it: opening one holds the clock where it stands,
+   the field keeps drawing behind, and closing hands time back exactly where it was left.
+   Every control here writes straight through to the engine, so a change shows in the chamber
+   while it is still being made. */
+const ICONS = {
+  environment: '<svg viewBox="0 0 16 16"><rect x="2" y="2.6" width="12" height="10.8" rx="2"/><path d="M4.6 5.4v5.2M11.4 5.4v5.2"/><circle cx="8" cy="8" r="1.5"/></svg>',
+  about: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.3v3.9"/><path d="M8 4.9h.01"/></svg>',
+  keys: '<svg viewBox="0 0 16 16"><rect x="1.6" y="4.2" width="12.8" height="8" rx="1.7"/><path d="M4.2 6.9h.01M6.6 6.9h.01M9 6.9h.01M11.4 6.9h.01M5.2 9.7h5.6"/></svg>'
+};
+const APPS = [
+  { id: 'environment', name: 'Environment', render: renderEnvironmentApp },
+  { id: 'about', name: 'About', render: renderAboutApp },
+  { id: 'keys', name: 'Keybinds', render: renderKeysApp }
+];
+let consoleApp = store.get('consoleApp', 'environment');
+let consoleResume = false, consoleTick = null;
+const consoleIsOpen = () => !$('console').hidden;
+
+function openConsole(id) {
+  if (id) consoleApp = id;
+  if (consoleIsOpen()) { selectApp(consoleApp); return; }
+  closePop(); hideTip();
+  consoleResume = time.playing;
+  setPlaying(false);
+  const win = $('consoleWin'), pos = store.get('consolePos', null);
+  if (pos) { win.style.setProperty('--cx', pos.x + '%'); win.style.setProperty('--cy', pos.y + '%'); }
+  $('console').hidden = false;
+  $('console').classList.remove('closing');
+  $('menuBtn').setAttribute('aria-expanded', 'true');
+  buildRail();
+  selectApp(consoleApp);
+  consoleTick = setInterval(() => { $('consoleClock').textContent = fmtTime(eng.time); refreshApp(); }, 250);
+  $('consoleClock').textContent = fmtTime(eng.time);
+}
+function closeConsole() {
+  if (!consoleIsOpen()) return;
+  clearInterval(consoleTick); consoleTick = null;
+  const veil = $('console');
+  veil.classList.add('closing');
+  $('menuBtn').setAttribute('aria-expanded', 'false');
+  setTimeout(() => { veil.hidden = true; veil.classList.remove('closing'); }, 190);
+  if (consoleResume) setPlaying(true);
+  consoleResume = false;
+  canvas.focus();
+}
+function toggleConsole(id) {
+  if (consoleIsOpen() && (!id || id === consoleApp)) closeConsole();
+  else openConsole(id);
+}
+function buildRail() {
+  $('consoleRail').innerHTML = APPS.map(a =>
+    '<button class="app-tab" role="tab" data-app="' + a.id + '" aria-selected="false">' + ICONS[a.id] + '<span>' + a.name + '</span></button>').join('');
+  $('consoleRail').querySelectorAll('.app-tab').forEach(b => b.onclick = () => selectApp(b.dataset.app));
+}
+function selectApp(id) {
+  const app = APPS.find(a => a.id === id) || APPS[0];
+  consoleApp = app.id; store.set('consoleApp', app.id);
+  $('consoleTitle').textContent = app.name;
+  $('consoleRail').querySelectorAll('.app-tab').forEach(b => b.setAttribute('aria-selected', b.dataset.app === app.id));
+  const stage = $('consoleStage');
+  stage.scrollTop = 0; stage.innerHTML = '';
+  app.render(stage);
+}
+function refreshApp() { if (appRefresh) appRefresh(); }
+let appRefresh = null;
+
+$('menuBtn').onclick = () => toggleConsole();
+$('consoleClose').onclick = closeConsole;
+// the title bar carries the window; position is remembered as a share of the viewport
+$('consoleBar').addEventListener('pointerdown', e => {
+  if (e.target.closest('button')) return;
+  const win = $('consoleWin'), r = win.getBoundingClientRect();
+  const ox = e.clientX - (r.left + r.width / 2), oy = e.clientY - (r.top + r.height / 2);
+  const bar = $('consoleBar');
+  bar.setPointerCapture(e.pointerId);
+  const move = ev => {
+    const x = clamp((ev.clientX - ox) / innerWidth * 100, 12, 88);
+    const y = clamp((ev.clientY - oy) / innerHeight * 100, 10, 90);
+    win.style.setProperty('--cx', x + '%'); win.style.setProperty('--cy', y + '%');
+    store.set('consolePos', { x, y });
+  };
+  const up = () => { bar.removeEventListener('pointermove', move); bar.removeEventListener('pointerup', up); };
+  bar.addEventListener('pointermove', move); bar.addEventListener('pointerup', up);
+});
+
+/* ---- small builders shared by the apps ---- */
+function el(tag, cls, html) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (html != null) n.innerHTML = html;
+  return n;
+}
+const TICK = '<svg viewBox="0 0 12 12"><path d="M2.4 6.2l2.4 2.4 4.8-5"/></svg>';
+/* One dropdown component, two behaviours: `multi` turns the marks into checkboxes and keeps
+   the sheet open, because those options are not alternatives to each other. */
+function dropdown({ label, options, multi, get, set, summary }) {
+  const wrap = el('div', 'drop');
+  const btn = el('button', 'drop-btn',
+    '<span>' + esc(label) + '</span><span class="drop-val"></span>' +
+    '<svg class="caret" viewBox="0 0 10 10"><path d="M2 3.8l3 3 3-3"/></svg>');
+  wrap.appendChild(btn);
+  let sheet = null;
+  const paint = () => {
+    const v = get();
+    const text = summary(v);
+    const val = btn.querySelector('.drop-val');
+    val.textContent = text.label;
+    val.classList.toggle('set', !!text.accent);
+    if (sheet) sheet.querySelectorAll('.drop-opt').forEach(o => {
+      const on = multi ? v.includes(o.dataset.v) : v === o.dataset.v;
+      o.setAttribute(multi ? 'aria-checked' : 'aria-selected', on);
+    });
+  };
+  const close = () => { if (sheet) { sheet.remove(); sheet = null; wrap.classList.remove('open'); } };
+  btn.onclick = e => {
+    e.stopPropagation();
+    if (sheet) return close();
+    document.querySelectorAll('.drop.open .drop-btn').forEach(b => b !== btn && b.click());
+    sheet = el('div', 'drop-sheet');
+    sheet.setAttribute('role', multi ? 'group' : 'listbox');
+    sheet.innerHTML = options.map(o =>
+      '<button class="drop-opt" role="' + (multi ? 'checkbox' : 'option') + '" data-v="' + o.v + '" ' +
+      (multi ? 'aria-checked="false"' : 'aria-selected="false"') + '>' +
+      '<span class="drop-mark' + (multi ? ' box' : '') + '">' + TICK + '</span>' +
+      '<div><strong>' + esc(o.name) + '</strong><small>' + esc(o.note) + '</small></div></button>').join('');
+    sheet.querySelectorAll('.drop-opt').forEach(o => o.onclick = ev => {
+      ev.stopPropagation();
+      set(o.dataset.v);
+      paint();
+      if (!multi) close();
+    });
+    sheet.addEventListener('pointerdown', ev => ev.stopPropagation());
+    wrap.appendChild(sheet); wrap.classList.add('open');
+    paint();
+  };
+  document.addEventListener('pointerdown', () => close());
+  paint();
+  wrap.repaint = paint;
+  return wrap;
+}
+function statRow(rows) {
+  return el('div', 'app-stat', rows.map(r => '<span>' + esc(r[0]) + '</span><b>' + esc(r[1]) + '</b>').join(''));
+}
+
+/* ---- environment ---- */
+function boundarySettingsChanged(note) {
+  eng.checkpoints.length = 0; eng.needForces = true; eng.touch();
+  store.set('bounds', { mode: eng.boundsMode, vt: eng.voidTemperature, vp: eng.voidPressure });
+  scheduleSave();
+  if (note) toast(note);
+}
+function renderEnvironmentApp(stage) {
+  stage.appendChild(el('p', 'app-lede',
+    'The chamber the sample lives in. Bounds decide how a wall turns an atom around; a void wall decides what the outside does to whatever reaches it.'));
+
+  // chamber cross-section: one atom's path into the boundary and back, redrawn from the live settings
+  stage.appendChild(el('div', null,
+    '<svg class="chamber-art" id="chamberArt" viewBox="0 0 300 128" role="img" aria-label="An atom meeting the chamber boundary">' +
+    '<defs>' +
+    '<linearGradient id="ffL" x1="0" x2="1"><stop offset="0" stop-color="#7fa7c9" stop-opacity=".3"/><stop offset="1" stop-color="#7fa7c9" stop-opacity="0"/></linearGradient>' +
+    '<linearGradient id="ffR" x1="1" x2="0"><stop offset="0" stop-color="#7fa7c9" stop-opacity=".3"/><stop offset="1" stop-color="#7fa7c9" stop-opacity="0"/></linearGradient>' +
+    '</defs>' +
+    '<g class="halo"><rect x="47" y="17" width="26" height="86" fill="url(#ffL)"/><rect x="227" y="17" width="26" height="86" fill="url(#ffR)"/></g>' +
+    '<rect class="wall" x="47" y="17" width="206" height="86" rx="2" stroke-width="1.5"/>' +
+    '<path class="trace" id="artTrace" d="" stroke-dasharray="none"/>' +
+    '<circle id="artDot" r="3.4" fill="#ffb23f"/>' +
+    '<g class="quantum heat"><path d="M258 38c4-3 4 3 8 0"/><path d="M258 54c4-3 4 3 8 0"/><path d="M258 70c4-3 4 3 8 0"/></g>' +
+    '<g class="quantum push"><path d="M258 88h13M266 84l5 4-5 4" stroke="#7fa7c9" stroke-width="1.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<path d="M256 82l18 12M274 82l-18 12" stroke="#ff6b5b" stroke-width="1.1" stroke-linecap="round"/></g>' +
+    '<text x="47" y="116">chamber</text><text x="253" y="116" text-anchor="end" id="artLabel">solid bound</text>' +
+    '</svg>'));
+
+  const bounds = el('div', 'app-group', '<h3>Bounds</h3>');
+  const boundsDrop = dropdown({
+    label: 'Wall behaviour',
+    options: [
+      { v: 'solid', name: 'Solid', note: 'A stiff wall exactly at the chamber face. Atoms bounce on contact.' },
+      { v: 'forcefield', name: 'Forcefield', note: 'A soft field that starts 3 Å inside and keeps pushing. Atoms lean into it and may cross the face.' }
+    ],
+    get: () => eng.boundsMode,
+    set: v => { eng.boundsMode = v; boundarySettingsChanged(); paintArt(); },
+    summary: v => ({ label: v === 'forcefield' ? 'forcefield' : 'solid', accent: v === 'forcefield' })
+  });
+  bounds.appendChild(boundsDrop);
+  bounds.appendChild(el('p', 'app-note', 'A forcefield is gentler on fast atoms — fewer hard rebounds, so less of the heating a stiff wall causes.'));
+  stage.appendChild(bounds);
+
+  const vw = el('div', 'app-group', '<h3>Void wall</h3>');
+  const voidDrop = dropdown({
+    label: 'Beyond the bounds',
+    multi: true,
+    options: [
+      { v: 'temperature', name: 'Temperature', note: 'Energy that crosses the face drains away and never returns. The sample cools at its edges.' },
+      { v: 'pressure', name: 'Pressure', note: 'The face absorbs the impulse instead of reporting it, so the gauge reads an open chamber.' }
+    ],
+    get: () => [eng.voidTemperature && 'temperature', eng.voidPressure && 'pressure'].filter(Boolean),
+    set: v => {
+      if (v === 'temperature') eng.voidTemperature = !eng.voidTemperature;
+      else eng.voidPressure = !eng.voidPressure;
+      boundarySettingsChanged(); paintArt();
+    },
+    summary: v => ({ label: v.length ? v.join(' · ') : 'none', accent: v.length > 0 })
+  });
+  vw.appendChild(voidDrop);
+  vw.appendChild(el('p', 'app-note', 'Atoms are still pushed back in either case — the void takes what crosses the line, not the atom itself.'));
+  stage.appendChild(vw);
+
+  const size = el('div', 'app-group', '<h3>Chamber</h3>');
+  const rows = el('div', 'app-rows');
+  const row = (name, id, unit) => {
+    const r = el('div', 'app-row', '<span>' + name + '</span><span class="scrub" id="' + id + '" data-unit="' + unit + '"></span>');
+    rows.appendChild(r); return r;
+  };
+  row('Width', 'envW', 'nm'); row('Height', 'envH', 'nm'); row('Slab depth', 'envD', 'nm');
+  size.appendChild(rows);
+  stage.appendChild(size);
+
+  const therm = el('div', 'app-group', '<h3>Thermostat</h3>');
+  const tRow = el('div', 'app-row',
+    '<span>Mode</span><span class="seg-mini" id="envBath"><button data-v="on">Wall heater</button><button data-v="off">Off</button></span>');
+  therm.appendChild(tRow);
+  therm.appendChild(el('p', 'app-note',
+    'The wall heater warms the boundary and lets collisions carry heat inward, the way a real bath does. Off sets every atom directly.'));
+  stage.appendChild(therm);
+
+  const live = el('div', 'app-group', '<h3>Beyond the wall</h3>');
+  const stat = statRow([['Wall temperature', '—'], ['Energy lost to the void', '—'], ['Impulse absorbed', '—'], ['Reported pressure', '—']]);
+  live.appendChild(stat);
+  stage.appendChild(live);
+
+  // scrubs for the chamber, sharing the engine's own limits
+  const mk = (id, get, set, min, max) => scrub($(id), {
+    get, set: (v, commit) => { set(v); eng.touch(); if (commit) { saveBox(); scheduleSave(); } },
+    min, max, unit: 'nm', fmt: v => v.toFixed(2), hardMin: min, hardMax: max
+  });
+  mk('envW', () => (eng.box.x1 - eng.box.x0) / 10, v => { eng.box.x1 = eng.box.x0 + v * 10; }, 1, 50);
+  mk('envH', () => (eng.box.y1 - eng.box.y0) / 10, v => { eng.box.y1 = eng.box.y0 + v * 10; }, 1, 50);
+  mk('envD', () => (eng.box.z1 - eng.box.z0) / 10, v => { eng.box.z0 = -v * 5; eng.box.z1 = v * 5; }, 0.4, 50);
+  $('envBath').querySelectorAll('button').forEach(b => b.onclick = () => {
+    if ((b.dataset.v === 'on') !== eng.thermostat) toggleBath();
+    paintBath();
+  });
+  function paintBath() {
+    $('envBath').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', (b.dataset.v === 'on') === !!eng.thermostat));
+  }
+  /* The drawing is the physics: the exit leg is as steep as the atom is fast, so switching on
+     a temperature void visibly flattens it, and a pressure void crosses out the wall's impulse. */
+  function paintArt() {
+    const a = $('chamberArt'); if (!a) return;
+    const field = eng.boundsMode === 'forcefield';
+    a.classList.toggle('field', field);
+    a.classList.toggle('voidT', !!eng.voidTemperature);
+    a.classList.toggle('voidP', !!eng.voidPressure);
+    $('artLabel').textContent = field ? 'forcefield bound' : 'solid bound';
+    const turn = field ? 231 : 250;               // a forcefield turns the atom before the face
+    const cold = !!eng.voidTemperature;
+    const d = 'M62 98 L' + turn + ' 40 L' + (cold ? 178 : 110) + ' ' + (cold ? 72 : 22);
+    $('artTrace').setAttribute('d', d);
+    const dot = $('artDot');
+    dot.innerHTML = '<animateMotion dur="3.6s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="linear" path="' + d + '"/>';
+  }
+  paintBath(); paintArt();
+  appRefresh = () => {
+    if (!$('chamberArt')) return;
+    const cells = stat.querySelectorAll('b');
+    cells[0].textContent = eng.thermostat ? (eng.wallT - 273.15).toFixed(1) + ' °C' : 'off';
+    cells[1].textContent = eng.voidTemperature ? eng.voidHeat.toFixed(1) + ' kJ/mol' : 'nothing leaves';
+    cells[2].textContent = eng.voidPressure ? fmtP(eng.wallArea > 0 ? eng.voidForce / eng.wallArea * 1660.539 : 0) : '—';
+    cells[3].textContent = fmtP(eng.pressureEMA);
+    paintBath();
+  };
+  appRefresh();
+}
+
+/* ---- about ---- */
+function renderAboutApp(stage) {
+  appRefresh = null;
+  stage.appendChild(el('p', 'app-lede',
+    'An experimental reactive force field with fitted molecular examples. The structures and energies below are checked; rates and mechanisms are qualitative.'));
+  const facts = [
+    ['Physical clock', 'Each step advances 1 fs. At 1×, the target is 20,000 steps/s: <b>20 ps per real second</b>. At 0.1×, one step takes one second. × is a playback setting, never a change to the physics.'],
+    ['Why a mixture may look inert', 'A second at the target rate covers 20 picoseconds. A reaction may need activation, a solvent, or chemistry this model cannot represent. For stationary imports, use <b>Resample thermal motion</b>.'],
+    ['What is checked', 'H₂ 0.741 Å / 436 kJ/mol, water 104.2°, the water dimer at −18 kJ/mol, 2 H₂ + O₂ → 2 H₂O at −486 (lit. −484), H + H₂ barrier 43 (lit. 40), ethene + Cl· barrierless. Na + Cl₂ → NaCl runs at 300 K; CH₄ + O₂ at 3500 K passes through CH₂O and OH·.'],
+    ['Known to be wrong', 'Spin is absent (O₂ is patched to act as the triplet diradical it is). Cl + H₂ and OH + H₂ have barriers that are too high, H + O₂ → OH + O too low. CO gets a double bond instead of a triple. Water needs below ~150 K to freeze, because lone pairs have no direction. No tunnelling, excited states or solvent.'],
+    ['Three dimensions', 'A soft-walled 3D slab seen face on. Right-drag empty space to tilt the view; zoom changes the view, never atom sizes or the chamber volume.'],
+    ['Temperature', 'The reading is the kinetic temperature of whatever is in the chamber. With a handful of atoms it wanders by tens of kelvin from one instant to the next — that is the real physics of a small sample, not friction. The gauge shows a running mean with the spread beside it.'],
+    ['Energy &amp; pressure', 'Force checks hold internal bond orders fixed; changing those heuristic orders can cause drift, and extreme-collision speed clamps remove energy. Wall pressure is averaged normal stress, with no pressure controller.'],
+    ['What you see', 'Field contours show tabulated atomic sizes through Gaussian surfaces. The atom inspector runs a real Hartree–Fock calculation; the chamber view does not.'],
+    ['Zero kelvin', 'A classical geometry minimum with zero initial velocities. Quantum zero-point motion is not represented.']
+  ];
+  stage.appendChild(el('dl', 'app-facts', facts.map(f => '<div><dt>' + f[0] + '</dt><dd>' + f[1] + '</dd></div>').join('')));
+  stage.appendChild(el('p', 'app-source',
+    'Methods: <a href="https://manual.gromacs.org/current/reference-manual/algorithms/molecular-dynamics.html" target="_blank" rel="noopener">MD integration ↗</a> · ' +
+    '<a href="https://docs.lammps.org/pair_reaxff.html" target="_blank" rel="noopener">Validated reactive force fields ↗</a>. This engine is not ReaxFF.'));
+}
+
+/* ---- keybinds ---- */
+function renderKeysApp(stage) {
+  appRefresh = null;
+  const head = el('div', 'keys-hint', '<span>Click a key to rebind it. A key already in use moves here.</span>');
+  const reset = el('button', 'ghost', 'Reset all');
+  reset.onclick = () => { keymap = Object.assign({}, defaultKeys); store.set('keys', keymap); refreshKeyHints(); selectApp('keys'); };
+  head.appendChild(reset);
+  stage.appendChild(head);
+  const grid = el('div', 'keys-grid');
+  grid.id = 'keysGrid';
+  stage.appendChild(grid);
+  paintKeys();
+}
 
 /* ======================= command palette ======================= */
 let cmdItems = [], cmdSel = 0;
@@ -1223,11 +1638,23 @@ function loadScene() {
     for (const a of s.atoms) if (BY_SYM[a[0]]) eng.addAtom(a[0], a[1], a[2], a[3], { v: [a[4], a[5], a[6]], charge: a[7], V: a[8] });
     eng.time = s.time || 0;
     for (const key of ['wallT', 'wallTarget', 'wallTau', 'heatToSample', 'heaterWork']) if (Number.isFinite(s[key])) eng[key] = s[key];
+    if (s.boundsMode === 'forcefield' || s.boundsMode === 'solid') eng.boundsMode = s.boundsMode;
+    if (typeof s.voidTemperature === 'boolean') eng.voidTemperature = s.voidTemperature;
+    if (typeof s.voidPressure === 'boolean') eng.voidPressure = s.voidPressure;
   } catch (e) { }
 }
 window.addEventListener('beforeunload', saveScene);
 setInterval(() => { if (time.playing) saveScene(); }, 5000);
-function updateEmpty() { const hidden = eng.N > 0 || !!cond || !!placing || !!armed; $('emptyHint').classList.toggle('gone', hidden); $('emptyHint').inert = hidden; }
+
+/* The inspector card rides with its atom: it is repositioned every frame, and the field draws
+   the leader that says which atom it belongs to. */
+function inspectLeader() {
+  const i = inspector.i;
+  if (i < 0 || i >= eng.N) return null;
+  const [sx, sy] = R.toScreen(rp[3 * i], rp[3 * i + 1]);
+  inspector.place(sx, sy);
+  return inspector.anchor ? { x: rp[3 * i], y: rp[3 * i + 1], ax: inspector.anchor[0], ay: inspector.anchor[1], r: ELEMENTS[eng.type[i]].rvdw } : null;
+}
 
 /* ======================= main loop ======================= */
 let lastUI = 0, lastSpark = 0;
@@ -1264,11 +1691,14 @@ function frame(now) {
   if (rp.length < n3 || rp.length > n3 + 3000) rp = new Float64Array(n3 + 300);
   const P = eng.pos, Q = eng.prev;
   for (let k = 0; k < n3; k++) rp[k] = Q[k] + (P[k] - Q[k]) * alpha;
+  if (viewTilted()) for (let i = 0; i < eng.N; i++) {
+    const v = toView(rp[3 * i], rp[3 * i + 1], rp[3 * i + 2]);
+    rp[3 * i] = v[0]; rp[3 * i + 1] = v[1]; rp[3 * i + 2] = v[2];
+  }
   if (eng.needForces) eng.refresh(); // edits while paused
   const bonds = eng.bonds();
   updateBondEvents(bonds, now);
   if (time.playing || species.reset) updateSpecies(now);
-  if ((eng.N > 0) === !$('emptyHint').classList.contains('gone')) updateEmpty();
   // ghost
   let ghost = null;
   if (placing) {
@@ -1286,10 +1716,12 @@ function frame(now) {
     ghost = { atoms: [{ t: BY_SYM[armed].t, x: lastMouse.wx, y: lastMouse.wy, z: 0 }], bonds: [], ok: true };
   }
   R.draw({
-    N: eng.N, type: eng.type, pos: rp, bonds, box: eng.box, boxHot: gesture && gesture.type === 'box' ? gesture.edge : boxHot,
+    N: eng.N, type: eng.type, pos: rp, bonds, box: eng.box, box3: viewTilted() ? boxCorners() : null,
+    boxHot: gesture && gesture.type === 'box' ? gesture.edge : boxHot,
     hover: gesture ? -1 : hoverAtom, eraseHover: tool === 'erase' && !armed, selected: selection, pinned: eng.pinned.subarray(0, eng.N), ghost, flashes, now,
     tweezer: eng.tweezer, brush: tool === 'heat' && !armed && !placing ? brush : null,
-    marquee: gesture && gesture.type === 'marquee' ? gesture : null
+    marquee: gesture && gesture.type === 'marquee' ? gesture : null,
+    inspect: inspectLeader()
   });
   // UI text, ~10 Hz
   if (now - lastUI > 100) {
@@ -1301,7 +1733,7 @@ function frame(now) {
       rate.textContent = (time.limited ? 'CPU-bound · ' : '') + fmtRate(time.rateEMA) + (time.limited ? ' · ' + Math.round(time.rateEMA / stepsPerSecond(time.speed) * 100) + '% target' : '');
       rate.classList.toggle('limited', time.limited);
     } else { rate.textContent = eng.canStepBack() ? 'paused · ' + fmtTime(Math.min(eng.historySpan(), eng.time)) + ' rewindable' : 'paused'; rate.classList.remove('limited'); }
-    $('tMeasured').textContent = eng.N ? eng.temperature().toFixed(eng.temperature() < 10 ? 2 : 0) + ' K now' : '';
+    readTemperature();
     $('pVal').textContent = eng.N ? fmtP(eng.pressureEMA) : '—';
     $('backBtn').disabled = !eng.canStepBack();
     // scale bar
@@ -1329,7 +1761,6 @@ fitBox(false);
 buildDock();
 renderTray();
 paintSeg();
-updateEmpty();
 readHash();
 requestAnimationFrame(t => { time.last = t; frame(t); });
 window.chemPlayground = { eng, R, receive, setT, setSpeed, togglePlay, pause: () => setPlaying(false), startConditioning, beginPlacing, dropMolecule, tickConditioning, get cond() { return cond; }, get placing() { return placing; } }; // console / test hooks

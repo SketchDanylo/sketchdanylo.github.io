@@ -56,17 +56,62 @@ function densityAt(result, x, y, z, values = new Float64Array(result.basis.lengt
   }
   return Math.max(0,rho/BOHR**3);
 }
-function slice(result, selected, resolution = 160) {
+/* One atom's share of the molecular cloud, by Hirshfeld's stockholder rule:
+ *   w_A(r) = rho_A_free(|r - R_A|) / sum_B rho_B_free(|r - R_B|),   rho_A(r) = w_A(r) rho_mol(r)
+ * The molecular density already carries every neighbour, near and far, at the geometry it was
+ * given, so the share drawn for one atom is that atom as its surroundings have made it.
+ * The free-atom references are spherically averaged ground-state atoms in the same basis. */
+const FREE_MULT=[0,2,1,2,1,2,3,4,3,2,1,2,1,2,3,4,3,2,1];
+const FREE_MAX=8, FREE_N=320;                       // Å, radial samples
+const freeCache=new Map();
+function freeAtomRadial(Z) {
+  if (freeCache.has(Z)) return freeCache.get(Z);
+  const atom=compute({atoms:[{Z,x:0,y:0,z:0}],mult:FREE_MULT[Z]||(Z%2?2:1)});
+  // spherical average over the 26 directions of a 3x3x3 stencil
+  const dirs=[];
+  for(let a=-1;a<=1;a++) for(let b=-1;b<=1;b++) for(let c=-1;c<=1;c++) {
+    if(!a&&!b&&!c) continue;
+    const n=Math.hypot(a,b,c); dirs.push([a/n,b/n,c/n]);
+  }
+  const table=new Float64Array(FREE_N+1), values=new Float64Array(atom.basis.length);
+  for(let k=0;k<=FREE_N;k++) {
+    const r=k/FREE_N*FREE_MAX;
+    let sum=0;
+    for(const d of dirs) sum+=densityAt(atom,d[0]*r,d[1]*r,d[2]*r,values);
+    table[k]=sum/dirs.length;
+  }
+  freeCache.set(Z,table);
+  return table;
+}
+function freeDensity(table, r) {
+  if (r >= FREE_MAX) return 0;
+  const t=r/FREE_MAX*FREE_N, i=t|0, f=t-i;
+  return table[i]+(table[i+1]-table[i])*f;
+}
+function hirshfeldWeights(result) { return result.atoms.map(a=>freeAtomRadial(a.Z)); }
+/* mode 'atom' draws the selected atom's share; 'total' draws the whole fragment's density. */
+function slice(result, selected, resolution = 160, mode = 'atom') {
   const atoms=result.atoms, origin=atoms[selected].xyz.map(v=>v*BOHR);
   const extent=Math.max(2, ...atoms.map(a=>Math.hypot(a.xyz[0]*BOHR-origin[0],a.xyz[1]*BOHR-origin[1])+1.5));
   const data=new Float32Array(resolution*resolution), values=new Float64Array(result.basis.length);
+  const tables=mode==='atom'?hirshfeldWeights(result):null;
+  const centres=atoms.map(a=>a.xyz.map(v=>v*BOHR));
   let max=0;
   for(let y=0;y<resolution;y++) for(let x=0;x<resolution;x++) {
-    const rho=densityAt(result,origin[0]+((x+.5)/resolution*2-1)*extent,origin[1]+((y+.5)/resolution*2-1)*extent,origin[2],values);
+    const px=origin[0]+((x+.5)/resolution*2-1)*extent, py=origin[1]+((y+.5)/resolution*2-1)*extent, pz=origin[2];
+    let rho=densityAt(result,px,py,pz,values);
+    if (tables) {
+      let mine=0, all=0;
+      for(let b=0;b<centres.length;b++) {
+        const c=centres[b], d=freeDensity(tables[b],Math.hypot(px-c[0],py-c[1],pz-c[2]));
+        all+=d; if(b===selected) mine=d;
+      }
+      rho = all>1e-12 ? rho*(mine/all) : 0;
+    }
     data[y*resolution+x]=rho; max=Math.max(max,rho);
   }
-  return {data,resolution,extent,origin,max};
+  return {data,resolution,extent,origin,max,mode};
 }
-root.ChemQuantum={installBasis,compute,densityAt,slice,BOHR};
+root.ChemQuantum={installBasis,compute,densityAt,slice,freeAtomRadial,freeDensity,BOHR};
 if(typeof module==='object') module.exports=root.ChemQuantum;
 })(globalThis);
