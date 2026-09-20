@@ -1215,6 +1215,11 @@ function loadScene() {
   try {
     const s = JSON.parse(localStorage.getItem('cp.scene') || 'null');
     if (!s || !Array.isArray(s.atoms)) return;
+    // the chamber travels with the scene, so restored atoms are never left outside their walls
+    const box = s.box;
+    if (box && ['x0', 'x1', 'y0', 'y1', 'z0', 'z1'].every(k => Number.isFinite(box[k])) && box.x1 > box.x0 && box.y1 > box.y0 && box.z1 > box.z0) {
+      eng.box = { ...box }; saveBox();
+    }
     for (const a of s.atoms) if (BY_SYM[a[0]]) eng.addAtom(a[0], a[1], a[2], a[3], { v: [a[4], a[5], a[6]], charge: a[7], V: a[8] });
     eng.time = s.time || 0;
     for (const key of ['wallT', 'wallTarget', 'wallTau', 'heatToSample', 'heaterWork']) if (Number.isFinite(s[key])) eng[key] = s[key];
