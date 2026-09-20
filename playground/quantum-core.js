@@ -56,6 +56,31 @@ function densityAt(result, x, y, z, values = new Float64Array(result.basis.lengt
   }
   return Math.max(0,rho/BOHR**3);
 }
+// Individual molecular orbital amplitude in Å^(-3/2); its square integrates to one.
+function orbitalAt(result, orbital, x, y, z, spin='alpha') {
+  const n=result.basis.length, C=spin==='beta' && result.scf.uhf ? result.scf.CB : result.scf.C;
+  if(!Number.isInteger(orbital)||orbital<0||orbital>=n) throw Error('Invalid orbital index.');
+  x/=BOHR; y/=BOHR; z/=BOHR;
+  let psi=0;
+  for(let i=0;i<n;i++) {
+    const f=result.basis[i],dx=x-f.center[0],dy=y-f.center[1],dz=z-f.center[2],r2=dx*dx+dy*dy+dz*dz;
+    let v=0; for(let k=0;k<f.exps.length;k++) v+=f.coefs[k]*Math.exp(-f.exps[k]*r2);
+    psi+=C[i*n+orbital]*v*dx**f.l*dy**f.m*dz**f.n;
+  }
+  return psi/BOHR**1.5;
+}
+function orbitalSlice(result, selected, orbital, plane='xy', spin='alpha', resolution=160) {
+  const axes={xy:[0,1],xz:[0,2],yz:[1,2]}[plane];
+  if(!axes) throw Error('Invalid slice plane.');
+  const origin=result.atoms[selected].xyz.map(v=>v*BOHR);
+  const extent=Math.max(2.5,...result.atoms.map(a=>Math.hypot(...a.xyz.map((v,k)=>v*BOHR-origin[k]))+2));
+  const data=new Float32Array(resolution**2); let max=0;
+  for(let y=0;y<resolution;y++) for(let x=0;x<resolution;x++) {
+    const p=origin.slice(); p[axes[0]]+=((x+.5)/resolution*2-1)*extent; p[axes[1]]+=((y+.5)/resolution*2-1)*extent;
+    const v=orbitalAt(result,orbital,...p,spin); data[y*resolution+x]=v; max=Math.max(max,Math.abs(v));
+  }
+  return {data,resolution,extent,origin,max,mode:'orbital',plane,axes,orbital,spin};
+}
 /* One atom's share of the molecular cloud, by Hirshfeld's stockholder rule:
  *   w_A(r) = rho_A_free(|r - R_A|) / sum_B rho_B_free(|r - R_B|),   rho_A(r) = w_A(r) rho_mol(r)
  * The molecular density already carries every neighbour, near and far, at the geometry it was
@@ -112,6 +137,6 @@ function slice(result, selected, resolution = 160, mode = 'atom') {
   }
   return {data,resolution,extent,origin,max,mode};
 }
-root.ChemQuantum={installBasis,compute,densityAt,slice,freeAtomRadial,freeDensity,BOHR};
+root.ChemQuantum={installBasis,compute,densityAt,orbitalAt,orbitalSlice,slice,freeAtomRadial,freeDensity,BOHR};
 if(typeof module==='object') module.exports=root.ChemQuantum;
 })(globalThis);

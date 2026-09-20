@@ -64,7 +64,7 @@ eng.thermostat = store.get('thermostat', true);
 const savedBounds = store.get('bounds', null);
 if (savedBounds) {
   if (savedBounds.mode === 'forcefield' || savedBounds.mode === 'solid') eng.boundsMode = savedBounds.mode;
-  eng.voidTemperature = !!savedBounds.vt; eng.voidPressure = !!savedBounds.vp;
+  eng.voidTemperature = !!savedBounds.vt; eng.voidPressure = false;
 }
 eng.recording = true;
 
@@ -78,6 +78,18 @@ const inspector = new AtomInspector({ engine: eng, pause: () => setPlaying(false
 } });
 const R = new FieldRenderer(canvas);
 R.mode = 'density';
+const appearance = Object.assign({quality:'balanced',motion:'system',grid:true,labels:true,budget:'balanced'},store.get('appearance',{}));
+const motionQuery=matchMedia('(prefers-reduced-motion: reduce)');
+function applyAppearance(){
+  document.documentElement.dataset.motion=appearance.motion==='reduced'||(appearance.motion==='system'&&motionQuery.matches)?'reduced':'full';
+  R.showGrid=!!appearance.grid; R.showLabels=!!appearance.labels;
+  const cell={fine:3,balanced:5,fast:8}[appearance.quality]||5;
+  if(R.cell!==cell){R.cell=cell;R.resize();}
+  document.querySelectorAll('svg').forEach(svg=>{if(svg.pauseAnimations){if(document.documentElement.dataset.motion==='reduced')svg.pauseAnimations();else svg.unpauseAnimations();}});
+  store.set('appearance',appearance);
+}
+motionQuery.addEventListener('change',applyAppearance);
+applyAppearance();
 $('fitBtn').onclick = () => fitBox(true);
 $('measurementsBtn').onclick = () => {
   const panel = $('measurementsPanel'), open = !panel.classList.contains('open');
@@ -141,12 +153,14 @@ function toast(msg, cls) {
 /* ======================= camera ======================= */
 function fitBox(animate) {
   const b = eng.box, W = R.W, H = R.H;
-  const span = clamp(Math.max((b.x1 - b.x0) * 1.12, (b.y1 - b.y0) * 1.18 * W / H), SPAN_MIN, 5000);
-  camTo((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2 + 1.2 * span / W * 20, span, animate);
+  const mobile=W<=760, left=mobile?30:104, right=40, top=mobile?160:150, bottom=mobile?230:136;
+  const aw=Math.max(100,W-left-right), ah=Math.max(100,H-top-bottom);
+  const span=clamp(Math.max((b.x1-b.x0)*W/aw,(b.y1-b.y0)*W/ah),SPAN_MIN,5000);
+  camTo((b.x0+b.x1)/2-(left-right)*span/(2*W), (b.y0+b.y1)/2-(top-bottom)*span/(2*W),span,animate);
 }
 let camAnim = null;
 function camTo(cx, cy, span, animate) {
-  if (!animate) { R.cam.cx = cx; R.cam.cy = cy; R.cam.span = span; camAnim = null; return; }
+  if (!animate || document.documentElement.dataset.motion==='reduced') { R.cam.cx = cx; R.cam.cy = cy; R.cam.span = span; camAnim = null; return; }
   camAnim = { from: { ...R.cam }, to: { cx, cy, span }, t0: performance.now(), dur: 420 };
 }
 function zoomAt(sx, sy, factor) {
@@ -671,6 +685,11 @@ function boxEdgeAt(sx, sy) {
 function fragmentOf(i) { const fr = eng.fragments(); return fr.list[fr.comp[i]]; }
 
 canvas.addEventListener('contextmenu', e => e.preventDefault());
+canvas.addEventListener('dblclick', e => {
+  if(armed||placing||tool!=='grab')return;
+  const hit=hitAtom(...R.toWorld(e.clientX,e.clientY));
+  if(hit>=0){eng.tweezer=null;gesture=null;inspector.open(hit);}
+});
 canvas.addEventListener('pointerdown', e => {
   try { canvas.setPointerCapture(e.pointerId); } catch (err) { }
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -1291,11 +1310,13 @@ function captureKey(e) {
    while it is still being made. */
 const ICONS = {
   environment: '<svg viewBox="0 0 16 16"><rect x="2" y="2.6" width="12" height="10.8" rx="2"/><path d="M4.6 5.4v5.2M11.4 5.4v5.2"/><circle cx="8" cy="8" r="1.5"/></svg>',
+  display: '<svg viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="9" rx="2"/><path d="M5 14h6M8 11v3"/></svg>',
   about: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.3v3.9"/><path d="M8 4.9h.01"/></svg>',
   keys: '<svg viewBox="0 0 16 16"><rect x="1.6" y="4.2" width="12.8" height="8" rx="1.7"/><path d="M4.2 6.9h.01M6.6 6.9h.01M9 6.9h.01M11.4 6.9h.01M5.2 9.7h5.6"/></svg>'
 };
 const APPS = [
   { id: 'environment', name: 'Environment', render: renderEnvironmentApp },
+  { id: 'display', name: 'Preferences', render: renderDisplayApp },
   { id: 'about', name: 'About', render: renderAboutApp },
   { id: 'keys', name: 'Keybinds', render: renderKeysApp }
 ];
@@ -1318,6 +1339,7 @@ function openConsole(id) {
   selectApp(consoleApp);
   consoleTick = setInterval(() => { $('consoleClock').textContent = fmtTime(eng.time); refreshApp(); }, 250);
   $('consoleClock').textContent = fmtTime(eng.time);
+  $('consoleClose').focus();
 }
 function closeConsole() {
   if (!consoleIsOpen()) return;
@@ -1328,7 +1350,7 @@ function closeConsole() {
   setTimeout(() => { veil.hidden = true; veil.classList.remove('closing'); }, 190);
   if (consoleResume) setPlaying(true);
   consoleResume = false;
-  canvas.focus();
+  $('menuBtn').focus();
 }
 function toggleConsole(id) {
   if (consoleIsOpen() && (!id || id === consoleApp)) closeConsole();
@@ -1353,6 +1375,16 @@ let appRefresh = null;
 
 $('menuBtn').onclick = () => toggleConsole();
 $('consoleClose').onclick = closeConsole;
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Tab')return;
+  const panel=consoleIsOpen()?$('consoleWin'):inspector.panel.classList.contains('open')?inspector.panel:null;
+  if(!panel)return;
+  const nodes=[...panel.querySelectorAll('button,select,input,summary,a[href],[tabindex="0"]')].filter(x=>!x.disabled&&x.getClientRects().length);
+  if(!nodes.length)return;
+  const first=nodes[0],last=nodes[nodes.length-1];
+  if(e.shiftKey&&(document.activeElement===first||!panel.contains(document.activeElement))){e.preventDefault();last.focus();}
+  else if(!e.shiftKey&&(document.activeElement===last||!panel.contains(document.activeElement))){e.preventDefault();first.focus();}
+});
 // the title bar carries the window; position is remembered as a share of the viewport
 $('consoleBar').addEventListener('pointerdown', e => {
   if (e.target.closest('button')) return;
@@ -1448,6 +1480,7 @@ const GLYPH = {
   gauge: '<svg class="gl" viewBox="0 0 24 24"><path class="face" d="M4 17a8 8 0 1 1 16 0"/><path class="path" d="M12 17l5-4"/></svg>'
 };
 function renderEnvironmentApp(stage) {
+  stage.appendChild(el('div','section-intro','<p class="eyebrow">THE CHAMBER</p><h2>Conditions, considered.</h2><p>Shape the space. Set the temperature. Observe the response.</p>'));
   // the chamber, alive: one atom running at the boundary that is actually configured
   stage.appendChild(el('div', null,
     '<svg class="chamber-art" id="chamberArt" viewBox="0 0 300 120" role="img" aria-label="An atom meeting the chamber boundary">' +
@@ -1473,28 +1506,20 @@ function renderEnvironmentApp(stage) {
       { v: 'forcefield', name: 'Forcefield', icon: GLYPH.forcefield }
     ],
     get: () => eng.boundsMode,
-    set: v => { eng.boundsMode = v; boundarySettingsChanged(); paintArt(); },
+    set: v => { eng.boundsMode = v; boundarySettingsChanged(); absorberInput.disabled=v==='solid'; paintArt(); },
     summary: v => ({ label: v, icon: GLYPH[v] })
   }));
 
-  group('Void wall', dropdown({
-    multi: true,
-    options: [
-      { v: 'temperature', name: 'Temperature', icon: GLYPH.heat },
-      { v: 'pressure', name: 'Pressure', icon: GLYPH.press }
-    ],
-    get: () => [eng.voidTemperature && 'temperature', eng.voidPressure && 'pressure'].filter(Boolean),
-    set: v => {
-      if (v === 'temperature') eng.voidTemperature = !eng.voidTemperature;
-      else eng.voidPressure = !eng.voidPressure;
-      boundarySettingsChanged(); paintArt();
-    },
-    summary: v => ({ label: v.length ? v.join(' · ') : 'none', accent: v.length > 0, icon: v.length ? GLYPH[v[0] === 'temperature' ? 'heat' : 'press'] : GLYPH.none })
-  }));
+  const absorber=el('label','preference-row','<span>Exterior damping<small>Artificial energy absorber beyond a soft field. A vacuum does not cool atoms.</small></span><input type="checkbox" aria-label="Exterior damping">');
+  const absorberInput=absorber.querySelector('input');absorberInput.checked=eng.voidTemperature;
+  absorberInput.disabled=eng.boundsMode==='solid';
+  absorberInput.onchange=()=>{eng.voidTemperature=absorberInput.checked;boundarySettingsChanged();paintArt();};
+  stage.appendChild(absorber);
+  eng.voidPressure=false;
 
   const dims = el('div', 'dim-row',
     ['envW', 'envH', 'envD'].map((id, k) =>
-      '<label class="dim"><i>' + GLYPH[['w', 'h', 'd'][k]] + '</i><span class="scrub" id="' + id + '" data-unit="nm"></span></label>').join(''));
+      '<label class="dim" aria-label="' + ['Width','Height','Depth'][k] + '"><i>' + GLYPH[['w', 'h', 'd'][k]] + '</i><span class="scrub" id="' + id + '" data-unit="nm"></span></label>').join(''));
   group('Chamber', dims);
 
   const bath = el('span', 'seg-mini', '<button data-v="on" aria-label="Wall heater" title="Wall heater">' + GLYPH.wall + '</button>' +
@@ -1503,14 +1528,14 @@ function renderEnvironmentApp(stage) {
   group('Thermostat', bath);
 
   const stat = el('div', 'stat-strip',
-    [['wall', GLYPH.wall], ['void', GLYPH.drain], ['impulse', GLYPH.press], ['gauge', GLYPH.gauge]]
+    [['wall', GLYPH.wall], ['void', GLYPH.drain], ['gauge', GLYPH.gauge]]
       .map(([k, g]) => '<div class="stat" data-k="' + k + '">' + g + '<b>—</b></div>').join(''));
   stage.appendChild(stat);
 
-  const mk = (id, get, set, min, max) => scrub($(id), {
+  const mk = (id, get, set, min, max) => { $(id).title=({envW:'Chamber width',envH:'Chamber height',envD:'Chamber depth'})[id]+' in nanometres'; return scrub($(id), {
     get, set: (v, commit) => { set(v); eng.touch(); if (commit) { saveBox(); scheduleSave(); } },
     min, max, unit: 'nm', fmt: v => v.toFixed(2), hardMin: min, hardMax: max, wheel: false
-  });
+  }); };
   mk('envW', () => (eng.box.x1 - eng.box.x0) / 10, v => { eng.box.x1 = eng.box.x0 + v * 10; }, 1, 50);
   mk('envH', () => (eng.box.y1 - eng.box.y0) / 10, v => { eng.box.y1 = eng.box.y0 + v * 10; }, 1, 50);
   mk('envD', () => (eng.box.z1 - eng.box.z0) / 10, v => { eng.box.z0 = -v * 5; eng.box.z1 = v * 5; }, 0.4, 50);
@@ -1527,13 +1552,14 @@ function renderEnvironmentApp(stage) {
     const a = $('chamberArt'); if (!a) return;
     const field = eng.boundsMode === 'forcefield';
     a.classList.toggle('field', field);
-    a.classList.toggle('voidT', !!eng.voidTemperature);
+    a.classList.toggle('voidT', field && !!eng.voidTemperature);
     a.classList.toggle('voidP', !!eng.voidPressure);
-    const turn = field ? 247 : 262;
-    const cold = !!eng.voidTemperature;
+    const turn = field ? 247 : 260;
+    const cold = field && !!eng.voidTemperature;
     const d = 'M56 96 L' + turn + ' 38 L' + (cold ? 176 : 104) + ' ' + (cold ? 70 : 20);
     $('artTrace').setAttribute('d', d);
     $('artDot').innerHTML = '<animateMotion dur="3.6s" repeatCount="indefinite" path="' + d + '"/>';
+    if(document.documentElement.dataset.motion==='reduced'){a.setCurrentTime(.8);a.pauseAnimations();}
   }
   paintBath(); paintArt();
   const cells = stat.querySelectorAll('.stat');
@@ -1541,15 +1567,32 @@ function renderEnvironmentApp(stage) {
     if (!$('chamberArt')) return;
     cells[0].lastElementChild.textContent = eng.thermostat ? (eng.wallT - 273.15).toFixed(0) + '°C' : 'off';
     cells[1].lastElementChild.textContent = eng.voidTemperature ? eng.voidHeat.toFixed(0) : '—';
-    cells[1].title = 'Energy lost to the void, kJ/mol';
-    cells[2].lastElementChild.textContent = eng.voidPressure ? fmtP(eng.wallArea > 0 ? eng.voidForce / eng.wallArea * 1660.539 : 0) : '—';
-    cells[2].title = 'Impulse the void absorbed instead of reporting';
-    cells[3].lastElementChild.textContent = fmtP(eng.pressureEMA);
-    cells[3].title = 'Pressure the gauge reports';
+    cells[1].title = 'Energy removed by exterior damping, kJ/mol';
+    cells[2].lastElementChild.textContent = fmtP(eng.pressureEMA);
+    cells[2].title = 'Mean normal wall pressure';
     cells[0].title = 'Wall temperature';
     paintBath();
   };
   appRefresh();
+}
+
+function renderDisplayApp(stage){
+  appRefresh=null;
+  stage.appendChild(el('div','section-intro','<p class="eyebrow">MAKE IT YOURS</p><h2>A quieter laboratory.</h2><p>Display preferences stay on this device. Physics always advances in 1 fs steps.</p>'));
+  const select=(title,note,key,options)=>{
+    const row=el('label','preference-row','<span>'+title+'<small>'+note+'</small></span>');
+    const input=document.createElement('select');input.setAttribute('aria-label',title);
+    for(const [value,label] of options){const option=document.createElement('option');option.value=value;option.textContent=label;input.append(option);}
+    input.value=appearance[key];input.onchange=()=>{appearance[key]=input.value;applyAppearance();};row.append(input);stage.append(row);
+  };
+  select('Contour detail','Higher detail uses more rendering time.','quality',[['fine','Fine'],['balanced','Balanced'],['fast','Fast']]);
+  select('Interface motion','Follows your system by default.','motion',[['system','System'],['full','Fluid'],['reduced','Reduced']]);
+  select('Compute priority','Reserve more time for interaction or simulation.','budget',[['responsive','Interaction'],['balanced','Balanced'],['throughput','Simulation']]);
+  for(const [key,title,note] of [['grid','Reference grid','Keep a subtle spatial reference.'],['labels','Atom labels','Show symbols alongside atomic centres.']]){
+    const row=el('label','preference-row','<span>'+title+'<small>'+note+'</small></span>');
+    const input=document.createElement('input');input.type='checkbox';input.checked=appearance[key];input.setAttribute('aria-label',title);input.onchange=()=>{appearance[key]=input.checked;applyAppearance();};row.append(input);stage.append(row);
+  }
+  const reset=el('button','ghost preference-reset','Restore preferences');reset.onclick=()=>{Object.assign(appearance,{quality:'balanced',motion:'system',grid:true,labels:true,budget:'balanced'});applyAppearance();selectApp('display');};stage.append(reset);
 }
 
 /* ---- about ---- */
@@ -1560,9 +1603,9 @@ function renderAboutApp(stage) {
   const facts = [
     ['Physical clock', 'Each step advances 1 fs. At 1×, the target is 20,000 steps/s: <b>20 ps per real second</b>. At 0.1×, one step takes one second. × is a playback setting, never a change to the physics.'],
     ['Why a mixture may look inert', 'A second at the target rate covers 20 picoseconds. A reaction may need activation, a solvent, or chemistry this model cannot represent. For stationary imports, use <b>Resample thermal motion</b>.'],
-    ['What is checked', 'H₂ 0.741 Å / 436 kJ/mol, water 104.2°, the water dimer at −18 kJ/mol, 2 H₂ + O₂ → 2 H₂O at −486 (lit. −484), H + H₂ barrier 43 (lit. 40), ethene + Cl· barrierless. Na + Cl₂ → NaCl runs at 300 K; CH₄ + O₂ at 3500 K passes through CH₂O and OH·.'],
+    ['What is checked', 'H₂ 0.741 Å / 436 kJ/mol, water 104.2°, the water dimer at −26 kJ/mol, 2 H₂ + O₂ → 2 H₂O at −486 (lit. −484), H + H₂ barrier 43 (lit. 40), ethene + Cl· barrierless. Na + Cl₂ → NaCl runs at 300 K; CH₄ + O₂ at 3500 K passes through CH₂O and OH·.'],
     ['Known to be wrong', 'Spin is absent (O₂ is patched to act as the triplet diradical it is). Cl + H₂ and OH + H₂ have barriers that are too high, H + O₂ → OH + O too low. CO gets a double bond instead of a triple. Water needs below ~150 K to freeze, because lone pairs have no direction. No tunnelling, excited states or solvent.'],
-    ['Three dimensions', 'A soft-walled 3D slab seen face on. Right-drag empty space to tilt the view; zoom changes the view, never atom sizes or the chamber volume.'],
+    ['Three dimensions', 'A 3D chamber seen face on. Solid walls reflect atomic centres at all six faces; the optional soft field allows penetration. Electron contours can extend past a face. Right-drag empty space to tilt the view; zoom changes the view, never atom sizes or the chamber volume.'],
     ['Temperature', 'The reading is the kinetic temperature of whatever is in the chamber. With a handful of atoms it wanders by tens of kelvin from one instant to the next — that is the real physics of a small sample, not friction. The gauge shows a running mean with the spread beside it.'],
     ['Energy &amp; pressure', 'Force checks hold internal bond orders fixed; changing those heuristic orders can cause drift, and extreme-collision speed clamps remove energy. Wall pressure is averaged normal stress, with no pressure controller.'],
     ['What you see', 'Field contours show tabulated atomic sizes through Gaussian surfaces. The atom inspector runs a real Hartree–Fock calculation; the chamber view does not.'],
@@ -1635,7 +1678,7 @@ function loadScene() {
     for (const key of ['wallT', 'wallTarget', 'wallTau', 'heatToSample', 'heaterWork']) if (Number.isFinite(s[key])) eng[key] = s[key];
     if (s.boundsMode === 'forcefield' || s.boundsMode === 'solid') eng.boundsMode = s.boundsMode;
     if (typeof s.voidTemperature === 'boolean') eng.voidTemperature = s.voidTemperature;
-    if (typeof s.voidPressure === 'boolean') eng.voidPressure = s.voidPressure;
+    eng.voidPressure = false;
   } catch (e) { }
 }
 window.addEventListener('beforeunload', saveScene);
@@ -1664,7 +1707,7 @@ function frame(now) {
   }
   // physics: fixed 1 fs steps inside a render-decoupled accumulator
   // physics gets ~55 % of the real frame interval, so slow displays still simulate at full rate
-  const frameBudget = clamp(time.frameEMA * 0.55, 6, 30) - (cond ? 3 : 0);
+  const frameBudget = clamp(time.frameEMA * ({responsive:.3,balanced:.55,throughput:.75}[appearance.budget]||.55), 3, 24) - (cond ? 3 : 0);
   if (time.playing) {
     time.acc += dt * stepsPerSecond(time.speed);
     const t0 = performance.now(); let n = 0; time.limited = false;
@@ -1712,7 +1755,7 @@ function frame(now) {
   }
   R.draw({
     N: eng.N, type: eng.type, pos: rp, bonds, box: eng.box, box3: viewTilted() ? boxCorners() : null,
-    bounds: { mode: eng.boundsMode, range: eng.fieldRange, voidT: eng.voidTemperature, voidP: eng.voidPressure },
+    bounds: { mode: eng.boundsMode, range: eng.fieldRange, voidT: eng.voidTemperature, voidP: false },
     boxHot: gesture && gesture.type === 'box' ? gesture.edge : boxHot,
     hover: gesture ? -1 : hoverAtom, eraseHover: tool === 'erase' && !armed, selected: selection, pinned: eng.pinned.subarray(0, eng.N), ghost, flashes, now,
     tweezer: eng.tweezer, brush: tool === 'heat' && !armed && !placing ? brush : null,

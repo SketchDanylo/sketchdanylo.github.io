@@ -17,18 +17,22 @@ The laboratory uses a **spatial wall thermostat**, not a global velocity rescale
 
 [Spatial Langevin thermostat methodology](https://docs.lammps.org/fix_langevin.html). This engine uses its own exact OU update, not the LAMMPS integration algorithm.
 
-## Bounds and the void wall
+## Chamber boundaries
 
-The **Environment** app in the console sets what the chamber face does.
+The **Environment** panel sets the chamber geometry and boundary.
 
-- **Bounds — Solid**: the default stiff harmonic wall, 60 kJ/mol/Å², beginning exactly at the face. An atom bounces on contact.
-- **Bounds — Forcefield**: a softer harmonic, 5 kJ/mol/Å², shifted 1.2 Å inside the face and continuing outward without limit. An atom is turned around gradually and leans past the face — at 300 K by a fraction of an ångström, at 3000 K by several — but a finite energy can never escape a harmonic that keeps growing. The softness is deliberate: a wall stiff enough to stop everything at the face would hide the outside from every void wall.
-- **Void wall — Temperature**: an absorbing boundary. Beyond the face, kinetic energy drains with a 40 fs time constant that reaches full strength 2 Å out. The energy is tallied in `voidHeat` and never returned, so the sample cools at its edges. This is an open system: total energy is deliberately not conserved.
-- **Void wall — Pressure**: the face still applies its restoring force — atoms are pushed back exactly as before — but the impulse is booked to `voidForce` instead of `wallForce`, so the pressure gauge reads what an open chamber would read.
+- **Solid** reflects atomic centres at all six faces during the integration drift. Normal velocity reverses; tangential velocity and kinetic energy are preserved. Corner and multiple-face crossings are handled. Contour tails may extend beyond the face because the contours are schematic atomic envelopes.
+- **Forcefield** uses a conservative harmonic potential, 5 kJ/mol/Å², starting 1.2 Å inside the face. Atoms can penetrate this soft boundary before turning back.
+- **Exterior damping** is an optional artificial kinetic-energy absorber outside a soft boundary, with a 40 fs time constant reaching full strength 2 Å beyond the face. Removed energy is recorded in `voidHeat`. It is not a model of vacuum: vacuum does not drain kinetic energy.
+- Wall pressure is normal momentum flux (solid collisions) or normal reaction force (soft fields), divided by total wall area. The former pressure-hiding option is removed; reflecting atoms still transfer momentum.
 
-The chamber draws its own boundary: a solid face is a crisp line, a forcefield is dashed with a cushion glowing inward, and a void wall fades warm (energy) or cool (pressure) outside the face.
+`node playground/tests/bounds.cjs` checks six-face containment, energy conservation, collision pressure, multiple crossings, exterior damping and deterministic replay. A moving/resized boundary is a user edit, not a simulated piston.
 
-Both void options can be on at once, and both are part of snapshots, of the deterministic replay used by step-back, and of the saved scene. `node playground/tests/bounds.cjs` checks containment, energy conservation with no void selected, drainage only outside the face, absorbed pressure, and replay.
+## Interface and performance preferences
+
+The Studio console includes persistent contour quality, grid, atom-label, interface-motion and compute-priority controls. Reduced motion follows the operating system by default. Display quality changes rendering resolution only; the physical step stays 1 fs. The actual simulation rate remains visible when CPU-bound.
+
+The royal visual direction uses midnight navy, ivory, restrained brass and serif headings. [Aman](https://www.aman.com/) informed the restrained typography and spacing; all artwork and controls remain native CSS/SVG/canvas.
 
 ## Time
 
@@ -54,7 +58,7 @@ A custom, experimental bond-order model inspired by reactive force-field ideas. 
 | Angles | VSEPR, θ₀ a smooth function of the continuous steric number | 109.5°, 107°, 104.5°, 120°, 180° |
 | Non-bonded | Shielded Lennard-Jones (UFF); its Pauli wall fades where the Morse term already repels, and between atoms that can still bond. Shifted-force Coulomb between saturating bond-polarisation charges | UFF, Pauling electronegativity |
 | Charge scale | 0.38 e per unit electronegativity difference per bond, calibrated on condensed water rather than the gas-phase dimer — the same deliberate over-polarisation the TIP3P family uses. Covalent bonds, NaCl and HCl are unaffected | Water cohesion, O–O distance |
-| Walls | Soft harmonic container; the normal force on the walls is the displayed pressure | — |
+| Walls | Specular hard reflection or optional soft harmonic field; pressure from normal momentum transfer | Idealized boundaries |
 | Wall reservoir | Local OU coupling at the boundary; finite heat capacity, gradual heater response | Model parameters, not a calibrated apparatus |
 
 Every force is the exact gradient of the energy, including the many-body saturation, screening, charge and
@@ -73,7 +77,7 @@ quantity is the bond multiplicity n, which relaxes over about 12 fs.
 | C–C / C=C / C≡C | 1.55 / 1.34 / 1.20 Å | 1.54 / 1.34 / 1.20 |
 | Benzene C–C | 1.42 Å | 1.39 |
 | O=O, N≡N energies | 498, 945 kJ/mol | 498, 945 |
-| Water dimer | −18 kJ/mol, O···O 2.93 Å | −21 (De), 2.91 Å |
+| Water dimer | −26.2 kJ/mol, O···O 2.885 Å | −21 (De), 2.91 Å |
 | Methane dimer | −3.8 kJ/mol | −2.2 |
 | NVE energy drift, 2 ps | < 2 kJ/mol | — |
 | Step back ×2 | bit-identical | — |
@@ -147,13 +151,18 @@ Value fields inside the console do not take the scroll wheel; the panel scrolls 
 
 ## The atom inspector
 
+Right-click or double-tap an atom with the hand tool. **Orbitals** displays the actual converged molecular-orbital coefficients, with orbital index, energy, α/β spin, xy/xz/yz slice and phase/probability controls. Gold and blue indicate opposite wavefunction phases, not charges. A plane passing through a node can be empty; switch planes to see the lobes. A finite minimal basis can have no unoccupied orbital in a spin channel. A plotted empty orbital is not an occupied electron. Probability brightness is gamma-scaled for visibility and the displayed square is a spatial slice, not a projection or a particle path.
+
+The calculation stays in a cancellable worker and reuses converged orbitals when changing views. Tests check wavefunction normalization, antibonding nodes and reconstruction of density from occupied α/β orbitals.
+
+
 Right-click an atom. The card is pinned beside it with a leader line drawn on the field, and follows the atom as the camera moves.
 
 **Electron cloud** shows that one atom's share of the fragment's calculated density, by Hirshfeld's stockholder rule:
 
     w_A(r) = rho_A_free(|r - R_A|) / sum_B rho_B_free(|r - R_B|),    rho_A(r) = w_A(r) rho_mol(r)
 
-The free-atom references are ground-state atoms in the same STO-3G basis, spherically averaged over 26 directions onto a radial table. The molecular density being divided is a real self-consistent Hartree–Fock solution for the whole fragment at the geometry it has at that instant, so the shape shown is that atom as its neighbours — bonded and not — and the present thermal geometry have made it. **Whole fragment** switches back to the undivided density. Both are computed in one worker pass, so the toggle is instant.
+The free-atom references are ground-state atoms in the same STO-3G basis, spherically averaged over 26 directions onto a radial table. The molecular density being divided is a real self-consistent Hartree–Fock solution for the whole fragment at the geometry it has at that instant, so the shape shown is that atom as the neighbours within this isolated fragment and the present geometry have made it. Surrounding fragments are omitted. **Density** switches to the undivided density. Both are computed in one worker pass, so the toggle is instant.
 
 Hirshfeld shares sum exactly to the molecular density and no share can exceed it; `node playground/tests/quantum.cjs` checks both.
 
@@ -171,7 +180,7 @@ Run `node playground/tests/regression.cjs` for force-query invariance, charge co
 
 Bond multiplicity relaxes as an internal heuristic variable. Fixed-state force gradient checks do not prove total energy conservation during reactions. The heat bath exchanges energy; the engine also counts safety velocity clamps in extreme collisions. Neither behavior should be mistaken for isolated, rigorously conservative dynamics. The UI reports those clamps when they occur.
 
-The camera is orthographic: depth changes shading, not apparent atomic radii, and turning the view changes nothing physical. Chamber contours are summed Gaussians, not electron-density calculations; the inspector's cloud is a real Hartree–Fock calculation and the only quantum result in the app. Playback speed is a nonlinear UI setting, not a multiplier of physical real time. With a void wall selected the chamber is an open system by design, and total energy is not conserved.
+The camera is orthographic: depth changes shading, not apparent atomic radii, and turning the view changes nothing physical. Chamber contours are summed Gaussians, not electron-density calculations; the inspector's cloud is a real Hartree–Fock calculation and the only quantum result in the app. Playback speed is a nonlinear UI setting, not a multiplier of physical real time. With exterior damping enabled, energy is deliberately removed and tallied.
 
 Imported molecules now receive Maxwell–Boltzmann center-of-mass translation at their conditioning temperature. Previously, removing this motion for preview alignment and never restoring it left molecules vibrating in place. A drag-to-throw overrides that translation; 0 K placements remain motionless. Existing scenes can use **Resample thermal motion** (in the temperature menu, live observations, or **Shift+T**) to draw fresh thermal velocities. This is an explicit state edit and can be undone.
 

@@ -69,4 +69,23 @@ test("An atom's share is smaller than the fragment total wherever a neighbour co
   assert.ok(wH/(wH+2*wO)>.4,'the hydrogen owns most of the density at its own nucleus');
   assert.ok(wO/(wH+2*wO)<.6);
 });
+test('Occupied orbitals reconstruct density; H2 antibonding has opposite phases and a node',()=>{
+  const plus=Q.orbitalAt(h2,1,0,0,.4),minus=Q.orbitalAt(h2,1,0,0,-.4);
+  assert.ok(plus*minus<0);near(plus,-minus,1e-10);near(Q.orbitalAt(h2,1,0,0,0),0,1e-10);
+  for(const p of [[.3,.2,.4],[0,0,0],[1,1,1]]) near(2*Q.orbitalAt(h2,0,...p)**2,Q.densityAt(h2,...p),1e-9);
+  const node=Q.orbitalSlice(h2,0,1,'xy');assert.ok(node.max>0); // plane through selected H, not midpoint
+  assert.throws(()=>Q.orbitalSlice(h2,0,1,'invalid'));
+});
+test('A normalized orbital has unit real-space probability',()=>{
+  let sum=0;const h=.2;
+  for(let x=-6;x<=6;x+=h)for(let y=-6;y<=6;y+=h)for(let z=-6;z<=6;z+=h) sum+=Q.orbitalAt(h2,1,x,y,z)**2*h**3;
+  near(sum,1,.004);
+});
+test('Alpha and beta occupied orbitals reconstruct open-shell density',()=>{
+  const cl=Q.compute({atoms:[atom(17)],mult:2});
+  const p=[.4,.2,.7];let rho=0;
+  for(let k=0;k<cl.scf.nocc;k++)rho+=Q.orbitalAt(cl,k,...p,'alpha')**2;
+  for(let k=0;k<cl.scf.noccB;k++)rho+=Q.orbitalAt(cl,k,...p,'beta')**2;
+  near(rho,Q.densityAt(cl,...p),1e-8);
+});
 console.log(`${count} quantum checks passed. References: Szabo/Ostlund H2 and upstream canonical STO-3G water geometry. These are implementation checks, not general chemical-accuracy claims.`);

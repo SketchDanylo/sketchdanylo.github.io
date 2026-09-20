@@ -7,7 +7,7 @@ function chamber(options = {}) {
   return new Engine({ width: 60, height: 60, depth: 60, T: 300, wallT: 300, thermostat: false, ...options });
 }
 
-test('Solid bounds push back only past the face; a forcefield catches an atom before it', () => {
+test('Solid bounds exert no soft force; a forcefield catches an atom before the face', () => {
   const solid = chamber(), field = chamber({ boundsMode: 'forcefield' });
   // just inside the face: solid is silent, the forcefield already pushes inward.
   for (const e of [solid, field]) e.addAtom('Ar', 59.6, 30, 0, { thermal: false });
@@ -24,6 +24,7 @@ test('Both bounds contain a fast atom, the forcefield over a longer distance', (
     e.addAtom('Ar', 55, 30, 0, { thermal: false, v: [0.02, 0, 0] }); // ~ 2 km/s outward
     for (let i = 0; i < 4000; i++) { e.step(); record(e.pos[0] - e.box.x1); }
     assert.ok(e.pos[0] < e.box.x1, 'atom ends inside the chamber');
+    if(e.boundsMode==='solid') assert.equal(deepSolid,0);
   }
   assert.ok(deepSolid < deepField, `forcefield yields further: ${deepSolid} vs ${deepField}`);
   assert.ok(deepField < 8, 'the forcefield still turns the atom around');
@@ -59,17 +60,24 @@ test('The void drain never acts inside the chamber', () => {
   for (let d = 0; d < 3; d++) near(e.vel[d], before[d], 1e-12);
 });
 
-test('Void pressure absorbs the impulse the gauge would report', () => {
-  const open = chamber({ voidPressure: true }), closed = chamber();
-  for (const e of [open, closed]) {
-    e.addAtom('Ar', 59.9, 30, 0, { thermal: false, v: [0.01, 0, 0] });
-    for (let i = 0; i < 200; i++) e.step();
+test('Solid walls reflect all six faces, conserve energy and report momentum flux', () => {
+  for(let axis=0;axis<3;axis++) for(const sign of [-1,1]) {
+    const e=chamber({voidPressure:true});
+    const xyz=[30,30,0], v=[0,0,0]; xyz[axis]=(axis===2?0:30)+sign*29.99; v[axis]=sign*.02;
+    e.addAtom('Ar',...xyz,{thermal:false,v});
+    const K=e.kinetic(); e.step();
+    near(e.kinetic(),K); assert.equal(Math.sign(e.vel[axis]),-sign);
+    const area=6*60*60, force=2*e.mass[0]*.02*1e4/e.dt;
+    near(e.wallForce,force); near(e.pressureBar,force/area*16605.39,1e-5);
+    for(let k=0;k<5000;k++) {e.step(); assert.ok(e.pos[axis]>= (axis===2?-30:0) && e.pos[axis]<= (axis===2?30:60));}
+    near(e.kinetic(),K);
   }
-  assert.ok(closed.wallForce > 0, 'a closed chamber registers the collision');
-  assert.equal(open.wallForce, 0);
-  assert.equal(open.pressureBar, 0);
-  assert.ok(open.voidForce > 0, 'the absorbed impulse is still tallied');
-  near(open.pos[0], closed.pos[0], 1e-9); // the atom is pushed back identically
+});
+test('Corner and multiple-face drift crossings are folded without losing energy', () => {
+  const e=chamber(); e.addAtom('Ar',30,30,0,{thermal:false,v:[.02,.03,.04]});
+  const K=e.kinetic(); e.pos.set([181,-121,151]); e._wallImpulse=0; e._reflectWalls();
+  [59,1,29].forEach((x,k)=>near(e.pos[k],x)); near(e.kinetic(),K);
+  assert.ok(e._wallImpulse>0);
 });
 
 test('Boundary settings survive a checkpoint replay', () => {
@@ -102,5 +110,18 @@ test('A forcefield lets ordinary thermal atoms reach the void beyond the face', 
   let out = 0;
   for (let s = 0; s < 8000; s++) { e.step(); for (let i = 0; i < e.N; i++) out = Math.max(out, e.pos[3 * i] - e.box.x1, e.box.x0 - e.pos[3 * i]); }
   assert.ok(out > 0.05, `atoms lean past the face at 300 K, deepest ${out}`);
+});
+test('Solid collision pressure and velocities replay exactly',()=>{
+  const e=chamber();e.recording=true;
+  e.addAtom('Ar',59.8,59.7,29.6,{thermal:false,v:[.02,.03,.04]});
+  for(let i=0;i<7;i++)e.step();const snap=e.snapshot(), trace=[];
+  for(let i=0;i<100;i++){e.step();trace.push([...e.pos.slice(0,3),...e.vel.slice(0,3),e.pressureEMA]);}
+  e.restore(snap);
+  for(const expected of trace){e.step();assert.deepEqual([...e.pos.slice(0,3),...e.vel.slice(0,3),e.pressureEMA],expected);}
+});
+test('Time-averaged collision pressure agrees with ideal-gas momentum balance',()=>{
+  const e=chamber();e.addAtom('Ar',30,30,0,{thermal:false,v:[.02,.02,.02]});
+  let p=0;const n=6000;for(let i=0;i<n;i++){e.step();p+=e.pressureBar;}
+  near(p/n,(2*e.kinetic()/3)/(60**3)*16605.39,1e-6);
 });
 console.log(`${count} boundary checks passed.`);

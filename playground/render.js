@@ -48,7 +48,7 @@ class FieldRenderer {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     // field
     const g = ctx.createRadialGradient(W * 0.5, H * 0.45, 0, W * 0.5, H * 0.45, Math.hypot(W, H) * 0.6);
-    g.addColorStop(0, '#0f1b2b'); g.addColorStop(1, '#09111c');
+    g.addColorStop(0, '#101d32'); g.addColorStop(1, '#080f1c');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     if (this.showGrid) this._grid(sc);
     if (this.showBox && sc.box && !sc.box3) { this._boxUnder(sc.box); this._boundary(sc.box, sc.bounds); }
@@ -379,7 +379,7 @@ class FieldRenderer {
     ctx.font = '500 ' + Math.min(14, Math.max(9, r * 0.8)) + 'px "Martian Mono", monospace';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = below ? 'rgba(233,228,216,0.75)' : 'rgba(10,14,20,0.8)';
-    ctx.fillText(ELEMENTS[t].sym, x, below ? y + r + 9 : y);
+    if(this.showLabels!==false) ctx.fillText(ELEMENTS[t].sym, x, below ? y + r + 9 : y);
   }
   _ghost(gh) {
     const ctx = this.ctx, s = this.scale;

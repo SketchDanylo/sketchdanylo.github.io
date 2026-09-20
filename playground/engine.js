@@ -933,17 +933,30 @@ class Engine {
     F[3 * i] -= cu * ux + cv * vx; F[3 * i + 1] -= cu * uy + cv * vy; F[3 * i + 2] -= cu * uz + cv * vz;
     return Esub;
   }
-  /* The chamber face. Solid bounds are the stiff harmonic that starts at the face; forcefield
-     bounds are the same harmonic, softer and shifted fieldRange inward, so it always turns an
-     atom around but lets it lean into the boundary first. Void pressure keeps the restoring
-     force — the atom is still pushed back — while the impulse is absorbed rather than counted,
-     so the gauge reads what an open chamber would read. */
+  /* Rectangular solid walls reflect the drift at the face. Soft fields and the
+     spherical conditioning vessel retain conservative harmonic potentials. */
+  _reflectWalls() {
+    if (this.sphere || this.boundsMode !== 'solid') return;
+    const b=this.box, lo=[b.x0,b.y0,b.z0], hi=[b.x1,b.y1,b.z1];
+    for(let i=0;i<this.N;i++) {
+      if(this.pinned[i]) continue;
+      for(let d=0;d<3;d++) {
+        const k=3*i+d, x=this.pos[k], L=hi[d]-lo[d];
+        if(x>=lo[d] && x<=hi[d]) continue;
+        const u=(x-lo[d])/L, cell=Math.floor(u);
+        const folded=((u%2)+2)%2;
+        this.pos[k]=lo[d]+L*(folded<=1?folded:2-folded);
+        const crossings=Math.abs(cell);
+        this._wallImpulse+=2*this.mass[i]*Math.abs(this.vel[k])*KEU*crossings;
+        if(Math.abs(cell)%2===1) this.vel[k]=-this.vel[k];
+      }
+    }
+  }
   _walls() {
     const N = this.N, pos = this.pos, F = this.frc;
     const field = this.boundsMode === 'forcefield' && !this.sphere;
     const K = field ? this.fieldK : this.wallK, reach = field ? this.fieldRange : 0;
-    const counts = !this.voidPressure;
-    let E = 0, Fsum = 0, Fvoid = 0;
+    let E = 0, Fsum = 0;
     if (this.sphere) {
       const s = this.sphere;
       for (let i = 0; i < N; i++) {
@@ -953,25 +966,24 @@ class Engine {
       this.wallArea = 4 * Math.PI * s.R * s.R;
     } else {
       const b = this.box, lo = [b.x0, b.y0, b.z0], hi = [b.x1, b.y1, b.z1];
-      for (let i = 0; i < N; i++) for (let d = 0; d < 3; d++) {
+      if (field) for (let i = 0; i < N; i++) for (let d = 0; d < 3; d++) {
         const x = pos[3 * i + d];
         let e = 0, dir = 0;
         if (x < lo[d] + reach) { e = lo[d] + reach - x; dir = 1; }
         else if (x > hi[d] - reach) { e = x - (hi[d] - reach); dir = -1; }
         if (e <= 0) continue;
         E += 0.5 * K * e * e; F[3 * i + d] += dir * K * e;
-        if (counts) Fsum += K * e; else Fvoid += K * e;
+        Fsum += K * e;
       }
       const Lx = b.x1 - b.x0, Ly = b.y1 - b.y0, Lz = b.z1 - b.z0;
       this.wallArea = 2 * (Lx * Ly + Lx * Lz + Ly * Lz);
     }
-    this.Ewall = E; this.wallForce = Fsum; this.voidForce = Fvoid;
+    this.Ewall = E; this.wallForce = Fsum; this.voidForce = 0; // legacy snapshot field; reflecting walls always transfer momentum
     return E;
   }
 
-  /* Void wall, temperature: past the chamber face there is nothing to hold energy, so an atom
-     out there loses its motion on voidTau — not a thermostat pulling it towards a temperature,
-     a one-way drain. The energy is tallied, never returned. */
+  /* Optional artificial exterior damping for soft fields. Vacuum itself does not
+     remove kinetic energy. This numerical absorber is explicitly labelled in the UI. */
   _voidBath(dt) {
     const N = this.N, pos = this.pos, vel = this.vel, b = this.box;
     let lost = 0;
@@ -1010,6 +1022,7 @@ class Engine {
     this._save();
     if (canCheck) { K0 = this.kinetic(); E0 = this.Epot + K0; }
     for (;;) {
+      this._wallImpulse = 0;
       this._integrate(nsub, forceRebuild);
       if (!canCheck || nsub >= SUB_MAX) break;
       const dE = Math.abs(this.Epot + this.kinetic() - E0);
@@ -1049,7 +1062,8 @@ class Engine {
     }
     if (this.voidTemperature) this._voidBath(dt);
     this.time += dt; this.stepCount++;
-    // pressure from wall forces, exponentially averaged over ~1 ps
+    if (!this.sphere && this.boundsMode === 'solid') this.wallForce = this._wallImpulse / dt;
+    // Normal momentum flux, exponentially averaged over ~1 ps
     const Pinst = this.wallArea > 0 ? this.wallForce / this.wallArea * BAR : 0;
     this.pressureBar = Pinst;
     this.pressureEMA += (Pinst - this.pressureEMA) * 0.001;
@@ -1062,6 +1076,7 @@ class Engine {
         const hk = 0.5 * h * ACC / this.mass[i];
         for (let d = 3 * i; d < 3 * i + 3; d++) { vel[d] += hk * F[d]; pos[d] += vel[d] * h; }
       }
+      this._reflectWalls();
       if (sub === 0 && forceRebuild) this.needRebuild = true;
       this._checkRebuild();
       this.computeForces(h);
