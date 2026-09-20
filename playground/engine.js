@@ -290,8 +290,10 @@ class Engine {
     // 'forcefield' is a soft cushion that begins fieldRange inside it and keeps growing outward,
     // so an atom is turned around gradually and may briefly cross the face.
     this.boundsMode = opts.boundsMode || 'solid';
-    this.fieldK = opts.fieldK ?? 6;         // kJ/mol/Å², forcefield stiffness
-    this.fieldRange = opts.fieldRange ?? 3; // Å the forcefield reaches inward
+    // Soft enough, and reaching in little enough, that ordinary thermal atoms still lean past
+    // the face — otherwise a forcefield would hide the chamber's outside from every void wall.
+    this.fieldK = opts.fieldK ?? 5;           // kJ/mol/Å², forcefield stiffness
+    this.fieldRange = opts.fieldRange ?? 1.2; // Å the forcefield reaches inward
     // Void wall: what the region beyond the chamber face does to what reaches it.
     this.voidTemperature = opts.voidTemperature ?? false; // kinetic energy drains away out there
     this.voidPressure = opts.voidPressure ?? false;       // the face absorbs impulse instead of reporting it

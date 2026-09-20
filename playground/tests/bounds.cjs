@@ -9,11 +9,11 @@ function chamber(options = {}) {
 
 test('Solid bounds push back only past the face; a forcefield catches an atom before it', () => {
   const solid = chamber(), field = chamber({ boundsMode: 'forcefield' });
-  // 1 Å inside the face: solid is silent, the forcefield already pushes inward.
-  for (const e of [solid, field]) e.addAtom('Ar', 59, 30, 0, { thermal: false });
+  // just inside the face: solid is silent, the forcefield already pushes inward.
+  for (const e of [solid, field]) e.addAtom('Ar', 59.6, 30, 0, { thermal: false });
   solid.computeForces(); field.computeForces();
   near(solid.Ewall, 0);
-  assert.ok(field.frc[0] < -1, `forcefield pushes inward, got ${field.frc[0]}`);
+  assert.ok(field.frc[0] < -0.5, `forcefield pushes inward, got ${field.frc[0]}`);
   assert.ok(field.Ewall > 0);
 });
 
@@ -96,4 +96,11 @@ test('A serialized scene carries the boundary configuration', () => {
   assert.equal(scene.voidPressure, false);
 });
 
+test('A forcefield lets ordinary thermal atoms reach the void beyond the face', () => {
+  const e = chamber({ boundsMode: 'forcefield', T: 300 });
+  for (let i = 0; i < 24; i++) e.addAtom('Ar', 6 + (i % 6) * 9, 6 + ((i / 6) | 0) * 9, 0, { thermal: true });
+  let out = 0;
+  for (let s = 0; s < 8000; s++) { e.step(); for (let i = 0; i < e.N; i++) out = Math.max(out, e.pos[3 * i] - e.box.x1, e.box.x0 - e.pos[3 * i]); }
+  assert.ok(out > 0.05, `atoms lean past the face at 300 K, deepest ${out}`);
+});
 console.log(`${count} boundary checks passed.`);

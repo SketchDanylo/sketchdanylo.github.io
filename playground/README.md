@@ -22,9 +22,11 @@ The laboratory uses a **spatial wall thermostat**, not a global velocity rescale
 The **Environment** app in the console sets what the chamber face does.
 
 - **Bounds — Solid**: the default stiff harmonic wall, 60 kJ/mol/Å², beginning exactly at the face. An atom bounces on contact.
-- **Bounds — Forcefield**: a softer harmonic, 6 kJ/mol/Å², shifted 3 Å inside the face and continuing outward without limit. An atom is turned around gradually and can lean past the face, but a finite energy can never escape a harmonic that keeps growing.
+- **Bounds — Forcefield**: a softer harmonic, 5 kJ/mol/Å², shifted 1.2 Å inside the face and continuing outward without limit. An atom is turned around gradually and leans past the face — at 300 K by a fraction of an ångström, at 3000 K by several — but a finite energy can never escape a harmonic that keeps growing. The softness is deliberate: a wall stiff enough to stop everything at the face would hide the outside from every void wall.
 - **Void wall — Temperature**: an absorbing boundary. Beyond the face, kinetic energy drains with a 40 fs time constant that reaches full strength 2 Å out. The energy is tallied in `voidHeat` and never returned, so the sample cools at its edges. This is an open system: total energy is deliberately not conserved.
 - **Void wall — Pressure**: the face still applies its restoring force — atoms are pushed back exactly as before — but the impulse is booked to `voidForce` instead of `wallForce`, so the pressure gauge reads what an open chamber would read.
+
+The chamber draws its own boundary: a solid face is a crisp line, a forcefield is dashed with a cushion glowing inward, and a void wall fades warm (energy) or cool (pressure) outside the face.
 
 Both void options can be on at once, and both are part of snapshots, of the deterministic replay used by step-back, and of the saved scene. `node playground/tests/bounds.cjs` checks containment, energy conservation with no void selected, drainage only outside the face, absorbed pressure, and replay.
 
@@ -135,11 +137,13 @@ Then click to place, drag to throw, Q/E to rotate, or Shift-click to place sever
 
 The apps icon in the gauges opens a window that sits **on** the scene rather than over it. Opening it holds the clock where it stands and closing hands time back exactly where it was left; nothing in the simulation changes in between. The field keeps drawing behind it, so a change made in **Environment** shows in the chamber while it is still being made. The window can be dragged by its title bar and remembers where it was put.
 
-Three apps: **Environment** (bounds, void wall, chamber size, thermostat, and a live account of what the boundary has absorbed), **About** (the model notes below), and **Keybinds**.
+Three apps: **Environment** (bounds, void wall, chamber size, thermostat, and a live account of what the boundary has absorbed), **About** (the model notes below), and **Keybinds**. Environment states itself in drawings rather than prose: the diagram at the top runs an atom into the boundary that is actually configured, so switching to a forcefield visibly turns it earlier and switching on a temperature void flattens the leg it leaves on.
 
 ## Seeing the third dimension
 
-The view is orthographic and looks straight down z by default. **Right-drag empty space** turns the slab about its own centre; **double right-click** faces it again. While the view is turned, the chamber is drawn as a wireframe with its near edges bright, and every pointer gesture — dragging an atom, placing one, the heat brush, the tweezer — works in the plane you are looking at, because pointer positions are mapped back through the same rotation. Chamber-edge resizing is disabled while the view is turned, since the faces are no longer screen-aligned.
+The view is orthographic and looks straight down z by default. **Right-drag empty space** turns the slab about its own centre for as long as the button is held; releasing it swings back to face you. While the view is turned, the chamber is drawn as a wireframe with its near edges bright, and every pointer gesture — dragging an atom, placing one, the heat brush, the tweezer — works in the plane you are looking at, because pointer positions are mapped back through the same rotation. Chamber-edge resizing is disabled while the view is turned, since the faces are no longer screen-aligned.
+
+Value fields inside the console do not take the scroll wheel; the panel scrolls instead.
 
 ## The atom inspector
 

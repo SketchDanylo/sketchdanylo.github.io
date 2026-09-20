@@ -51,7 +51,7 @@ class FieldRenderer {
     g.addColorStop(0, '#0f1b2b'); g.addColorStop(1, '#09111c');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     if (this.showGrid) this._grid(sc);
-    if (this.showBox && sc.box && !sc.box3) this._boxUnder(sc.box);
+    if (this.showBox && sc.box && !sc.box3) { this._boxUnder(sc.box); this._boundary(sc.box, sc.bounds); }
     if (this.showBox && sc.box3) this._box3(sc.box3, 'under');
     const atoms = this._atomsView(sc);
     this._density(sc, atoms);
@@ -62,7 +62,7 @@ class FieldRenderer {
     this._overlay(sc);
     if (sc.inspect) this._leader(sc.inspect, sc.now);
     if (this.showBox && sc.box3) this._box3(sc.box3, 'over');
-    else if (this.showBox && sc.box) this._boxOver(sc.box, sc.boxHot);
+    else if (this.showBox && sc.box) this._boxOver(sc.box, sc.boxHot, sc.bounds);
   }
 
   _atomsView(sc) {
@@ -104,11 +104,51 @@ class FieldRenderer {
     ctx.beginPath(); ctx.rect(0, 0, this.W, this.H); ctx.rect(x0, y0, x1 - x0, y1 - y0); ctx.fill('evenodd');
     ctx.restore();
   }
-  _boxOver(b, hot) {
+  /* What the chamber face is, drawn on the chamber itself: a solid bound is a crisp hard line,
+     a forcefield is a cushion that glows inward, and a void wall fades the outside away. */
+  _boundary(b, cfg) {
+    if (!cfg) return;
+    const ctx = this.ctx, s = this.scale;
+    const [x0, y0] = this.toScreen(b.x0, b.y0), [x1, y1] = this.toScreen(b.x1, b.y1);
+    ctx.save();
+    if (cfg.mode === 'forcefield') {
+      const w = Math.min(26, Math.max(3, cfg.range * s));
+      const band = (gx0, gy0, gx1, gy1, rx, ry, rw, rh) => {
+        const g = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
+        g.addColorStop(0, 'rgba(127,167,201,0.16)'); g.addColorStop(1, 'rgba(127,167,201,0)');
+        ctx.fillStyle = g; ctx.fillRect(rx, ry, rw, rh);
+      };
+      band(x0, 0, x0 + w, 0, x0, y0, w, y1 - y0);
+      band(x1, 0, x1 - w, 0, x1 - w, y0, w, y1 - y0);
+      band(0, y0, 0, y0 + w, x0, y0, x1 - x0, w);
+      band(0, y1, 0, y1 - w, x0, y1 - w, x1 - x0, w);
+    }
+    if (cfg.voidT || cfg.voidP) {
+      // the outside: warm where energy leaves, cool where impulse is swallowed
+      const w = Math.min(16, Math.max(5, 1.6 * s));
+      const tint = cfg.voidT ? '255,150,90' : '127,167,201';
+      const band = (gx0, gy0, gx1, gy1, rx, ry, rw, rh) => {
+        const g = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
+        g.addColorStop(0, 'rgba(' + tint + ',0.10)'); g.addColorStop(1, 'rgba(' + tint + ',0)');
+        ctx.fillStyle = g; ctx.fillRect(rx, ry, rw, rh);
+      };
+      const inset = Math.min(18, (y1 - y0) * 0.18), insetX = Math.min(18, (x1 - x0) * 0.18);
+      band(x0, 0, x0 - w, 0, x0 - w, y0 + inset, w, y1 - y0 - 2 * inset);
+      band(x1, 0, x1 + w, 0, x1, y0 + inset, w, y1 - y0 - 2 * inset);
+      band(0, y0, 0, y0 - w, x0 + insetX, y0 - w, x1 - x0 - 2 * insetX, w);
+      band(0, y1, 0, y1 + w, x0 + insetX, y1, x1 - x0 - 2 * insetX, w);
+    }
+    ctx.restore();
+  }
+  _boxOver(b, hot, cfg) {
     const ctx = this.ctx, [x0, y0] = this.toScreen(b.x0, b.y0), [x1, y1] = this.toScreen(b.x1, b.y1);
     ctx.save();
-    ctx.strokeStyle = 'rgba(127,167,201,0.38)'; ctx.lineWidth = 1;
+    const field = cfg && cfg.mode === 'forcefield';
+    ctx.strokeStyle = field ? 'rgba(127,167,201,0.5)' : 'rgba(127,167,201,0.38)';
+    ctx.lineWidth = field ? 1.4 : 1;
+    if (field) ctx.setLineDash([5, 4]);
     ctx.strokeRect(Math.round(x0) + 0.5, Math.round(y0) + 0.5, Math.round(x1 - x0), Math.round(y1 - y0));
+    ctx.setLineDash([]);
     // corner brackets
     ctx.strokeStyle = 'rgba(233,228,216,0.75)'; ctx.lineWidth = 1.5;
     const L = 12;

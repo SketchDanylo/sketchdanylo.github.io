@@ -49,7 +49,7 @@ function updateLab() {
   $('bathBtn').setAttribute('aria-pressed', eng.thermostat);
   $('physicsNotice').hidden = !eng.clamped;
   $('physicsNotice').textContent = eng.clamped ? eng.clamped + ' safety speed clamps · energy affected' : '';
-  const hint = placing ? 'Click to place · Q/E rotate · right-click for the hand' : armed ? armed + ' selected · click to place · right-click for the hand' : tool === 'heat' ? 'Drag to heat · Shift-drag to cool' : tool === 'erase' ? 'Click an atom to erase · Alt: molecule' : viewTilted() ? 'Right-drag to turn · double right-click to face it' : 'Drag to pan · right-drag to turn · scroll to zoom';
+  const hint = placing ? 'Click to place · Q/E rotate · right-click for the hand' : armed ? armed + ' selected · click to place · right-click for the hand' : tool === 'heat' ? 'Drag to heat · Shift-drag to cool' : tool === 'erase' ? 'Click an atom to erase · Alt: molecule' : viewTilted() ? 'Turning · release to face the chamber again' : 'Drag to pan · right-drag to turn · scroll to zoom';
   const ctx = $('toolContext');
   if (ctx.textContent !== hint) {
     ctx.textContent = hint; ctx.classList.add('show');
@@ -212,6 +212,8 @@ function scrub(el, o) {
     drag = null;
   });
   el.addEventListener('wheel', e => {
+    // inside a scrolling panel the wheel belongs to the panel, not to the value under the pointer
+    if (o.wheel === false) return;
     e.preventDefault(); e.stopPropagation();
     const p = toP(o.get()) - Math.sign(e.deltaY) * (e.shiftKey ? 0.005 : 0.025);
     api.set(fromP(clamp(p, 0, 1)), true);
@@ -692,8 +694,7 @@ canvas.addEventListener('pointerdown', e => {
   if (armed && e.button === 0) { gesture = { type: 'placeAtom', sx: e.clientX, sy: e.clientY, wx, wy }; return; }
   if (e.button === 2) {
     if (tool === 'heat') { brush.active = true; brush.cool = true; gesture = { type: 'brush' }; return; }
-    if (e.detail >= 2) { faceChamber(); toast('Facing the chamber'); return; }
-    // empty scene: turn the chamber in its third dimension
+    // empty scene: turn the chamber in its third dimension for as long as the button is held
     gesture = { type: 'orbit', sx: e.clientX, sy: e.clientY, yaw: view.yaw, pitch: view.pitch };
     canvas.className = 'orbiting'; return;
   }
@@ -767,6 +768,7 @@ function endPointer(e) {
   else if (g.type === 'move') { if (g.moved) edited(); else { undoStack.pop(); if (!e.shiftKey) { selection.clear(); } } }
   else if (g.type === 'erase') edited();
   else if (g.type === 'brush') brush.active = false;
+  else if (g.type === 'orbit') faceChamber();   // the turn lasts as long as the button is held
   else if (g.type === 'box') { saveBox(); edited(); }
   else if (g.type === 'marquee') {
     const x0 = Math.min(g.x0, g.x1), x1 = Math.max(g.x0, g.x1), y0 = Math.min(g.y0, g.y1), y1 = Math.max(g.y0, g.y1);
@@ -1260,7 +1262,7 @@ function paintKeys() {
   const groups = [...new Set(ACTIONS.map(a => a.group))];
   grid.innerHTML = groups.map(g => '<div class="kgroup"><h3>' + g + '</h3>' + ACTIONS.filter(a => a.group === g).map(a =>
     '<div class="krow"><span>' + esc(a.name) + '</span><button class="kcap' + ((keymap[a.id] || []).length ? '' : ' empty') + '" data-id="' + a.id + '">' + ((keymap[a.id] || []).length ? esc(prettyKey(keymap[a.id][0])) : 'add') + '</button></div>').join('') + '</div>').join('') +
-    '<div class="kgroup"><h3>Mouse</h3>' + [['Scroll', 'Zoom (0.05–15 nm; Fit can show larger boxes)'], ['Drag empty space', 'Pan'], ['Right-drag empty space', 'Tilt the chamber in 3D'], ['Double right-click empty space', 'Face the chamber again'], ['Drag an atom', 'Pull it (running) / move its molecule (paused)'], ['Alt + drag atom', 'Move one atom (paused)'], ['Shift + drag', 'Select a region'], ['Right-click atom', 'Atom inspector with its calculated electron cloud'], ['Right-click while placing', 'Put the atom or molecule down and take the hand'], ['Drag while placing', 'Throw with that velocity'], ['Drag box edge', 'Resize the chamber'], ['Q / E', 'Rotate a molecule before placing']].map(r => '<div class="krow"><span>' + r[1] + '</span><span class="kcap" style="border:0;background:none;color:var(--faint)">' + r[0] + '</span></div>').join('') + '</div>';
+    '<div class="kgroup"><h3>Mouse</h3>' + [['Scroll', 'Zoom (0.05–15 nm; Fit can show larger boxes)'], ['Drag empty space', 'Pan'], ['Right-drag empty space', 'Turn the chamber in 3D while held; it faces you again on release'], ['Drag an atom', 'Pull it (running) / move its molecule (paused)'], ['Alt + drag atom', 'Move one atom (paused)'], ['Shift + drag', 'Select a region'], ['Right-click atom', 'Atom inspector with its calculated electron cloud'], ['Right-click while placing', 'Put the atom or molecule down and take the hand'], ['Drag while placing', 'Throw with that velocity'], ['Drag box edge', 'Resize the chamber'], ['Q / E', 'Rotate a molecule before placing']].map(r => '<div class="krow"><span>' + r[1] + '</span><span class="kcap" style="border:0;background:none;color:var(--faint)">' + r[0] + '</span></div>').join('') + '</div>';
   grid.querySelectorAll('button.kcap').forEach(b => b.onclick = () => {
     document.querySelectorAll('.kcap.listening').forEach(x => x.classList.remove('listening'));
     listening = b; b.classList.add('listening'); b.textContent = 'press a key';
@@ -1378,19 +1380,18 @@ function el(tag, cls, html) {
 const TICK = '<svg viewBox="0 0 12 12"><path d="M2.4 6.2l2.4 2.4 4.8-5"/></svg>';
 /* One dropdown component, two behaviours: `multi` turns the marks into checkboxes and keeps
    the sheet open, because those options are not alternatives to each other. */
-function dropdown({ label, options, multi, get, set, summary }) {
+function dropdown({ options, multi, get, set, summary }) {
   const wrap = el('div', 'drop');
   const btn = el('button', 'drop-btn',
-    '<span>' + esc(label) + '</span><span class="drop-val"></span>' +
+    '<i class="drop-lead"></i><span class="drop-val"></span>' +
     '<svg class="caret" viewBox="0 0 10 10"><path d="M2 3.8l3 3 3-3"/></svg>');
   wrap.appendChild(btn);
   let sheet = null;
   const paint = () => {
-    const v = get();
-    const text = summary(v);
-    const val = btn.querySelector('.drop-val');
+    const v = get(), text = summary(v), val = btn.querySelector('.drop-val');
     val.textContent = text.label;
     val.classList.toggle('set', !!text.accent);
+    btn.querySelector('.drop-lead').innerHTML = text.icon || '';
     if (sheet) sheet.querySelectorAll('.drop-opt').forEach(o => {
       const on = multi ? v.includes(o.dataset.v) : v === o.dataset.v;
       o.setAttribute(multi ? 'aria-checked' : 'aria-selected', on);
@@ -1407,11 +1408,10 @@ function dropdown({ label, options, multi, get, set, summary }) {
       '<button class="drop-opt" role="' + (multi ? 'checkbox' : 'option') + '" data-v="' + o.v + '" ' +
       (multi ? 'aria-checked="false"' : 'aria-selected="false"') + '>' +
       '<span class="drop-mark' + (multi ? ' box' : '') + '">' + TICK + '</span>' +
-      '<div><strong>' + esc(o.name) + '</strong><small>' + esc(o.note) + '</small></div></button>').join('');
+      '<i class="opt-icon">' + o.icon + '</i><strong>' + esc(o.name) + '</strong></button>').join('');
     sheet.querySelectorAll('.drop-opt').forEach(o => o.onclick = ev => {
       ev.stopPropagation();
-      set(o.dataset.v);
-      paint();
+      set(o.dataset.v); paint();
       if (!multi) close();
     });
     sheet.addEventListener('pointerdown', ev => ev.stopPropagation());
@@ -1423,9 +1423,6 @@ function dropdown({ label, options, multi, get, set, summary }) {
   wrap.repaint = paint;
   return wrap;
 }
-function statRow(rows) {
-  return el('div', 'app-stat', rows.map(r => '<span>' + esc(r[0]) + '</span><b>' + esc(r[1]) + '</b>').join(''));
-}
 
 /* ---- environment ---- */
 function boundarySettingsChanged(note) {
@@ -1434,49 +1431,57 @@ function boundarySettingsChanged(note) {
   scheduleSave();
   if (note) toast(note);
 }
+/* Glyphs carry the meaning here; words only name a thing once. */
+const GLYPH = {
+  // a hard bar turns the path in a sharp V; a field is arcs, and the path curves inside them
+  solid: '<svg class="gl" viewBox="0 0 24 24"><path class="face" d="M18 2.5v19"/><path class="path" d="M4 19.5L16.5 12L4 4.5"/><circle class="ball" cx="16.5" cy="12" r="2"/></svg>',
+  forcefield: '<svg class="gl" viewBox="0 0 24 24"><path class="halo" d="M19 3.5a13 13 0 0 1 0 17"/><path class="face soft" d="M15 5.5a10 10 0 0 1 0 13"/><path class="path" d="M3 19.5C9 17 12.5 14.5 13.5 12C12.5 9.5 9 7 3 4.5"/><circle class="ball" cx="13.5" cy="12" r="2"/></svg>',
+  heat: '<svg class="gl" viewBox="0 0 24 24"><path class="stem" d="M9.4 13V5a2.6 2.6 0 0 1 5.2 0v8a4.4 4.4 0 1 1-5.2 0z"/><circle class="ball" cx="12" cy="16.3" r="2.6"/></svg>',
+  press: '<svg class="gl" viewBox="0 0 24 24"><path class="face" d="M4 17a8 8 0 1 1 16 0"/><path class="path" d="M12 17l4-5"/></svg>',
+  none: '<svg class="gl" viewBox="0 0 24 24"><circle class="face" cx="12" cy="12" r="8" stroke-dasharray="3 3"/></svg>',
+  w: '<svg class="gl" viewBox="0 0 24 24"><path class="path" d="M3 12h18M6 9l-3 3 3 3M18 9l3 3-3 3"/></svg>',
+  h: '<svg class="gl" viewBox="0 0 24 24"><path class="path" d="M12 3v18M9 6l3-3 3 3M9 18l3 3 3-3"/></svg>',
+  d: '<svg class="gl" viewBox="0 0 24 24"><path class="path" d="M6 18L18 6M18 11V6h-5M6 13v5h5"/></svg>',
+  wall: '<svg class="gl" viewBox="0 0 24 24"><path class="face" d="M6 3v18"/><path class="path" d="M10 7c2 1.4 2-1.4 4 0M10 12c2 1.4 2-1.4 4 0M10 17c2 1.4 2-1.4 4 0"/></svg>',
+  off: '<svg class="gl" viewBox="0 0 24 24"><path class="path" d="M12 4v7"/><path class="face" d="M7.4 7.4a7 7 0 1 0 9.2 0"/></svg>',
+  drain: '<svg class="gl" viewBox="0 0 24 24"><path class="path" d="M4 12h12M12 8l4 4-4 4"/><path class="face" d="M20 5v14" stroke-dasharray="3 3"/></svg>',
+  gauge: '<svg class="gl" viewBox="0 0 24 24"><path class="face" d="M4 17a8 8 0 1 1 16 0"/><path class="path" d="M12 17l5-4"/></svg>'
+};
 function renderEnvironmentApp(stage) {
-  stage.appendChild(el('p', 'app-lede',
-    'The chamber the sample lives in. Bounds decide how a wall turns an atom around; a void wall decides what the outside does to whatever reaches it.'));
-
-  // chamber cross-section: one atom's path into the boundary and back, redrawn from the live settings
+  // the chamber, alive: one atom running at the boundary that is actually configured
   stage.appendChild(el('div', null,
-    '<svg class="chamber-art" id="chamberArt" viewBox="0 0 300 128" role="img" aria-label="An atom meeting the chamber boundary">' +
+    '<svg class="chamber-art" id="chamberArt" viewBox="0 0 300 120" role="img" aria-label="An atom meeting the chamber boundary">' +
     '<defs>' +
-    '<linearGradient id="ffL" x1="0" x2="1"><stop offset="0" stop-color="#7fa7c9" stop-opacity=".3"/><stop offset="1" stop-color="#7fa7c9" stop-opacity="0"/></linearGradient>' +
-    '<linearGradient id="ffR" x1="1" x2="0"><stop offset="0" stop-color="#7fa7c9" stop-opacity=".3"/><stop offset="1" stop-color="#7fa7c9" stop-opacity="0"/></linearGradient>' +
+    '<linearGradient id="ffL" x1="0" x2="1"><stop offset="0" stop-color="#7fa7c9" stop-opacity=".32"/><stop offset="1" stop-color="#7fa7c9" stop-opacity="0"/></linearGradient>' +
+    '<linearGradient id="ffR" x1="1" x2="0"><stop offset="0" stop-color="#7fa7c9" stop-opacity=".32"/><stop offset="1" stop-color="#7fa7c9" stop-opacity="0"/></linearGradient>' +
+    '<linearGradient id="vd" x1="0" x2="1"><stop offset="0" stop-color="#ff965a" stop-opacity=".3"/><stop offset="1" stop-color="#ff965a" stop-opacity="0"/></linearGradient>' +
     '</defs>' +
-    '<g class="halo"><rect x="47" y="17" width="26" height="86" fill="url(#ffL)"/><rect x="227" y="17" width="26" height="86" fill="url(#ffR)"/></g>' +
-    '<rect class="wall" x="47" y="17" width="206" height="86" rx="2" stroke-width="1.5"/>' +
-    '<path class="trace" id="artTrace" d="" stroke-dasharray="none"/>' +
-    '<circle id="artDot" r="3.4" fill="#ffb23f"/>' +
-    '<g class="quantum heat"><path d="M258 38c4-3 4 3 8 0"/><path d="M258 54c4-3 4 3 8 0"/><path d="M258 70c4-3 4 3 8 0"/></g>' +
-    '<g class="quantum push"><path d="M258 88h13M266 84l5 4-5 4" stroke="#7fa7c9" stroke-width="1.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '<path d="M256 82l18 12M274 82l-18 12" stroke="#ff6b5b" stroke-width="1.1" stroke-linecap="round"/></g>' +
-    '<text x="47" y="116">chamber</text><text x="253" y="116" text-anchor="end" id="artLabel">solid bound</text>' +
+    '<g class="halo"><rect x="40" y="14" width="20" height="92" fill="url(#ffL)"/><rect x="240" y="14" width="20" height="92" fill="url(#ffR)"/></g>' +
+    '<g class="quantum heat"><rect x="260" y="14" width="26" height="92" fill="url(#vd)"/>' +
+    '<path d="M264 40c4-3 4 3 8 0"/><path d="M264 58c4-3 4 3 8 0"/><path d="M264 76c4-3 4 3 8 0"/></g>' +
+    '<g class="quantum push"><path d="M266 92h14M274 88l6 4-6 4"/><path d="M262 84l20 16M282 84l-20 16" class="cross"/></g>' +
+    '<rect class="wall" x="40" y="14" width="220" height="92" rx="2" stroke-width="1.6"/>' +
+    '<path class="trace" id="artTrace" d=""/>' +
+    '<circle id="artDot" r="3.6" fill="#ffb23f"/>' +
     '</svg>'));
 
-  const bounds = el('div', 'app-group', '<h3>Bounds</h3>');
-  const boundsDrop = dropdown({
-    label: 'Wall behaviour',
+  const group = (title, node) => { const g = el('div', 'app-group', '<h3>' + title + '</h3>'); g.appendChild(node); stage.appendChild(g); return g; };
+
+  group('Bounds', dropdown({
     options: [
-      { v: 'solid', name: 'Solid', note: 'A stiff wall exactly at the chamber face. Atoms bounce on contact.' },
-      { v: 'forcefield', name: 'Forcefield', note: 'A soft field that starts 3 Å inside and keeps pushing. Atoms lean into it and may cross the face.' }
+      { v: 'solid', name: 'Solid', icon: GLYPH.solid },
+      { v: 'forcefield', name: 'Forcefield', icon: GLYPH.forcefield }
     ],
     get: () => eng.boundsMode,
     set: v => { eng.boundsMode = v; boundarySettingsChanged(); paintArt(); },
-    summary: v => ({ label: v === 'forcefield' ? 'forcefield' : 'solid', accent: v === 'forcefield' })
-  });
-  bounds.appendChild(boundsDrop);
-  bounds.appendChild(el('p', 'app-note', 'A forcefield is gentler on fast atoms — fewer hard rebounds, so less of the heating a stiff wall causes.'));
-  stage.appendChild(bounds);
+    summary: v => ({ label: v, icon: GLYPH[v] })
+  }));
 
-  const vw = el('div', 'app-group', '<h3>Void wall</h3>');
-  const voidDrop = dropdown({
-    label: 'Beyond the bounds',
+  group('Void wall', dropdown({
     multi: true,
     options: [
-      { v: 'temperature', name: 'Temperature', note: 'Energy that crosses the face drains away and never returns. The sample cools at its edges.' },
-      { v: 'pressure', name: 'Pressure', note: 'The face absorbs the impulse instead of reporting it, so the gauge reads an open chamber.' }
+      { v: 'temperature', name: 'Temperature', icon: GLYPH.heat },
+      { v: 'pressure', name: 'Pressure', icon: GLYPH.press }
     ],
     get: () => [eng.voidTemperature && 'temperature', eng.voidPressure && 'pressure'].filter(Boolean),
     set: v => {
@@ -1484,74 +1489,64 @@ function renderEnvironmentApp(stage) {
       else eng.voidPressure = !eng.voidPressure;
       boundarySettingsChanged(); paintArt();
     },
-    summary: v => ({ label: v.length ? v.join(' · ') : 'none', accent: v.length > 0 })
-  });
-  vw.appendChild(voidDrop);
-  vw.appendChild(el('p', 'app-note', 'Atoms are still pushed back in either case — the void takes what crosses the line, not the atom itself.'));
-  stage.appendChild(vw);
+    summary: v => ({ label: v.length ? v.join(' · ') : 'none', accent: v.length > 0, icon: v.length ? GLYPH[v[0] === 'temperature' ? 'heat' : 'press'] : GLYPH.none })
+  }));
 
-  const size = el('div', 'app-group', '<h3>Chamber</h3>');
-  const rows = el('div', 'app-rows');
-  const row = (name, id, unit) => {
-    const r = el('div', 'app-row', '<span>' + name + '</span><span class="scrub" id="' + id + '" data-unit="' + unit + '"></span>');
-    rows.appendChild(r); return r;
-  };
-  row('Width', 'envW', 'nm'); row('Height', 'envH', 'nm'); row('Slab depth', 'envD', 'nm');
-  size.appendChild(rows);
-  stage.appendChild(size);
+  const dims = el('div', 'dim-row',
+    ['envW', 'envH', 'envD'].map((id, k) =>
+      '<label class="dim"><i>' + GLYPH[['w', 'h', 'd'][k]] + '</i><span class="scrub" id="' + id + '" data-unit="nm"></span></label>').join(''));
+  group('Chamber', dims);
 
-  const therm = el('div', 'app-group', '<h3>Thermostat</h3>');
-  const tRow = el('div', 'app-row',
-    '<span>Mode</span><span class="seg-mini" id="envBath"><button data-v="on">Wall heater</button><button data-v="off">Off</button></span>');
-  therm.appendChild(tRow);
-  therm.appendChild(el('p', 'app-note',
-    'The wall heater warms the boundary and lets collisions carry heat inward, the way a real bath does. Off sets every atom directly.'));
-  stage.appendChild(therm);
+  const bath = el('span', 'seg-mini', '<button data-v="on" aria-label="Wall heater" title="Wall heater">' + GLYPH.wall + '</button>' +
+    '<button data-v="off" aria-label="Thermostat off" title="Off — set every atom directly">' + GLYPH.off + '</button>');
+  bath.id = 'envBath';
+  group('Thermostat', bath);
 
-  const live = el('div', 'app-group', '<h3>Beyond the wall</h3>');
-  const stat = statRow([['Wall temperature', '—'], ['Energy lost to the void', '—'], ['Impulse absorbed', '—'], ['Reported pressure', '—']]);
-  live.appendChild(stat);
-  stage.appendChild(live);
+  const stat = el('div', 'stat-strip',
+    [['wall', GLYPH.wall], ['void', GLYPH.drain], ['impulse', GLYPH.press], ['gauge', GLYPH.gauge]]
+      .map(([k, g]) => '<div class="stat" data-k="' + k + '">' + g + '<b>—</b></div>').join(''));
+  stage.appendChild(stat);
 
-  // scrubs for the chamber, sharing the engine's own limits
   const mk = (id, get, set, min, max) => scrub($(id), {
     get, set: (v, commit) => { set(v); eng.touch(); if (commit) { saveBox(); scheduleSave(); } },
-    min, max, unit: 'nm', fmt: v => v.toFixed(2), hardMin: min, hardMax: max
+    min, max, unit: 'nm', fmt: v => v.toFixed(2), hardMin: min, hardMax: max, wheel: false
   });
   mk('envW', () => (eng.box.x1 - eng.box.x0) / 10, v => { eng.box.x1 = eng.box.x0 + v * 10; }, 1, 50);
   mk('envH', () => (eng.box.y1 - eng.box.y0) / 10, v => { eng.box.y1 = eng.box.y0 + v * 10; }, 1, 50);
   mk('envD', () => (eng.box.z1 - eng.box.z0) / 10, v => { eng.box.z0 = -v * 5; eng.box.z1 = v * 5; }, 0.4, 50);
-  $('envBath').querySelectorAll('button').forEach(b => b.onclick = () => {
+  bath.querySelectorAll('button').forEach(b => b.onclick = () => {
     if ((b.dataset.v === 'on') !== eng.thermostat) toggleBath();
     paintBath();
   });
   function paintBath() {
-    $('envBath').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', (b.dataset.v === 'on') === !!eng.thermostat));
+    bath.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', (b.dataset.v === 'on') === !!eng.thermostat));
   }
-  /* The drawing is the physics: the exit leg is as steep as the atom is fast, so switching on
-     a temperature void visibly flattens it, and a pressure void crosses out the wall's impulse. */
+  /* The drawing is the explanation: a forcefield turns the atom before the face and glows inward,
+     a temperature void flattens the exit leg because the atom leaves slower than it arrived. */
   function paintArt() {
     const a = $('chamberArt'); if (!a) return;
     const field = eng.boundsMode === 'forcefield';
     a.classList.toggle('field', field);
     a.classList.toggle('voidT', !!eng.voidTemperature);
     a.classList.toggle('voidP', !!eng.voidPressure);
-    $('artLabel').textContent = field ? 'forcefield bound' : 'solid bound';
-    const turn = field ? 231 : 250;               // a forcefield turns the atom before the face
+    const turn = field ? 247 : 262;
     const cold = !!eng.voidTemperature;
-    const d = 'M62 98 L' + turn + ' 40 L' + (cold ? 178 : 110) + ' ' + (cold ? 72 : 22);
+    const d = 'M56 96 L' + turn + ' 38 L' + (cold ? 176 : 104) + ' ' + (cold ? 70 : 20);
     $('artTrace').setAttribute('d', d);
-    const dot = $('artDot');
-    dot.innerHTML = '<animateMotion dur="3.6s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="linear" path="' + d + '"/>';
+    $('artDot').innerHTML = '<animateMotion dur="3.6s" repeatCount="indefinite" path="' + d + '"/>';
   }
   paintBath(); paintArt();
+  const cells = stat.querySelectorAll('.stat');
   appRefresh = () => {
     if (!$('chamberArt')) return;
-    const cells = stat.querySelectorAll('b');
-    cells[0].textContent = eng.thermostat ? (eng.wallT - 273.15).toFixed(1) + ' °C' : 'off';
-    cells[1].textContent = eng.voidTemperature ? eng.voidHeat.toFixed(1) + ' kJ/mol' : 'nothing leaves';
-    cells[2].textContent = eng.voidPressure ? fmtP(eng.wallArea > 0 ? eng.voidForce / eng.wallArea * 1660.539 : 0) : '—';
-    cells[3].textContent = fmtP(eng.pressureEMA);
+    cells[0].lastElementChild.textContent = eng.thermostat ? (eng.wallT - 273.15).toFixed(0) + '°C' : 'off';
+    cells[1].lastElementChild.textContent = eng.voidTemperature ? eng.voidHeat.toFixed(0) : '—';
+    cells[1].title = 'Energy lost to the void, kJ/mol';
+    cells[2].lastElementChild.textContent = eng.voidPressure ? fmtP(eng.wallArea > 0 ? eng.voidForce / eng.wallArea * 1660.539 : 0) : '—';
+    cells[2].title = 'Impulse the void absorbed instead of reporting';
+    cells[3].lastElementChild.textContent = fmtP(eng.pressureEMA);
+    cells[3].title = 'Pressure the gauge reports';
+    cells[0].title = 'Wall temperature';
     paintBath();
   };
   appRefresh();
@@ -1717,6 +1712,7 @@ function frame(now) {
   }
   R.draw({
     N: eng.N, type: eng.type, pos: rp, bonds, box: eng.box, box3: viewTilted() ? boxCorners() : null,
+    bounds: { mode: eng.boundsMode, range: eng.fieldRange, voidT: eng.voidTemperature, voidP: eng.voidPressure },
     boxHot: gesture && gesture.type === 'box' ? gesture.edge : boxHot,
     hover: gesture ? -1 : hoverAtom, eraseHover: tool === 'erase' && !armed, selected: selection, pinned: eng.pinned.subarray(0, eng.N), ghost, flashes, now,
     tweezer: eng.tweezer, brush: tool === 'heat' && !armed && !placing ? brush : null,
