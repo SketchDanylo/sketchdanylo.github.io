@@ -65,4 +65,49 @@ test('Wall history reproduces velocities, reservoir state and heat on replay', (
   assert.ok(e.stepBack(100)); const actual = e.snapshot();
   for (const key of ['pos', 'vel', 'rng', 'wallT', 'wallTarget', 'wallTau', 'heatToSample', 'heaterWork']) assert.deepEqual(actual[key], expected[key], key);
 });
+test('The Kelvin stat holds the setpoint exactly, every step and everywhere', () => {
+  const e = chamber({ thermostatMode: 'kelvin', T: 450 });
+  for (let i = 0; i < 20; i++) e.addAtom('Ar', 8 + (i % 5) * 20, 12 + ((i / 5) | 0) * 22, 0, { thermal: true });
+  for (let s = 0; s < 2000; s++) { e.step(); near(e.temperature(), 450, 1e-9); }
+});
+test('It replaces exactly what a void wall removes', () => {
+  const e = chamber({ thermostatMode: 'kelvin', T: 450, voidTemperature: true, voidVelocity: true });
+  for (let i = 0; i < 20; i++) e.addAtom('Ar', 8 + (i % 5) * 20, 12 + ((i / 5) | 0) * 22, 0, { thermal: true });
+  for (let s = 0; s < 4000; s++) e.step();
+  near(e.temperature(), 450, 1e-9);
+  assert.ok(e.voidHeat > 0, 'the wall took energy');
+  assert.ok(e.kelvinWork > 0, 'and the stat put it back');
+});
+test('It starts a chamber from rest and can set it back to rest', () => {
+  const e = chamber({ thermostatMode: 'kelvin', T: 300 });
+  for (let i = 0; i < 6; i++) e.addAtom('Ar', 10 + i * 15, 40, 0, { thermal: false });
+  assert.equal(e.kinetic(), 0);
+  e.step();
+  near(e.temperature(), 300, 1e-9);
+  e.setTemperature(0);
+  near(e.temperature(), 0, 1e-12);
+  e.setTemperature(750);
+  near(e.temperature(), 750, 1e-9);        // instant, by definition
+});
+test('It leaves pinned atoms fixed and scales only the total, not the distribution', () => {
+  const e = chamber({ thermostatMode: 'kelvin', T: 500 });
+  for (let i = 0; i < 6; i++) e.addAtom('Ar', 10 + i * 15, 40, 0, { thermal: true });
+  e.addAtom('Ar', 50, 20, 0, { thermal: true }); e.pinned[6] = 1;
+  const ratio = Math.hypot(e.vel[0], e.vel[1], e.vel[2]) / Math.hypot(e.vel[3], e.vel[4], e.vel[5]);
+  e._kelvin();
+  near(Math.hypot(e.vel[0], e.vel[1], e.vel[2]) / Math.hypot(e.vel[3], e.vel[4], e.vel[5]), ratio, 1e-12);
+  for (let d = 18; d < 21; d++) assert.equal(e.vel[d], 0);
+});
+test('Kelvin trajectories replay bit-exactly and survive a scene round trip', () => {
+  const e = chamber({ thermostatMode: 'kelvin', T: 500, voidTemperature: true });
+  e.recording = true;
+  for (let i = 0; i < 8; i++) e.addAtom('Ar', 10 + i * 11, 30 + (i % 3) * 14, 0, { thermal: true });
+  for (let s = 0; s < 200; s++) e.step();
+  const snap = e.snapshot(), trace = [];
+  for (let i = 0; i < 80; i++) { e.step(); trace.push([e.pos[0], e.vel[0], e.kelvinWork]); }
+  e.restore(snap);
+  assert.equal(e.thermostatMode, 'kelvin');
+  for (const want of trace) { e.step(); near(e.pos[0], want[0], 1e-12); near(e.vel[0], want[1], 1e-14); near(e.kelvinWork, want[2], 1e-9); }
+  assert.equal(e.toJSON().thermostatMode, 'kelvin');
+});
 console.log(`${count} thermal-wall checks passed.`);

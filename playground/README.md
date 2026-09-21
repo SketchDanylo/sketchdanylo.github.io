@@ -4,16 +4,44 @@ A reactive molecular-dynamics sandbox at true scale. Atoms and molecules live in
 
 Open `playground/` on the site. Molecules come only from [Nomenclature](../nomenclature.html) → **Playground**; single atoms come from the dock.
 
-## Boundary thermostat
+## Thermostats
 
-The laboratory uses a **spatial wall thermostat**, not a global velocity rescale:
+Three ways to hold a temperature, chosen in **Environment** or from the temperature gauge. The
+difference between them is who gets touched and when.
+
+### Kelvin stat
+
+Every unpinned atom is rescaled to the setpoint on every step, `v *= sqrt(K_target / K)`, after
+the void walls have taken their share. The measured temperature is therefore the set temperature
+to the last digit — it is a setting, not an outcome, and the gauge has nothing left to wander.
+
+This is what makes a void wall usable. What the wall removes, the stat returns on the same tick,
+so the chamber sits in a genuine steady state: over 40 ps at 400 K with a temperature void the
+reading is 400.00 K at every sample, and the stat's ledger shows it handing back the 1947 kJ/mol
+the wall took. Six waters survive at 1200 K held this way.
+
+It fixes the total kinetic energy, not its distribution. Relative speeds between atoms are
+untouched by the rescale, so the Maxwell tail — and with it the chemistry — survives; what is
+lost is the fluctuation a finite sample really has, which is the price of asking for an exact
+temperature. Pinned atoms stay at rest. Work done is tallied in `kelvinWork`, and a Kelvin
+trajectory replays bit-exactly.
+
+### Wall heater
+
+A **spatial wall thermostat**, not a global velocity rescale:
 
 - Heater targets are **15–350 °C**. Changing the target does not jump the sample or wall temperature.
 - The wall follows `dT/dt = (T_target - T_wall) / tau`; its response time is adjustable in **simulated ps**, default 10 ps. This specifies a nanoscale thermal reservoir, not the heating time of a particular laboratory appliance.
 - Only atoms within **0.2 nm of a wall** couple to the reservoir. The coupling vanishes quadratically at the inner edge. An exact Ornstein–Uhlenbeck velocity update combines drag and Gaussian noise with fluctuation–dissipation variance. Interparticle forces carry energy through the interior.
 - Effective wall heat capacity is 1000 k_B. Heat given to the sample is subtracted from the wall; heater work and sample heat are recorded separately and included in deterministic snapshots. This finite reservoir approximation is not an explicit solid-wall atomistic model.
-- With the thermostat **off**, editing temperature immediately rescales kinetic energy to the requested temperature, including an initialization from rest. Pinned atoms remain fixed. Subsequent dynamics have no thermostat.
-- Isolated molecule conditioning retains a separate CSVR sampling bath.
+- Against a void wall the heater cannot reach its setpoint: it only touches the boundary layer, which is the same place the void takes from. At 400 K with a temperature void the sample settles near 310 K and keeps wandering. Use the Kelvin stat when the number matters.
+
+### Off
+
+Editing temperature immediately rescales kinetic energy to the requested temperature, including
+an initialization from rest. Pinned atoms remain fixed. Subsequent dynamics have no thermostat.
+
+Isolated molecule conditioning retains a separate CSVR sampling bath.
 
 [Spatial Langevin thermostat methodology](https://docs.lammps.org/fix_langevin.html). This engine uses its own exact OU update, not the LAMMPS integration algorithm.
 
@@ -45,8 +73,9 @@ one quantity back. The same three work for solid and soft bounds, because the co
 Each is an exponential absorber, so none can inject energy or reverse a velocity. Energy removed
 is tallied in `voidHeat` and shown in the panel. With any channel on the chamber is an open
 system and does not conserve energy — that is the point of it. The wall heater still works
-against a void wall, but no longer reaches its setpoint: at 400 K with a temperature void the
-sample settles near 310 K. With the thermostat off it settles at rest.
+against a void wall but no longer reaches its setpoint; the **Kelvin stat** does, and pairing
+the two is the intended way to run an open chamber at a fixed temperature. With no thermostat
+at all the chamber settles at rest.
 
 Measured over 30,000 steps, six waters starting at 2000 K: reflecting walls reach 4400 K with
 four molecules intact; any void channel keeps all six.
@@ -59,6 +88,9 @@ Berendsen-style controller: every 100 steps the chamber breathes toward the targ
 `μ = 1 + gain·(P − P_target)/span`, clamped to 0.4 % per adjustment, across width and height only
 — the slab depth stays what you set. Whole fragments move with the walls and bond lengths are
 never scaled, so a molecule is carried rather than squeezed.
+
+`node playground/tests/thermal-walls.cjs` checks all three thermostats, including exactness,
+replacement of void losses, pinned atoms and bit-exact replay.
 
 `node playground/tests/bounds.cjs` checks six-face containment, energy conservation, collision
 pressure, multiple crossings, all three void channels at both wall kinds, pressure control and

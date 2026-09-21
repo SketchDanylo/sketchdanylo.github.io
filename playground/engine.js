@@ -320,7 +320,11 @@ class Engine {
     this.thermostat = opts.thermostat ?? true;
     // The sample exchanges heat only in a thin boundary layer. CSVR remains available
     // for preparing isolated molecules, not as the laboratory's thermostat.
+    // 'wall'   — a heater at the boundary; the interior warms through collisions.
+    // 'kelvin' — every atom, every step, held at exactly the setpoint.
+    // 'csvr'   — canonical sampling, kept for preparing isolated molecules.
     this.thermostatMode = opts.thermostatMode || 'wall';
+    this.kelvinWork = 0;            // kJ/mol the Kelvin stat has put in (or taken out)
     this.wallT = opts.wallT ?? this.T;
     this.wallTarget = opts.wallTarget ?? Math.max(288.15, Math.min(623.15, this.T));
     this.wallTau = opts.wallTau ?? 10000; // fs, C_wall / conductance of heater
@@ -1159,11 +1163,14 @@ class Engine {
       if (v2 >= VMAX * VMAX) { clamped++; const s = VMAX / Math.sqrt(v2); vel[3 * i] *= s; vel[3 * i + 1] *= s; vel[3 * i + 2] *= s; }
     }
     this.clamped += clamped;
+    this._voidWalls(dt);
+    // The stat runs last, so whatever the void just removed is replaced within the same step
+    // and the temperature the gauge reads is the temperature that was asked for.
     if (this.thermostat) {
       if (this.thermostatMode === 'csvr') this._csvr();
+      else if (this.thermostatMode === 'kelvin') this._kelvin();
       else this._wallBath(dt);
     }
-    this._voidWalls(dt);
     this.time += dt; this.stepCount++;
     if (!this.sphere && this.boundsMode === 'solid') this.wallForce = this._wallImpulse / dt;
     // Normal momentum flux, exponentially averaged over ~1 ps
@@ -1264,6 +1271,7 @@ class Engine {
       return; // heater setpoint changes; neither walls nor sample jump
     }
     this.T = T;
+    if (this.thermostat && this.thermostatMode === 'kelvin') { this._kelvin(); return; } // instant, by definition
     if (!this.thermostat) {
       // This is an explicit user intervention, not thermostatted dynamics.
       const current = this.temperature();
@@ -1277,6 +1285,29 @@ class Engine {
         }
       }
     }
+  }
+  /* Kelvin stat. Not a bath: an exact isokinetic rescale of every unpinned atom, every step,
+     so the sample sits at the setpoint and nowhere else. Paired with a void wall it is a steady
+     state by construction — what the wall takes, the stat gives back on the same tick — which is
+     the point of it: a chamber whose temperature is a setting rather than an outcome.
+     It fixes the total, not the distribution: relative speeds, and so chemistry, are untouched. */
+  _kelvin() {
+    const Nf = this.dof(); if (!Nf) return;
+    const v = this.vel, target = Math.max(0, this.T);
+    if (target === 0) {
+      let removed = 0;
+      for (let i = 0; i < this.N; i++) for (let k = 3 * i; k < 3 * i + 3; k++) { removed += 0.5 * KEU * this.mass[i] * v[k] * v[k]; v[k] = 0; }
+      this.kelvinWork -= removed;
+      return;
+    }
+    let K = this.kinetic();
+    if (K <= 1e-14) { this.thermalize(target); K = this.kinetic(); if (K <= 1e-14) return; }
+    const Kt = 0.5 * Nf * KB * target, sc = Math.sqrt(Kt / K);
+    for (let i = 0; i < this.N; i++) {
+      if (this.pinned[i]) { v.fill(0, 3 * i, 3 * i + 3); continue; }
+      for (let k = 3 * i; k < 3 * i + 3; k++) v[k] *= sc;
+    }
+    this.kelvinWork += Kt - K;
   }
   _csvr() {
     const Nf = this.dof(); if (!Nf) return;
@@ -1408,7 +1439,7 @@ class Engine {
     return {
       N, time: this.time, stepCount: this.stepCount, rng: this.rngState, nextId: this.nextId,
       box: { ...this.box }, sphere: this.sphere && { ...this.sphere }, T: this.T, tau: this.tau, thermostat: this.thermostat,
-      thermostatMode: this.thermostatMode, wallT: this.wallT, wallTarget: this.wallTarget,
+      thermostatMode: this.thermostatMode, kelvinWork: this.kelvinWork, wallT: this.wallT, wallTarget: this.wallTarget,
       boundsMode: this.boundsMode, fieldK: this.fieldK, fieldRange: this.fieldRange,
       voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, voidVelocity: this.voidVelocity, voidTau: this.voidTau, voidSkin: this.voidSkin,
       pressureControl: this.pressureControl, pressureTarget: this.pressureTarget, pressureTau: this.pressureTau,
@@ -1429,7 +1460,7 @@ class Engine {
     this.N = s.N; this.time = s.time; this.stepCount = s.stepCount; this.rngState = s.rng; this.nextId = s.nextId;
     if (s.box) this.box = { ...s.box };
     this.sphere = s.sphere ? { ...s.sphere } : null;
-    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidVelocity', 'voidTau', 'voidSkin', 'voidHeat', 'voidForce', 'pressureControl', 'pressureTarget', 'pressureTau', 'heatToSample', 'heaterWork', 'nextSub', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
+    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'kelvinWork', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidVelocity', 'voidTau', 'voidSkin', 'voidHeat', 'voidForce', 'pressureControl', 'pressureTarget', 'pressureTau', 'heatToSample', 'heaterWork', 'nextSub', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
     this.tweezer = null;
     this.pos.set(s.pos); this.vel.set(s.vel); this.frc.set(s.frc); this.prev.set(s.pos);
     this.type.set(s.type); this.formal.set(s.formal); this.val.set(s.val); this.lp.set(s.lp); this.pinned.set(s.pinned); this.ids.set(s.ids); this.cos0.set(s.cos0);
@@ -1488,7 +1519,7 @@ class Engine {
   toJSON() {
     const atoms = [];
     for (let i = 0; i < this.N; i++) atoms.push([ELEMENTS[this.type[i]].sym, +this.pos[3 * i].toFixed(4), +this.pos[3 * i + 1].toFixed(4), +this.pos[3 * i + 2].toFixed(4), +this.vel[3 * i].toFixed(6), +this.vel[3 * i + 1].toFixed(6), +this.vel[3 * i + 2].toFixed(6), this.formal[i], this.val[i]]);
-    return { format: 'chem-playground/scene@1', box: this.box, T: this.T, tau: this.tau, thermostat: this.thermostat, thermostatMode: this.thermostatMode, boundsMode: this.boundsMode, voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, voidVelocity: this.voidVelocity, dampingVersion: 3, voidTau: this.voidTau, voidSkin: this.voidSkin, voidHeat: this.voidHeat, pressureControl: this.pressureControl, pressureTarget: this.pressureTarget, wallT: this.wallT, wallTarget: this.wallTarget, wallTau: this.wallTau, heatToSample: this.heatToSample, heaterWork: this.heaterWork, time: this.time, atoms };
+    return { format: 'chem-playground/scene@1', box: this.box, T: this.T, tau: this.tau, thermostat: this.thermostat, thermostatMode: this.thermostatMode, kelvinWork: this.kelvinWork, boundsMode: this.boundsMode, voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, voidVelocity: this.voidVelocity, dampingVersion: 3, voidTau: this.voidTau, voidSkin: this.voidSkin, voidHeat: this.voidHeat, pressureControl: this.pressureControl, pressureTarget: this.pressureTarget, wallT: this.wallT, wallTarget: this.wallTarget, wallTau: this.wallTau, heatToSample: this.heatToSample, heaterWork: this.heaterWork, time: this.time, atoms };
   }
 }
 

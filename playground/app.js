@@ -15,15 +15,26 @@ const STP_T = 298.15, ATM = 1.01325;
 const SPS1 = 20000;                 // 1.0× = 20 000 steps (20 ps) of 1 fs per real second
 const SPAN_MIN = 0.5, SPAN_MAX = 150; // manual visible width 0.05–15 nm; Fit may go wider
 
-function toggleBath() {
+/* Three ways to hold a temperature, and the difference matters:
+   wall   — a heater at the boundary; the interior warms through collisions, so the reading
+            lags the setpoint and never quite reaches it against an open wall.
+   kelvin — every atom, every step, at exactly the setpoint. Paired with a void wall it is a
+            steady state by construction: what the wall takes, the stat returns the same tick.
+   off    — no stat at all; setting a temperature is a one-off edit of the velocities. */
+const bathMode = () => !eng.thermostat ? 'off' : eng.thermostatMode === 'kelvin' ? 'kelvin' : 'wall';
+const wallHeater = () => bathMode() === 'wall';
+function setBathMode(mode) {
+  if (bathMode() === mode) return;
   pushUndo();
-  eng.thermostat = !eng.thermostat;
+  eng.thermostat = mode !== 'off';
+  if (mode !== 'off') eng.thermostatMode = mode === 'kelvin' ? 'kelvin' : 'wall';
   if (eng.thermostat) eng.setTemperature(eng.T);
   eng.checkpoints.length = 0;
-  store.set('thermostat', eng.thermostat);
+  store.set('thermostat', eng.thermostat); store.set('bathMode', eng.thermostatMode);
   tField.render(); paintT(); scheduleSave();
   if ($('tPop').classList.contains('open')) openTPop();
 }
+function toggleBath() { setBathMode(eng.thermostat ? 'off' : (store.get('bathMode', 'wall') === 'kelvin' ? 'kelvin' : 'wall')); }
 function resampleMotion() {
   if (!eng.N) return toast('Place atoms or molecules first');
   pushUndo(); eng.thermalize(eng.T); edited();
@@ -45,7 +56,9 @@ function updateLab() {
   $('atomCount').textContent = eng.N + (eng.N === 1 ? ' atom' : ' atoms');
   $('liveTemperature').textContent = eng.N ? eng.temperature().toFixed(1) + ' K' : '—';
   $('liveEnergy').textContent = eng.N ? (eng.Epot + eng.kinetic()).toFixed(1) + ' kJ/mol' : '—';
-  $('bathBtn').textContent = eng.thermostat ? (eng.wallT - 273.15).toFixed(1) + ' °C wall' : 'Off · direct setting';
+  const mode = bathMode();
+  $('bathBtn').textContent = mode === 'wall' ? (eng.wallT - 273.15).toFixed(1) + ' °C wall'
+    : mode === 'kelvin' ? fmtT(eng.T) + ' K held' : 'Off · direct setting';
   $('bathBtn').setAttribute('aria-pressed', eng.thermostat);
   $('physicsNotice').hidden = !eng.clamped;
   $('physicsNotice').textContent = eng.clamped ? eng.clamped + ' safety speed clamps · energy affected' : '';
@@ -61,6 +74,7 @@ function updateLab() {
 const savedBox = store.get('box', { w: 36, h: 20, d: 12 });
 const eng = new Engine({ width: savedBox.w, height: savedBox.h, depth: savedBox.d, T: store.get('T', STP_T) });
 eng.thermostat = store.get('thermostat', true);
+eng.thermostatMode = store.get('bathMode', 'wall') === 'kelvin' ? 'kelvin' : 'wall';
 const savedBounds = store.get('bounds', null);
 if (savedBounds) {
   if (savedBounds.mode === 'forcefield' || savedBounds.mode === 'solid') eng.boundsMode = savedBounds.mode;
@@ -321,11 +335,11 @@ function readTemperature() {
 }
 const fmtT = v => v >= 10000 ? (v / 1000).toFixed(1) + 'k' : v >= 100 ? Math.round(v).toString() : v >= 10 ? v.toFixed(1) : v.toFixed(2);
 const tField = scrub($('tField'), {
-  get: () => eng.T, set: v => setT(v, true), get min() { return eng.thermostat ? 288.15 : 0; }, get max() { return eng.thermostat ? 623.15 : 6000; }, off: 40, map: 'log', get unit() { return eng.thermostat ? '°C' : 'K'; }, hardMin: 0, hardMax: 50000,
-  fmt: v => eng.thermostat ? (v - 273.15).toFixed(1) : fmtT(v),
-  ariaValue: v => eng.thermostat ? v - 273.15 : v,
-  edit: v => String(+(eng.thermostat ? v - 273.15 : v).toFixed(2)),
-  parse: txt => parseTemp(eng.thermostat && /^-?[\d.,]+$/.test(txt.trim()) ? txt + ' C' : txt)
+  get: () => eng.T, set: v => setT(v, true), get min() { return wallHeater() ? 288.15 : 0; }, get max() { return wallHeater() ? 623.15 : 6000; }, off: 40, map: 'log', get unit() { return wallHeater() ? '°C' : 'K'; }, hardMin: 0, hardMax: 50000,
+  fmt: v => wallHeater() ? (v - 273.15).toFixed(1) : fmtT(v),
+  ariaValue: v => wallHeater() ? v - 273.15 : v,
+  edit: v => String(+(wallHeater() ? v - 273.15 : v).toFixed(2)),
+  parse: txt => parseTemp(wallHeater() && /^-?[\d.,]+$/.test(txt.trim()) ? txt + ' C' : txt)
 });
 function parseTemp(txt) {
   const m = txt.trim().toLowerCase().replace(',', '.').match(/^(-?[\d.]+)\s*(k|°?c|°?f)?$/);
@@ -358,21 +372,24 @@ function renderTPop() {
   const pop = $('tPop'); if (!pop.classList.contains('open')) return;
   pop.querySelector('.head b').textContent = eng.temperature().toFixed(1) + ' K';
   pop.querySelectorAll('.row[data-t]').forEach(r => r.classList.toggle('on', Math.abs(+r.dataset.t - eng.T) < 0.01));
-  pop.querySelector('.toggle').classList.toggle('on', eng.thermostat);
-  pop.querySelector('.toggle').setAttribute('aria-pressed', eng.thermostat);
+  pop.querySelectorAll('#tPopBath button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === bathMode()));
   const wall = $('wallNow'); if (wall) wall.textContent = (eng.wallT - 273.15).toFixed(2) + ' °C';
   const heat = $('wallHeat'); if (heat) heat.textContent = eng.heatToSample.toFixed(2) + ' kJ/mol';
+  const sw = $('statWork'); if (sw) sw.textContent = eng.kelvinWork.toFixed(1) + ' kJ/mol';
 }
 function openTPop() {
   const pop = $('tPop');
-  const presets = eng.thermostat ? [[288.15, 'Cool', '15 °C'], [298.15, 'Room', '25 °C'], [373.15, 'Warm', '100 °C'], [473.15, 'Hot', '200 °C'], [623.15, 'Maximum', '350 °C']] : T_PRESETS;
+  const presets = wallHeater() ? [[288.15, 'Cool', '15 °C'], [298.15, 'Room', '25 °C'], [373.15, 'Warm', '100 °C'], [473.15, 'Hot', '200 °C'], [623.15, 'Maximum', '350 °C']] : T_PRESETS;
   pop.innerHTML = '<div class="head">Measured <b></b></div><canvas class="spark" id="tSpark"></canvas><div class="sep"></div>' +
-    presets.map((p, i) => '<button class="row" style="--i:' + i + '" data-t="' + p[0] + '"><span class="sw" style="background:' + blackbody(p[0]) + '"></span><span class="k">' + (eng.thermostat ? (p[0] - 273.15).toFixed(0) + ' °C' : fmtT(p[0]) + ' K') + '</span><span class="lbl">' + p[1] + '</span></button>').join('') +
-    '<div class="sep"></div><button class="toggle">Wall thermostat<i></i></button>' +
-    (eng.thermostat ? '<div class="kv"><span>Wall now</span><span id="wallNow"></span></div><div class="kv"><span>Heat into sample</span><span id="wallHeat"></span></div><div class="kv"><span>Heater response τ</span><span class="scrub" id="wallTau"></span></div><p class="thermal-note">The wall reaches 63% of a temperature change in τ. Time is simulated, not playback time. Only the 0.2 nm boundary layer contacts the reservoir; the interior warms through interactions. This is a specified nanoscale heater, not a calibrated household thermostat.</p>' : '<p class="thermal-note">Editing temperature immediately sets the sample’s kinetic temperature. Then it evolves without a heat bath. This changes the velocities, not the geometry or phase.</p>');
+    presets.map((p, i) => '<button class="row" style="--i:' + i + '" data-t="' + p[0] + '"><span class="sw" style="background:' + blackbody(p[0]) + '"></span><span class="k">' + (wallHeater() ? (p[0] - 273.15).toFixed(0) + ' °C' : fmtT(p[0]) + ' K') + '</span><span class="lbl">' + p[1] + '</span></button>').join('') +
+    '<div class="sep"></div><div class="seg-mini bath-seg" id="tPopBath"><button data-v="wall">Wall</button><button data-v="kelvin">Kelvin</button><button data-v="off">Off</button></div>' +
+    (wallHeater() ? '<div class="kv"><span>Wall now</span><span id="wallNow"></span></div><div class="kv"><span>Heat into sample</span><span id="wallHeat"></span></div><div class="kv"><span>Heater response τ</span><span class="scrub" id="wallTau"></span></div><p class="thermal-note">The wall reaches 63% of a temperature change in τ. Time is simulated, not playback time. Only the 0.2 nm boundary layer contacts the reservoir; the interior warms through interactions. This is a specified nanoscale heater, not a calibrated household thermostat.</p>' : bathMode() === 'kelvin' ? '<div class="kv"><span>Stat work</span><span id="statWork"></span></div><p class="thermal-note">Every atom is rescaled to this temperature on every step, so the measured value is the set value. Against a void wall that is a steady state: what the wall removes, the stat returns the same tick. It fixes the total kinetic energy, not the distribution.</p>' : '<p class="thermal-note">Editing temperature immediately sets the sample’s kinetic temperature. Then it evolves without a heat bath. This changes the velocities, not the geometry or phase.</p>');
   pop.querySelectorAll('.row[data-t]').forEach(r => r.onclick = () => { setT(+r.dataset.t); });
-  pop.querySelector('.toggle').onclick = toggleBath;
-  if (eng.thermostat) scrub($('wallTau'), { get: () => eng.wallTau / 1000, set: v => { eng.wallTau = v * 1000; eng.checkpoints.length = 0; scheduleSave(); }, min: 1, max: 100, hardMin: .01, hardMax: 1e15, unit: 'ps', fmt: v => String(+v.toPrecision(4)) });
+  pop.querySelectorAll('#tPopBath button').forEach(b => {
+    b.setAttribute('aria-pressed', b.dataset.v === bathMode());
+    b.onclick = () => { setBathMode(b.dataset.v); openTPop(); };
+  });
+  if (wallHeater()) scrub($('wallTau'), { get: () => eng.wallTau / 1000, set: v => { eng.wallTau = v * 1000; eng.checkpoints.length = 0; scheduleSave(); }, min: 1, max: 100, hardMin: .01, hardMax: 1e15, unit: 'ps', fmt: v => String(+v.toPrecision(4)) });
   showPop(pop, $('gT'), 'below'); renderTPop();
 }
 $('gT').addEventListener('click', e => { if (e.target.closest('.scrub')) return; openPop && openPop.pop.id === 'tPop' ? closePop() : openTPop(); });
@@ -386,7 +403,7 @@ function openPPop() {
   const mk = (id, get, set, min, max) => scrub($(id), { get, set: (v, c) => { set(v); eng.touch(); if (c) { saveBox(); scheduleSave(); } }, min, max, unit: 'nm', fmt: v => v.toFixed(2), hardMin: min, hardMax: max });
   mk('bW', () => (eng.box.x1 - eng.box.x0) / 10, v => { eng.box.x1 = eng.box.x0 + v * 10; }, 1, 50);
   mk('bH', () => (eng.box.y1 - eng.box.y0) / 10, v => { eng.box.y1 = eng.box.y0 + v * 10; }, 1, 50);
-  mk('bD', () => (eng.box.z1 - eng.box.z0) / 10, v => { eng.box.z0 = -v * 5; eng.box.z1 = v * 5; }, 0.4, 50);
+  mk('bD', () => (eng.box.z1 - eng.box.z0) / 10, v => { eng.box.z0 = -v * 5; eng.box.z1 = v * 5; }, 0.1, 50);
   showPop(pop, $('gP'), 'below'); renderPPop();
 }
 function renderPPop() {
@@ -1181,7 +1198,8 @@ act('cond.flame', 'Conditions', 'Set sample to 3000 K; thermostat off', ['Shift+
 act('cond.hotter', 'Conditions', 'Hotter ×1.25', ['Shift+ArrowUp'], () => setT(eng.T < 5 ? 25 : eng.T * 1.25));
 act('cond.colder', 'Conditions', 'Colder ÷1.25', ['Shift+ArrowDown'], () => setT(eng.T < 5 ? 0 : eng.T / 1.25));
 act('cond.typeT', 'Conditions', 'Type a temperature', ['T'], () => tField.startEdit());
-act('cond.bath', 'Conditions', 'Wall thermostat on / off', [], () => { toggleBath(); toast(eng.thermostat ? 'Wall thermostat on' : 'Wall thermostat off'); });
+act('cond.bath', 'Conditions', 'Thermostat on / off', [], () => { toggleBath(); toast(eng.thermostat ? (bathMode() === 'kelvin' ? 'Kelvin stat on' : 'Wall heater on') : 'Thermostat off'); });
+act('cond.kelvin', 'Conditions', 'Hold every atom at this temperature', [], () => { setBathMode('kelvin'); toast('Kelvin stat holding ' + fmtT(eng.T) + ' K'); });
 act('cond.resample', 'Conditions', 'Resample thermal motion', ['Shift+T'], resampleMotion);
 act('view.in', 'View', 'Zoom in', ['='], () => zoomAt(innerWidth / 2, innerHeight / 2, 1 / 1.35));
 act('view.out', 'View', 'Zoom out', ['-'], () => zoomAt(innerWidth / 2, innerHeight / 2, 1.35));
@@ -1436,13 +1454,27 @@ function dropdown({ options, multi, get, set, summary }) {
       o.setAttribute(multi ? 'aria-checked' : 'aria-selected', multi ? v.includes(o.dataset.v) : v === o.dataset.v);
     });
   };
-  const outside = e => { if (!wrap.contains(e.target)) close(); };
+  // the sheet lives outside `wrap`, so both have to count as inside
+  const outside = e => { if (!wrap.contains(e.target) && !(sheet && sheet.contains(e.target))) close(); };
   const close = (focus = false) => {
     if (!sheet) return;
     sheet.remove(); sheet = null; wrap.classList.remove('open');
     btn.setAttribute('aria-expanded', 'false');
     document.removeEventListener('pointerdown', outside);
+    const stage = $('consoleStage');
+    if (stage) stage.removeEventListener('scroll', close);
+    removeEventListener('resize', close);
     if (focus) btn.focus();
+  };
+  /* The sheet floats above everything instead of living inside the scrolling panel: an
+     absolutely positioned child is clipped by that panel, so options past its bottom edge
+     could not be clicked at all. It flips upward when there is no room below. */
+  const placeSheet = () => {
+    const r = btn.getBoundingClientRect();
+    sheet.style.width = r.width + 'px';
+    sheet.style.left = r.left + 'px';
+    const h = sheet.offsetHeight, below = innerHeight - r.bottom - 10;
+    sheet.style.top = (below >= h || r.top < h + 10 ? r.bottom + 5 : r.top - h - 5) + 'px';
   };
   const open = () => {
     if (sheet) return;
@@ -1459,9 +1491,13 @@ function dropdown({ options, multi, get, set, summary }) {
       ev.stopPropagation(); set(o.dataset.v); paint();
       if (!multi) close(true);
     });
-    wrap.appendChild(sheet); wrap.classList.add('open');
+    document.body.appendChild(sheet); wrap.classList.add('open');
+    placeSheet();
     btn.setAttribute('aria-expanded', 'true'); paint();
     document.addEventListener('pointerdown', outside);
+    const stage = $('consoleStage');
+    if (stage) stage.addEventListener('scroll', close);
+    addEventListener('resize', close);
     (sheet.querySelector('[aria-selected="true"],[aria-checked="true"]') || sheet.firstElementChild).focus();
   };
   btn.onclick = e => { e.stopPropagation(); sheet ? close() : open(); };
@@ -1504,6 +1540,7 @@ const GLYPH = {
   d: '<svg class="gl" viewBox="0 0 24 24"><path class="path" d="M6 18L18 6M18 11V6h-5M6 13v5h5"/></svg>',
   wall: '<svg class="gl" viewBox="0 0 24 24"><path class="face" d="M6 3v18"/><path class="path" d="M10 7c2 1.4 2-1.4 4 0M10 12c2 1.4 2-1.4 4 0M10 17c2 1.4 2-1.4 4 0"/></svg>',
   off: '<svg class="gl" viewBox="0 0 24 24"><path class="path" d="M12 4v7"/><path class="face" d="M7.4 7.4a7 7 0 1 0 9.2 0"/></svg>',
+  kelvin: '<svg class="gl" viewBox="0 0 24 24"><path class="face" d="M4 3v18M20 3v18"/><circle class="ball" cx="9" cy="8" r="1.6"/><circle class="ball" cx="15" cy="12.5" r="1.6"/><circle class="ball" cx="10" cy="17" r="1.6"/></svg>',
   drain: '<svg class="gl" viewBox="0 0 24 24"><path class="path" d="M4 12h12M12 8l4 4-4 4"/><path class="face" d="M20 5v14" stroke-dasharray="3 3"/></svg>',
   gauge: '<svg class="gl" viewBox="0 0 24 24"><path class="face" d="M4 17a8 8 0 1 1 16 0"/><path class="path" d="M12 17l5-4"/></svg>'
 };
@@ -1570,8 +1607,10 @@ function renderEnvironmentApp(stage) {
     '<label class="dim" id="baroTargetWrap" title="Target pressure"><span class="scrub" id="baroTarget" data-unit="bar"></span></label>');
   group('Pressure', baro);
 
-  const bath = el('span', 'seg-mini', '<button data-v="on" aria-label="Wall heater" title="Wall heater">' + GLYPH.wall + '</button>' +
-    '<button data-v="off" aria-label="Thermostat off" title="Off — set every atom directly">' + GLYPH.off + '</button>');
+  const bath = el('span', 'seg-mini',
+    '<button data-v="wall" aria-label="Wall heater" title="Wall heater — warms the boundary; the interior follows">' + GLYPH.wall + '</button>' +
+    '<button data-v="kelvin" aria-label="Kelvin stat" title="Kelvin stat — every atom held at the set temperature, every step">' + GLYPH.kelvin + '</button>' +
+    '<button data-v="off" aria-label="Thermostat off" title="Off — setting a temperature is a one-off edit">' + GLYPH.off + '</button>');
   bath.id = 'envBath';
   group('Thermostat', bath);
 
@@ -1586,11 +1625,8 @@ function renderEnvironmentApp(stage) {
   }); };
   mk('envW', () => (eng.box.x1 - eng.box.x0) / 10, v => { eng.box.x1 = eng.box.x0 + v * 10; }, 1, 50);
   mk('envH', () => (eng.box.y1 - eng.box.y0) / 10, v => { eng.box.y1 = eng.box.y0 + v * 10; }, 1, 50);
-  mk('envD', () => (eng.box.z1 - eng.box.z0) / 10, v => { eng.box.z0 = -v * 5; eng.box.z1 = v * 5; }, 0.4, 50);
-  bath.querySelectorAll('button').forEach(b => b.onclick = () => {
-    if ((b.dataset.v === 'on') !== eng.thermostat) toggleBath();
-    paintBath();
-  });
+  mk('envD', () => (eng.box.z1 - eng.box.z0) / 10, v => { eng.box.z0 = -v * 5; eng.box.z1 = v * 5; }, 0.1, 50);
+  bath.querySelectorAll('button').forEach(b => b.onclick = () => { setBathMode(b.dataset.v); paintBath(); });
   scrub($('baroTarget'), {
     get: () => eng.pressureTarget, set: (v, commit) => { eng.pressureTarget = v; if (commit) boundarySettingsChanged(); },
     min: 0, max: 200, off: 1, map: 'log', unit: 'bar', fmt: v => v < 10 ? v.toFixed(2) : v.toFixed(0),
@@ -1606,7 +1642,7 @@ function renderEnvironmentApp(stage) {
     $('baroTargetWrap').inert = !eng.pressureControl;
   }
   function paintBath() {
-    bath.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', (b.dataset.v === 'on') === !!eng.thermostat));
+    bath.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === bathMode()));
   }
   /* The drawing is the explanation: a forcefield turns the atom before the face and glows inward,
      a temperature void flattens the exit leg because the atom leaves slower than it arrived. */
@@ -1628,13 +1664,15 @@ function renderEnvironmentApp(stage) {
   const cells = stat.querySelectorAll('.stat');
   appRefresh = () => {
     if (!$('chamberArt')) return;
-    cells[0].lastElementChild.textContent = eng.thermostat ? (eng.wallT - 273.15).toFixed(0) + '°C' : 'off';
+    const mode = bathMode();
+    cells[0].lastElementChild.textContent = mode === 'wall' ? (eng.wallT - 273.15).toFixed(0) + '°C'
+      : mode === 'kelvin' ? fmtT(eng.T) + ' K' : 'off';
+    cells[0].title = mode === 'wall' ? 'Wall temperature' : mode === 'kelvin' ? 'Held at this temperature, every atom, every step' : 'No thermostat';
     cells[1].lastElementChild.textContent = (eng.voidTemperature || eng.voidPressure || eng.voidVelocity) ? eng.voidHeat.toFixed(0) : '—';
     cells[1].title = 'Energy the void walls removed, kJ/mol';
     cells[2].lastElementChild.textContent = fmtP(eng.pressureEMA);
     cells[2].title = eng.pressureControl ? 'Wall pressure, held toward ' + fmtP(eng.pressureTarget) : 'Mean normal wall pressure';
     paintBaro();
-    cells[0].title = 'Wall temperature';
     paintBath();
   };
   appRefresh();

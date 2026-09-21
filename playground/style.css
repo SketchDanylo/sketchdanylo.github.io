@@ -485,7 +485,7 @@ kbd{font:500 9.5px var(--mono);padding:1px 5px;border:1px solid var(--line-hi);b
   color:var(--faint);transition:transform .25s var(--ease)}
 .drop.open .drop-btn{border-color:var(--mist);background:rgba(38,38,40,.8)}
 .drop.open .caret{transform:rotate(180deg)}
-.drop-sheet{position:absolute;left:0;right:0;top:calc(100% + 5px);z-index:3;padding:5px;border-radius:11px;
+.drop-sheet{position:fixed;z-index:60;padding:5px;border-radius:11px;
   background:#101d2c;border:1px solid var(--line-hi);box-shadow:0 18px 44px rgba(2,6,12,.6);
   transform-origin:top;animation:dropOpen .22s var(--ease) both}
 @keyframes dropOpen{from{opacity:0;transform:translateY(-5px) scaleY(.94)}}
