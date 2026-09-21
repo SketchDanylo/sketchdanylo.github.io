@@ -28,6 +28,7 @@
 const KB = 0.0083144626;            // kJ/(mol·K)
 const ACC = 1e-4;                   // (kJ/mol/Å)/amu → Å/fs²
 const KEU = 1e4;                    // amu·(Å/fs)² → kJ/mol
+const clampNum = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 const COUL = 1389.35458;            // kJ·Å/(mol·e²)
 const BAR = 16605.39;               // (kJ/mol)/Å³ → bar
 const Q_MAX = 1.1;                  // saturation of bond-polarisation charge (e)
@@ -295,12 +296,25 @@ class Engine {
     this.fieldK = opts.fieldK ?? 5;           // kJ/mol/Å², forcefield stiffness
     this.fieldRange = opts.fieldRange ?? 1.2; // Å the forcefield reaches inward
     // Void wall: what the region beyond the chamber face does to what reaches it.
-    this.voidTemperature = opts.voidTemperature ?? false; // kinetic energy drains away out there
-    this.voidPressure = opts.voidPressure ?? false;       // damp outward normal motion beyond a soft face
-    this.voidPressureTau = opts.voidPressureTau ?? 80; // fs; independent of temperature damping
-    this.voidTau = opts.voidTau ?? 40;      // fs, drain time at full depth
-    this.voidDepth = opts.voidDepth ?? 2;   // Å beyond the face for a full-strength drain
+    /* Void walls: what the boundary refuses to hand back. Each channel deletes one quantity the
+       wall would otherwise return, so the chamber is open in that respect and nothing accumulates.
+       They work the same for solid and soft bounds, because the contact shell — not the face —
+       is where a wall takes its bite. */
+    this.voidTemperature = opts.voidTemperature ?? false; // agitation relative to the atom's own molecule
+    this.voidPressure = opts.voidPressure ?? false;       // the normal momentum, and the impulse it would report
+    this.voidVelocity = opts.voidVelocity ?? false;       // the atom's motion entirely: it stops at the wall
+    // 300 fs: firm enough that a chamber left alone settles instead of heating itself,
+    // gentle enough that the wall heater can still hold a temperature against it.
+    this.voidTau = opts.voidTau ?? 300;     // fs, absorption time at full contact
+    this.voidSkin = opts.voidSkin ?? 0.8;   // Å of contact shell measured inward from the face
     this.voidHeat = 0; this.voidForce = 0;  // removed energy; voidForce retained only for legacy snapshots
+    /* Optional pressure control. Passive measurement is always reported; when this is on, the
+       chamber breathes toward the target the way a Berendsen barostat does, moving whole
+       molecules rather than scaling the bonds inside them. */
+    this.pressureControl = opts.pressureControl ?? false;
+    this.pressureTarget = opts.pressureTarget ?? 1.0;   // bar
+    this.pressureTau = opts.pressureTau ?? 4000;        // fs
+    this.baroEvery = 100;                               // steps between adjustments
     this.T = opts.T ?? 298.15;
     this.tau = opts.tau ?? 250;     // thermostat coupling time, fs
     this.thermostat = opts.thermostat ?? true;
@@ -939,6 +953,8 @@ class Engine {
   _reflectWalls() {
     if (this.sphere || this.boundsMode !== 'solid') return;
     const b=this.box, lo=[b.x0,b.y0,b.z0], hi=[b.x1,b.y1,b.z1];
+    // A void of pressure or velocity means the face hands nothing back: no rebound, no impulse.
+    const stop = this.voidPressure || this.voidVelocity, full = this.voidVelocity;
     for(let i=0;i<this.N;i++) {
       if(this.pinned[i]) continue;
       for(let d=0;d<3;d++) {
@@ -948,6 +964,17 @@ class Engine {
         const folded=((u%2)+2)%2;
         this.pos[k]=lo[d]+L*(folded<=1?folded:2-folded);
         const crossings=Math.abs(cell);
+        if (stop) {
+          const m=this.mass[i];
+          this.voidHeat += 0.5*KEU*m*this.vel[k]*this.vel[k];
+          this.vel[k]=0;
+          if (full) for (let c=0;c<3;c++) if (c!==d) {
+            const j=3*i+c;
+            this.voidHeat += 0.5*KEU*m*this.vel[j]*this.vel[j];
+            this.vel[j]=0;
+          }
+          continue;                       // nothing was returned, so nothing is reported
+        }
         this._wallImpulse+=2*this.mass[i]*Math.abs(this.vel[k])*KEU*crossings;
         if(Math.abs(cell)%2===1) this.vel[k]=-this.vel[k];
       }
@@ -983,33 +1010,102 @@ class Engine {
     return E;
   }
 
-  /* Optional exterior absorbers, not thermodynamic baths or barostats.
-     Temperature damping applies zero-noise drag to all velocity components.
-     Bar damping only reduces outward normal velocity. Wall stress is always reported.
-     Exponential updates cannot reverse a velocity or inject kinetic energy. */
-  _voidBath(dt) {
-    if (this.boundsMode !== 'forcefield' || this.sphere) return;
-    const N = this.N, pos = this.pos, vel = this.vel, b = this.box;
-    const low = [b.x0,b.y0,b.z0], high = [b.x1,b.y1,b.z1];
-    const depth = Math.max(1e-6, this.voidDepth);
+  /* The contact shell: 1 at and beyond the face, ramping to 0 one skin depth inside it.
+     A solid wall and a soft field both take their bite here, so a void behaves the same
+     whichever bound is chosen. */
+  _contact(i, out) {
+    const b = this.box, p = this.pos, k = 3 * i, skin = Math.max(1e-6, this.voidSkin);
+    const lo = [b.x0, b.y0, b.z0], hi = [b.x1, b.y1, b.z1];
+    let w = 0;
+    for (let d = 0; d < 3; d++) {
+      const past = Math.max(lo[d] - p[k + d], p[k + d] - hi[d]);
+      const wd = Math.min(1, Math.max(0, (past + skin) / skin));
+      out[d] = wd;
+      if (wd > w) w = wd;
+    }
+    return w;
+  }
+  /* Void walls. Each selected channel is an exponential absorber over the contact shell, so it
+     can only take energy out, never put any in, and never reverse a velocity. Energy removed is
+     tallied: with any channel on, the chamber is an open system and does not conserve energy.
+
+     The three differ in what they take and from whom:
+       temperature — the whole molecule that touches the wall is cooled at one rate, so a bond
+                     is never pulled by cooling one of its atoms and not the other;
+       velocity    — only the atom in contact, and all of its motion: it stops where it is;
+       pressure    — only the normal component, and the impulse the face would have reported. */
+  _voidWalls(dt) {
+    if (this.sphere) return;
+    const thermal = this.voidTemperature, momentum = this.voidPressure, whole = this.voidVelocity;
+    if (!thermal && !momentum && !whole) return;
+    const N = this.N, vel = this.vel, per = [0, 0, 0];
+    if (!this._vw || this._vw.length < N) { this._vw = new Float64Array(N + 100); this._va = new Float64Array(3 * N + 300); }
+    const cw = this._vw, axis = this._va;
+    let any = false;
+    for (let i = 0; i < N; i++) {
+      if (this.pinned[i]) { cw[i] = 0; axis[3 * i] = axis[3 * i + 1] = axis[3 * i + 2] = 0; continue; }
+      cw[i] = this._contact(i, per);
+      for (let d = 0; d < 3; d++) axis[3 * i + d] = per[d];
+      if (cw[i] > 0) any = true;
+    }
+    if (!any) return;
+    const mol = thermal ? this._spreadAlongBonds(cw, N) : cw;
     let lost = 0;
+    const tau = Math.max(1e-6, this.voidTau);
     for (let i = 0; i < N; i++) {
       if (this.pinned[i]) continue;
       const k = 3 * i;
-      const out = Math.max(b.x0-pos[k],pos[k]-b.x1,b.y0-pos[k+1],pos[k+1]-b.y1,b.z0-pos[k+2],pos[k+2]-b.z1);
-      if (out <= 0) continue;
-      const thermal = this.voidTemperature ? Math.exp(-dt * Math.min(1,out/depth) / Math.max(1e-6,this.voidTau)) : 1;
-      for (let d = 0; d < 3; d++) {
-        const j=k+d, before=vel[j];
-        let c=thermal;
-        const faceOut=Math.max(low[d]-pos[j],pos[j]-high[d]);
-        const outward=(pos[j]<low[d] && before<0)||(pos[j]>high[d] && before>0);
-        if(this.voidPressure && faceOut>0 && outward) c*=Math.exp(-dt*Math.min(1,faceOut/depth)/Math.max(1e-6,this.voidPressureTau));
-        vel[j]=c*before;
-        lost+=0.5*KEU*this.mass[i]*(before*before-vel[j]*vel[j]);
+      const before = vel[k] * vel[k] + vel[k + 1] * vel[k + 1] + vel[k + 2] * vel[k + 2];
+      if (thermal && mol[i] > 0) { const c = Math.exp(-dt * mol[i] / tau); vel[k] *= c; vel[k + 1] *= c; vel[k + 2] *= c; }
+      if (cw[i] > 0) {
+        if (whole) { const c = Math.exp(-dt * cw[i] / tau); vel[k] *= c; vel[k + 1] *= c; vel[k + 2] *= c; }
+        else if (momentum) for (let d = 0; d < 3; d++) if (axis[k + d] > 0) vel[k + d] *= Math.exp(-dt * axis[k + d] / tau);
       }
+      const after = vel[k] * vel[k] + vel[k + 1] * vel[k + 1] + vel[k + 2] * vel[k + 2];
+      if (after !== before) lost += 0.5 * KEU * this.mass[i] * (before - after);
     }
     this.voidHeat += lost;
+  }
+  /* Carries the strongest contact weight along bonds, so a molecule touching a wall is treated
+     as one body. Small molecules settle in a pass or two; the cap keeps the cost bounded. */
+  _spreadAlongBonds(cw, N) {
+    if (!this._vm || this._vm.length < N) this._vm = new Float64Array(N + 100);
+    const mol = this._vm;
+    for (let i = 0; i < N; i++) mol[i] = cw[i];
+    for (let pass = 0; pass < 8; pass++) {
+      let changed = false;
+      for (let p = 0; p < this.nPairs; p++) {
+        if (this.bondStrength(p) <= 0.25) continue;
+        const i = this.pI[p], j = this.pJ[p];
+        if (mol[j] > mol[i] + 1e-12) { mol[i] = mol[j]; changed = true; }
+        else if (mol[i] > mol[j] + 1e-12) { mol[j] = mol[i]; changed = true; }
+      }
+      if (!changed) break;
+    }
+    return mol;
+  }
+  /* Pressure control: the chamber breathes toward the target instead of being held by hand.
+     Whole molecules move with the walls; bond lengths are never scaled. */
+  _barostat() {
+    const P = this.pressureEMA, target = this.pressureTarget;
+    const span = Math.max(1, Math.abs(target)) + 50;
+    const gain = this.baroEvery * this.dt / Math.max(1, this.pressureTau);
+    const mu = 1 + clampNum(gain * (P - target) / span, -0.004, 0.004);
+    const b = this.box, cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+    const wNew = clampNum((b.x1 - b.x0) * mu, 10, 500), hNew = clampNum((b.y1 - b.y0) * mu, 10, 500);
+    const sx = wNew / (b.x1 - b.x0), sy = hNew / (b.y1 - b.y0);
+    if (sx === 1 && sy === 1) return;
+    b.x0 = cx - wNew / 2; b.x1 = cx + wNew / 2;
+    b.y0 = cy - hNew / 2; b.y1 = cy + hNew / 2;
+    const { list } = this.fragments();
+    for (const g of list) {
+      let M = 0, gx = 0, gy = 0;
+      for (const i of g) { const m = this.mass[i]; M += m; gx += m * this.pos[3 * i]; gy += m * this.pos[3 * i + 1]; }
+      gx /= M; gy /= M;
+      const dx = cx + (gx - cx) * sx - gx, dy = cy + (gy - cy) * sy - gy;
+      for (const i of g) { this.pos[3 * i] += dx; this.pos[3 * i + 1] += dy; this.prev[3 * i] += dx; this.prev[3 * i + 1] += dy; }
+    }
+    this.needRebuild = true; this.needForces = true;
   }
 
   /* ---------- integration ---------- */
@@ -1067,13 +1163,14 @@ class Engine {
       if (this.thermostatMode === 'csvr') this._csvr();
       else this._wallBath(dt);
     }
-    if (this.voidTemperature || this.voidPressure) this._voidBath(dt);
+    this._voidWalls(dt);
     this.time += dt; this.stepCount++;
     if (!this.sphere && this.boundsMode === 'solid') this.wallForce = this._wallImpulse / dt;
     // Normal momentum flux, exponentially averaged over ~1 ps
     const Pinst = this.wallArea > 0 ? this.wallForce / this.wallArea * BAR : 0;
     this.pressureBar = Pinst;
     this.pressureEMA += (Pinst - this.pressureEMA) * 0.001;
+    if (this.pressureControl && this.stepCount % this.baroEvery === 0) this._barostat();
   }
   _integrate(nsub, forceRebuild) {
     const N = this.N, pos = this.pos, vel = this.vel, F = this.frc, h = this.dt / nsub;
@@ -1313,7 +1410,8 @@ class Engine {
       box: { ...this.box }, sphere: this.sphere && { ...this.sphere }, T: this.T, tau: this.tau, thermostat: this.thermostat,
       thermostatMode: this.thermostatMode, wallT: this.wallT, wallTarget: this.wallTarget,
       boundsMode: this.boundsMode, fieldK: this.fieldK, fieldRange: this.fieldRange,
-      voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, voidPressureTau: this.voidPressureTau, voidTau: this.voidTau, voidDepth: this.voidDepth,
+      voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, voidVelocity: this.voidVelocity, voidTau: this.voidTau, voidSkin: this.voidSkin,
+      pressureControl: this.pressureControl, pressureTarget: this.pressureTarget, pressureTau: this.pressureTau,
       voidHeat: this.voidHeat, voidForce: this.voidForce,
       wallTau: this.wallTau, wallCapacity: this.wallCapacity, wallSkin: this.wallSkin, wallCoupling: this.wallCoupling,
       heatToSample: this.heatToSample, heaterWork: this.heaterWork,
@@ -1331,7 +1429,7 @@ class Engine {
     this.N = s.N; this.time = s.time; this.stepCount = s.stepCount; this.rngState = s.rng; this.nextId = s.nextId;
     if (s.box) this.box = { ...s.box };
     this.sphere = s.sphere ? { ...s.sphere } : null;
-    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidPressureTau', 'voidTau', 'voidDepth', 'voidHeat', 'voidForce', 'heatToSample', 'heaterWork', 'nextSub', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
+    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidVelocity', 'voidTau', 'voidSkin', 'voidHeat', 'voidForce', 'pressureControl', 'pressureTarget', 'pressureTau', 'heatToSample', 'heaterWork', 'nextSub', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
     this.tweezer = null;
     this.pos.set(s.pos); this.vel.set(s.vel); this.frc.set(s.frc); this.prev.set(s.pos);
     this.type.set(s.type); this.formal.set(s.formal); this.val.set(s.val); this.lp.set(s.lp); this.pinned.set(s.pinned); this.ids.set(s.ids); this.cos0.set(s.cos0);
@@ -1390,7 +1488,7 @@ class Engine {
   toJSON() {
     const atoms = [];
     for (let i = 0; i < this.N; i++) atoms.push([ELEMENTS[this.type[i]].sym, +this.pos[3 * i].toFixed(4), +this.pos[3 * i + 1].toFixed(4), +this.pos[3 * i + 2].toFixed(4), +this.vel[3 * i].toFixed(6), +this.vel[3 * i + 1].toFixed(6), +this.vel[3 * i + 2].toFixed(6), this.formal[i], this.val[i]]);
-    return { format: 'chem-playground/scene@1', box: this.box, T: this.T, tau: this.tau, thermostat: this.thermostat, thermostatMode: this.thermostatMode, boundsMode: this.boundsMode, voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, dampingVersion: 2, voidPressureTau: this.voidPressureTau, voidTau: this.voidTau, voidDepth: this.voidDepth, voidHeat: this.voidHeat, wallT: this.wallT, wallTarget: this.wallTarget, wallTau: this.wallTau, heatToSample: this.heatToSample, heaterWork: this.heaterWork, time: this.time, atoms };
+    return { format: 'chem-playground/scene@1', box: this.box, T: this.T, tau: this.tau, thermostat: this.thermostat, thermostatMode: this.thermostatMode, boundsMode: this.boundsMode, voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, voidVelocity: this.voidVelocity, dampingVersion: 3, voidTau: this.voidTau, voidSkin: this.voidSkin, voidHeat: this.voidHeat, pressureControl: this.pressureControl, pressureTarget: this.pressureTarget, wallT: this.wallT, wallTarget: this.wallTarget, wallTau: this.wallTau, heatToSample: this.heatToSample, heaterWork: this.heaterWork, time: this.time, atoms };
   }
 }
 

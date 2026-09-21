@@ -64,8 +64,12 @@ eng.thermostat = store.get('thermostat', true);
 const savedBounds = store.get('bounds', null);
 if (savedBounds) {
   if (savedBounds.mode === 'forcefield' || savedBounds.mode === 'solid') eng.boundsMode = savedBounds.mode;
-  eng.voidTemperature = !!savedBounds.vt; eng.voidPressure = savedBounds.version === 2 && !!savedBounds.vp;
-  for(const key of ['voidTau','voidPressureTau','voidDepth']) if(Number.isFinite(savedBounds[key]) && savedBounds[key]>0) eng[key]=savedBounds[key];
+  // version 3 reworked the channels; older saves only carried the two that still exist
+  eng.voidTemperature = !!savedBounds.vt;
+  eng.voidPressure = savedBounds.version >= 3 && !!savedBounds.vp;
+  eng.voidVelocity = savedBounds.version >= 3 && !!savedBounds.vv;
+  eng.pressureControl = !!savedBounds.pc;
+  if (Number.isFinite(savedBounds.pt)) eng.pressureTarget = savedBounds.pt;
 }
 eng.recording = true;
 
@@ -1480,7 +1484,8 @@ function dropdown({ options, multi, get, set, summary }) {
 /* ---- environment ---- */
 function boundarySettingsChanged(note) {
   eng.checkpoints.length = 0; eng.needForces = true; eng.touch();
-  store.set('bounds', { version: 2, mode: eng.boundsMode, vt: eng.voidTemperature, vp: eng.voidPressure, voidTau: eng.voidTau, voidPressureTau: eng.voidPressureTau, voidDepth: eng.voidDepth });
+  store.set('bounds', { version: 3, mode: eng.boundsMode, vt: eng.voidTemperature, vp: eng.voidPressure, vv: eng.voidVelocity,
+    pc: eng.pressureControl, pt: eng.pressureTarget });
   scheduleSave();
   if (note) toast(note);
 }
@@ -1491,6 +1496,8 @@ const GLYPH = {
   forcefield: '<svg class="gl" viewBox="0 0 24 24"><path class="halo" d="M19 3.5a13 13 0 0 1 0 17"/><path class="face soft" d="M15 5.5a10 10 0 0 1 0 13"/><path class="path" d="M3 19.5C9 17 12.5 14.5 13.5 12C12.5 9.5 9 7 3 4.5"/><circle class="ball" cx="13.5" cy="12" r="2"/></svg>',
   heat: '<svg class="gl" viewBox="0 0 24 24"><path class="stem" d="M9.4 13V5a2.6 2.6 0 0 1 5.2 0v8a4.4 4.4 0 1 1-5.2 0z"/><circle class="ball" cx="12" cy="16.3" r="2.6"/></svg>',
   press: '<svg class="gl" viewBox="0 0 24 24"><path class="face" d="M4 17a8 8 0 1 1 16 0"/><path class="path" d="M12 17l4-5"/></svg>',
+  vel: '<svg class="gl" viewBox="0 0 24 24"><path class="face" d="M19 3v18"/><path class="path" d="M3 12h11M11 8.5l3.5 3.5L11 15.5"/><circle class="ball" cx="16.5" cy="12" r="1.8"/></svg>',
+  setP: '<svg class="gl" viewBox="0 0 24 24"><path class="face" d="M4 17a8 8 0 1 1 16 0"/><path class="path" d="M12 17l4-5M7 6.5l1.2 1.6M17 6.5l-1.2 1.6"/></svg>',
   none: '<svg class="gl" viewBox="0 0 24 24"><circle class="face" cx="12" cy="12" r="8" stroke-dasharray="3 3"/></svg>',
   w: '<svg class="gl" viewBox="0 0 24 24"><path class="path" d="M3 12h18M6 9l-3 3 3 3M18 9l3 3-3 3"/></svg>',
   h: '<svg class="gl" viewBox="0 0 24 24"><path class="path" d="M12 3v18M9 6l3-3 3 3M9 18l3 3 3-3"/></svg>',
@@ -1527,44 +1534,41 @@ function renderEnvironmentApp(stage) {
       { v: 'forcefield', name: 'Forcefield', icon: GLYPH.forcefield }
     ],
     get: () => eng.boundsMode,
-    set: v => { eng.boundsMode = v; boundarySettingsChanged(); paintDamping(); paintArt(); },
+    set: v => { eng.boundsMode = v; boundarySettingsChanged(); paintArt(); },
     summary: v => ({ label: v === 'solid' ? 'Solid walls' : 'Soft forcefield', icon: GLYPH[v] })
   }));
 
-  const dampGroup=el('div','app-group damping-group','<h3>Damping</h3>');
-  const dampingInputs=[];
-  for(const [key,title,note] of [
-    ['voidTemperature','Temperature damping','Cools motion outside the field toward 0 K.'],
-    ['voidPressure','Bar damping','Absorbs outward motion. Wall pressure remains measured.']
-  ]){
-    const row=el('label','preference-row','<span>'+title+'<small>'+note+'</small></span><input type="checkbox" aria-label="'+title+'">');
-    const input=row.querySelector('input');input.checked=eng[key];dampingInputs.push(input);
-    input.onchange=()=>{eng[key]=input.checked;boundarySettingsChanged();paintDamping();paintArt();};
-    dampGroup.append(row);
-  }
-  const dampingControls=el('div','damping-controls',
-    '<label>Temperature response<span class="scrub" id="tempDampingTau" aria-label="Temperature damping response"></span></label>'+
-    '<label>Bar response<span class="scrub" id="barDampingTau" aria-label="Bar damping response"></span></label>'+
-    '<label>Absorbing layer<span class="scrub" id="dampingDepth" aria-label="Exterior absorbing layer depth"></span></label>');
-  const dampingDetails=el('details','damping-details','<summary>Response &amp; layer</summary>');
-  dampingDetails.append(dampingControls,el('p','app-note','Soft boundaries only. Shorter response = stronger damping. Both channels remove energy; neither sets a target pressure. A vacuum does neither.'));
-  dampGroup.append(dampingDetails);
-  stage.append(dampGroup);
-  for(const [id,key,scale,min,max,unit] of [['tempDampingTau','voidTau',1,1,1000,'fs'],['barDampingTau','voidPressureTau',1,1,1000,'fs'],['dampingDepth','voidDepth',10,.01,2,'nm']]){
-    scrub($(id),{get:()=>eng[key]/scale,set:(v,commit)=>{eng[key]=v*scale;if(commit)boundarySettingsChanged();},min,max,hardMin:min,hardMax:key==='voidDepth'?10:1e6,unit,fmt:v=>String(+v.toPrecision(4)),wheel:false});
-  }
-  function paintDamping(){
-    const solid=eng.boundsMode==='solid';
-    dampingInputs.forEach(input=>input.disabled=solid);
-    dampingControls.inert=solid;
-    dampingControls.classList.toggle('inactive',solid);
-  }
-  paintDamping();
+  group('Void walls', dropdown({
+    multi: true,
+    options: [
+      { v: 'temperature', name: 'Temperature', icon: GLYPH.heat },
+      { v: 'pressure', name: 'Pressure', icon: GLYPH.press },
+      { v: 'velocity', name: 'Velocity', icon: GLYPH.vel }
+    ],
+    get: () => [eng.voidTemperature && 'temperature', eng.voidPressure && 'pressure', eng.voidVelocity && 'velocity'].filter(Boolean),
+    set: v => {
+      if (v === 'temperature') eng.voidTemperature = !eng.voidTemperature;
+      else if (v === 'pressure') eng.voidPressure = !eng.voidPressure;
+      else eng.voidVelocity = !eng.voidVelocity;
+      boundarySettingsChanged(); paintArt();
+    },
+    summary: v => ({
+      label: v.length ? v.join(' · ') : 'reflecting',
+      accent: v.length > 0,
+      icon: v.length ? GLYPH[v[0] === 'temperature' ? 'heat' : v[0] === 'pressure' ? 'press' : 'vel'] : GLYPH.none
+    })
+  }));
 
   const dims = el('div', 'dim-row',
     ['envW', 'envH', 'envD'].map((id, k) =>
       '<label class="dim" aria-label="' + ['Width','Height','Depth'][k] + '"><i>' + GLYPH[['w', 'h', 'd'][k]] + '</i><span class="scrub" id="' + id + '" data-unit="nm"></span></label>').join(''));
   group('Chamber', dims);
+
+  const baro = el('div', 'baro-row',
+    '<span class="seg-mini" id="envBaro"><button data-v="off" aria-label="Passive pressure" title="Passive — the gauge only reports">' + GLYPH.gauge + '</button>' +
+    '<button data-v="on" aria-label="Hold a pressure" title="Hold this pressure — the chamber breathes toward it">' + GLYPH.setP + '</button></span>' +
+    '<label class="dim" id="baroTargetWrap" title="Target pressure"><span class="scrub" id="baroTarget" data-unit="bar"></span></label>');
+  group('Pressure', baro);
 
   const bath = el('span', 'seg-mini', '<button data-v="on" aria-label="Wall heater" title="Wall heater">' + GLYPH.wall + '</button>' +
     '<button data-v="off" aria-label="Thermostat off" title="Off — set every atom directly">' + GLYPH.off + '</button>');
@@ -1575,7 +1579,6 @@ function renderEnvironmentApp(stage) {
     [['wall', GLYPH.wall], ['void', GLYPH.drain], ['gauge', GLYPH.gauge]]
       .map(([k, g]) => '<div class="stat" data-k="' + k + '">' + g + '<b>—</b></div>').join(''));
   stage.appendChild(stat);
-  stage.appendChild(dampGroup);
 
   const mk = (id, get, set, min, max) => { $(id).title=({envW:'Chamber width',envH:'Chamber height',envD:'Chamber depth'})[id]+' in nanometres'; return scrub($(id), {
     get, set: (v, commit) => { set(v); eng.touch(); if (commit) { saveBox(); scheduleSave(); } },
@@ -1588,6 +1591,20 @@ function renderEnvironmentApp(stage) {
     if ((b.dataset.v === 'on') !== eng.thermostat) toggleBath();
     paintBath();
   });
+  scrub($('baroTarget'), {
+    get: () => eng.pressureTarget, set: (v, commit) => { eng.pressureTarget = v; if (commit) boundarySettingsChanged(); },
+    min: 0, max: 200, off: 1, map: 'log', unit: 'bar', fmt: v => v < 10 ? v.toFixed(2) : v.toFixed(0),
+    hardMin: 0, hardMax: 100000, wheel: false
+  });
+  $('envBaro').querySelectorAll('button').forEach(b => b.onclick = () => {
+    eng.pressureControl = b.dataset.v === 'on';
+    boundarySettingsChanged(); paintBaro();
+  });
+  function paintBaro() {
+    $('envBaro').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', (b.dataset.v === 'on') === !!eng.pressureControl));
+    $('baroTargetWrap').classList.toggle('inactive', !eng.pressureControl);
+    $('baroTargetWrap').inert = !eng.pressureControl;
+  }
   function paintBath() {
     bath.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', (b.dataset.v === 'on') === !!eng.thermostat));
   }
@@ -1597,24 +1614,26 @@ function renderEnvironmentApp(stage) {
     const a = $('chamberArt'); if (!a) return;
     const field = eng.boundsMode === 'forcefield';
     a.classList.toggle('field', field);
-    a.classList.toggle('voidT', field && !!eng.voidTemperature);
-    a.classList.toggle('voidP', field && !!eng.voidPressure);
+    a.classList.toggle('voidT', !!eng.voidTemperature);
+    a.classList.toggle('voidP', !!eng.voidPressure || !!eng.voidVelocity);
     const turn = field ? 247 : 260;
-    const cold = field && !!eng.voidTemperature;
-    const d = 'M56 96 L' + turn + ' 38 L' + (cold ? 176 : 104) + ' ' + (cold ? 70 : 20);
+    // the exit leg is what the wall gives back: flat when cooled, gone when the motion is voided
+    const cold = !!eng.voidTemperature, stopped = !!eng.voidVelocity || !!eng.voidPressure;
+    const d = stopped ? 'M56 96 L' + turn + ' 38' : 'M56 96 L' + turn + ' 38 L' + (cold ? 176 : 104) + ' ' + (cold ? 70 : 20);
     $('artTrace').setAttribute('d', d);
     $('artDot').innerHTML = '<animateMotion dur="3.6s" repeatCount="indefinite" path="' + d + '"/>';
     if(document.documentElement.dataset.motion==='reduced'){a.setCurrentTime(.8);a.pauseAnimations();}
   }
-  paintBath(); paintArt();
+  paintBath(); paintBaro(); paintArt();
   const cells = stat.querySelectorAll('.stat');
   appRefresh = () => {
     if (!$('chamberArt')) return;
     cells[0].lastElementChild.textContent = eng.thermostat ? (eng.wallT - 273.15).toFixed(0) + '°C' : 'off';
-    cells[1].lastElementChild.textContent = (eng.voidTemperature || eng.voidPressure) ? eng.voidHeat.toFixed(0) : '—';
-    cells[1].title = 'Energy removed by exterior damping, kJ/mol';
+    cells[1].lastElementChild.textContent = (eng.voidTemperature || eng.voidPressure || eng.voidVelocity) ? eng.voidHeat.toFixed(0) : '—';
+    cells[1].title = 'Energy the void walls removed, kJ/mol';
     cells[2].lastElementChild.textContent = fmtP(eng.pressureEMA);
-    cells[2].title = 'Mean normal wall pressure';
+    cells[2].title = eng.pressureControl ? 'Wall pressure, held toward ' + fmtP(eng.pressureTarget) : 'Mean normal wall pressure';
+    paintBaro();
     cells[0].title = 'Wall temperature';
     paintBath();
   };
@@ -1723,8 +1742,11 @@ function loadScene() {
     for (const key of ['wallT', 'wallTarget', 'wallTau', 'heatToSample', 'heaterWork']) if (Number.isFinite(s[key])) eng[key] = s[key];
     if (s.boundsMode === 'forcefield' || s.boundsMode === 'solid') eng.boundsMode = s.boundsMode;
     if (typeof s.voidTemperature === 'boolean') eng.voidTemperature = s.voidTemperature;
-    eng.voidPressure = s.dampingVersion === 2 && !!s.voidPressure;
-    for(const key of ['voidTau','voidPressureTau','voidDepth']) if(Number.isFinite(s[key]) && s[key]>0) eng[key]=s[key];
+    eng.voidPressure = s.dampingVersion >= 3 && !!s.voidPressure;
+    eng.voidVelocity = s.dampingVersion >= 3 && !!s.voidVelocity;
+    if (typeof s.pressureControl === 'boolean') eng.pressureControl = s.pressureControl;
+    if (Number.isFinite(s.pressureTarget)) eng.pressureTarget = s.pressureTarget;
+    for(const key of ['voidTau','voidSkin']) if(Number.isFinite(s[key]) && s[key]>0) eng[key]=s[key];
     if(Number.isFinite(s.voidHeat) && s.voidHeat>=0) eng.voidHeat=s.voidHeat;
   } catch (e) { }
 }

@@ -23,10 +23,46 @@ The **Environment** panel sets the chamber geometry and boundary.
 
 - **Solid** reflects atomic centres at all six faces during the integration drift. Normal velocity reverses; tangential velocity and kinetic energy are preserved. Corner and multiple-face crossings are handled. Contour tails may extend beyond the face because the contours are schematic atomic envelopes.
 - **Forcefield** uses a conservative harmonic potential, 5 kJ/mol/Å², starting 1.2 Å inside the face. Atoms can penetrate this soft boundary before turning back.
-- **Temperature damping** applies artificial zero-noise drag to all velocity components outside a soft boundary (default response 40 fs). **Bar damping** damps only outward normal velocity at each crossed face (default 80 fs), leaving tangential and inward motion unchanged when used alone. Each channel applies `v *= exp(-dt * depthWeight / response)`, so neither can inject kinetic energy or reverse motion. Both reach full strength at an adjustable depth, initially 2 Å. Removed energy is tallied in `voidHeat`; both switches, responses and depth persist and rewind. These are numerical absorbers, not a vacuum, finite-temperature thermal bath or target-pressure barostat. See [velocity-proportional viscous damping](https://docs.lammps.org/fix_viscous.html) and [volume-based pressure relaxation](https://docs.lammps.org/fix_press_berendsen.html) for the distinction; this implementation is its own exterior exponential drag update.
-- Wall pressure is normal momentum flux (solid collisions) or normal reaction force (soft fields), divided by total wall area. Damping never hides this wall stress; the absorber is a separate external energy sink.
+### Void walls
 
-`node playground/tests/bounds.cjs` checks six-face containment, energy conservation, collision pressure, multiple crossings, exterior damping and deterministic replay. A moving/resized boundary is a user edit, not a simulated piston.
+A reflecting chamber gives back everything it receives. Nothing has anywhere to go, so the
+energy a molecule releases as it settles comes straight back off the walls: leave six waters at
+2000 K in a closed box and the sample runs to 4400 K and two of them come apart. **Void walls**
+make the chamber open in a chosen respect — the face keeps the sample in, but refuses to hand
+one quantity back. The same three work for solid and soft bounds, because the contact shell
+(0.8 Å measured inward from the face) is where a wall takes its bite, not the face itself.
+
+- **Temperature** cools the whole molecule that touches the wall, at one rate, `v *= exp(-dt·w/τ)`
+  with τ = 300 fs and `w` the contact weight. Spreading the weight along bonds first is the point:
+  cooling one atom of a bond and not the other is itself a force, and that is what tears molecules
+  apart. Whole-body cooling cannot.
+- **Velocity** takes all the motion of the atom in contact, and only that atom. Blunt, and the
+  fastest way to bring a chamber to rest.
+- **Pressure** takes the normal component and the impulse the face would have reported, so the
+  gauge reads an open chamber. Solid faces stop reflecting when this is on: an arriving atom is
+  absorbed rather than returned, and contributes nothing to wall stress.
+
+Each is an exponential absorber, so none can inject energy or reverse a velocity. Energy removed
+is tallied in `voidHeat` and shown in the panel. With any channel on the chamber is an open
+system and does not conserve energy — that is the point of it. The wall heater still works
+against a void wall, but no longer reaches its setpoint: at 400 K with a temperature void the
+sample settles near 310 K. With the thermostat off it settles at rest.
+
+Measured over 30,000 steps, six waters starting at 2000 K: reflecting walls reach 4400 K with
+four molecules intact; any void channel keeps all six.
+
+### Pressure
+
+Wall pressure is normal momentum flux (solid collisions) or normal reaction force (soft fields),
+divided by total wall area. That passive reading is always reported. **Hold** turns on a
+Berendsen-style controller: every 100 steps the chamber breathes toward the target with
+`μ = 1 + gain·(P − P_target)/span`, clamped to 0.4 % per adjustment, across width and height only
+— the slab depth stays what you set. Whole fragments move with the walls and bond lengths are
+never scaled, so a molecule is carried rather than squeezed.
+
+`node playground/tests/bounds.cjs` checks six-face containment, energy conservation, collision
+pressure, multiple crossings, all three void channels at both wall kinds, pressure control and
+deterministic replay. A boundary you drag is a user edit, not a simulated piston.
 
 ## Interface and performance preferences
 
@@ -141,7 +177,7 @@ Then click to place, drag to throw, Q/E to rotate, or Shift-click to place sever
 
 The apps icon in the gauges opens a window that sits **on** the scene rather than over it. Opening it holds the clock where it stands and closing hands time back exactly where it was left; nothing in the simulation changes in between. The field keeps drawing behind it, so a change made in **Environment** shows in the chamber while it is still being made. The window can be dragged by its title bar and remembers where it was put.
 
-Three apps: **Environment** (bounds, void wall, chamber size, thermostat, and a live account of what the boundary has absorbed), **About** (the model notes below), and **Keybinds**. Environment states itself in drawings rather than prose: the diagram at the top runs an atom into the boundary that is actually configured, so switching to a forcefield visibly turns it earlier and switching on a temperature void flattens the leg it leaves on.
+Three apps: **Environment** (bounds, void walls, chamber size, pressure, thermostat, and a live account of what the boundary has absorbed), **About** (the model notes below), and **Keybinds**. Environment states itself in drawings rather than prose: the diagram at the top runs an atom into the boundary that is actually configured, so switching to a forcefield visibly turns it earlier and switching on a temperature void flattens the leg it leaves on.
 
 ## Seeing the third dimension
 
@@ -180,7 +216,7 @@ Run `node playground/tests/regression.cjs` for force-query invariance, charge co
 
 Bond multiplicity relaxes as an internal heuristic variable. Fixed-state force gradient checks do not prove total energy conservation during reactions. The heat bath exchanges energy; the engine also counts safety velocity clamps in extreme collisions. Neither behavior should be mistaken for isolated, rigorously conservative dynamics. The UI reports those clamps when they occur.
 
-The camera is orthographic: depth changes shading, not apparent atomic radii, and turning the view changes nothing physical. Chamber contours are summed Gaussians, not electron-density calculations; the inspector's cloud is a real Hartree–Fock calculation and the only quantum result in the app. Playback speed is a nonlinear UI setting, not a multiplier of physical real time. With exterior damping enabled, energy is deliberately removed and tallied.
+The camera is orthographic: depth changes shading, not apparent atomic radii, and turning the view changes nothing physical. Chamber contours are summed Gaussians, not electron-density calculations; the inspector's cloud is a real Hartree–Fock calculation and the only quantum result in the app. Playback speed is a nonlinear UI setting, not a multiplier of physical real time. With any void wall enabled, energy is deliberately removed and tallied; the chamber is then an open system by design.
 
 Imported molecules now receive Maxwell–Boltzmann center-of-mass translation at their conditioning temperature. Previously, removing this motion for preview alignment and never restoring it left molecules vibrating in place. A drag-to-throw overrides that translation; 0 K placements remain motionless. Existing scenes can use **Resample thermal motion** (in the temperature menu, live observations, or **Shift+T**) to draw fresh thermal velocities. This is an explicit state edit and can be undone.
 
