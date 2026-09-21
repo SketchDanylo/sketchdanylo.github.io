@@ -134,7 +134,7 @@ class AtomInspector {
     const status=this.el('quantumStatus');status.hidden=false;status.className='calculating';status.textContent='Preparing calculation';
     this.el('quantumResults').textContent='';this.el('quantumMethod').textContent='HF / STO-3G';this.slices=null;this.scf=null;this.el('orbitalControls').hidden=true;
     this.el('electronCanvas').getContext('2d').clearRect(0,0,320,280);
-    const worker=this.worker=new Worker('quantum-worker.js?v=20260920-royal4');
+    const worker=this.worker=new Worker('quantum-worker.js?v=20260921-gray4');
     worker.onmessage=({data})=>{
       if(this.worker!==worker)return;
       if(data.status){status.textContent=data.status;return;}
@@ -187,7 +187,7 @@ class AtomInspector {
       const v=grid.data[k];
       const t=orbital?(grid.max<1e-7?0:Math.pow(Math.abs(v)/grid.max,phase?.65:1.3)):Math.log1p(v/.002)/norm;
       const color=phase&&v<0?[112,183,233]:[227,204,153];
-      im.data[4*k]=Math.round(10+(color[0]-10)*t);im.data[4*k+1]=Math.round(18+(color[1]-18)*t);im.data[4*k+2]=Math.round(31+(color[2]-31)*t);im.data[4*k+3]=255;
+      im.data[4*k]=Math.round(22+(color[0]-22)*t);im.data[4*k+1]=Math.round(22+(color[1]-22)*t);im.data[4*k+2]=Math.round(22+(color[2]-22)*t);im.data[4*k+3]=255;
     }
     c.putImageData(im,0,0);ctx.imageSmoothingEnabled=true;ctx.drawImage(off,20,0,280,280);
     // Atomic nuclei are marks laid over the density, not orbiting electrons.

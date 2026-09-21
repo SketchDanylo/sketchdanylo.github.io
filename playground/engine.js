@@ -296,10 +296,11 @@ class Engine {
     this.fieldRange = opts.fieldRange ?? 1.2; // Å the forcefield reaches inward
     // Void wall: what the region beyond the chamber face does to what reaches it.
     this.voidTemperature = opts.voidTemperature ?? false; // kinetic energy drains away out there
-    this.voidPressure = opts.voidPressure ?? false;       // the face absorbs impulse instead of reporting it
+    this.voidPressure = opts.voidPressure ?? false;       // damp outward normal motion beyond a soft face
+    this.voidPressureTau = opts.voidPressureTau ?? 80; // fs; independent of temperature damping
     this.voidTau = opts.voidTau ?? 40;      // fs, drain time at full depth
     this.voidDepth = opts.voidDepth ?? 2;   // Å beyond the face for a full-strength drain
-    this.voidHeat = 0; this.voidForce = 0;  // energy and impulse lost to the void, for the readout
+    this.voidHeat = 0; this.voidForce = 0;  // removed energy; voidForce retained only for legacy snapshots
     this.T = opts.T ?? 298.15;
     this.tau = opts.tau ?? 250;     // thermostat coupling time, fs
     this.thermostat = opts.thermostat ?? true;
@@ -982,24 +983,30 @@ class Engine {
     return E;
   }
 
-  /* Optional artificial exterior damping for soft fields. Vacuum itself does not
-     remove kinetic energy. This numerical absorber is explicitly labelled in the UI. */
+  /* Optional exterior absorbers, not thermodynamic baths or barostats.
+     Temperature damping applies zero-noise drag to all velocity components.
+     Bar damping only reduces outward normal velocity. Wall stress is always reported.
+     Exponential updates cannot reverse a velocity or inject kinetic energy. */
   _voidBath(dt) {
+    if (this.boundsMode !== 'forcefield' || this.sphere) return;
     const N = this.N, pos = this.pos, vel = this.vel, b = this.box;
+    const low = [b.x0,b.y0,b.z0], high = [b.x1,b.y1,b.z1];
+    const depth = Math.max(1e-6, this.voidDepth);
     let lost = 0;
     for (let i = 0; i < N; i++) {
       if (this.pinned[i]) continue;
       const k = 3 * i;
-      let out;
-      if (this.sphere) out = Math.hypot(pos[k] - this.sphere.x, pos[k + 1] - this.sphere.y, pos[k + 2] - this.sphere.z) - this.sphere.R;
-      else out = Math.max(b.x0 - pos[k], pos[k] - b.x1, b.y0 - pos[k + 1], pos[k + 1] - b.y1, b.z0 - pos[k + 2], pos[k + 2] - b.z1);
+      const out = Math.max(b.x0-pos[k],pos[k]-b.x1,b.y0-pos[k+1],pos[k+1]-b.y1,b.z0-pos[k+2],pos[k+2]-b.z1);
       if (out <= 0) continue;
-      const u = Math.min(1, out / this.voidDepth);
-      const c = Math.exp(-dt * u / this.voidTau);
-      for (let d = k; d < k + 3; d++) {
-        const before = vel[d];
-        vel[d] = c * before;
-        lost += 0.5 * KEU * this.mass[i] * (before * before - vel[d] * vel[d]);
+      const thermal = this.voidTemperature ? Math.exp(-dt * Math.min(1,out/depth) / Math.max(1e-6,this.voidTau)) : 1;
+      for (let d = 0; d < 3; d++) {
+        const j=k+d, before=vel[j];
+        let c=thermal;
+        const faceOut=Math.max(low[d]-pos[j],pos[j]-high[d]);
+        const outward=(pos[j]<low[d] && before<0)||(pos[j]>high[d] && before>0);
+        if(this.voidPressure && faceOut>0 && outward) c*=Math.exp(-dt*Math.min(1,faceOut/depth)/Math.max(1e-6,this.voidPressureTau));
+        vel[j]=c*before;
+        lost+=0.5*KEU*this.mass[i]*(before*before-vel[j]*vel[j]);
       }
     }
     this.voidHeat += lost;
@@ -1060,7 +1067,7 @@ class Engine {
       if (this.thermostatMode === 'csvr') this._csvr();
       else this._wallBath(dt);
     }
-    if (this.voidTemperature) this._voidBath(dt);
+    if (this.voidTemperature || this.voidPressure) this._voidBath(dt);
     this.time += dt; this.stepCount++;
     if (!this.sphere && this.boundsMode === 'solid') this.wallForce = this._wallImpulse / dt;
     // Normal momentum flux, exponentially averaged over ~1 ps
@@ -1306,7 +1313,7 @@ class Engine {
       box: { ...this.box }, sphere: this.sphere && { ...this.sphere }, T: this.T, tau: this.tau, thermostat: this.thermostat,
       thermostatMode: this.thermostatMode, wallT: this.wallT, wallTarget: this.wallTarget,
       boundsMode: this.boundsMode, fieldK: this.fieldK, fieldRange: this.fieldRange,
-      voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, voidTau: this.voidTau, voidDepth: this.voidDepth,
+      voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, voidPressureTau: this.voidPressureTau, voidTau: this.voidTau, voidDepth: this.voidDepth,
       voidHeat: this.voidHeat, voidForce: this.voidForce,
       wallTau: this.wallTau, wallCapacity: this.wallCapacity, wallSkin: this.wallSkin, wallCoupling: this.wallCoupling,
       heatToSample: this.heatToSample, heaterWork: this.heaterWork,
@@ -1324,7 +1331,7 @@ class Engine {
     this.N = s.N; this.time = s.time; this.stepCount = s.stepCount; this.rngState = s.rng; this.nextId = s.nextId;
     if (s.box) this.box = { ...s.box };
     this.sphere = s.sphere ? { ...s.sphere } : null;
-    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidTau', 'voidDepth', 'voidHeat', 'voidForce', 'heatToSample', 'heaterWork', 'nextSub', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
+    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidPressureTau', 'voidTau', 'voidDepth', 'voidHeat', 'voidForce', 'heatToSample', 'heaterWork', 'nextSub', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
     this.tweezer = null;
     this.pos.set(s.pos); this.vel.set(s.vel); this.frc.set(s.frc); this.prev.set(s.pos);
     this.type.set(s.type); this.formal.set(s.formal); this.val.set(s.val); this.lp.set(s.lp); this.pinned.set(s.pinned); this.ids.set(s.ids); this.cos0.set(s.cos0);
@@ -1383,7 +1390,7 @@ class Engine {
   toJSON() {
     const atoms = [];
     for (let i = 0; i < this.N; i++) atoms.push([ELEMENTS[this.type[i]].sym, +this.pos[3 * i].toFixed(4), +this.pos[3 * i + 1].toFixed(4), +this.pos[3 * i + 2].toFixed(4), +this.vel[3 * i].toFixed(6), +this.vel[3 * i + 1].toFixed(6), +this.vel[3 * i + 2].toFixed(6), this.formal[i], this.val[i]]);
-    return { format: 'chem-playground/scene@1', box: this.box, T: this.T, tau: this.tau, thermostat: this.thermostat, thermostatMode: this.thermostatMode, boundsMode: this.boundsMode, voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, wallT: this.wallT, wallTarget: this.wallTarget, wallTau: this.wallTau, heatToSample: this.heatToSample, heaterWork: this.heaterWork, time: this.time, atoms };
+    return { format: 'chem-playground/scene@1', box: this.box, T: this.T, tau: this.tau, thermostat: this.thermostat, thermostatMode: this.thermostatMode, boundsMode: this.boundsMode, voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, dampingVersion: 2, voidPressureTau: this.voidPressureTau, voidTau: this.voidTau, voidDepth: this.voidDepth, voidHeat: this.voidHeat, wallT: this.wallT, wallTarget: this.wallTarget, wallTau: this.wallTau, heatToSample: this.heatToSample, heaterWork: this.heaterWork, time: this.time, atoms };
   }
 }
 

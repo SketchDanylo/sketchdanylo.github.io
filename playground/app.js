@@ -64,7 +64,8 @@ eng.thermostat = store.get('thermostat', true);
 const savedBounds = store.get('bounds', null);
 if (savedBounds) {
   if (savedBounds.mode === 'forcefield' || savedBounds.mode === 'solid') eng.boundsMode = savedBounds.mode;
-  eng.voidTemperature = !!savedBounds.vt; eng.voidPressure = false;
+  eng.voidTemperature = !!savedBounds.vt; eng.voidPressure = savedBounds.version === 2 && !!savedBounds.vp;
+  for(const key of ['voidTau','voidPressureTau','voidDepth']) if(Number.isFinite(savedBounds[key]) && savedBounds[key]>0) eng[key]=savedBounds[key];
 }
 eng.recording = true;
 
@@ -191,7 +192,7 @@ function scrub(el, o) {
   };
   el.tabIndex = 0;
   el.setAttribute('role', 'spinbutton');
-  el.setAttribute('aria-label', el.title || ({tField:'Target temperature', speedField:'Playback speed', cT:'Conditioning temperature', cP:'Nominal confinement pressure', bW:'Box width', bH:'Box height', bD:'Slab depth'}[el.id] || 'Value'));
+  el.setAttribute('aria-label', el.getAttribute('aria-label') || el.title || ({tField:'Target temperature', speedField:'Playback speed', cT:'Conditioning temperature', cP:'Nominal confinement pressure', bW:'Box width', bH:'Box height', bD:'Slab depth'}[el.id] || 'Value'));
   const api = {
     render() {
       if (el.classList.contains('editing')) return;
@@ -1250,7 +1251,8 @@ let listening = null;
 window.addEventListener('keydown', e => {
   if (listening) { e.preventDefault(); e.stopPropagation(); captureKey(e); return; }
   const t = e.target;
-  if (t && t.closest('button, a, select') && [' ', 'Enter'].includes(e.key)) return;
+  if (t && t.closest('select')) return; // native picker owns its keyboard navigation
+  if (t && t.closest('button, a') && [' ', 'Enter'].includes(e.key)) return;
   if (t && (t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
   if (e.key === ' ') spaceHeld = true;
   if (e.key === 'Escape') {
@@ -1417,6 +1419,8 @@ function dropdown({ options, multi, get, set, summary }) {
   const btn = el('button', 'drop-btn',
     '<i class="drop-lead"></i><span class="drop-val"></span>' +
     '<svg class="caret" viewBox="0 0 10 10"><path d="M2 3.8l3 3 3-3"/></svg>');
+  btn.setAttribute('aria-haspopup', multi ? 'true' : 'listbox');
+  btn.setAttribute('aria-expanded', 'false');
   wrap.appendChild(btn);
   let sheet = null;
   const paint = () => {
@@ -1425,41 +1429,58 @@ function dropdown({ options, multi, get, set, summary }) {
     val.classList.toggle('set', !!text.accent);
     btn.querySelector('.drop-lead').innerHTML = text.icon || '';
     if (sheet) sheet.querySelectorAll('.drop-opt').forEach(o => {
-      const on = multi ? v.includes(o.dataset.v) : v === o.dataset.v;
-      o.setAttribute(multi ? 'aria-checked' : 'aria-selected', on);
+      o.setAttribute(multi ? 'aria-checked' : 'aria-selected', multi ? v.includes(o.dataset.v) : v === o.dataset.v);
     });
   };
-  const close = () => { if (sheet) { sheet.remove(); sheet = null; wrap.classList.remove('open'); } };
-  btn.onclick = e => {
-    e.stopPropagation();
-    if (sheet) return close();
+  const outside = e => { if (!wrap.contains(e.target)) close(); };
+  const close = (focus = false) => {
+    if (!sheet) return;
+    sheet.remove(); sheet = null; wrap.classList.remove('open');
+    btn.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('pointerdown', outside);
+    if (focus) btn.focus();
+  };
+  const open = () => {
+    if (sheet) return;
     document.querySelectorAll('.drop.open .drop-btn').forEach(b => b !== btn && b.click());
     sheet = el('div', 'drop-sheet');
     sheet.setAttribute('role', multi ? 'group' : 'listbox');
+    sheet.setAttribute('aria-label', 'Boundary type');
     sheet.innerHTML = options.map(o =>
       '<button class="drop-opt" role="' + (multi ? 'checkbox' : 'option') + '" data-v="' + o.v + '" ' +
       (multi ? 'aria-checked="false"' : 'aria-selected="false"') + '>' +
       '<span class="drop-mark' + (multi ? ' box' : '') + '">' + TICK + '</span>' +
-      '<i class="opt-icon">' + o.icon + '</i><strong>' + esc(o.name) + '</strong></button>').join('');
+      '<i class="opt-icon">' + (o.icon || '') + '</i><strong>' + esc(o.name) + '</strong></button>').join('');
     sheet.querySelectorAll('.drop-opt').forEach(o => o.onclick = ev => {
-      ev.stopPropagation();
-      set(o.dataset.v); paint();
-      if (!multi) close();
+      ev.stopPropagation(); set(o.dataset.v); paint();
+      if (!multi) close(true);
     });
-    sheet.addEventListener('pointerdown', ev => ev.stopPropagation());
     wrap.appendChild(sheet); wrap.classList.add('open');
-    paint();
+    btn.setAttribute('aria-expanded', 'true'); paint();
+    document.addEventListener('pointerdown', outside);
+    (sheet.querySelector('[aria-selected="true"],[aria-checked="true"]') || sheet.firstElementChild).focus();
   };
-  document.addEventListener('pointerdown', () => close());
-  paint();
-  wrap.repaint = paint;
+  btn.onclick = e => { e.stopPropagation(); sheet ? close() : open(); };
+  wrap.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && sheet) { e.preventDefault(); e.stopPropagation(); close(true); }
+    else if (['ArrowDown','ArrowUp','Home','End'].includes(e.key)) {
+      e.preventDefault(); e.stopPropagation();
+      if (!sheet) { open(); return; }
+      const items = [...sheet.querySelectorAll('.drop-opt')], i = items.indexOf(document.activeElement);
+      const next = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : (i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+      items[next].focus();
+    } else if (e.key === 'Tab') close();
+  });
+  // Remove the temporary document listener when a console tab replaces this component.
+  wrap.addEventListener('focusout', () => queueMicrotask(() => { if (!wrap.contains(document.activeElement)) close(); }));
+  paint(); wrap.repaint = paint;
   return wrap;
 }
 
 /* ---- environment ---- */
 function boundarySettingsChanged(note) {
   eng.checkpoints.length = 0; eng.needForces = true; eng.touch();
-  store.set('bounds', { mode: eng.boundsMode, vt: eng.voidTemperature, vp: eng.voidPressure });
+  store.set('bounds', { version: 2, mode: eng.boundsMode, vt: eng.voidTemperature, vp: eng.voidPressure, voidTau: eng.voidTau, voidPressureTau: eng.voidPressureTau, voidDepth: eng.voidDepth });
   scheduleSave();
   if (note) toast(note);
 }
@@ -1480,13 +1501,13 @@ const GLYPH = {
   gauge: '<svg class="gl" viewBox="0 0 24 24"><path class="face" d="M4 17a8 8 0 1 1 16 0"/><path class="path" d="M12 17l5-4"/></svg>'
 };
 function renderEnvironmentApp(stage) {
-  stage.appendChild(el('div','section-intro','<p class="eyebrow">THE CHAMBER</p><h2>Conditions, considered.</h2><p>Shape the space. Set the temperature. Observe the response.</p>'));
+  stage.appendChild(el('div','section-intro','<p class="eyebrow">THE CHAMBER</p><h2>Chamber &amp; conditions.</h2><p>Shape the space. Set the temperature. Observe the response.</p>'));
   // the chamber, alive: one atom running at the boundary that is actually configured
   stage.appendChild(el('div', null,
     '<svg class="chamber-art" id="chamberArt" viewBox="0 0 300 120" role="img" aria-label="An atom meeting the chamber boundary">' +
     '<defs>' +
-    '<linearGradient id="ffL" x1="0" x2="1"><stop offset="0" stop-color="#7fa7c9" stop-opacity=".32"/><stop offset="1" stop-color="#7fa7c9" stop-opacity="0"/></linearGradient>' +
-    '<linearGradient id="ffR" x1="1" x2="0"><stop offset="0" stop-color="#7fa7c9" stop-opacity=".32"/><stop offset="1" stop-color="#7fa7c9" stop-opacity="0"/></linearGradient>' +
+    '<linearGradient id="ffL" x1="0" x2="1"><stop offset="0" stop-color="#b3b3b9" stop-opacity=".32"/><stop offset="1" stop-color="#b3b3b9" stop-opacity="0"/></linearGradient>' +
+    '<linearGradient id="ffR" x1="1" x2="0"><stop offset="0" stop-color="#b3b3b9" stop-opacity=".32"/><stop offset="1" stop-color="#b3b3b9" stop-opacity="0"/></linearGradient>' +
     '<linearGradient id="vd" x1="0" x2="1"><stop offset="0" stop-color="#ff965a" stop-opacity=".3"/><stop offset="1" stop-color="#ff965a" stop-opacity="0"/></linearGradient>' +
     '</defs>' +
     '<g class="halo"><rect x="40" y="14" width="20" height="92" fill="url(#ffL)"/><rect x="240" y="14" width="20" height="92" fill="url(#ffR)"/></g>' +
@@ -1506,16 +1527,39 @@ function renderEnvironmentApp(stage) {
       { v: 'forcefield', name: 'Forcefield', icon: GLYPH.forcefield }
     ],
     get: () => eng.boundsMode,
-    set: v => { eng.boundsMode = v; boundarySettingsChanged(); absorberInput.disabled=v==='solid'; paintArt(); },
-    summary: v => ({ label: v, icon: GLYPH[v] })
+    set: v => { eng.boundsMode = v; boundarySettingsChanged(); paintDamping(); paintArt(); },
+    summary: v => ({ label: v === 'solid' ? 'Solid walls' : 'Soft forcefield', icon: GLYPH[v] })
   }));
 
-  const absorber=el('label','preference-row','<span>Exterior damping<small>Artificial energy absorber beyond a soft field. A vacuum does not cool atoms.</small></span><input type="checkbox" aria-label="Exterior damping">');
-  const absorberInput=absorber.querySelector('input');absorberInput.checked=eng.voidTemperature;
-  absorberInput.disabled=eng.boundsMode==='solid';
-  absorberInput.onchange=()=>{eng.voidTemperature=absorberInput.checked;boundarySettingsChanged();paintArt();};
-  stage.appendChild(absorber);
-  eng.voidPressure=false;
+  const dampGroup=el('div','app-group damping-group','<h3>Damping</h3>');
+  const dampingInputs=[];
+  for(const [key,title,note] of [
+    ['voidTemperature','Temperature damping','Cools motion outside the field toward 0 K.'],
+    ['voidPressure','Bar damping','Absorbs outward motion. Wall pressure remains measured.']
+  ]){
+    const row=el('label','preference-row','<span>'+title+'<small>'+note+'</small></span><input type="checkbox" aria-label="'+title+'">');
+    const input=row.querySelector('input');input.checked=eng[key];dampingInputs.push(input);
+    input.onchange=()=>{eng[key]=input.checked;boundarySettingsChanged();paintDamping();paintArt();};
+    dampGroup.append(row);
+  }
+  const dampingControls=el('div','damping-controls',
+    '<label>Temperature response<span class="scrub" id="tempDampingTau" aria-label="Temperature damping response"></span></label>'+
+    '<label>Bar response<span class="scrub" id="barDampingTau" aria-label="Bar damping response"></span></label>'+
+    '<label>Absorbing layer<span class="scrub" id="dampingDepth" aria-label="Exterior absorbing layer depth"></span></label>');
+  const dampingDetails=el('details','damping-details','<summary>Response &amp; layer</summary>');
+  dampingDetails.append(dampingControls,el('p','app-note','Soft boundaries only. Shorter response = stronger damping. Both channels remove energy; neither sets a target pressure. A vacuum does neither.'));
+  dampGroup.append(dampingDetails);
+  stage.append(dampGroup);
+  for(const [id,key,scale,min,max,unit] of [['tempDampingTau','voidTau',1,1,1000,'fs'],['barDampingTau','voidPressureTau',1,1,1000,'fs'],['dampingDepth','voidDepth',10,.01,2,'nm']]){
+    scrub($(id),{get:()=>eng[key]/scale,set:(v,commit)=>{eng[key]=v*scale;if(commit)boundarySettingsChanged();},min,max,hardMin:min,hardMax:key==='voidDepth'?10:1e6,unit,fmt:v=>String(+v.toPrecision(4)),wheel:false});
+  }
+  function paintDamping(){
+    const solid=eng.boundsMode==='solid';
+    dampingInputs.forEach(input=>input.disabled=solid);
+    dampingControls.inert=solid;
+    dampingControls.classList.toggle('inactive',solid);
+  }
+  paintDamping();
 
   const dims = el('div', 'dim-row',
     ['envW', 'envH', 'envD'].map((id, k) =>
@@ -1531,6 +1575,7 @@ function renderEnvironmentApp(stage) {
     [['wall', GLYPH.wall], ['void', GLYPH.drain], ['gauge', GLYPH.gauge]]
       .map(([k, g]) => '<div class="stat" data-k="' + k + '">' + g + '<b>—</b></div>').join(''));
   stage.appendChild(stat);
+  stage.appendChild(dampGroup);
 
   const mk = (id, get, set, min, max) => { $(id).title=({envW:'Chamber width',envH:'Chamber height',envD:'Chamber depth'})[id]+' in nanometres'; return scrub($(id), {
     get, set: (v, commit) => { set(v); eng.touch(); if (commit) { saveBox(); scheduleSave(); } },
@@ -1553,7 +1598,7 @@ function renderEnvironmentApp(stage) {
     const field = eng.boundsMode === 'forcefield';
     a.classList.toggle('field', field);
     a.classList.toggle('voidT', field && !!eng.voidTemperature);
-    a.classList.toggle('voidP', !!eng.voidPressure);
+    a.classList.toggle('voidP', field && !!eng.voidPressure);
     const turn = field ? 247 : 260;
     const cold = field && !!eng.voidTemperature;
     const d = 'M56 96 L' + turn + ' 38 L' + (cold ? 176 : 104) + ' ' + (cold ? 70 : 20);
@@ -1566,7 +1611,7 @@ function renderEnvironmentApp(stage) {
   appRefresh = () => {
     if (!$('chamberArt')) return;
     cells[0].lastElementChild.textContent = eng.thermostat ? (eng.wallT - 273.15).toFixed(0) + '°C' : 'off';
-    cells[1].lastElementChild.textContent = eng.voidTemperature ? eng.voidHeat.toFixed(0) : '—';
+    cells[1].lastElementChild.textContent = (eng.voidTemperature || eng.voidPressure) ? eng.voidHeat.toFixed(0) : '—';
     cells[1].title = 'Energy removed by exterior damping, kJ/mol';
     cells[2].lastElementChild.textContent = fmtP(eng.pressureEMA);
     cells[2].title = 'Mean normal wall pressure';
@@ -1578,7 +1623,7 @@ function renderEnvironmentApp(stage) {
 
 function renderDisplayApp(stage){
   appRefresh=null;
-  stage.appendChild(el('div','section-intro','<p class="eyebrow">MAKE IT YOURS</p><h2>A quieter laboratory.</h2><p>Display preferences stay on this device. Physics always advances in 1 fs steps.</p>'));
+  stage.appendChild(el('div','section-intro','<p class="eyebrow">MAKE IT YOURS</p><h2>Your laboratory.</h2><p>Display preferences stay on this device. Physics always advances in 1 fs steps.</p>'));
   const select=(title,note,key,options)=>{
     const row=el('label','preference-row','<span>'+title+'<small>'+note+'</small></span>');
     const input=document.createElement('select');input.setAttribute('aria-label',title);
@@ -1678,7 +1723,9 @@ function loadScene() {
     for (const key of ['wallT', 'wallTarget', 'wallTau', 'heatToSample', 'heaterWork']) if (Number.isFinite(s[key])) eng[key] = s[key];
     if (s.boundsMode === 'forcefield' || s.boundsMode === 'solid') eng.boundsMode = s.boundsMode;
     if (typeof s.voidTemperature === 'boolean') eng.voidTemperature = s.voidTemperature;
-    eng.voidPressure = false;
+    eng.voidPressure = s.dampingVersion === 2 && !!s.voidPressure;
+    for(const key of ['voidTau','voidPressureTau','voidDepth']) if(Number.isFinite(s[key]) && s[key]>0) eng[key]=s[key];
+    if(Number.isFinite(s.voidHeat) && s.voidHeat>=0) eng.voidHeat=s.voidHeat;
   } catch (e) { }
 }
 window.addEventListener('beforeunload', saveScene);
@@ -1755,7 +1802,7 @@ function frame(now) {
   }
   R.draw({
     N: eng.N, type: eng.type, pos: rp, bonds, box: eng.box, box3: viewTilted() ? boxCorners() : null,
-    bounds: { mode: eng.boundsMode, range: eng.fieldRange, voidT: eng.voidTemperature, voidP: false },
+    bounds: { mode: eng.boundsMode, range: eng.fieldRange, voidT: eng.voidTemperature, voidP: eng.voidPressure },
     boxHot: gesture && gesture.type === 'box' ? gesture.edge : boxHot,
     hover: gesture ? -1 : hoverAtom, eraseHover: tool === 'erase' && !armed, selected: selection, pinned: eng.pinned.subarray(0, eng.N), ghost, flashes, now,
     tweezer: eng.tweezer, brush: tool === 'heat' && !armed && !placing ? brush : null,

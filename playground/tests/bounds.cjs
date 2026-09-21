@@ -124,4 +124,33 @@ test('Time-averaged collision pressure agrees with ideal-gas momentum balance',(
   let p=0;const n=6000;for(let i=0;i<n;i++){e.step();p+=e.pressureBar;}
   near(p/n,(2*e.kinetic()/3)/(60**3)*16605.39,1e-6);
 });
+test('Bar damping removes only outward normal energy at all six soft faces',()=>{
+  for(let axis=0;axis<3;axis++) for(const sign of [-1,1]){
+    const e=chamber({boundsMode:'forcefield',voidPressure:true,voidPressureTau:80});
+    const xyz=[30,30,0],v=[.01,.02,.03];xyz[axis]=(axis===2?0:30)+sign*31;v[axis]=sign*.02;
+    e.addAtom('Ar',...xyz,{thermal:false,v});const K=e.kinetic();
+    e._voidBath(40);
+    for(let d=0;d<3;d++) near(e.vel[d],d===axis?v[d]*Math.exp(-.25):v[d]);
+    near(e.kinetic()+e.voidHeat,K);
+    e.vel[axis]=-sign*.02;const before=[...e.vel.slice(0,3)];e._voidBath(40);
+    assert.deepEqual([...e.vel.slice(0,3)],before,'inward and tangential velocities are untouched');
+  }
+});
+test('Combined damping is monotone, leaves pinned atoms fixed and respects response/depth',()=>{
+  const e=chamber({boundsMode:'forcefield',voidTemperature:true,voidPressure:true,voidTau:40,voidPressureTau:80,voidDepth:2});
+  e.addAtom('Ar',61,61,0,{thermal:false,v:[.02,.03,.01]});
+  e.addAtom('Ar',-1,40,0,{thermal:false,v:[-.02,0,0]});e.pinned[1]=1;
+  const initial=e.kinetic();e._voidBath(20);
+  near(e.vel[0],.02*Math.exp(-.375));near(e.vel[1],.03*Math.exp(-.375));near(e.vel[2],.01*Math.exp(-.25));
+  near(e.vel[3],-.02);near(e.kinetic()+e.voidHeat,initial);
+  const s=e.snapshot();e.voidPressureTau=1;e.restore(s);assert.equal(e.voidPressureTau,80);
+  const json=e.toJSON();assert.equal(json.dampingVersion,2);assert.equal(json.voidPressureTau,80);assert.equal(json.voidTau,40);assert.equal(json.voidDepth,2);near(json.voidHeat,e.voidHeat);
+});
+test('Damping cannot hide soft-wall reaction force or affect solid-wall motion',()=>{
+  for(const mode of ['solid','forcefield']){
+    const e=chamber({boundsMode:mode,voidTemperature:true,voidPressure:true});e.addAtom('Ar',61,30,0,{thermal:false,v:[.02,0,0]});
+    e.computeForces();const force=e.wallForce,K=e.kinetic();e._voidBath(20);e.computeForces();near(e.wallForce,force);
+    if(mode==='solid'){near(e.kinetic(),K);near(e.voidHeat,0);}else assert.ok(force>0);
+  }
+});
 console.log(`${count} boundary checks passed.`);

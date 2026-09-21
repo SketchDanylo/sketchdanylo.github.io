@@ -23,8 +23,8 @@ The **Environment** panel sets the chamber geometry and boundary.
 
 - **Solid** reflects atomic centres at all six faces during the integration drift. Normal velocity reverses; tangential velocity and kinetic energy are preserved. Corner and multiple-face crossings are handled. Contour tails may extend beyond the face because the contours are schematic atomic envelopes.
 - **Forcefield** uses a conservative harmonic potential, 5 kJ/mol/Å², starting 1.2 Å inside the face. Atoms can penetrate this soft boundary before turning back.
-- **Exterior damping** is an optional artificial kinetic-energy absorber outside a soft boundary, with a 40 fs time constant reaching full strength 2 Å beyond the face. Removed energy is recorded in `voidHeat`. It is not a model of vacuum: vacuum does not drain kinetic energy.
-- Wall pressure is normal momentum flux (solid collisions) or normal reaction force (soft fields), divided by total wall area. The former pressure-hiding option is removed; reflecting atoms still transfer momentum.
+- **Temperature damping** applies artificial zero-noise drag to all velocity components outside a soft boundary (default response 40 fs). **Bar damping** damps only outward normal velocity at each crossed face (default 80 fs), leaving tangential and inward motion unchanged when used alone. Each channel applies `v *= exp(-dt * depthWeight / response)`, so neither can inject kinetic energy or reverse motion. Both reach full strength at an adjustable depth, initially 2 Å. Removed energy is tallied in `voidHeat`; both switches, responses and depth persist and rewind. These are numerical absorbers, not a vacuum, finite-temperature thermal bath or target-pressure barostat. See [velocity-proportional viscous damping](https://docs.lammps.org/fix_viscous.html) and [volume-based pressure relaxation](https://docs.lammps.org/fix_press_berendsen.html) for the distinction; this implementation is its own exterior exponential drag update.
+- Wall pressure is normal momentum flux (solid collisions) or normal reaction force (soft fields), divided by total wall area. Damping never hides this wall stress; the absorber is a separate external energy sink.
 
 `node playground/tests/bounds.cjs` checks six-face containment, energy conservation, collision pressure, multiple crossings, exterior damping and deterministic replay. A moving/resized boundary is a user edit, not a simulated piston.
 
@@ -32,7 +32,7 @@ The **Environment** panel sets the chamber geometry and boundary.
 
 The Studio console includes persistent contour quality, grid, atom-label, interface-motion and compute-priority controls. Reduced motion follows the operating system by default. Display quality changes rendering resolution only; the physical step stays 1 fs. The actual simulation rate remains visible when CPU-bound.
 
-The royal visual direction uses midnight navy, ivory, restrained brass and serif headings. [Aman](https://www.aman.com/) informed the restrained typography and spacing; all artwork and controls remain native CSS/SVG/canvas.
+The visual direction follows the [SketchDanylo collection](https://sketchdanylo.github.io/): graphite glass, neutral gray surfaces, pearl switches and restrained champagne serif headings. Menus, switches, segmented selections and panels use smooth transitions; system or explicit reduced-motion preferences disable them. Selects progressively enhance to native customizable glass pickers in supporting browsers, retaining standard native controls elsewhere. All artwork and controls use CSS/SVG/canvas without an animation library.
 
 ## Time
 

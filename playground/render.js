@@ -48,7 +48,7 @@ class FieldRenderer {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     // field
     const g = ctx.createRadialGradient(W * 0.5, H * 0.45, 0, W * 0.5, H * 0.45, Math.hypot(W, H) * 0.6);
-    g.addColorStop(0, '#101d32'); g.addColorStop(1, '#080f1c');
+    g.addColorStop(0, '#242424'); g.addColorStop(1, '#111111');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     if (this.showGrid) this._grid(sc);
     if (this.showBox && sc.box && !sc.box3) { this._boxUnder(sc.box); this._boundary(sc.box, sc.bounds); }
@@ -85,7 +85,7 @@ class FieldRenderer {
     let st = steps.find(v => v * s >= 26) || 10;
     const [wx0, wy0] = this.toWorld(0, 0), [wx1, wy1] = this.toWorld(this.W, this.H);
     const r = Math.min(1.3, 0.6 + st * s / 120);
-    ctx.fillStyle = 'rgba(127,167,201,0.16)';
+    ctx.fillStyle = 'rgba(179,179,185,0.16)';
     for (let x = Math.floor(wx0 / st) * st; x <= wx1; x += st) {
       const sx = (x - this.cam.cx) * s + this.W / 2;
       const major = Math.abs(x / 10 - Math.round(x / 10)) < 1e-6;
@@ -100,7 +100,7 @@ class FieldRenderer {
   _boxUnder(b) {
     const ctx = this.ctx, [x0, y0] = this.toScreen(b.x0, b.y0), [x1, y1] = this.toScreen(b.x1, b.y1);
     ctx.save();
-    ctx.fillStyle = 'rgba(3,7,12,0.5)';
+    ctx.fillStyle = 'rgba(7,7,7,0.5)';
     ctx.beginPath(); ctx.rect(0, 0, this.W, this.H); ctx.rect(x0, y0, x1 - x0, y1 - y0); ctx.fill('evenodd');
     ctx.restore();
   }
@@ -115,7 +115,7 @@ class FieldRenderer {
       const w = Math.min(26, Math.max(3, cfg.range * s));
       const band = (gx0, gy0, gx1, gy1, rx, ry, rw, rh) => {
         const g = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
-        g.addColorStop(0, 'rgba(127,167,201,0.16)'); g.addColorStop(1, 'rgba(127,167,201,0)');
+        g.addColorStop(0, 'rgba(179,179,185,0.16)'); g.addColorStop(1, 'rgba(179,179,185,0)');
         ctx.fillStyle = g; ctx.fillRect(rx, ry, rw, rh);
       };
       band(x0, 0, x0 + w, 0, x0, y0, w, y1 - y0);
@@ -126,7 +126,7 @@ class FieldRenderer {
     if (cfg.voidT || cfg.voidP) {
       // the outside: warm where energy leaves, cool where impulse is swallowed
       const w = Math.min(16, Math.max(5, 1.6 * s));
-      const tint = cfg.voidT ? '255,150,90' : '127,167,201';
+      const tint = cfg.voidT ? '255,150,90' : '179,179,185';
       const band = (gx0, gy0, gx1, gy1, rx, ry, rw, rh) => {
         const g = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
         g.addColorStop(0, 'rgba(' + tint + ',0.10)'); g.addColorStop(1, 'rgba(' + tint + ',0)');
@@ -144,7 +144,7 @@ class FieldRenderer {
     const ctx = this.ctx, [x0, y0] = this.toScreen(b.x0, b.y0), [x1, y1] = this.toScreen(b.x1, b.y1);
     ctx.save();
     const field = cfg && cfg.mode === 'forcefield';
-    ctx.strokeStyle = field ? 'rgba(127,167,201,0.5)' : 'rgba(127,167,201,0.38)';
+    ctx.strokeStyle = field ? 'rgba(179,179,185,0.5)' : 'rgba(179,179,185,0.38)';
     ctx.lineWidth = field ? 1.4 : 1;
     if (field) ctx.setLineDash([5, 4]);
     ctx.strokeRect(Math.round(x0) + 0.5, Math.round(y0) + 0.5, Math.round(x1 - x0), Math.round(y1 - y0));
@@ -164,10 +164,10 @@ class FieldRenderer {
     }
     // dimension lines, drawn like a technical drawing: width over the top edge, height beside the right edge
     ctx.font = '400 10px "Martian Mono", monospace';
-    const dimCol = 'rgba(138,151,168,0.8)', hotCol = '#ffb23f';
+    const dimCol = 'rgba(162,162,167,0.8)', hotCol = '#ffb23f';
     const wl = ((b.x1 - b.x0) / 10).toFixed(2) + ' nm', hl = ((b.y1 - b.y0) / 10).toFixed(2) + ' nm';
     const ty = Math.max(y0 - 9, 10), mx = (Math.max(x0, 0) + Math.min(x1, this.W)) / 2;
-    ctx.strokeStyle = 'rgba(127,167,201,0.35)'; ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(179,179,185,0.35)'; ctx.lineWidth = 1;
     if (y0 - 9 > 4) {
       const tw = ctx.measureText(wl).width / 2 + 8;
       ctx.beginPath(); ctx.moveTo(x0, ty); ctx.lineTo(mx - tw, ty); ctx.moveTo(mx + tw, ty); ctx.lineTo(x1, ty);
@@ -195,7 +195,7 @@ class FieldRenderer {
       for (const [a, b] of EDGES) {
         const depth = ((zs[a] + zs[b]) / 2 - zmin) / span;
         if (depth > 0.5) continue;                       // far edges only
-        ctx.strokeStyle = 'rgba(127,167,201,' + (0.12 + 0.12 * depth) + ')';
+        ctx.strokeStyle = 'rgba(179,179,185,' + (0.12 + 0.12 * depth) + ')';
         ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(P[a][0], P[a][1]); ctx.lineTo(P[b][0], P[b][1]); ctx.stroke();
       }
@@ -203,7 +203,7 @@ class FieldRenderer {
       for (const [a, b] of EDGES) {
         const depth = ((zs[a] + zs[b]) / 2 - zmin) / span;
         if (depth <= 0.5) continue;                      // near edges over the sample
-        ctx.strokeStyle = 'rgba(160,197,226,' + (0.3 + 0.35 * depth) + ')';
+        ctx.strokeStyle = 'rgba(200,200,205,' + (0.3 + 0.35 * depth) + ')';
         ctx.lineWidth = 1.1;
         ctx.beginPath(); ctx.moveTo(P[a][0], P[a][1]); ctx.lineTo(P[b][0], P[b][1]); ctx.stroke();
       }
@@ -297,7 +297,7 @@ class FieldRenderer {
           }
         }
       }
-      ctx.strokeStyle = L === 0 ? 'rgba(165,199,228,0.62)' : 'rgba(127,167,201,' + (0.34 - L * 0.06) + ')';
+      ctx.strokeStyle = L === 0 ? 'rgba(165,199,228,0.62)' : 'rgba(179,179,185,' + (0.34 - L * 0.06) + ')';
       ctx.lineWidth = L === 0 ? 1.15 : 0.8;
       ctx.stroke();
     }
