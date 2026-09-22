@@ -1069,11 +1069,12 @@ class Engine {
   _voidHeat() {
     if (!this.voidTemperature) return;
     const Nf = this.dof(); if (!Nf) return;
-    const K = this.kinetic(), Kt = 0.5 * Nf * KB * Math.max(0, this.T);
+    const K = this.thermalKinetic(), Kt = 0.5 * Nf * KB * Math.max(0, this.T);
     if (!(K > Kt)) return;
     const sc = Math.sqrt(Kt / K), v = this.vel;
     for (let i = 0; i < this.N; i++) {
       if (this.pinned[i]) { v.fill(0, 3 * i, 3 * i + 3); continue; }
+      if (this.driven(i)) continue;                 // work done by the pointer is not heat
       for (let k = 3 * i; k < 3 * i + 3; k++) v[k] *= sc;
     }
     this.voidHeat += K - Kt;
@@ -1085,7 +1086,7 @@ class Engine {
     const b = this.box, p = this.pos, v = this.vel, skin = this.wallSkin;
     let K = 0, n = 0;
     for (let i = 0; i < this.N; i++) {
-      if (this.pinned[i]) continue;
+      if (this.pinned[i] || this.driven(i)) continue;
       const k = 3 * i;
       const distance = this.sphere ? this.sphere.R - Math.hypot(p[k] - this.sphere.x, p[k + 1] - this.sphere.y, p[k + 2] - this.sphere.z) :
         Math.min(p[k] - b.x0, b.x1 - p[k], p[k + 1] - b.y0, b.y1 - p[k + 1], p[k + 2] - b.z0, b.z1 - p[k + 2]);
@@ -1242,8 +1243,22 @@ class Engine {
     for (let i = 0; i < this.N; i++) { if (this.pinned[i]) continue; K += this.mass[i] * (v[3 * i] ** 2 + v[3 * i + 1] ** 2 + v[3 * i + 2] ** 2); }
     return 0.5 * KEU * K;
   }
-  dof() { let n = 0; for (let i = 0; i < this.N; i++) if (!this.pinned[i]) n += 3; return n; }
-  temperature() { const nf = this.dof(); return nf ? 2 * this.kinetic() / (nf * KB) : 0; }
+  /* An atom held by the pointer is being driven from outside, so its motion is not thermal and
+     must not be read as temperature. Counting it was what made dragging one molecule stop every
+     other: a stat holding the total kinetic energy saw the drag as a huge excess and scaled the
+     whole chamber down to compensate, and the dragged atom — re-accelerated by the tweezer every
+     step — was the only thing left moving. */
+  driven(i) { return !!this.tweezer && this.tweezer.i === i; }
+  thermalKinetic() {
+    let K = 0; const v = this.vel;
+    for (let i = 0; i < this.N; i++) {
+      if (this.pinned[i] || this.driven(i)) continue;
+      K += this.mass[i] * (v[3 * i] ** 2 + v[3 * i + 1] ** 2 + v[3 * i + 2] ** 2);
+    }
+    return 0.5 * KEU * K;
+  }
+  dof() { let n = 0; for (let i = 0; i < this.N; i++) if (!this.pinned[i] && !this.driven(i)) n += 3; return n; }
+  temperature() { const nf = this.dof(); return nf ? 2 * this.thermalKinetic() / (nf * KB) : 0; }
   /* Finite-capacity wall reservoir with a first-order heater, then an exact
      Ornstein–Uhlenbeck velocity update at fixed position in the boundary layer.
      Noise and drag obey fluctuation–dissipation. Both act on the SAME atoms.
@@ -1258,7 +1273,7 @@ class Engine {
     this._bathBefore = this._copy(this._bathBefore, this.vel, 3 * this.N);
     const b = this.box, v = this.vel, p = this.pos;
     for (let i = 0; i < this.N; i++) {
-      if (this.pinned[i]) continue;
+      if (this.pinned[i] || this.driven(i)) continue;   // the pointer drives this one, not the bath
       const k = 3 * i;
       const distance = this.sphere ? this.sphere.R - Math.hypot(p[k] - this.sphere.x, p[k + 1] - this.sphere.y, p[k + 2] - this.sphere.z) :
         Math.min(p[k] - b.x0, b.x1 - p[k], p[k + 1] - b.y0, b.y1 - p[k + 1], p[k + 2] - b.z0, b.z1 - p[k + 2]);
@@ -1319,23 +1334,24 @@ class Engine {
     const v = this.vel, target = Math.max(0, this.T);
     if (target === 0) {
       let removed = 0;
-      for (let i = 0; i < this.N; i++) for (let k = 3 * i; k < 3 * i + 3; k++) { removed += 0.5 * KEU * this.mass[i] * v[k] * v[k]; v[k] = 0; }
+      for (let i = 0; i < this.N; i++) { if (this.driven(i)) continue; for (let k = 3 * i; k < 3 * i + 3; k++) { removed += 0.5 * KEU * this.mass[i] * v[k] * v[k]; v[k] = 0; } }
       this.kelvinWork -= removed;
       return;
     }
-    const initialK = this.kinetic();
+    const initialK = this.thermalKinetic();
     let K = initialK;
-    if (K <= 1e-14) { this.thermalize(target); K = this.kinetic(); if (K <= 1e-14) return; }
+    if (K <= 1e-14) { this.thermalize(target); K = this.thermalKinetic(); if (K <= 1e-14) return; }
     const Kt = 0.5 * Nf * KB * target, sc = Math.sqrt(Kt / K);
     for (let i = 0; i < this.N; i++) {
       if (this.pinned[i]) { v.fill(0, 3 * i, 3 * i + 3); continue; }
+      if (this.driven(i)) continue;                 // the pointer owns this one, not the stat
       for (let k = 3 * i; k < 3 * i + 3; k++) v[k] *= sc;
     }
     this.kelvinWork += Kt - initialK;
   }
   _csvr() {
     const Nf = this.dof(); if (!Nf) return;
-    const K = this.kinetic(), Kt = 0.5 * Nf * KB * Math.max(0, this.T);
+    const K = this.thermalKinetic(), Kt = 0.5 * Nf * KB * Math.max(0, this.T);
     const c = Math.exp(-this.dt / Math.max(this.dt, this.tau));
     if (K <= 1e-12) { if (Kt > 0) this.thermalize(this.T * 0.05); return; }
     const r1 = this.gauss(), sum = Nf > 1 ? 2 * this.gamma((Nf - 1) / 2) : 0;
@@ -1346,6 +1362,7 @@ class Engine {
     const s = sign * Math.sqrt(Kn / K), v = this.vel;
     for (let i = 0; i < this.N; i++) {
       if (this.pinned[i]) { v.fill(0, 3 * i, 3 * i + 3); continue; }
+      if (this.driven(i)) continue;
       for (let k = 3 * i; k < 3 * i + 3; k++) v[k] *= s;
     }
   }

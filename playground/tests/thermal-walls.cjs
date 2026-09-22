@@ -115,4 +115,39 @@ test('Kelvin startup from rest accounts for all injected energy',()=>{
   e._kelvin();near(e.kelvinWork,e.kinetic(),1e-10);
   e.T=0;e._kelvin();near(e.kelvinWork,0,1e-10);near(e.kinetic(),0);
 });
+test('Dragging one atom does not stop every other one', () => {
+  // an atom held by the pointer is driven from outside; counting its motion as temperature made
+  // a stat holding the total scale the whole chamber down to compensate
+  for (const opts of [{ thermostatMode: 'kelvin' }, { thermostat: false, voidTemperature: true }]) {
+    const e = chamber({ T: 400, ...opts });
+    for (let i = 0; i < 20; i++) e.addAtom('Ar', 8 + (i % 5) * 18, 9 + ((i / 5) | 0) * 22, 0, { thermal: true });
+    for (let s = 0; s < 2000; s++) e.step();
+    const rest = () => { let k = 0; for (let i = 1; i < e.N; i++) { const j = 3 * i; k += e.mass[i] * (e.vel[j] ** 2 + e.vel[j + 1] ** 2 + e.vel[j + 2] ** 2); } return k; };
+    const before = rest();
+    e.tweezer = { i: 0, x: e.pos[0], y: e.pos[1], k: 30 };
+    for (let s = 0; s < 3000; s++) {
+      e.tweezer.x = 50 + 30 * Math.sin(s / 300); e.tweezer.y = 50 + 20 * Math.cos(s / 300);
+      e.needForces = true; e.step();
+    }
+    assert.ok(rest() > 0.5 * before, `the rest of the chamber keeps moving: ${rest()} vs ${before}`);
+    // the reading is the fluid's, not the drag's — pinned exactly by the stat, capped by the void
+    if (opts.thermostatMode === 'kelvin') near(e.temperature(), 400, 1e-9);
+    else assert.ok(e.temperature() <= 400 + 1e-9 && e.temperature() > 395, `capped near 400, got ${e.temperature()}`);
+    e.tweezer = null;
+  }
+});
+test('A driven atom is excluded from the temperature, and only while it is held', () => {
+  const e = chamber({ thermostat: false, T: 300 });
+  e.addAtom('Ar', 30, 30, 0, { thermal: false, v: [0.004, 0, 0] });
+  e.addAtom('Ar', 50, 50, 0, { thermal: false, v: [0.004, 0, 0] });
+  const both = e.temperature();
+  e.tweezer = { i: 0, x: 30, y: 30, k: 30 };
+  const one = e.temperature();
+  assert.equal(e.dof(), 3, 'the held atom leaves the count');
+  near(one, both, 1e-9);                          // identical atoms: same temperature, fewer of them
+  e.vel[0] = 0.4;                                 // fling the held one
+  near(e.temperature(), one, 1e-12, 'its motion never enters the reading');
+  e.tweezer = null;
+  assert.ok(e.temperature() > one * 10, 'and counts again the moment it is let go');
+});
 console.log(`${count} thermal-wall checks passed.`);

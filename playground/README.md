@@ -25,6 +25,21 @@ A **spatial wall thermostat**, not a global velocity rescale:
 - Effective wall heat capacity is 1000 k_B. Heat given to the sample is subtracted from the wall; heater work and sample heat are recorded separately and included in deterministic snapshots. This finite reservoir approximation is not an explicit solid-wall atomistic model.
 - Against a void wall the heater cannot reach its setpoint: it only touches the boundary layer, which is the same place the void takes from. At 400 K with a temperature void the sample settles near 310 K and keeps wandering. Use the Kelvin stat when the number matters.
 
+### What counts as temperature
+
+An atom held by the pointer is being driven from outside, so its motion is not thermal. It is
+left out of `dof()`, `temperature()` and `thermalKinetic()`, out of every thermostat's rescale,
+out of the void-temperature cap and out of the boundary bath, and it is never itself rescaled —
+the pointer owns it while you hold it, and it counts again the moment you let go.
+
+Counting it was why dragging one molecule stopped every other one. A stat that holds the total
+kinetic energy saw the drag as an enormous excess and scaled the whole chamber down to
+compensate, while the dragged atom, re-accelerated by the tweezer every step, was the only thing
+still moving. Measured over 3 ps of dragging with twenty argon atoms, the kinetic energy of the
+rest of the chamber went 90.2 → 0.0 under the Kelvin stat and 78.7 → 0.0 under a temperature
+void; it now goes 90.2 → 94.8 and 78.7 → 94.7, with the gauge reading the fluid rather than the
+drag. With no thermostat the chamber still heats as you stir it, which is the work you are doing.
+
 ### Off
 
 Editing temperature immediately rescales kinetic energy to the requested temperature, including
