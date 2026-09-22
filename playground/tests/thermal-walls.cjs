@@ -110,4 +110,9 @@ test('Kelvin trajectories replay bit-exactly and survive a scene round trip', ()
   for (const want of trace) { e.step(); near(e.pos[0], want[0], 1e-12); near(e.vel[0], want[1], 1e-14); near(e.kelvinWork, want[2], 1e-9); }
   assert.equal(e.toJSON().thermostatMode, 'kelvin');
 });
+test('Kelvin startup from rest accounts for all injected energy',()=>{
+  const e=chamber({thermostatMode:'kelvin',T:300});e.addAtom('Ar',50,50,0,{thermal:false});
+  e._kelvin();near(e.kelvinWork,e.kinetic(),1e-10);
+  e.T=0;e._kelvin();near(e.kelvinWork,0,1e-10);near(e.kinetic(),0);
+});
 console.log(`${count} thermal-wall checks passed.`);

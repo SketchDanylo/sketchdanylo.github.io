@@ -957,30 +957,34 @@ class Engine {
   _reflectWalls() {
     if (this.sphere || this.boundsMode !== 'solid') return;
     const b=this.box, lo=[b.x0,b.y0,b.z0], hi=[b.x1,b.y1,b.z1];
-    // A void of pressure or velocity means the face hands nothing back: no rebound, no impulse.
+    // Absorption transfers m*v normal momentum; reflection transfers 2*m*v.
     const stop = this.voidPressure || this.voidVelocity, full = this.voidVelocity;
     for(let i=0;i<this.N;i++) {
       if(this.pinned[i]) continue;
-      for(let d=0;d<3;d++) {
-        const k=3*i+d, x=this.pos[k], L=hi[d]-lo[d];
-        if(x>=lo[d] && x<=hi[d]) continue;
-        const u=(x-lo[d])/L, cell=Math.floor(u);
-        const folded=((u%2)+2)%2;
-        this.pos[k]=lo[d]+L*(folded<=1?folded:2-folded);
-        const crossings=Math.abs(cell);
-        if (stop) {
-          const m=this.mass[i];
-          this.voidHeat += 0.5*KEU*m*this.vel[k]*this.vel[k];
-          this.vel[k]=0;
-          if (full) for (let c=0;c<3;c++) if (c!==d) {
-            const j=3*i+c;
-            this.voidHeat += 0.5*KEU*m*this.vel[j]*this.vel[j];
+      const k=3*i;
+      if(stop){
+        const hit=[0,1,2].map(d=>this.pos[k+d]<lo[d] || this.pos[k+d]>hi[d]);
+        if(!hit.some(Boolean))continue;
+        for(let d=0;d<3;d++){
+          const j=k+d;
+          if(hit[d]){
+            this.pos[j]=clampNum(this.pos[j],lo[d],hi[d]);
+            this._wallImpulse+=this.mass[i]*Math.abs(this.vel[j])*KEU;
+          }
+          if(full || hit[d]){
+            this.voidHeat+=0.5*KEU*this.mass[i]*this.vel[j]*this.vel[j];
             this.vel[j]=0;
           }
-          continue;                       // nothing was returned, so nothing is reported
         }
-        this._wallImpulse+=2*this.mass[i]*Math.abs(this.vel[k])*KEU*crossings;
-        if(Math.abs(cell)%2===1) this.vel[k]=-this.vel[k];
+        continue;
+      }
+      for(let d=0;d<3;d++) {
+        const j=k+d, x=this.pos[j], L=hi[d]-lo[d];
+        if(x>=lo[d] && x<=hi[d]) continue;
+        const u=(x-lo[d])/L, cell=Math.floor(u), folded=((u%2)+2)%2;
+        this.pos[j]=lo[d]+L*(folded<=1?folded:2-folded);
+        this._wallImpulse+=2*this.mass[i]*Math.abs(this.vel[j])*KEU*Math.abs(cell);
+        if(Math.abs(cell)%2===1) this.vel[j]=-this.vel[j];
       }
     }
   }
@@ -1037,7 +1041,7 @@ class Engine {
        temperature — the whole molecule that touches the wall is cooled at one rate, so a bond
                      is never pulled by cooling one of its atoms and not the other;
        velocity    — only the atom in contact, and all of its motion: it stops where it is;
-       pressure    — only the normal component, and the impulse the face would have reported. */
+       pressure    — only the normal component; absorbed collisions still report impulse. */
   _voidWalls(dt) {
     if (this.sphere) return;
     const thermal = this.voidTemperature, momentum = this.voidPressure, whole = this.voidVelocity;
@@ -1096,13 +1100,20 @@ class Engine {
     const gain = this.baroEvery * this.dt / Math.max(1, this.pressureTau);
     const mu = 1 + clampNum(gain * (P - target) / span, -0.004, 0.004);
     const b = this.box, cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
-    const wNew = clampNum((b.x1 - b.x0) * mu, 10, 500), hNew = clampNum((b.y1 - b.y0) * mu, 10, 500);
+    const { list } = this.fragments();
+    let minW=10,minH=10;
+    // Pinned fragments stay fixed; a moving wall must not pass through them.
+    for(const g of list) if(g.some(i=>this.pinned[i])) for(const i of g){
+      minW=Math.max(minW,2*Math.abs(this.pos[3*i]-cx));
+      minH=Math.max(minH,2*Math.abs(this.pos[3*i+1]-cy));
+    }
+    const wNew = clampNum((b.x1 - b.x0) * mu, Math.min(500,minW), 500), hNew = clampNum((b.y1 - b.y0) * mu, Math.min(500,minH), 500);
     const sx = wNew / (b.x1 - b.x0), sy = hNew / (b.y1 - b.y0);
     if (sx === 1 && sy === 1) return;
     b.x0 = cx - wNew / 2; b.x1 = cx + wNew / 2;
     b.y0 = cy - hNew / 2; b.y1 = cy + hNew / 2;
-    const { list } = this.fragments();
     for (const g of list) {
+      if(g.some(i=>this.pinned[i]))continue;
       let M = 0, gx = 0, gy = 0;
       for (const i of g) { const m = this.mass[i]; M += m; gx += m * this.pos[3 * i]; gy += m * this.pos[3 * i + 1]; }
       gx /= M; gy /= M;
@@ -1132,7 +1143,7 @@ class Engine {
       this._wallImpulse = 0;
       this._integrate(nsub, forceRebuild);
       if (!canCheck || nsub >= SUB_MAX) break;
-      const dE = Math.abs(this.Epot + this.kinetic() - E0);
+      const dE = Math.abs(this.Epot + this.kinetic() + this.voidHeat - this._sv.voidHeat - E0);
       if (dE <= SUB_ETOL + 0.005 * K0) break;
       this._load(); nsub = Math.min(SUB_MAX, nsub * 4); this.redone++; // redo this step more finely
     }
@@ -1205,6 +1216,7 @@ class Engine {
     sv.pN = this._copy(sv.pN, this.pN, P);
     if (!sv.pI || sv.pI.length < P) { sv.pI = new Int32Array(Math.max(P, 64)); sv.pJ = new Int32Array(Math.max(P, 64)); }
     sv.pI.set(this.pI.subarray(0, P)); sv.pJ.set(this.pJ.subarray(0, P));
+    sv.voidHeat = this.voidHeat;
     sv.P = P; sv.Epot = this.Epot; sv.map = this.pairMap; sv.needRebuild = this.needRebuild;
     this.Fold = this._copy(this.Fold, this.frc, n3);
   }
@@ -1213,6 +1225,7 @@ class Engine {
     this.pos.set(sv.pos.subarray(0, n3)); this.vel.set(sv.vel.subarray(0, n3)); this.frc.set(sv.frc.subarray(0, n3)); this.built.set(sv.built.subarray(0, n3));
     if (P > this.pairCap) this._allocPairs(P);
     this.pI.set(sv.pI.subarray(0, P)); this.pJ.set(sv.pJ.subarray(0, P)); this.pN.set(sv.pN.subarray(0, P)); this.nPairs = P;
+    this.voidHeat = sv.voidHeat;
     this.pairMap = sv.map; this.Epot = sv.Epot; this.needRebuild = sv.needRebuild;
   }
   kinetic() {
@@ -1290,7 +1303,8 @@ class Engine {
      so the sample sits at the setpoint and nowhere else. Paired with a void wall it is a steady
      state by construction — what the wall takes, the stat gives back on the same tick — which is
      the point of it: a chamber whose temperature is a setting rather than an outcome.
-     It fixes the total, not the distribution: relative speeds, and so chemistry, are untouched. */
+     It fixes total kinetic energy and suppresses its fluctuations; it can alter kinetics.
+     It preserves instantaneous speed ratios, not relative velocities or canonical sampling. */
   _kelvin() {
     const Nf = this.dof(); if (!Nf) return;
     const v = this.vel, target = Math.max(0, this.T);
@@ -1300,14 +1314,15 @@ class Engine {
       this.kelvinWork -= removed;
       return;
     }
-    let K = this.kinetic();
+    const initialK = this.kinetic();
+    let K = initialK;
     if (K <= 1e-14) { this.thermalize(target); K = this.kinetic(); if (K <= 1e-14) return; }
     const Kt = 0.5 * Nf * KB * target, sc = Math.sqrt(Kt / K);
     for (let i = 0; i < this.N; i++) {
       if (this.pinned[i]) { v.fill(0, 3 * i, 3 * i + 3); continue; }
       for (let k = 3 * i; k < 3 * i + 3; k++) v[k] *= sc;
     }
-    this.kelvinWork += Kt - K;
+    this.kelvinWork += Kt - initialK;
   }
   _csvr() {
     const Nf = this.dof(); if (!Nf) return;

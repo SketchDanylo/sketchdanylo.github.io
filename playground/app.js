@@ -62,10 +62,10 @@ function updateLab() {
   $('bathBtn').setAttribute('aria-pressed', eng.thermostat);
   $('physicsNotice').hidden = !eng.clamped;
   $('physicsNotice').textContent = eng.clamped ? eng.clamped + ' safety speed clamps · energy affected' : '';
-  const hint = placing ? 'Click to place · Q/E rotate · right-click for the hand' : armed ? armed + ' selected · click to place · right-click for the hand' : tool === 'heat' ? 'Drag to heat · Shift-drag to cool' : tool === 'erase' ? 'Click an atom to erase · Alt: molecule' : viewTilted() ? 'Turning · release to face the chamber again' : 'Drag to pan · right-drag to turn · scroll to zoom';
+  const hint = placing ? 'Click to place · Q/E rotate · right-click for the hand' : armed ? armed + ' selected · click to place · right-click for the hand' : tool === 'heat' ? 'Drag to heat · Shift-drag to cool' : tool === 'erase' ? 'Click an atom to erase · Alt: molecule' : viewTilted() ? 'Turning · release to face the chamber again' : '';
   const ctx = $('toolContext');
   if (ctx.textContent !== hint) {
-    ctx.textContent = hint; ctx.classList.add('show');
+    ctx.textContent = hint; ctx.classList.toggle('show',!!hint);
     clearTimeout(hintTimer); hintTimer = setTimeout(() => ctx.classList.remove('show'), 2600);
   }
 }
@@ -1339,23 +1339,24 @@ const ICONS = {
   keys: '<svg viewBox="0 0 16 16"><rect x="1.6" y="4.2" width="12.8" height="8" rx="1.7"/><path d="M4.2 6.9h.01M6.6 6.9h.01M9 6.9h.01M11.4 6.9h.01M5.2 9.7h5.6"/></svg>'
 };
 const APPS = [
-  { id: 'environment', name: 'Environment', render: renderEnvironmentApp },
-  { id: 'display', name: 'Preferences', render: renderDisplayApp },
-  { id: 'about', name: 'About', render: renderAboutApp },
-  { id: 'keys', name: 'Keybinds', render: renderKeysApp }
+  { id: 'environment', name: 'Conditions', render: renderEnvironmentApp },
+  { id: 'display', name: 'Display', render: renderDisplayApp },
+  { id: 'about', name: 'Model', render: renderAboutApp },
+  { id: 'keys', name: 'Keys', render: renderKeysApp }
 ];
 let consoleApp = store.get('consoleApp', 'environment');
-let consoleResume = false, consoleTick = null;
+let consoleResume = false, consoleTick = null, consoleCloseTimer = null;
 const consoleIsOpen = () => !$('console').hidden;
 
 function openConsole(id) {
   if (id) consoleApp = id;
-  if (consoleIsOpen()) { selectApp(consoleApp); return; }
+  if (consoleIsOpen() && !$('console').classList.contains('closing')) { selectApp(consoleApp); return; }
+  clearTimeout(consoleCloseTimer);
   closePop(); hideTip();
   consoleResume = time.playing;
   setPlaying(false);
-  const win = $('consoleWin'), pos = store.get('consolePos', null);
-  if (pos) { win.style.setProperty('--cx', pos.x + '%'); win.style.setProperty('--cy', pos.y + '%'); }
+  const win = $('consoleWin');
+  win.style.removeProperty('--panel-x'); win.style.removeProperty('--panel-y');
   $('console').hidden = false;
   $('console').classList.remove('closing');
   $('menuBtn').setAttribute('aria-expanded', 'true');
@@ -1367,17 +1368,19 @@ function openConsole(id) {
 }
 function closeConsole() {
   if (!consoleIsOpen()) return;
+  closeDropdowns();
   clearInterval(consoleTick); consoleTick = null;
+  clearTimeout(consoleCloseTimer);
   const veil = $('console');
   veil.classList.add('closing');
   $('menuBtn').setAttribute('aria-expanded', 'false');
-  setTimeout(() => { veil.hidden = true; veil.classList.remove('closing'); }, 190);
+  consoleCloseTimer = setTimeout(() => { veil.hidden = true; veil.classList.remove('closing'); }, document.documentElement.dataset.motion === 'reduced' ? 0 : 180);
   if (consoleResume) setPlaying(true);
   consoleResume = false;
   $('menuBtn').focus();
 }
 function toggleConsole(id) {
-  if (consoleIsOpen() && (!id || id === consoleApp)) closeConsole();
+  if (consoleIsOpen() && !$('console').classList.contains('closing') && (!id || id === consoleApp)) closeConsole();
   else openConsole(id);
 }
 function buildRail() {
@@ -1386,6 +1389,7 @@ function buildRail() {
   $('consoleRail').querySelectorAll('.app-tab').forEach(b => b.onclick = () => selectApp(b.dataset.app));
 }
 function selectApp(id) {
+  closeDropdowns();
   const app = APPS.find(a => a.id === id) || APPS[0];
   consoleApp = app.id; store.set('consoleApp', app.id);
   $('consoleTitle').textContent = app.name;
@@ -1409,18 +1413,23 @@ document.addEventListener('keydown',e=>{
   if(e.shiftKey&&(document.activeElement===first||!panel.contains(document.activeElement))){e.preventDefault();last.focus();}
   else if(!e.shiftKey&&(document.activeElement===last||!panel.contains(document.activeElement))){e.preventDefault();first.focus();}
 });
-// the title bar carries the window; position is remembered as a share of the viewport
+// Keep the panel attached to its default anchor when the viewport changes.
+window.addEventListener('resize', () => {
+  $('consoleWin').style.removeProperty('--panel-x');
+  $('consoleWin').style.removeProperty('--panel-y');
+});
+// Drag the panel within the visible viewport.
 $('consoleBar').addEventListener('pointerdown', e => {
   if (e.target.closest('button')) return;
   const win = $('consoleWin'), r = win.getBoundingClientRect();
-  const ox = e.clientX - (r.left + r.width / 2), oy = e.clientY - (r.top + r.height / 2);
+  const ox = e.clientX - r.left, oy = e.clientY - r.top;
   const bar = $('consoleBar');
   bar.setPointerCapture(e.pointerId);
   const move = ev => {
-    const x = clamp((ev.clientX - ox) / innerWidth * 100, 12, 88);
-    const y = clamp((ev.clientY - oy) / innerHeight * 100, 10, 90);
-    win.style.setProperty('--cx', x + '%'); win.style.setProperty('--cy', y + '%');
-    store.set('consolePos', { x, y });
+    const x = clamp(ev.clientX - ox, 12, Math.max(12,innerWidth-r.width-12));
+    const y = clamp(ev.clientY - oy, 12, Math.max(12,innerHeight-r.height-12));
+    win.style.setProperty('--panel-x', x + 'px');
+    win.style.setProperty('--panel-y', y + 'px');
   };
   const up = () => { bar.removeEventListener('pointermove', move); bar.removeEventListener('pointerup', up); };
   bar.addEventListener('pointermove', move); bar.addEventListener('pointerup', up);
@@ -1436,7 +1445,8 @@ function el(tag, cls, html) {
 const TICK = '<svg viewBox="0 0 12 12"><path d="M2.4 6.2l2.4 2.4 4.8-5"/></svg>';
 /* One dropdown component, two behaviours: `multi` turns the marks into checkboxes and keeps
    the sheet open, because those options are not alternatives to each other. */
-function dropdown({ options, multi, get, set, summary }) {
+function closeDropdowns(){document.querySelectorAll('.drop.open .drop-btn').forEach(b=>b.click());}
+function dropdown({ options, multi, get, set, summary, label = 'Boundary type' }) {
   const wrap = el('div', 'drop');
   const btn = el('button', 'drop-btn',
     '<i class="drop-lead"></i><span class="drop-val"></span>' +
@@ -1464,7 +1474,7 @@ function dropdown({ options, multi, get, set, summary }) {
     const stage = $('consoleStage');
     if (stage) stage.removeEventListener('scroll', close);
     removeEventListener('resize', close);
-    if (focus) btn.focus();
+    if (focus === true) btn.focus();
   };
   /* The sheet floats above everything instead of living inside the scrolling panel: an
      absolutely positioned child is clipped by that panel, so options past its bottom edge
@@ -1472,6 +1482,7 @@ function dropdown({ options, multi, get, set, summary }) {
   const placeSheet = () => {
     const r = btn.getBoundingClientRect();
     sheet.style.width = r.width + 'px';
+    sheet.style.maxHeight = Math.max(100,Math.max(r.top-15,innerHeight-r.bottom-15))+'px';
     sheet.style.left = r.left + 'px';
     const h = sheet.offsetHeight, below = innerHeight - r.bottom - 10;
     sheet.style.top = (below >= h || r.top < h + 10 ? r.bottom + 5 : r.top - h - 5) + 'px';
@@ -1481,7 +1492,7 @@ function dropdown({ options, multi, get, set, summary }) {
     document.querySelectorAll('.drop.open .drop-btn').forEach(b => b !== btn && b.click());
     sheet = el('div', 'drop-sheet');
     sheet.setAttribute('role', multi ? 'group' : 'listbox');
-    sheet.setAttribute('aria-label', 'Boundary type');
+    sheet.setAttribute('aria-label', label);
     sheet.innerHTML = options.map(o =>
       '<button class="drop-opt" role="' + (multi ? 'checkbox' : 'option') + '" data-v="' + o.v + '" ' +
       (multi ? 'aria-checked="false"' : 'aria-selected="false"') + '>' +
@@ -1491,6 +1502,8 @@ function dropdown({ options, multi, get, set, summary }) {
       ev.stopPropagation(); set(o.dataset.v); paint();
       if (!multi) close(true);
     });
+    sheet.addEventListener('keydown', navigate);
+    sheet.addEventListener('focusout', leave);
     document.body.appendChild(sheet); wrap.classList.add('open');
     placeSheet();
     btn.setAttribute('aria-expanded', 'true'); paint();
@@ -1501,7 +1514,7 @@ function dropdown({ options, multi, get, set, summary }) {
     (sheet.querySelector('[aria-selected="true"],[aria-checked="true"]') || sheet.firstElementChild).focus();
   };
   btn.onclick = e => { e.stopPropagation(); sheet ? close() : open(); };
-  wrap.addEventListener('keydown', e => {
+  function navigate(e) {
     if (e.key === 'Escape' && sheet) { e.preventDefault(); e.stopPropagation(); close(true); }
     else if (['ArrowDown','ArrowUp','Home','End'].includes(e.key)) {
       e.preventDefault(); e.stopPropagation();
@@ -1509,10 +1522,11 @@ function dropdown({ options, multi, get, set, summary }) {
       const items = [...sheet.querySelectorAll('.drop-opt')], i = items.indexOf(document.activeElement);
       const next = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : (i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
       items[next].focus();
-    } else if (e.key === 'Tab') close();
-  });
-  // Remove the temporary document listener when a console tab replaces this component.
-  wrap.addEventListener('focusout', () => queueMicrotask(() => { if (!wrap.contains(document.activeElement)) close(); }));
+    } else if (e.key === 'Tab' && sheet) close(true);
+  }
+  const leave=()=>queueMicrotask(()=>{if(!wrap.contains(document.activeElement) && !(sheet && sheet.contains(document.activeElement)))close();});
+  wrap.addEventListener('keydown',navigate);
+  wrap.addEventListener('focusout',leave);
   paint(); wrap.repaint = paint;
   return wrap;
 }
@@ -1545,38 +1559,20 @@ const GLYPH = {
   gauge: '<svg class="gl" viewBox="0 0 24 24"><path class="face" d="M4 17a8 8 0 1 1 16 0"/><path class="path" d="M12 17l5-4"/></svg>'
 };
 function renderEnvironmentApp(stage) {
-  stage.appendChild(el('div','section-intro','<p class="eyebrow">THE CHAMBER</p><h2>Chamber &amp; conditions.</h2><p>Shape the space. Set the temperature. Observe the response.</p>'));
-  // the chamber, alive: one atom running at the boundary that is actually configured
-  stage.appendChild(el('div', null,
-    '<svg class="chamber-art" id="chamberArt" viewBox="0 0 300 120" role="img" aria-label="An atom meeting the chamber boundary">' +
-    '<defs>' +
-    '<linearGradient id="ffL" x1="0" x2="1"><stop offset="0" stop-color="#b3b3b9" stop-opacity=".32"/><stop offset="1" stop-color="#b3b3b9" stop-opacity="0"/></linearGradient>' +
-    '<linearGradient id="ffR" x1="1" x2="0"><stop offset="0" stop-color="#b3b3b9" stop-opacity=".32"/><stop offset="1" stop-color="#b3b3b9" stop-opacity="0"/></linearGradient>' +
-    '<linearGradient id="vd" x1="0" x2="1"><stop offset="0" stop-color="#ff965a" stop-opacity=".3"/><stop offset="1" stop-color="#ff965a" stop-opacity="0"/></linearGradient>' +
-    '</defs>' +
-    '<g class="halo"><rect x="40" y="14" width="20" height="92" fill="url(#ffL)"/><rect x="240" y="14" width="20" height="92" fill="url(#ffR)"/></g>' +
-    '<g class="quantum heat"><rect x="260" y="14" width="26" height="92" fill="url(#vd)"/>' +
-    '<path d="M264 40c4-3 4 3 8 0"/><path d="M264 58c4-3 4 3 8 0"/><path d="M264 76c4-3 4 3 8 0"/></g>' +
-    '<g class="quantum push"><path d="M266 92h14M274 88l6 4-6 4"/><path d="M262 84l20 16M282 84l-20 16" class="cross"/></g>' +
-    '<rect class="wall" x="40" y="14" width="220" height="92" rx="2" stroke-width="1.6"/>' +
-    '<path class="trace" id="artTrace" d=""/>' +
-    '<circle id="artDot" r="3.6" fill="#ffb23f"/>' +
-    '</svg>'));
-
   const group = (title, node) => { const g = el('div', 'app-group', '<h3>' + title + '</h3>'); g.appendChild(node); stage.appendChild(g); return g; };
 
-  group('Bounds', dropdown({
+  group('Boundary', dropdown({
     options: [
       { v: 'solid', name: 'Solid', icon: GLYPH.solid },
       { v: 'forcefield', name: 'Forcefield', icon: GLYPH.forcefield }
     ],
     get: () => eng.boundsMode,
-    set: v => { eng.boundsMode = v; boundarySettingsChanged(); paintArt(); },
+    set: v => { eng.boundsMode = v; boundarySettingsChanged(); },
     summary: v => ({ label: v === 'solid' ? 'Solid walls' : 'Soft forcefield', icon: GLYPH[v] })
   }));
 
   group('Void walls', dropdown({
-    multi: true,
+    multi: true, label: 'Void wall channels',
     options: [
       { v: 'temperature', name: 'Temperature', icon: GLYPH.heat },
       { v: 'pressure', name: 'Pressure', icon: GLYPH.press },
@@ -1587,10 +1583,10 @@ function renderEnvironmentApp(stage) {
       if (v === 'temperature') eng.voidTemperature = !eng.voidTemperature;
       else if (v === 'pressure') eng.voidPressure = !eng.voidPressure;
       else eng.voidVelocity = !eng.voidVelocity;
-      boundarySettingsChanged(); paintArt();
+      boundarySettingsChanged();
     },
     summary: v => ({
-      label: v.length ? v.join(' · ') : 'reflecting',
+      label: v.length ? v.map(x=>x[0].toUpperCase()+x.slice(1)).join(' · ') : 'None',
       accent: v.length > 0,
       icon: v.length ? GLYPH[v[0] === 'temperature' ? 'heat' : v[0] === 'pressure' ? 'press' : 'vel'] : GLYPH.none
     })
@@ -1602,20 +1598,20 @@ function renderEnvironmentApp(stage) {
   group('Chamber', dims);
 
   const baro = el('div', 'baro-row',
-    '<span class="seg-mini" id="envBaro"><button data-v="off" aria-label="Passive pressure" title="Passive — the gauge only reports">' + GLYPH.gauge + '</button>' +
-    '<button data-v="on" aria-label="Hold a pressure" title="Hold this pressure — the chamber breathes toward it">' + GLYPH.setP + '</button></span>' +
-    '<label class="dim" id="baroTargetWrap" title="Target pressure"><span class="scrub" id="baroTarget" data-unit="bar"></span></label>');
+    '<span class="seg-mini" id="envBaro"><button data-v="off" aria-label="Passive pressure" title="Passive — the gauge only reports">Free</button>' +
+    '<button data-v="on" aria-label="Hold a pressure" title="Hold this pressure — the chamber breathes toward it">Hold</button></span>' +
+    '<label class="dim" id="baroTargetWrap" title="Target pressure"><span class="scrub" id="baroTarget" title="Target pressure in bar" data-unit="bar"></span></label>');
   group('Pressure', baro);
 
   const bath = el('span', 'seg-mini',
-    '<button data-v="wall" aria-label="Wall heater" title="Wall heater — warms the boundary; the interior follows">' + GLYPH.wall + '</button>' +
-    '<button data-v="kelvin" aria-label="Kelvin stat" title="Kelvin stat — every atom held at the set temperature, every step">' + GLYPH.kelvin + '</button>' +
-    '<button data-v="off" aria-label="Thermostat off" title="Off — setting a temperature is a one-off edit">' + GLYPH.off + '</button>');
+    '<button data-v="wall" aria-label="Wall heater" title="Wall heater — warms the boundary; the interior follows">' + GLYPH.wall + '<span>Wall</span></button>' +
+    '<button data-v="kelvin" aria-label="Kelvin stat" title="Kelvin stat — rescales total kinetic energy to the target each step">' + GLYPH.kelvin + '<span>Kelvin</span></button>' +
+    '<button data-v="off" aria-label="Thermostat off" title="Off — setting a temperature is a one-off edit">' + GLYPH.off + '<span>Off</span></button>');
   bath.id = 'envBath';
   group('Thermostat', bath);
 
-  const stat = el('div', 'stat-strip',
-    [['wall', GLYPH.wall], ['void', GLYPH.drain], ['gauge', GLYPH.gauge]]
+  const stat = el('div', 'stat-strip compact-stat', '<span>Energy removed</span>' +
+    [['void', GLYPH.drain]]
       .map(([k, g]) => '<div class="stat" data-k="' + k + '">' + g + '<b>—</b></div>').join(''));
   stage.appendChild(stat);
 
@@ -1644,34 +1640,12 @@ function renderEnvironmentApp(stage) {
   function paintBath() {
     bath.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === bathMode()));
   }
-  /* The drawing is the explanation: a forcefield turns the atom before the face and glows inward,
-     a temperature void flattens the exit leg because the atom leaves slower than it arrived. */
-  function paintArt() {
-    const a = $('chamberArt'); if (!a) return;
-    const field = eng.boundsMode === 'forcefield';
-    a.classList.toggle('field', field);
-    a.classList.toggle('voidT', !!eng.voidTemperature);
-    a.classList.toggle('voidP', !!eng.voidPressure || !!eng.voidVelocity);
-    const turn = field ? 247 : 260;
-    // the exit leg is what the wall gives back: flat when cooled, gone when the motion is voided
-    const cold = !!eng.voidTemperature, stopped = !!eng.voidVelocity || !!eng.voidPressure;
-    const d = stopped ? 'M56 96 L' + turn + ' 38' : 'M56 96 L' + turn + ' 38 L' + (cold ? 176 : 104) + ' ' + (cold ? 70 : 20);
-    $('artTrace').setAttribute('d', d);
-    $('artDot').innerHTML = '<animateMotion dur="3.6s" repeatCount="indefinite" path="' + d + '"/>';
-    if(document.documentElement.dataset.motion==='reduced'){a.setCurrentTime(.8);a.pauseAnimations();}
-  }
-  paintBath(); paintBaro(); paintArt();
+  paintBath(); paintBaro();
   const cells = stat.querySelectorAll('.stat');
   appRefresh = () => {
-    if (!$('chamberArt')) return;
-    const mode = bathMode();
-    cells[0].lastElementChild.textContent = mode === 'wall' ? (eng.wallT - 273.15).toFixed(0) + '°C'
-      : mode === 'kelvin' ? fmtT(eng.T) + ' K' : 'off';
-    cells[0].title = mode === 'wall' ? 'Wall temperature' : mode === 'kelvin' ? 'Held at this temperature, every atom, every step' : 'No thermostat';
-    cells[1].lastElementChild.textContent = (eng.voidTemperature || eng.voidPressure || eng.voidVelocity) ? eng.voidHeat.toFixed(0) : '—';
-    cells[1].title = 'Energy the void walls removed, kJ/mol';
-    cells[2].lastElementChild.textContent = fmtP(eng.pressureEMA);
-    cells[2].title = eng.pressureControl ? 'Wall pressure, held toward ' + fmtP(eng.pressureTarget) : 'Mean normal wall pressure';
+    if (!stage.isConnected) return;
+    cells[0].lastElementChild.textContent = (eng.voidTemperature || eng.voidPressure || eng.voidVelocity) ? eng.voidHeat.toFixed(1) + ' kJ/mol' : '—';
+    cells[0].title = 'Energy removed by void walls';
     paintBaro();
     paintBath();
   };
@@ -1680,9 +1654,10 @@ function renderEnvironmentApp(stage) {
 
 function renderDisplayApp(stage){
   appRefresh=null;
-  stage.appendChild(el('div','section-intro','<p class="eyebrow">MAKE IT YOURS</p><h2>Your laboratory.</h2><p>Display preferences stay on this device. Physics always advances in 1 fs steps.</p>'));
+
   const select=(title,note,key,options)=>{
-    const row=el('label','preference-row','<span>'+title+'<small>'+note+'</small></span>');
+    const row=el('label','preference-row','<span>'+title+'</span>');
+    row.title=note;
     const input=document.createElement('select');input.setAttribute('aria-label',title);
     for(const [value,label] of options){const option=document.createElement('option');option.value=value;option.textContent=label;input.append(option);}
     input.value=appearance[key];input.onchange=()=>{appearance[key]=input.value;applyAppearance();};row.append(input);stage.append(row);
@@ -1691,10 +1666,11 @@ function renderDisplayApp(stage){
   select('Interface motion','Follows your system by default.','motion',[['system','System'],['full','Fluid'],['reduced','Reduced']]);
   select('Compute priority','Reserve more time for interaction or simulation.','budget',[['responsive','Interaction'],['balanced','Balanced'],['throughput','Simulation']]);
   for(const [key,title,note] of [['grid','Reference grid','Keep a subtle spatial reference.'],['labels','Atom labels','Show symbols alongside atomic centres.']]){
-    const row=el('label','preference-row','<span>'+title+'<small>'+note+'</small></span>');
+    const row=el('label','preference-row','<span>'+title+'</span>');
+    row.title=note;
     const input=document.createElement('input');input.type='checkbox';input.checked=appearance[key];input.setAttribute('aria-label',title);input.onchange=()=>{appearance[key]=input.checked;applyAppearance();};row.append(input);stage.append(row);
   }
-  const reset=el('button','ghost preference-reset','Restore preferences');reset.onclick=()=>{Object.assign(appearance,{quality:'balanced',motion:'system',grid:true,labels:true,budget:'balanced'});applyAppearance();selectApp('display');};stage.append(reset);
+  const reset=el('button','ghost preference-reset','Reset display');reset.onclick=()=>{Object.assign(appearance,{quality:'balanced',motion:'system',grid:true,labels:true,budget:'balanced'});applyAppearance();selectApp('display');};stage.append(reset);
 }
 
 /* ---- about ---- */
@@ -1708,8 +1684,8 @@ function renderAboutApp(stage) {
     ['What is checked', 'H₂ 0.741 Å / 436 kJ/mol, water 104.2°, the water dimer at −26 kJ/mol, 2 H₂ + O₂ → 2 H₂O at −486 (lit. −484), H + H₂ barrier 43 (lit. 40), ethene + Cl· barrierless. Na + Cl₂ → NaCl runs at 300 K; CH₄ + O₂ at 3500 K passes through CH₂O and OH·.'],
     ['Known to be wrong', 'Spin is absent (O₂ is patched to act as the triplet diradical it is). Cl + H₂ and OH + H₂ have barriers that are too high, H + O₂ → OH + O too low. CO gets a double bond instead of a triple. Water needs below ~150 K to freeze, because lone pairs have no direction. No tunnelling, excited states or solvent.'],
     ['Three dimensions', 'A 3D chamber seen face on. Solid walls reflect atomic centres at all six faces; the optional soft field allows penetration. Electron contours can extend past a face. Right-drag empty space to tilt the view; zoom changes the view, never atom sizes or the chamber volume.'],
-    ['Temperature', 'The reading is the kinetic temperature of whatever is in the chamber. With a handful of atoms it wanders by tens of kelvin from one instant to the next — that is the real physics of a small sample, not friction. The gauge shows a running mean with the spread beside it.'],
-    ['Energy &amp; pressure', 'Force checks hold internal bond orders fixed; changing those heuristic orders can cause drift, and extreme-collision speed clamps remove energy. Wall pressure is averaged normal stress, with no pressure controller.'],
+    ['Temperature', 'Wall mode exchanges heat at the boundary. Kelvin mode rescales total kinetic energy each step: it suppresses fluctuations and can alter reaction dynamics. Off leaves motion unthermostatted.'],
+    ['Energy &amp; pressure', 'Force checks hold internal bond orders fixed; changing those heuristic orders can cause drift, and extreme-collision speed clamps remove energy. Wall pressure is averaged normal stress. Optional pressure control adjusts chamber width and height; it is a heuristic controller, not validated NPT sampling.'],
     ['What you see', 'Field contours show tabulated atomic sizes through Gaussian surfaces. The atom inspector runs a real Hartree–Fock calculation; the chamber view does not.'],
     ['Zero kelvin', 'A classical geometry minimum with zero initial velocities. Quantum zero-point motion is not represented.']
   ];
@@ -1722,7 +1698,7 @@ function renderAboutApp(stage) {
 /* ---- keybinds ---- */
 function renderKeysApp(stage) {
   appRefresh = null;
-  const head = el('div', 'keys-hint', '<span>Click a key to rebind it. A key already in use moves here.</span>');
+  const head = el('div', 'keys-hint', '<span>Select a key to rebind.</span>');
   const reset = el('button', 'ghost', 'Reset all');
   reset.onclick = () => { keymap = Object.assign({}, defaultKeys); store.set('keys', keymap); refreshKeyHints(); selectApp('keys'); };
   head.appendChild(reset);
@@ -1777,7 +1753,7 @@ function loadScene() {
     }
     for (const a of s.atoms) if (BY_SYM[a[0]]) eng.addAtom(a[0], a[1], a[2], a[3], { v: [a[4], a[5], a[6]], charge: a[7], V: a[8] });
     eng.time = s.time || 0;
-    for (const key of ['wallT', 'wallTarget', 'wallTau', 'heatToSample', 'heaterWork']) if (Number.isFinite(s[key])) eng[key] = s[key];
+    for (const key of ['wallT', 'wallTarget', 'wallTau', 'heatToSample', 'heaterWork', 'kelvinWork']) if (Number.isFinite(s[key])) eng[key] = s[key];
     if (s.boundsMode === 'forcefield' || s.boundsMode === 'solid') eng.boundsMode = s.boundsMode;
     if (typeof s.voidTemperature === 'boolean') eng.voidTemperature = s.voidTemperature;
     eng.voidPressure = s.dampingVersion >= 3 && !!s.voidPressure;

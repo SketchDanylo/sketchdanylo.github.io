@@ -146,17 +146,25 @@ test('A reflecting chamber keeps its energy; every channel is opt-in', () => {
     assert.ok(Math.abs(e.kinetic() + e.Epot - E0) < 0.05 * E0, `${mode} conserves energy: ${e.kinetic() + e.Epot} vs ${E0}`);
   }
 });
-test('A pressure void reports no wall impulse while still containing the sample', () => {
-  const e = chamber({ voidPressure: true, T: 600 });
-  for (let i = 0; i < 12; i++) e.addAtom('Ar', 8 + (i % 4) * 14, 10 + ((i / 4) | 0) * 18, 0, { thermal: true });
-  for (let s = 0; s < 4000; s++) e.step();
-  near(e.wallForce, 0, 1e-12);
-  near(e.pressureBar, 0, 1e-12);
-  for (let i = 0; i < e.N; i++) for (let d = 0; d < 3; d++) {
-    const lo = [e.box.x0, e.box.y0, e.box.z0][d], hi = [e.box.x1, e.box.y1, e.box.z1][d];
-    assert.ok(e.pos[3 * i + d] >= lo - 1e-9 && e.pos[3 * i + d] <= hi + 1e-9, 'atoms stay inside');
+test('Absorption reports m*v impulse and accounts for removed energy once', () => {
+  for(const channel of ['voidPressure','voidVelocity']){
+    const e=chamber({[channel]:true});e.addAtom('Ar',59.999,30,0,{thermal:false,v:[.02,.005,0]});
+    const K=e.kinetic(), impulse=e.mass[0]*.02*1e4;e.step();
+    near(e.wallForce,impulse/e.dt,1e-9);near(e.kinetic()+e.voidHeat,K,1e-9);near(e.pos[0],60);
+    assert.ok(e.pressureBar>0);const snap=e.snapshot();e.step();const expected=e.snapshot();e.restore(snap);e.step();
+    near(e.voidHeat,expected.voidHeat);near(e.pressureEMA,expected.pressureEMA);
   }
 });
+test('Absorbing corner impacts stop at the faces and count each normal impulse',()=>{
+  const e=chamber({voidVelocity:true});e.addAtom('Ar',60.1,60.2,30.1,{thermal:false,v:[.02,.03,.04]});
+  const K=e.kinetic();e._wallImpulse=0;e._reflectWalls();
+  assert.deepEqual([...e.pos.slice(0,3)],[60,60,30]);near(e.voidHeat,K);near(e._wallImpulse,e.mass[0]*.09*1e4,1e-8);
+});
+test('Rejected integration restores the absorbed-energy ledger',()=>{
+  const e=chamber({voidPressure:true});e.addAtom('Ar',60.1,30,0,{thermal:false,v:[.02,0,0]});
+  e.voidHeat=7;e._save();e._wallImpulse=0;e._reflectWalls();assert.ok(e.voidHeat>7);e._load();near(e.voidHeat,7);
+});
+
 test('A temperature void takes the agitation and leaves the molecule whole', () => {
   // one N2 drifting into a wall: the bond must survive, the shaking must not
   const e = chamber({ voidTemperature: true, thermostat: false });
@@ -209,5 +217,11 @@ test('Pressure control keeps a molecule rigid while the walls move', () => {
   const before = Math.abs(e.pos[0] - e.pos[3]);
   for (let s = 0; s < 2000; s++) e.step();
   near(Math.abs(e.pos[0] - e.pos[3]), before, 0.05);
+});
+test('Pressure control preserves pinned fragments and cannot pass walls through them',()=>{
+  const e=chamber({pressureControl:true,pressureTarget:200,pressureTau:100});
+  e.addAtom('N',2,10,0,{thermal:false});e.addAtom('N',3.1,10,0,{thermal:false});e.setBondOrder(0,1,3);e.pinned[0]=1;
+  e.computeForces();const positions=[...e.pos.slice(0,6)];for(let n=0;n<100;n++)e._barostat();
+  assert.deepEqual([...e.pos.slice(0,6)],positions);assert.ok(e.box.x0<=2);assert.ok(e.box.y0<=10);
 });
 console.log(`${count} boundary checks passed.`);

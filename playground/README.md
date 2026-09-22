@@ -11,20 +11,9 @@ difference between them is who gets touched and when.
 
 ### Kelvin stat
 
-Every unpinned atom is rescaled to the setpoint on every step, `v *= sqrt(K_target / K)`, after
-the void walls have taken their share. The measured temperature is therefore the set temperature
-to the last digit — it is a setting, not an outcome, and the gauge has nothing left to wander.
+All unpinned velocities receive the same factor `sqrt(K_target / K)` each step, after void-wall absorption. This fixes the **total kinetic temperature**, not each atom's energy. Startup from rest initializes velocities and records the injected energy in `kelvinWork`.
 
-This is what makes a void wall usable. What the wall removes, the stat returns on the same tick,
-so the chamber sits in a genuine steady state: over 40 ps at 400 K with a temperature void the
-reading is 400.00 K at every sample, and the stat's ledger shows it handing back the 1947 kJ/mol
-the wall took. Six waters survive at 1200 K held this way.
-
-It fixes the total kinetic energy, not its distribution. Relative speeds between atoms are
-untouched by the rescale, so the Maxwell tail — and with it the chemistry — survives; what is
-lost is the fluctuation a finite sample really has, which is the price of asking for an exact
-temperature. Pinned atoms stay at rest. Work done is tallied in `kelvinWork`, and a Kelvin
-trajectory replays bit-exactly.
+This is a numerical isokinetic control, not a physical wall bath. It preserves instantaneous speed ratios but changes relative velocities, suppresses kinetic-energy fluctuations, and can alter reaction dynamics. An exact temperature readout does not establish accurate reaction rates or canonical sampling. Pinned atoms stay fixed, and work accounting survives replay. See [velocity-rescaling thermostats](https://docs.lammps.org/fix_temp_rescale.html).
 
 ### Wall heater
 
@@ -47,38 +36,19 @@ Isolated molecule conditioning retains a separate CSVR sampling bath.
 
 ## Chamber boundaries
 
-The **Environment** panel sets the chamber geometry and boundary.
+The **Conditions** panel sets the chamber geometry and boundary.
 
 - **Solid** reflects atomic centres at all six faces during the integration drift. Normal velocity reverses; tangential velocity and kinetic energy are preserved. Corner and multiple-face crossings are handled. Contour tails may extend beyond the face because the contours are schematic atomic envelopes.
 - **Forcefield** uses a conservative harmonic potential, 5 kJ/mol/Å², starting 1.2 Å inside the face. Atoms can penetrate this soft boundary before turning back.
 ### Void walls
 
-A reflecting chamber gives back everything it receives. Nothing has anywhere to go, so the
-energy a molecule releases as it settles comes straight back off the walls: leave six waters at
-2000 K in a closed box and the sample runs to 4400 K and two of them come apart. **Void walls**
-make the chamber open in a chosen respect — the face keeps the sample in, but refuses to hand
-one quantity back. The same three work for solid and soft bounds, because the contact shell
-(0.8 Å measured inward from the face) is where a wall takes its bite, not the face itself.
+These optional numerical absorbers act in a 0.8 Å contact shell, with a 300 fs exponential response. They are artificial energy sinks, not models of vacuum.
 
-- **Temperature** cools the whole molecule that touches the wall, at one rate, `v *= exp(-dt·w/τ)`
-  with τ = 300 fs and `w` the contact weight. Spreading the weight along bonds first is the point:
-  cooling one atom of a bond and not the other is itself a force, and that is what tears molecules
-  apart. Whole-body cooling cannot.
-- **Velocity** takes all the motion of the atom in contact, and only that atom. Blunt, and the
-  fastest way to bring a chamber to rest.
-- **Pressure** takes the normal component and the impulse the face would have reported, so the
-  gauge reads an open chamber. Solid faces stop reflecting when this is on: an arriving atom is
-  absorbed rather than returned, and contributes nothing to wall stress.
+- **Temperature** applies a common damping factor to bonded atoms connected to a wall contact. It removes both internal and translational kinetic energy; it does not guarantee that bonds survive.
+- **Velocity** damps all motion of contacting atoms. At a solid-face crossing it stops the atom at the face.
+- **Pressure** damps normal motion. At a solid-face crossing it stops only the normal velocity. Absorption transfers `m*v` normal momentum, while elastic reflection transfers `2*m*v`; both contribute to measured wall stress.
 
-Each is an exponential absorber, so none can inject energy or reverse a velocity. Energy removed
-is tallied in `voidHeat` and shown in the panel. With any channel on the chamber is an open
-system and does not conserve energy — that is the point of it. The wall heater still works
-against a void wall but no longer reaches its setpoint; the **Kelvin stat** does, and pairing
-the two is the intended way to run an open chamber at a fixed temperature. With no thermostat
-at all the chamber settles at rest.
-
-Measured over 30,000 steps, six waters starting at 2000 K: reflecting walls reach 4400 K with
-four molecules intact; any void channel keeps all six.
+Removed energy is recorded in `voidHeat`. Rejected integration attempts restore this ledger, so an absorbed collision is counted once. A thermostat can add energy back; this does not make the combined dynamics a validated physical open-system model.
 
 ### Pressure
 
@@ -86,8 +56,7 @@ Wall pressure is normal momentum flux (solid collisions) or normal reaction forc
 divided by total wall area. That passive reading is always reported. **Hold** turns on a
 Berendsen-style controller: every 100 steps the chamber breathes toward the target with
 `μ = 1 + gain·(P − P_target)/span`, clamped to 0.4 % per adjustment, across width and height only
-— the slab depth stays what you set. Whole fragments move with the walls and bond lengths are
-never scaled, so a molecule is carried rather than squeezed.
+— the slab depth stays what you set. Unpinned fragments move with the walls without scaling their internal bond lengths. Pinned fragments remain fixed and limit compression. This heuristic controller is not a validated NPT ensemble or an explicit piston; its mechanical work is not included in the energy ledger.
 
 `node playground/tests/thermal-walls.cjs` checks all three thermostats, including exactness,
 replacement of void losses, pinned atoms and bit-exact replay.
@@ -98,9 +67,9 @@ deterministic replay. A boundary you drag is a user edit, not a simulated piston
 
 ## Interface and performance preferences
 
-The Studio console includes persistent contour quality, grid, atom-label, interface-motion and compute-priority controls. Reduced motion follows the operating system by default. Display quality changes rendering resolution only; the physical step stays 1 fs. The actual simulation rate remains visible when CPU-bound.
+The compact settings panel includes persistent contour quality, grid, atom-label, interface-motion and compute-priority controls. Reduced motion follows the operating system by default. Display quality changes rendering resolution only; the physical step stays 1 fs. The actual simulation rate remains visible when CPU-bound.
 
-The visual direction follows the [SketchDanylo collection](https://sketchdanylo.github.io/): graphite glass, neutral gray surfaces, pearl switches and restrained champagne serif headings. Menus, switches, segmented selections and panels use smooth transitions; system or explicit reduced-motion preferences disable them. Selects progressively enhance to native customizable glass pickers in supporting browsers, retaining standard native controls elsewhere. All artwork and controls use CSS/SVG/canvas without an animation library.
+The visual direction follows the [SketchDanylo collection](https://sketchdanylo.github.io/): graphite glass, neutral gray surfaces, pearl controls and restrained serif headings. A compact panel opens beside the gauges, leaving the chamber visible. Decorative headlines, the duplicate chamber illustration and repeated readouts have been removed; explanations remain in tooltips and the Model tab. Menus, switches, segmented selections and panels use smooth transitions; system or explicit reduced-motion preferences disable them. Selects progressively enhance to native customizable glass pickers in supporting browsers, retaining standard native controls elsewhere. All artwork and controls use CSS/SVG/canvas without an animation library.
 
 ## Time
 
@@ -150,7 +119,7 @@ quantity is the bond multiplicity n, which relaxes over about 12 fs.
 | NVE energy drift, 2 ps | < 2 kJ/mol | — |
 | Step back ×2 | bit-identical | — |
 
-`node playground/tests/reactions.cjs [--dyn]` — reaction barriers from relaxed minimum-energy paths,
+`node playground/tests/reactions.cjs [--dyn]` — reaction barriers from constrained collinear scans,
 reaction energies, and whole mixtures run for tens of picoseconds:
 
 | Elementary step | Barrier, model | Barrier, lit. | ΔE model | ΔH lit. |
@@ -171,8 +140,9 @@ reaction energies, and whole mixtures run for tens of picoseconds:
 | H₂ + Cl₂ → 2 HCl | −184 | −185 |
 | H₂ + F₂ → 2 HF | −543 | −546 |
 | N₂ + 3 H₂ → 2 NH₃ | −116 | −92 |
-| CH₄ + 2 O₂ → CO₂ + 2 H₂O | −756 | −802 |
-| C₂H₄ + H₂ → C₂H₆ | −127 | −136 |
+| CH₄ + 2 O₂ → CO₂ + 2 H₂O | −755 | −802 |
+| 2 CO + O₂ → 2 CO₂ | −1062 | −566 |
+| C₂H₄ + H₂ → C₂H₆ | −116 | −136 |
 | Na + Cl → NaCl | −410 | −412 (bond energy) |
 
 Mixtures that react on their own (40 ps each, `--dyn`):
