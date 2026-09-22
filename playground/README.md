@@ -52,12 +52,20 @@ models of vacuum.
   on it, never ends a step hotter than the temperature it was set to. One-sided: it only removes,
   so a cold chamber stays cold and nothing here can drive the sample. The whole sample is scaled
   at once, so no bond is ever pulled harder at one end than the other.
-- **Velocity** stops an atom dead. Not damped, not reflected: every component is zeroed for as
-  long as it is in contact, and the atom rests at the wall until a neighbour pushes it off. The
-  momentum it delivered is still wall stress and is still reported.
+- **Velocity** stops an atom dead. Not damped, not reflected: every component is zeroed at the
+  moment of contact, and the atom is then left alone — free to be moved by whatever else acts on
+  it. The momentum it delivered is still wall stress and is still reported.
 - **Pressure** absorbs the component along the face it touched, so the atom slides on with its
   other motion intact, and the wall reports no impulse at all. The pressure radiates away with
   the chamber exactly the size it was. This is the only channel that drops the gauge to zero.
+
+Both act **only on contact, and only on motion driving into a face the atom has actually
+reached.** Measuring contact as a shell reaching inward from the face was wrong twice over: an
+atom gliding past a wall it never touched was stopped, and an atom approaching one was halted
+short of it, hanging in mid-air. It also clamped an atom inside the shell every step while its
+bonded partners outside it kept moving, which stretches the bond and drags the molecule — a wall
+that appeared to shove things for no reason. A molecule resting near a wall now behaves exactly
+as it does in a reflecting chamber.
 
 **The wall is measured, not set.** `wallMeasured` is the kinetic temperature of the fluid lying
 within `wallSkin` of a face — the wall is whatever the sample against it is, and a heater only

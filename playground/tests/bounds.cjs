@@ -283,4 +283,42 @@ test('Pressure control preserves pinned fragments and cannot pass walls through 
   e.computeForces();const positions=[...e.pos.slice(0,6)];for(let n=0;n<100;n++)e._barostat();
   assert.deepEqual([...e.pos.slice(0,6)],positions);assert.ok(e.box.x0<=2);assert.ok(e.box.y0<=10);
 });
+test('A void wall only acts on contact, never on atoms merely near it', () => {
+  for (const ch of ['voidPressure', 'voidVelocity']) {
+    // gliding parallel to a face it never touches
+    const glide = chamber({ [ch]: true, thermostat: false });
+    glide.addAtom('Ar', 59.5, 30, 0, { thermal: false, v: [0, 0.01, 0] });
+    glide.step();
+    assert.deepEqual([...glide.vel.slice(0, 3)], [0, 0.01, 0], `${ch} ignores an atom gliding past`);
+    // approaching, still short of the face
+    const near = chamber({ [ch]: true, thermostat: false });
+    near.addAtom('Ar', 59.5, 30, 0, { thermal: false, v: [0.002, 0, 0] });
+    near.step();
+    assert.equal(near.vel[0], 0.002, `${ch} lets an atom reach the wall before acting`);
+    assert.equal(near.voidHeat, 0);
+  }
+});
+
+test('A molecule resting near a wall is left exactly as a reflecting chamber leaves it', () => {
+  const settle = opts => {
+    const e = new Engine({ width: 40, height: 30, depth: 20, T: 0, wallT: 0, seed: 3, thermostat: false, ...opts });
+    e.addAtom('O', 20, 15, 0, { thermal: false });
+    e.addAtom('H', 20.76, 15.59, 0, { thermal: false });
+    e.addAtom('H', 19.24, 15.59, 0, { thermal: false });
+    e.refresh();
+    for (let s = 0; s < 4000; s++) { e.step(); e.vel.fill(0); }   // relax into its own geometry
+    for (let i = 0; i < e.N; i++) e.pos[3 * i] += 18.74;          // 0.5 A clear of the +x face
+    e.prev.set(e.pos); e.vel.fill(0); e.touch(); e.refresh();
+    let peak = 0;
+    for (let s = 0; s < 3000; s++) { e.step(); peak = Math.max(peak, e.kinetic()); }
+    return peak;
+  };
+  const closed = settle({});
+  for (const ch of ['voidPressure', 'voidVelocity']) {
+    const open = settle({ [ch]: true });
+    near(open, closed, 1e-18, );
+    assert.ok(open < 1e-12, `${ch} sets nothing in motion, peak ${open}`);
+  }
+});
+
 console.log(`${count} boundary checks passed.`);

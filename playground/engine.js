@@ -1025,21 +1025,6 @@ class Engine {
     return E;
   }
 
-  /* The contact shell: 1 at and beyond the face, ramping to 0 one skin depth inside it.
-     A solid wall and a soft field both take their bite here, so a void behaves the same
-     whichever bound is chosen. */
-  _contact(i, out) {
-    const b = this.box, p = this.pos, k = 3 * i, skin = Math.max(1e-6, this.voidSkin);
-    const lo = [b.x0, b.y0, b.z0], hi = [b.x1, b.y1, b.z1];
-    let w = 0;
-    for (let d = 0; d < 3; d++) {
-      const past = Math.max(lo[d] - p[k + d], p[k + d] - hi[d]);
-      const wd = Math.min(1, Math.max(0, (past + skin) / skin));
-      out[d] = wd;
-      if (wd > w) w = wd;
-    }
-    return w;
-  }
   /* Void walls. Each channel deletes one thing the chamber would otherwise keep. They are not
      gentle absorbers: what is voided is gone the moment it appears, which is what "void" means.
 
@@ -1055,14 +1040,29 @@ class Engine {
     if (this.sphere) return;
     const momentum = this.voidPressure, whole = this.voidVelocity;
     if (!momentum && !whole) return;
-    const N = this.N, vel = this.vel, per = [0, 0, 0];
+    const b = this.box, lo = [b.x0, b.y0, b.z0], hi = [b.x1, b.y1, b.z1];
+    const N = this.N, pos = this.pos, vel = this.vel, into = [0, 0, 0];
     let lost = 0;
     for (let i = 0; i < N; i++) {
       if (this.pinned[i]) continue;
-      if (this._contact(i, per) <= 0) continue;
-      const k = 3 * i, m = this.mass[i];
+      const k = 3 * i;
+      /* Only motion that is driving into a face it has actually reached. Measuring contact as a
+         shell reaching inward from the face was wrong twice over: an atom gliding past a wall it
+         never touched was stopped, and an atom approaching one was halted short of it, hanging in
+         mid-air. Worse, an atom inside the shell was clamped every step while its bonded partners
+         outside it were not, which stretches the bond and drags the molecule around — the wall
+         appearing to shove things for no reason. Held here to the moment of contact, a stopped
+         atom is simply left alone afterwards, free to be moved by whatever else acts on it. */
+      let driving = false;
       for (let d = 0; d < 3; d++) {
-        if (!whole && per[d] <= 0) continue;     // pressure takes only the face's own axis
+        const p = pos[k + d], v = vel[k + d];
+        into[d] = (p <= lo[d] && v < 0) || (p >= hi[d] && v > 0) ? 1 : 0;
+        if (into[d]) driving = true;
+      }
+      if (!driving) continue;
+      const m = this.mass[i];
+      for (let d = 0; d < 3; d++) {
+        if (!whole && !into[d]) continue;       // pressure takes only the face's own axis
         const j = k + d;
         lost += 0.5 * KEU * m * vel[j] * vel[j];
         vel[j] = 0;
