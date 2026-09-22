@@ -1471,26 +1471,13 @@ function dropdown({ options, multi, get, set, summary, label = 'Boundary type' }
     sheet.remove(); sheet = null; wrap.classList.remove('open');
     btn.setAttribute('aria-expanded', 'false');
     document.removeEventListener('pointerdown', outside);
-    const stage = $('consoleStage');
-    if (stage) stage.removeEventListener('scroll', reposition);
-    removeEventListener('resize', reposition);
     if (focus === true) btn.focus({ preventScroll: true });
   };
-  // scrolling or resizing moves the sheet with its button rather than dismissing it: closing on
-  // scroll meant a sheet could vanish the instant it opened, leaving nothing to click
-  const reposition = () => { if (sheet) placeSheet(); };
-  /* The sheet floats above everything instead of living inside the scrolling panel: an
-     absolutely positioned child is clipped by that panel, so options past its bottom edge
-     could not be clicked at all. It flips upward when there is no room below. */
-  const placeSheet = () => {
-    const r = btn.getBoundingClientRect();
-    sheet.style.width = r.width + 'px';
-    sheet.style.maxHeight = Math.max(100,Math.max(r.top-15,innerHeight-r.bottom-15))+'px';
-    sheet.style.left = Math.max(8, Math.min(innerWidth - r.width - 8, r.left)) + 'px';
-    const h = sheet.offsetHeight || 0, below = innerHeight - r.bottom - 10;
-    const top = below >= h || r.top < h + 10 ? r.bottom + 5 : r.top - h - 5;
-    sheet.style.top = Math.max(8, Math.min(Math.max(8, innerHeight - h - 8), top)) + 'px';
-  };
+  /* The options open inside the panel, in its own flow, rather than as a floating layer
+     positioned against the button. A floated sheet has to be kept in step with a control that
+     sits in a scrollable, draggable window, and any reflow between paint and click left it
+     somewhere other than where it looked — visible options that could not be hit. In flow there
+     is nothing to keep in step: the panel scrolls, the options travel with their control. */
   const open = () => {
     if (sheet) return;
     document.querySelectorAll('.drop.open .drop-btn').forEach(b => b !== btn && b.click());
@@ -1508,16 +1495,11 @@ function dropdown({ options, multi, get, set, summary, label = 'Boundary type' }
     });
     sheet.addEventListener('keydown', navigate);
     sheet.addEventListener('focusout', leave);
-    // the sheet lives outside `wrap`, so it needs its own keyboard and focus wiring
-    sheet.addEventListener('keydown', navigate);
-    sheet.addEventListener('focusout', leave);
-    document.body.appendChild(sheet); wrap.classList.add('open');
-    placeSheet();
+    wrap.appendChild(sheet); wrap.classList.add('open');
+    // keep the newly opened options in view when the control sits low in the panel
+    sheet.scrollIntoView({ block: 'nearest' });
     btn.setAttribute('aria-expanded', 'true'); paint();
     document.addEventListener('pointerdown', outside);
-    const stage = $('consoleStage');
-    if (stage) stage.addEventListener('scroll', reposition);
-    addEventListener('resize', reposition);
     // preventScroll matters: scrolling the panel to reach the focused option moved the button
     // out from under the sheet the moment it opened
     (sheet.querySelector('[aria-selected="true"],[aria-checked="true"]') || sheet.firstElementChild).focus({ preventScroll: true });
@@ -1533,7 +1515,20 @@ function dropdown({ options, multi, get, set, summary, label = 'Boundary type' }
       items[next].focus({ preventScroll: true });
     } else if (e.key === 'Tab' && sheet) close(true);
   }
-  const leave=()=>queueMicrotask(()=>{if(!wrap.contains(document.activeElement) && !(sheet && sheet.contains(document.activeElement)))close();});
+  /* Pressing the mouse on an option moves focus off the control, and for an instant
+     document.activeElement is <body> before it lands on the option. Closing on that instant
+     destroyed the sheet between mousedown and mouseup, so the two never happened on the same
+     element and no click was ever generated: the options were visible and unselectable.
+     Only a focus that genuinely settles on something outside the widget closes it; a click
+     that lands outside is already handled by the pointerdown listener. */
+  const inside = n => !!n && (wrap.contains(n) || (sheet && sheet.contains(n)));
+  const leave = e => {
+    if (inside(e && e.relatedTarget)) return;
+    queueMicrotask(() => {
+      const a = document.activeElement;
+      if (a && a !== document.body && !inside(a)) close();
+    });
+  };
   wrap.addEventListener('keydown',navigate);
   wrap.addEventListener('focusout',leave);
   paint(); wrap.repaint = paint;
