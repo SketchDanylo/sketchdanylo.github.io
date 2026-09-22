@@ -4,7 +4,8 @@ const near = (a, b, tol = 1e-9) => assert.ok(Math.abs(a - b) < tol, `${a} vs ${b
 let count = 0;
 function test(name, run) { run(); console.log('PASS', name); count++; }
 function chamber(options = {}) {
-  return new Engine({ width: 100, height: 100, depth: 100, T: 300, wallT: 300, ...options });
+  // this file's own default is the wall heater; the engine's is now the Kelvin stat
+  return new Engine({ width: 100, height: 100, depth: 100, T: 300, wallT: 300, thermostatMode: 'wall', ...options });
 }
 test('A setpoint heats the wall gradually and leaves the interior velocities unchanged', () => {
   const e = chamber();

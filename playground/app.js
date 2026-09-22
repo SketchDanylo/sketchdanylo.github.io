@@ -34,7 +34,7 @@ function setBathMode(mode) {
   tField.render(); paintT(); scheduleSave();
   if ($('tPop').classList.contains('open')) openTPop();
 }
-function toggleBath() { setBathMode(eng.thermostat ? 'off' : (store.get('bathMode', 'wall') === 'kelvin' ? 'kelvin' : 'wall')); }
+function toggleBath() { setBathMode(eng.thermostat ? 'off' : (store.get('bathMode', 'kelvin') === 'wall' ? 'wall' : 'kelvin')); }
 function resampleMotion() {
   if (!eng.N) return toast('Place atoms or molecules first');
   pushUndo(); eng.thermalize(eng.T); edited();
@@ -75,7 +75,7 @@ function updateLab() {
 const savedBox = store.get('box', { w: 36, h: 20, d: 12 });
 const eng = new Engine({ width: savedBox.w, height: savedBox.h, depth: savedBox.d, T: store.get('T', STP_T) });
 eng.thermostat = store.get('thermostat', true);
-eng.thermostatMode = store.get('bathMode', 'wall') === 'kelvin' ? 'kelvin' : 'wall';
+eng.thermostatMode = store.get('bathMode', 'kelvin') === 'wall' ? 'wall' : 'kelvin';
 const savedBounds = store.get('bounds', null);
 if (savedBounds) {
   if (savedBounds.mode === 'forcefield' || savedBounds.mode === 'solid') eng.boundsMode = savedBounds.mode;

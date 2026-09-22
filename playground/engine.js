@@ -320,10 +320,15 @@ class Engine {
     this.thermostat = opts.thermostat ?? true;
     // The sample exchanges heat only in a thin boundary layer. CSVR remains available
     // for preparing isolated molecules, not as the laboratory's thermostat.
-    // 'wall'   — a heater at the boundary; the interior warms through collisions.
-    // 'kelvin' — every atom, every step, held at exactly the setpoint.
-    // 'csvr'   — canonical sampling, kept for preparing isolated molecules.
-    this.thermostatMode = opts.thermostatMode || 'wall';
+    /* 'wall'   — a heater at the boundary; the interior warms through collisions.
+       'kelvin' — every atom, every step, held at exactly the setpoint.
+       'csvr'   — canonical sampling, kept for preparing isolated molecules.
+       Kelvin is the default because it is the one that lets a molecule be built. A bond forming
+       in open space releases its binding energy on the spot, and a boundary heater has no way to
+       take that away from the middle of the chamber, so the molecule you just made blows itself
+       apart — which is correct physics (recombination needs a third body) and useless as a
+       default. The Kelvin stat is that third body, everywhere. */
+    this.thermostatMode = opts.thermostatMode || 'kelvin';
     this.kelvinWork = 0;            // kJ/mol the Kelvin stat has put in (or taken out)
     this.kelvinMix = opts.kelvinMix ?? 0.02;  // how fast it shares heat out between atoms, per fs
     this.wallT = opts.wallT ?? this.T;

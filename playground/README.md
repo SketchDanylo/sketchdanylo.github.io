@@ -9,6 +9,22 @@ Open `playground/` on the site. Molecules come only from [Nomenclature](../nomen
 Three ways to hold a temperature, chosen in **Environment** or from the temperature gauge. The
 difference between them is who gets touched and when.
 
+### Building a molecule
+
+The Kelvin stat is the default, because it is the one that lets a molecule be built. A bond
+forming in open space releases its binding energy on the spot; a boundary heater has no way to
+take that away from the middle of the chamber, so the molecule you just made blows itself apart.
+That is correct physics — recombination genuinely needs a third body to carry the energy off —
+and useless as a default. The Kelvin stat is that third body, everywhere.
+
+Two things follow, and both are worth knowing before building anything:
+
+- **Add atoms one at a time, keeping like with like apart.** Four loose hydrogens near each other
+  pair into H₂ long before they reach a carbon, and H₂ will not then add to it. Starting from CH₂
+  and dragging in one lone hydrogen at a time gives CH₃ and then CH₄; starting from a carbon and
+  four adjacent hydrogens gives CH₂ + H₂ and stops there.
+- **A mixture that sits still is usually right.** Reactants are mostly metastable. Use the Spark.
+
 ### Kelvin stat
 
 All unpinned velocities receive the same factor `sqrt(K_target / K)` each step, after void-wall absorption. This fixes the **total kinetic temperature**, not each atom's energy. Startup from rest initializes velocities and records the injected energy in `kelvinWork`.
