@@ -955,30 +955,27 @@ class Engine {
   }
   /* Rectangular solid walls reflect the drift at the face. Soft fields and the
      spherical conditioning vessel retain conservative harmonic potentials. */
-  /* Solid faces reflect what reaches them. A void changes what comes back: with pressure, the
-     normal component is absorbed and the atom slides on; with velocity, the atom stops dead at
-     the face and stays there. Stopping still delivers m*v to the wall and is reported as such —
-     only a pressure void deletes the reading, which is the whole point of that channel. */
+  /* Solid faces reflect what reaches them. Only a velocity void changes that: an atom that
+     reaches the face stops there instead of bouncing. A pressure void changes nothing about how
+     atoms move — it voids the pressure, not the motion — so the wall simply records nothing. */
   _reflectWalls() {
     if (this.sphere || this.boundsMode !== 'solid') return;
     const b=this.box, lo=[b.x0,b.y0,b.z0], hi=[b.x1,b.y1,b.z1];
-    const stop = this.voidPressure || this.voidVelocity, full = this.voidVelocity;
+    const report = !this.voidPressure, halt = this.voidVelocity;
     for(let i=0;i<this.N;i++) {
       if(this.pinned[i]) continue;
       const k=3*i;
-      if(stop){
-        let touched = false;
+      if(halt){
+        let touched=false;
         for(let d=0;d<3;d++){
           const j=k+d;
           if(this.pos[j]<lo[d] || this.pos[j]>hi[d]){
-            touched = true;
+            touched=true;
             this.pos[j]=clampNum(this.pos[j],lo[d],hi[d]);
-            if(!this.voidPressure) this._wallImpulse+=this.mass[i]*Math.abs(this.vel[j])*KEU;
-            this.voidHeat+=0.5*KEU*this.mass[i]*this.vel[j]*this.vel[j];
-            this.vel[j]=0;                       // absorbed, not reflected
+            if(report) this._wallImpulse+=this.mass[i]*Math.abs(this.vel[j])*KEU;  // absorbed: m*v
           }
         }
-        if(full && touched) for(let d=0;d<3;d++){  // and velocity stops the atom outright
+        if(touched) for(let d=0;d<3;d++){          // and it stops where it stands
           const j=k+d;
           this.voidHeat+=0.5*KEU*this.mass[i]*this.vel[j]*this.vel[j];
           this.vel[j]=0;
@@ -990,8 +987,8 @@ class Engine {
         if(x>=lo[d] && x<=hi[d]) continue;
         const u=(x-lo[d])/L, cell=Math.floor(u), folded=((u%2)+2)%2;
         this.pos[j]=lo[d]+L*(folded<=1?folded:2-folded);
-        this._wallImpulse+=2*this.mass[i]*Math.abs(this.vel[j])*KEU*Math.abs(cell);
-        if(Math.abs(cell)%2===1) this.vel[j]=-this.vel[j];
+        if(report) this._wallImpulse+=2*this.mass[i]*Math.abs(this.vel[j])*KEU*Math.abs(cell);
+        if(Math.abs(cell)%2===1) this.vel[j]=-this.vel[j];   // reflection is untouched
       }
     }
   }
@@ -1036,33 +1033,28 @@ class Engine {
                      it would have reported radiates away without the chamber changing size.
        temperature — handled separately, in _voidHeat: heat is radiated off the instant it
                      appears, everywhere, not only where an atom happens to touch a wall. */
+  /* Velocity void. An atom that reaches a face stops there: every component zeroed, once, at the
+     moment of contact, and then left alone — free to be moved by whatever else acts on it. Only
+     motion driving into a face it has actually reached counts, so an atom gliding past a wall or
+     still approaching one is untouched, and an atom held at the wall is never clamped against its
+     own bonded neighbours. Pressure is not handled here: voiding a pressure reading must not
+     change how anything moves. */
   _voidWalls() {
-    if (this.sphere) return;
-    const momentum = this.voidPressure, whole = this.voidVelocity;
-    if (!momentum && !whole) return;
+    if (this.sphere || !this.voidVelocity) return;
     const b = this.box, lo = [b.x0, b.y0, b.z0], hi = [b.x1, b.y1, b.z1];
-    const N = this.N, pos = this.pos, vel = this.vel, into = [0, 0, 0];
+    const N = this.N, pos = this.pos, vel = this.vel;
     let lost = 0;
     for (let i = 0; i < N; i++) {
       if (this.pinned[i]) continue;
       const k = 3 * i;
-      /* Only motion that is driving into a face it has actually reached. Measuring contact as a
-         shell reaching inward from the face was wrong twice over: an atom gliding past a wall it
-         never touched was stopped, and an atom approaching one was halted short of it, hanging in
-         mid-air. Worse, an atom inside the shell was clamped every step while its bonded partners
-         outside it were not, which stretches the bond and drags the molecule around — the wall
-         appearing to shove things for no reason. Held here to the moment of contact, a stopped
-         atom is simply left alone afterwards, free to be moved by whatever else acts on it. */
       let driving = false;
-      for (let d = 0; d < 3; d++) {
+      for (let d = 0; d < 3 && !driving; d++) {
         const p = pos[k + d], v = vel[k + d];
-        into[d] = (p <= lo[d] && v < 0) || (p >= hi[d] && v > 0) ? 1 : 0;
-        if (into[d]) driving = true;
+        if ((p <= lo[d] && v < 0) || (p >= hi[d] && v > 0)) driving = true;
       }
       if (!driving) continue;
       const m = this.mass[i];
       for (let d = 0; d < 3; d++) {
-        if (!whole && !into[d]) continue;       // pressure takes only the face's own axis
         const j = k + d;
         lost += 0.5 * KEU * m * vel[j] * vel[j];
         vel[j] = 0;

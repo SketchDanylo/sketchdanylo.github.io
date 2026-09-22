@@ -81,19 +81,20 @@ test('A velocity void stops an atom dead at the wall and leaves it there', () =>
   for (let d = 0; d < 3; d++) assert.equal(e.pos[d], resting[d], 'and it does not drift afterwards');
 });
 
-test('A pressure void takes the face axis only, so an atom slides on', () => {
-  const e = chamber({ voidPressure: true, thermostat: false });
-  // travelling at the +x face with motion along y that has nothing to do with that face
-  // slow enough along y that it never reaches the y faces within the run
-  e.addAtom('Ar', 30, 30, 0, { thermal: false, v: [0.02, 0.002, 0] });
-  const width = e.box.x1 - e.box.x0;
-  for (let i = 0; i < 4000; i++) e.step();
-  assert.ok(e.pos[1] > e.box.y0 + 1 && e.pos[1] < e.box.y1 - 1, 'it never met a y face');
-  assert.equal(e.vel[0], 0, 'the normal component is absorbed');
-  near(e.vel[1], 0.002, 1e-12);                       // tangential motion is untouched
-  near(e.wallForce, 0, 1e-12);
-  near(e.pressureBar, 0, 1e-12);
-  near(e.box.x1 - e.box.x0, width, 1e-12);            // and the chamber never grew
+test('A pressure void silences the gauge and changes nothing about the motion', () => {
+  const open = chamber({ voidPressure: true, thermostat: false });
+  const closed = chamber({ thermostat: false });
+  for (const e of [open, closed]) for (let i = 0; i < 18; i++) e.addAtom('Ar', 6 + (i % 6) * 10, 8 + ((i / 6) | 0) * 18, 0, { thermal: true });
+  const width = open.box.x1 - open.box.x0;
+  for (let i = 0; i < 4000; i++) { open.step(); closed.step(); }
+  // a voided chamber is trajectory-identical to a reflecting one
+  for (let k = 0; k < 3 * open.N; k++) { near(open.pos[k], closed.pos[k], 1e-12); near(open.vel[k], closed.vel[k], 1e-12); }
+  near(open.temperature(), closed.temperature(), 1e-12);
+  assert.equal(open.voidHeat, 0, 'voiding a reading takes no energy');
+  near(open.wallForce, 0, 1e-12);
+  near(open.pressureBar, 0, 1e-12);
+  assert.ok(closed.pressureEMA > 0, 'while the same chamber otherwise reports pressure');
+  near(open.box.x1 - open.box.x0, width, 1e-12);      // and the chamber never grew
 });
 
 test('The wall reports the fluid lying against it, not a heater setting', () => {
@@ -178,8 +179,13 @@ test('Every void channel removes energy at both wall kinds, and none can add any
     if (ch === 'voidTemperature') e.T = 100;
     const K0 = e.kinetic();
     for (let s = 0; s < 6000; s++) e.step();
-    assert.ok(e.voidHeat > 0, `${mode}/${ch} removed energy, got ${e.voidHeat}`);
-    assert.ok(e.kinetic() < K0, `${mode}/${ch} cooled the sample`);
+    if (ch === 'voidPressure') {                     // a voided reading, not an energy sink
+      assert.equal(e.voidHeat, 0, `${mode}/${ch} takes no energy`);
+      near(e.pressureBar, 0, 1e-12);
+    } else {
+      assert.ok(e.voidHeat > 0, `${mode}/${ch} removed energy, got ${e.voidHeat}`);
+      assert.ok(e.kinetic() < K0, `${mode}/${ch} cooled the sample`);
+    }
   }
 });
 test('A reflecting chamber keeps its energy; every channel is opt-in', () => {
@@ -203,14 +209,18 @@ test('Stopping at a wall reports m*v, and a pressure void deletes that reading',
     const snap=e.snapshot();e.step();const expected=e.snapshot();e.restore(snap);e.step();
     near(e.voidHeat,expected.voidHeat);near(e.pressureEMA,expected.pressureEMA);
   }
-  // pressure: the same blow lands, and the wall reports nothing at all
+  // pressure: the same blow lands and rebounds exactly as always; only the reading is voided
   {
-    const e=chamber({voidPressure:true});e.addAtom('Ar',59.999,30,0,{thermal:false,v:[.02,.005,0]});
-    const K=e.kinetic();e.step();
-    near(e.wallForce,0,1e-12);near(e.pressureBar,0,1e-12);
-    near(e.kinetic()+e.voidHeat,K,1e-9);near(e.pos[0],60);
-    const snap=e.snapshot();e.step();const expected=e.snapshot();e.restore(snap);e.step();
-    near(e.voidHeat,expected.voidHeat);near(e.pressureEMA,expected.pressureEMA);
+    const open=chamber({voidPressure:true}), closed=chamber();
+    for(const e of [open,closed]) e.addAtom('Ar',59.999,30,0,{thermal:false,v:[.02,.005,0]});
+    const K=open.kinetic(); open.step(); closed.step();
+    assert.deepEqual([...open.vel.slice(0,3)],[...closed.vel.slice(0,3)],'the bounce is untouched');
+    near(open.pos[0],closed.pos[0],1e-12);
+    near(open.kinetic(),K,1e-12); assert.equal(open.voidHeat,0);
+    near(open.wallForce,0,1e-12); near(open.pressureBar,0,1e-12);
+    assert.ok(closed.pressureBar>0,'while a closed chamber reports the blow');
+    const snap=open.snapshot();open.step();const expected=open.snapshot();open.restore(snap);open.step();
+    near(open.voidHeat,expected.voidHeat);near(open.pressureEMA,expected.pressureEMA);
   }
 });
 test('Absorbing corner impacts stop at the faces and count each normal impulse',()=>{
@@ -219,7 +229,7 @@ test('Absorbing corner impacts stop at the faces and count each normal impulse',
   assert.deepEqual([...e.pos.slice(0,3)],[60,60,30]);near(e.voidHeat,K);near(e._wallImpulse,e.mass[0]*.09*1e4,1e-8);
 });
 test('Rejected integration restores the absorbed-energy ledger',()=>{
-  const e=chamber({voidPressure:true});e.addAtom('Ar',60.1,30,0,{thermal:false,v:[.02,0,0]});
+  const e=chamber({voidVelocity:true});e.addAtom('Ar',60.1,30,0,{thermal:false,v:[.02,0,0]});
   e.voidHeat=7;e._save();e._wallImpulse=0;e._reflectWalls();assert.ok(e.voidHeat>7);e._load();near(e.voidHeat,7);
 });
 

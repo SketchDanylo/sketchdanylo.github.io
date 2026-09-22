@@ -55,11 +55,12 @@ models of vacuum.
 - **Velocity** stops an atom dead. Not damped, not reflected: every component is zeroed at the
   moment of contact, and the atom is then left alone — free to be moved by whatever else acts on
   it. The momentum it delivered is still wall stress and is still reported.
-- **Pressure** absorbs the component along the face it touched, so the atom slides on with its
-  other motion intact, and the wall reports no impulse at all. The pressure radiates away with
-  the chamber exactly the size it was. This is the only channel that drops the gauge to zero.
+- **Pressure** voids the pressure, not the motion. Atoms arrive and rebound exactly as they do
+  in a reflecting chamber — a voided chamber's trajectories are identical to a closed one's, atom
+  for atom — but the wall records nothing, so the gauge reads zero with the chamber exactly the
+  size it was. It removes no energy; it is a reading that is let go, not a sink.
 
-Both act **only on contact, and only on motion driving into a face the atom has actually
+Velocity acts **only on contact, and only on motion driving into a face the atom has actually
 reached.** Measuring contact as a shell reaching inward from the face was wrong twice over: an
 atom gliding past a wall it never touched was stopped, and an atom approaching one was halted
 short of it, hanging in mid-air. It also clamped an atom inside the shell every step while its
