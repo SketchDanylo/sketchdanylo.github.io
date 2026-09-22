@@ -42,12 +42,14 @@ test('A contained atom keeps its speed when no void is selected', () => {
 });
 
 test('Void temperature radiates self-made heat away instantly, everywhere', () => {
-  // a chamber that heats itself: hydrogen and oxygen let go at the set temperature
+  /* A chamber that really does heat itself: loose hydrogen and oxygen atoms, which pair off and
+     release their bond energy into the gas. A settled mixture of H2 and O2 will not do — at 300 K
+     it is metastable and stays that way, which is the whole point of needing a spark. */
   const build = opts => {
     const e = new Engine({ width: 26, height: 22, depth: 14, T: 300, wallT: 300, seed: 11, thermostat: false, ...opts });
-    let x = 4, y = 5;
-    for (let m = 0; m < 4; m++) { e.addAtom('H', x, y, 0, { thermal: true }); e.addAtom('H', x + .74, y, 0, { thermal: true }); e.setBondOrder(e.N - 2, e.N - 1, 1); x += 5; if (x > 20) { x = 4; y += 5; } }
-    for (let m = 0; m < 2; m++) { e.addAtom('O', x, y, 0, { thermal: true }); e.addAtom('O', x + 1.21, y, 0, { thermal: true }); e.setBondOrder(e.N - 2, e.N - 1, 2); x += 6; if (x > 20) { x = 4; y += 6; } }
+    let x = 5, y = 5;
+    for (let m = 0; m < 8; m++) { e.addAtom('H', x, y, 0, { thermal: true }); x += 6; if (x > 22) { x = 5; y += 6; } }
+    for (let m = 0; m < 4; m++) { e.addAtom('O', x, y, 0, { thermal: true }); x += 6; if (x > 22) { x = 5; y += 6; } }
     return e;
   };
   const closed = build({}), open = build({ voidTemperature: true });
@@ -57,7 +59,7 @@ test('Void temperature radiates self-made heat away instantly, everywhere', () =
     hottestClosed = Math.max(hottestClosed, closed.temperature());
     hottestOpen = Math.max(hottestOpen, open.temperature());
   }
-  assert.ok(hottestClosed > 450, `a closed chamber heats itself, reached ${hottestClosed.toFixed(0)} K`);
+  assert.ok(hottestClosed > 1000, `a closed chamber heats itself, reached ${hottestClosed.toFixed(0)} K`);
   assert.ok(hottestOpen <= 300 + 1e-6, `a voided one never exceeds its setting, reached ${hottestOpen.toFixed(2)} K`);
   assert.ok(open.voidHeat > 0);
 });

@@ -48,7 +48,14 @@ const BO_ON = 0.50, BO_OFF = 0.85;  // …tapered to zero between r₁+on and r�
 const COUL_D2 = 0.3;                // Coulomb short-range shielding (Å²)
 const LJ_SHIELD = 0.55;             // LJ shielding radius as a fraction of r_min
 const OPEN_W = 0.25;                // smoothing width of the free-valence ramp
-const SUB_MAX = 16, SUB_ETOL = 6;  // at most 16 sub-steps; redo a step whose energy error exceeds 6 kJ/mol
+const SUB_MAX = 64, SUB_ETOL = 6;  // at most 64 sub-steps; redo a step whose energy error exceeds 6 kJ/mol
+/* A reaction is the one moment a 1 fs step cannot follow: an atom entering a bond well is pulled
+   from thermal speed to several times it inside one step, and the error is not small — it is
+   hundreds of kJ/mol, enough to blow the molecule that just formed straight back apart. The
+   curvature predictor below looks at the step that has already happened, so it always arrives
+   one step late. These two look at the step about to happen. */
+const SUB_DX = 0.06;                // Å a single sub-step may carry an atom
+const SUB_DV = 0.04;                // Å/fs a single sub-step may change an atom's speed by
 const CORE_A = 800;                 // kJ/mol, strength of the nuclear hard core
 const VMAX = 0.6;                   // Å/fs safety speed limit (60 km/s)
 
@@ -343,6 +350,19 @@ class Engine {
        spark on the step it landed and nothing could ever be lit. While this window is open the
        stat and the temperature void stand back and let the spark do its work. */
     this.sparkHold = 0;
+    /* Third body. Two radicals that meet in an empty chamber cannot stay together: the bond they
+       make releases hundreds of kJ/mol into the two atoms that made it, and with nothing else to
+       take it the molecule tears itself apart again on the next vibration. Real gases are not
+       empty — the energy leaves in a collision with whatever else is there, or at the vessel wall,
+       which is why radical recombination is a three-body reaction in every textbook. A chamber of
+       twenty atoms has no third body, so this is it: for a short while after a bond forms, the new
+       molecule's own vibration is bled off toward the set temperature. It only ever removes. */
+    this.thirdBody = opts.thirdBody ?? true;
+    this.thirdBodyTau = opts.thirdBodyTau ?? 220;   // fs to carry the excess away
+    this.thirdBodyWindow = opts.thirdBodyWindow ?? 900; // fs a new bond counts as new
+    this.thirdBodyHeat = 0;                          // kJ/mol taken, for the books
+    this.servoWork = 0; this.servoWorkTotal = 0;     // work the pointer has done on the sample
+    this._nascentUntil = -1;
     this.wallMeasured = this.T; this.wallContact = 0; // what the fluid against the wall actually is
     this.rc = opts.rc || 8.0;
     this.skin = 1.0;
@@ -453,6 +473,7 @@ class Engine {
     }
     this.nPairs = np;
     this.N = w;
+    if (this._boWas) this._boWas.fill(0); if (this._nascent) this._nascent.fill(0); this._boPrimed = false;
     if (this.tweezer) { const t = map[this.tweezer.i]; if (t == null || t < 0) this.tweezer = null; else this.tweezer.i = t; }
     this.needRebuild = true; this.needForces = true;
     return map;
@@ -793,6 +814,10 @@ class Engine {
        the whole dragged cluster as one: a damped servo on its centre of mass, distributed
        mass-weighted so every atom takes the same acceleration and the cluster feels no internal
        stress at all, with a speed limit that keeps a drag from turning into a projectile. */
+    /* The servo does real work on the sample, so the step's energy check has to know how much:
+       without it the check reads every drag as a failure, which is why it used to be switched off
+       while dragging — and switched off is exactly when a reaction needs it most. */
+    this._servoActive = false;
     if (this.tweezer) {
       const tw = this.tweezer, i = tw.i;
       if (i < N) {
@@ -813,11 +838,17 @@ class Engine {
           if (ws > vmax) { const f = vmax / ws; wx *= f; wy *= f; wz *= f; }
           const g = M / (tw.resp || 60) * (ACC > 0 ? 1 / ACC : 1);   // force to reach that speed
           const fx = g * (wx - vx), fy = g * (wy - vy), fz = g * (wz - vz);
+          let tf = this._twF;
+          if (!tf || tf.length < 3 * N) tf = this._twF = new Float64Array(3 * (N + 64));
+          tf.fill(0, 0, 3 * N);
           for (let a2 = 0; a2 < N; a2++) {
             if (!m[a2]) continue;
             const w = this.mass[a2] / M;
-            F[3 * a2] += fx * w; F[3 * a2 + 1] += fy * w; F[3 * a2 + 2] += fz * w;
+            const ax = fx * w, ay = fy * w, az = fz * w;
+            F[3 * a2] += ax; F[3 * a2 + 1] += ay; F[3 * a2 + 2] += az;
+            tf[3 * a2] = ax; tf[3 * a2 + 1] = ay; tf[3 * a2 + 2] = az;
           }
+          this._servoActive = true;
         }
       }
     }
@@ -1104,6 +1135,70 @@ class Engine {
      still approaching one is untouched, and an atom held at the wall is never clamped against its
      own bonded neighbours. Pressure is not handled here: voiding a pressure reading must not
      change how anything moves. */
+  /* A bond that has just formed is still carrying the energy it released. Find those atoms, and
+     for a short window bleed the molecule they belong to back toward the set temperature — the
+     collision with a third body that a nearly empty chamber cannot provide. Only the molecule's
+     internal motion is touched: it keeps travelling and keeps spinning, it just stops ringing.
+     Nothing is ever added, so this can only ever be a sink. */
+  _thirdBody(dt) {
+    const N = this.N;
+    if (!this.thirdBody || N < 2 || this.time < this.sparkHold) return;
+    let was = this._boWas, nas = this._nascent;
+    if (!was || was.length < N) { was = this._boWas = new Float64Array(this.cap + 64); nas = this._nascent = new Float64Array(this.cap + 64); this._boPrimed = false; }
+    // how much bonding each atom holds right now, counted continuously so a bond that merely
+    // stretches does not read as one that has come and gone
+    const now = this._boNow && this._boNow.length >= N ? this._boNow : (this._boNow = new Float64Array(this.cap + 64));
+    now.fill(0, 0, N);
+    for (let p = 0; p < this.nPairs; p++) {
+      const v = this.bondStrength(p) * this.pN[p];
+      if (v <= 0) continue;
+      now[this.pI[p]] += v; now[this.pJ[p]] += v;
+    }
+    /* A lagging copy of that, so what counts as new is the rise above where the atom has been
+       sitting. A settled bond breathes around its baseline and never gets ahead of it; a bond
+       that forms takes an atom from nothing to one in about ten femtoseconds, which does. */
+    const follow = -Math.expm1(-dt / 400);
+    if (!this._boPrimed) { was.set(now.subarray(0, N)); this._boPrimed = true; return; }
+    let any = false;
+    for (let i = 0; i < N; i++) {
+      if (now[i] - was[i] > 0.5) nas[i] = this.thirdBodyWindow;
+      was[i] += (now[i] - was[i]) * follow;
+      if (nas[i] > 0) { nas[i] -= dt; any = true; }
+    }
+    if (!any) return;
+    const { list } = this.fragments();
+    const KT = 0.5 * KB * this.T, damp = -Math.expm1(-dt / this.thirdBodyTau);
+    for (const g of list) {
+      if (g.length < 2) continue;
+      let fresh = false;
+      for (const i of g) if (nas[i] > 0) { fresh = true; break; }
+      if (!fresh) continue;
+      let M = 0, vx = 0, vy = 0, vz = 0;
+      for (const i of g) { if (this.pinned[i]) continue; const w = this.mass[i]; M += w; vx += w * this.vel[3 * i]; vy += w * this.vel[3 * i + 1]; vz += w * this.vel[3 * i + 2]; }
+      if (M <= 0) continue;
+      vx /= M; vy /= M; vz /= M;
+      let K = 0, n = 0;
+      for (const i of g) {
+        if (this.pinned[i]) continue;
+        const k = 3 * i, ax = this.vel[k] - vx, ay = this.vel[k + 1] - vy, az = this.vel[k + 2] - vz;
+        K += this.mass[i] * (ax * ax + ay * ay + az * az); n += 3;
+      }
+      K *= 0.5 * KEU;
+      const nf = n - 3;                      // the fragment's own translation is not its temperature
+      if (nf <= 0 || K <= 0) continue;
+      const want = nf * KT;
+      if (K <= want) continue;               // nothing in excess: leave it alone
+      const lam = Math.sqrt(Math.max(0, 1 + (want / K - 1) * damp));
+      for (const i of g) {
+        if (this.pinned[i]) continue;
+        const k = 3 * i;
+        this.vel[k] = vx + (this.vel[k] - vx) * lam;
+        this.vel[k + 1] = vy + (this.vel[k + 1] - vy) * lam;
+        this.vel[k + 2] = vz + (this.vel[k + 2] - vz) * lam;
+      }
+      this.thirdBodyHeat += K * (1 - lam * lam);
+    }
+  }
   _voidWalls() {
     if (this.sphere || !this.voidVelocity) return;
     const b = this.box, lo = [b.x0, b.y0, b.z0], hi = [b.x1, b.y1, b.z1];
@@ -1209,7 +1304,17 @@ class Engine {
     if (this.needForces) { this._checkRebuild(); this.computeForces(); this.needForces = false; }
     const forceRebuild = this.stepCount % this.ckEvery === 0; // makes replay bit-identical
     let nsub = Math.max(1, Math.min(SUB_MAX, this.nextSub || 1));
-    const canCheck = !this.tweezer && N > 0;
+    // How far and how fast the step is about to push the fastest atom, before it is taken
+    let vm2 = 0, am2 = 0;
+    for (let i = 0; i < N; i++) {
+      if (this.pinned[i]) continue;
+      const k = 3 * i;
+      const v2 = vel[k] ** 2 + vel[k + 1] ** 2 + vel[k + 2] ** 2; if (v2 > vm2) vm2 = v2;
+      const s2 = (F[k] ** 2 + F[k + 1] ** 2 + F[k + 2] ** 2) * (ACC / this.mass[i]) ** 2; if (s2 > am2) am2 = s2;
+    }
+    const ahead = Math.max(Math.sqrt(vm2) * dt / SUB_DX, Math.sqrt(am2) * dt / SUB_DV);
+    if (ahead > nsub) nsub = Math.min(SUB_MAX, Math.ceil(ahead));
+    const canCheck = N > 0;
     let E0 = 0, K0 = 0;
     this._save();
     if (canCheck) { K0 = this.kinetic(); E0 = this.Epot + K0; }
@@ -1217,11 +1322,12 @@ class Engine {
       this._wallImpulse = 0;
       this._integrate(nsub, forceRebuild);
       if (!canCheck || nsub >= SUB_MAX) break;
-      const dE = Math.abs(this.Epot + this.kinetic() + this.voidHeat - this._sv.voidHeat - E0);
+      const dE = Math.abs(this.Epot + this.kinetic() + this.voidHeat - this._sv.voidHeat - this.servoWork - E0);
       if (dE <= SUB_ETOL + 0.005 * K0) break;
       this._load(); nsub = Math.min(SUB_MAX, nsub * 4); this.redone++; // redo this step more finely
     }
     this.lastSub = nsub;
+    this.servoWorkTotal += this.servoWork;
     // curvature felt by each atom this step → sub-steps for the next one (ω·dt ≤ 0.6)
     let w2max = 0;
     const Fo = this.Fold, prev = this.prev;
@@ -1249,6 +1355,7 @@ class Engine {
     }
     this.clamped += clamped;
     this._voidWalls();
+    this._thirdBody(dt);
     const igniting = this.time < this.sparkHold;
     if (this.thermostat && !igniting) {
       if (this.thermostatMode === 'csvr') this._csvr();
@@ -1271,12 +1378,16 @@ class Engine {
   }
   _integrate(nsub, forceRebuild) {
     const N = this.N, pos = this.pos, vel = this.vel, F = this.frc, h = this.dt / nsub;
+    this.servoWork = 0;
     for (let sub = 0; sub < nsub; sub++) {
+      const tf = this._servoActive ? this._twF : null;   // the servo force this sub-step starts with
+      let W = 0;
       for (let i = 0; i < N; i++) {
         if (this.pinned[i]) { vel[3 * i] = vel[3 * i + 1] = vel[3 * i + 2] = 0; continue; }
         const hk = 0.5 * h * ACC / this.mass[i];
-        for (let d = 3 * i; d < 3 * i + 3; d++) { vel[d] += hk * F[d]; pos[d] += vel[d] * h; }
+        for (let d = 3 * i; d < 3 * i + 3; d++) { vel[d] += hk * F[d]; const dx = vel[d] * h; pos[d] += dx; if (tf) W += tf[d] * dx; }
       }
+      this.servoWork += W;
       this._reflectWalls();
       if (sub === 0 && forceRebuild) this.needRebuild = true;
       this._checkRebuild();
@@ -1297,6 +1408,8 @@ class Engine {
     sv.pI.set(this.pI.subarray(0, P)); sv.pJ.set(this.pJ.subarray(0, P));
     sv.voidHeat = this.voidHeat;
     sv.P = P; sv.Epot = this.Epot; sv.map = this.pairMap; sv.needRebuild = this.needRebuild;
+    sv.servoActive = this._servoActive;
+    if (this._servoActive) sv.twF = this._copy(sv.twF, this._twF, n3);
     this.Fold = this._copy(this.Fold, this.frc, n3);
   }
   _load() {
@@ -1306,6 +1419,8 @@ class Engine {
     this.pI.set(sv.pI.subarray(0, P)); this.pJ.set(sv.pJ.subarray(0, P)); this.pN.set(sv.pN.subarray(0, P)); this.nPairs = P;
     this.voidHeat = sv.voidHeat;
     this.pairMap = sv.map; this.Epot = sv.Epot; this.needRebuild = sv.needRebuild;
+    this._servoActive = sv.servoActive;
+    if (sv.servoActive) { if (!this._twF || this._twF.length < n3) this._twF = new Float64Array(n3 + 192); this._twF.set(sv.twF.subarray(0, n3)); }
   }
   kinetic() {
     let K = 0; const v = this.vel;
@@ -1635,6 +1750,8 @@ class Engine {
       voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, voidVelocity: this.voidVelocity, voidTau: this.voidTau, voidSkin: this.voidSkin,
       pressureControl: this.pressureControl, pressureTarget: this.pressureTarget, pressureTau: this.pressureTau,
       voidHeat: this.voidHeat, voidForce: this.voidForce,
+      thirdBody: this.thirdBody, thirdBodyTau: this.thirdBodyTau, thirdBodyWindow: this.thirdBodyWindow, thirdBodyHeat: this.thirdBodyHeat, servoWork: this.servoWork, servoWorkTotal: this.servoWorkTotal,
+      boWas: this._boPrimed && this._boWas ? this._boWas.slice(0, N) : null, nascent: this._nascent ? this._nascent.slice(0, N) : null,
       wallTau: this.wallTau, wallCapacity: this.wallCapacity, wallSkin: this.wallSkin, wallCoupling: this.wallCoupling,
       heatToSample: this.heatToSample, heaterWork: this.heaterWork,
       nextSub: this.nextSub || 1, lastSub: this.lastSub || 1, Epot: this.Epot, Ewall: this.Ewall,
@@ -1651,7 +1768,7 @@ class Engine {
     this.N = s.N; this.time = s.time; this.stepCount = s.stepCount; this.rngState = s.rng; this.nextId = s.nextId;
     if (s.box) this.box = { ...s.box };
     this.sphere = s.sphere ? { ...s.sphere } : null;
-    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'kelvinWork', 'kelvinMix', 'sparkHold', 'wallMeasured', 'wallContact', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidVelocity', 'voidTau', 'voidSkin', 'voidHeat', 'voidForce', 'pressureControl', 'pressureTarget', 'pressureTau', 'heatToSample', 'heaterWork', 'nextSub', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
+    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'kelvinWork', 'kelvinMix', 'sparkHold', 'wallMeasured', 'wallContact', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidVelocity', 'voidTau', 'voidSkin', 'voidHeat', 'voidForce', 'thirdBody', 'thirdBodyTau', 'thirdBodyWindow', 'thirdBodyHeat', 'servoWork', 'servoWorkTotal', 'pressureControl', 'pressureTarget', 'pressureTau', 'heatToSample', 'heaterWork', 'nextSub', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
     this.tweezer = null;
     this.pos.set(s.pos); this.vel.set(s.vel); this.frc.set(s.frc); this.prev.set(s.pos);
     this.type.set(s.type); this.formal.set(s.formal); this.val.set(s.val); this.lp.set(s.lp); this.pinned.set(s.pinned); this.ids.set(s.ids); this.cos0.set(s.cos0);
@@ -1674,6 +1791,11 @@ class Engine {
     if (!s.pI) this.pN.set(pn.subarray(0, Math.min(pn.length, this.nPairs)));
     for (const key of ['Epot', 'Ewall', 'wallForce', 'wallArea', 'pressureBar', 'pressureEMA']) if (s[key] !== undefined) this[key] = s[key];
     this.needRebuild = s.needRebuild ?? true; this.needForces = s.needForces ?? false;
+    // how long each atom's newest bond still counts as new, so a replayed step relaxes the same way
+    if (s.boWas && s.nascent) {
+      if (!this._boWas || this._boWas.length < this.N) { this._boWas = new Float64Array(this.cap + 64); this._nascent = new Float64Array(this.cap + 64); }
+      this._boWas.set(s.boWas); this._nascent.set(s.nascent); this._boPrimed = true;
+    } else { this._boPrimed = false; if (this._boWas) { this._boWas.fill(0); this._nascent.fill(0); } }
   }
   _checkpoint() {
     const s = this.snapshot();
@@ -1710,7 +1832,7 @@ class Engine {
   toJSON() {
     const atoms = [];
     for (let i = 0; i < this.N; i++) atoms.push([ELEMENTS[this.type[i]].sym, +this.pos[3 * i].toFixed(4), +this.pos[3 * i + 1].toFixed(4), +this.pos[3 * i + 2].toFixed(4), +this.vel[3 * i].toFixed(6), +this.vel[3 * i + 1].toFixed(6), +this.vel[3 * i + 2].toFixed(6), this.formal[i], this.val[i]]);
-    return { format: 'chem-playground/scene@1', box: this.box, T: this.T, tau: this.tau, thermostat: this.thermostat, thermostatMode: this.thermostatMode, kelvinWork: this.kelvinWork, boundsMode: this.boundsMode, voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, voidVelocity: this.voidVelocity, dampingVersion: 3, voidTau: this.voidTau, voidSkin: this.voidSkin, voidHeat: this.voidHeat, pressureControl: this.pressureControl, pressureTarget: this.pressureTarget, wallT: this.wallT, wallTarget: this.wallTarget, wallTau: this.wallTau, heatToSample: this.heatToSample, heaterWork: this.heaterWork, time: this.time, atoms };
+    return { format: 'chem-playground/scene@1', box: this.box, T: this.T, tau: this.tau, thermostat: this.thermostat, thermostatMode: this.thermostatMode, kelvinWork: this.kelvinWork, boundsMode: this.boundsMode, voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, voidVelocity: this.voidVelocity, dampingVersion: 3, voidTau: this.voidTau, voidSkin: this.voidSkin, voidHeat: this.voidHeat, thirdBody: this.thirdBody, thirdBodyTau: this.thirdBodyTau, thirdBodyHeat: this.thirdBodyHeat, pressureControl: this.pressureControl, pressureTarget: this.pressureTarget, wallT: this.wallT, wallTarget: this.wallTarget, wallTau: this.wallTau, heatToSample: this.heatToSample, heaterWork: this.heaterWork, time: this.time, atoms };
   }
 }
 

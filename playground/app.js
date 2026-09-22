@@ -76,6 +76,7 @@ const savedBox = store.get('box', { w: 36, h: 20, d: 12 });
 const eng = new Engine({ width: savedBox.w, height: savedBox.h, depth: savedBox.d, T: store.get('T', STP_T) });
 eng.thermostat = store.get('thermostat', true);
 eng.thermostatMode = store.get('bathMode', 'kelvin') === 'wall' ? 'wall' : 'kelvin';
+eng.thirdBody = store.get('thirdBody', true);
 const savedBounds = store.get('bounds', null);
 if (savedBounds) {
   if (savedBounds.mode === 'forcefield' || savedBounds.mode === 'solid') eng.boundsMode = savedBounds.mode;
@@ -1677,7 +1678,9 @@ const GLYPH = {
   off: '<svg class="gl" viewBox="0 0 24 24"><path class="path" d="M12 4v7"/><path class="face" d="M7.4 7.4a7 7 0 1 0 9.2 0"/></svg>',
   kelvin: '<svg class="gl" viewBox="0 0 24 24"><path class="face" d="M4 3v18M20 3v18"/><circle class="ball" cx="9" cy="8" r="1.6"/><circle class="ball" cx="15" cy="12.5" r="1.6"/><circle class="ball" cx="10" cy="17" r="1.6"/></svg>',
   drain: '<svg class="gl" viewBox="0 0 24 24"><path class="path" d="M4 12h12M12 8l4 4-4 4"/><path class="face" d="M20 5v14" stroke-dasharray="3 3"/></svg>',
-  gauge: '<svg class="gl" viewBox="0 0 24 24"><path class="face" d="M4 17a8 8 0 1 1 16 0"/><path class="path" d="M12 17l5-4"/></svg>'
+  gauge: '<svg class="gl" viewBox="0 0 24 24"><path class="face" d="M4 17a8 8 0 1 1 16 0"/><path class="path" d="M12 17l5-4"/></svg>',
+  // two atoms closing on a bond, and a third one leaving with what the bond gave off
+  third: '<svg class="gl third" viewBox="0 0 24 24"><circle class="ball" cx="7" cy="16" r="2.3"/><circle class="ball" cx="12.6" cy="16" r="2.3"/><path class="path" d="M15 12.6L18 9.6"/><circle class="face" cx="19.8" cy="7.6" r="2.4"/></svg>'
 };
 function renderEnvironmentApp(stage) {
   const group = (title, node) => { const g = el('div', 'app-group', '<h3>' + title + '</h3>'); g.appendChild(node); stage.appendChild(g); return g; };
@@ -1731,8 +1734,16 @@ function renderEnvironmentApp(stage) {
   bath.id = 'envBath';
   group('Thermostat', bath);
 
-  const stat = el('div', 'stat-strip compact-stat', '<span>Removed · wall</span>' +
-    [['void', GLYPH.drain], ['wall', GLYPH.wall]]
+  /* What a bond hands its energy to. A chamber of twenty atoms has no third body of its own, and
+     without one a fresh bond shakes itself apart before it can settle. */
+  const third = el('span', 'seg-mini',
+    '<button data-v="on" aria-label="Third body on" title="A new bond hands its energy to the surroundings, the way a collision carries it off in a real gas">' + GLYPH.third + '<span>On</span></button>' +
+    '<button data-v="off" aria-label="Third body off" title="Nothing takes the energy away — a new bond keeps all of it, and usually comes straight back apart">' + GLYPH.off + '<span>Off</span></button>');
+  third.id = 'envThird';
+  group('Third body', third);
+
+  const stat = el('div', 'stat-strip compact-stat', '<span>Removed</span>' +
+    [['void', GLYPH.drain], ['third', GLYPH.third], ['wall', GLYPH.wall]]
       .map(([k, g]) => '<div class="stat" data-k="' + k + '">' + g + '<b>—</b></div>').join(''));
   stage.appendChild(stat);
 
@@ -1761,27 +1772,41 @@ function renderEnvironmentApp(stage) {
     $('baroTargetWrap').classList.toggle('inactive', !eng.pressureControl);
     $('baroTargetWrap').inert = !eng.pressureControl;
   }
+  third.querySelectorAll('button').forEach(b => b.onclick = () => {
+    const on = b.dataset.v === 'on';
+    if (on === !!eng.thirdBody) return;
+    pushUndo();
+    eng.thirdBody = on; store.set('thirdBody', on);
+    eng.checkpoints.length = 0; scheduleSave(); paintThird();
+    toast(on ? 'A new bond can hand its energy over' : 'A new bond keeps everything it releases');
+  });
+  function paintThird() {
+    third.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', (b.dataset.v === 'on') === !!eng.thirdBody));
+  }
   function paintBath() {
     bath.querySelectorAll('button').forEach(b => {
       b.setAttribute('aria-pressed', b.dataset.v === bathMode());
       b.classList.toggle('inactive', b.dataset.v === 'wall' && !!eng.voidTemperature);
     });
   }
-  paintBath(); paintBaro();
+  paintBath(); paintBaro(); paintThird();
   const cells = stat.querySelectorAll('.stat');
   appRefresh = () => {
     if (!stage.isConnected) return;
     cells[0].lastElementChild.textContent = (eng.voidTemperature || eng.voidPressure || eng.voidVelocity) ? eng.voidHeat.toFixed(1) + ' kJ/mol' : '—';
     cells[0].title = 'Energy removed by void walls';
+    cells[1].lastElementChild.textContent = eng.thirdBody ? eng.thirdBodyHeat.toFixed(1) + ' kJ/mol' : '—';
+    cells[1].title = 'Energy carried away from bonds as they formed';
     // the wall is whatever the fluid against it is; a heater only sets what it aims for
     const mode = bathMode();
-    cells[1].lastElementChild.textContent = eng.wallContact ? (eng.wallMeasured - 273.15).toFixed(0) + '°C' : '—';
-    cells[1].title = 'Wall temperature, measured from the fluid touching it'
+    cells[2].lastElementChild.textContent = eng.wallContact ? (eng.wallMeasured - 273.15).toFixed(0) + '°C' : '—';
+    cells[2].title = 'Wall temperature, measured from the fluid touching it'
       + (eng.voidTemperature ? ' · radiating away, so no heater drives it'
         : mode === 'wall' ? ' · heater aiming for ' + (eng.wallTarget - 273.15).toFixed(0) + '°C'
         : mode === 'kelvin' ? ' · sample held at ' + fmtT(eng.T) + ' K' : ' · no thermostat');
     paintBaro();
     paintBath();
+    paintThird();
   };
   appRefresh();
 }
@@ -1892,6 +1917,8 @@ function loadScene() {
     if (typeof s.voidTemperature === 'boolean') eng.voidTemperature = s.voidTemperature;
     eng.voidPressure = s.dampingVersion >= 3 && !!s.voidPressure;
     eng.voidVelocity = s.dampingVersion >= 3 && !!s.voidVelocity;
+    if (typeof s.thirdBody === 'boolean') eng.thirdBody = s.thirdBody;
+    if (Number.isFinite(s.thirdBodyHeat)) eng.thirdBodyHeat = s.thirdBodyHeat;
     if (typeof s.pressureControl === 'boolean') eng.pressureControl = s.pressureControl;
     if (Number.isFinite(s.pressureTarget)) eng.pressureTarget = s.pressureTarget;
     for(const key of ['voidTau','voidSkin']) if(Number.isFinite(s[key]) && s[key]>0) eng[key]=s[key];
