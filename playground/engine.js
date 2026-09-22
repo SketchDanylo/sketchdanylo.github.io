@@ -39,7 +39,7 @@ const Q_MAX = 1.1;                  // saturation of bond-polarisation charge (e
 //   wpiOO = the same for O=O, lower still (triplet O₂ is a diradical);
 //   oo3e = extra O–O bond order when only one oxygen is unpaired (three-electron bond, HO₂·);
 //   mu   = strength weighting of excess valence (Evans–Polanyi: exothermic transfers get lower barriers).
-const TUNE = { kappa: 0.38, c1: 0.6, c4: 10.82, k: 6, kb: 1.3, yoff: 3.0, wpi: 0.85, wpiOO: 0.78, oo3e: 0.45, mu: 0.5, kbo: 0.4, tsStab: 0, pauliOpen: 0 };
+const TUNE = { kappa: 0.38, c1: 0.6, c4: 10.82, k: 6, kb: 1.3, yoff: 3.0, wpi: 0.85, wpiOO: 0.78, oo3e: 0.45, mu: 0.5, kbo: 0.4, tsStab: 0, pauliOpen: 0, share: 0.5 };
 const RAMP_W = 0.15;
 const Y_ON = 3.6, Y_OFF = 5.6;      // Morse taper window (in units of a·(r − re))
 const COORD_R1 = 1.22, COORD_R2 = 1.50; // structural coordination switch (× single-bond length)
@@ -359,7 +359,7 @@ class Engine {
     const f64 = n => new Float64Array(n);
     const arrays = {
       pos: f64(3 * cap), vel: f64(3 * cap), frc: f64(3 * cap), prev: f64(3 * cap), built: f64(3 * cap),
-      mass: f64(cap), phi: f64(cap), Zs: f64(cap), openVal: f64(cap), Zw: f64(cap), Gb: f64(cap), qg: f64(cap), Gz: f64(cap), formal: f64(cap), q: f64(cap), Z: f64(cap), cos0: f64(cap), G: f64(cap), ljx: f64(cap), ljq: f64(cap), lje: f64(cap),
+      mass: f64(cap), phi: f64(cap), Zs: f64(cap), openVal: f64(cap), Zw: f64(cap), Gb: f64(cap), kSh: f64(cap), kShP: f64(cap), qg: f64(cap), Gz: f64(cap), formal: f64(cap), q: f64(cap), Z: f64(cap), cos0: f64(cap), G: f64(cap), ljx: f64(cap), ljq: f64(cap), lje: f64(cap),
       type: new Int16Array(cap), val: new Int8Array(cap), lp: new Int8Array(cap), pinned: new Uint8Array(cap),
       ids: new Uint32Array(cap), cStart: new Int32Array(cap + 1), cCount: new Int32Array(cap)
     };
@@ -372,7 +372,7 @@ class Engine {
     this.pI = new Int32Array(cap); this.pJ = new Int32Array(cap); this.pN = f64(cap);
     this.pR = f64(cap); this.pDx = f64(cap); this.pDy = f64(cap); this.pDz = f64(cap);
     this.pF = f64(cap); this.pFp = f64(cap); this.pS = f64(cap); this.pSp = f64(cap); this.pScr = f64(cap); this.pSraw = f64(cap); this.pSpRaw = f64(cap); this.pSig = f64(cap); this.pD = f64(cap); this.gAb = f64(cap); this.gBb = f64(cap);
-    if (!this.tri) { this.tri = new Int32Array(4096); this.nTri = 0; } this.pB = f64(cap); this.gA = f64(cap); this.gB = f64(cap);
+    if (!this.tri) { this.tri = new Int32Array(4096); this.nTri = 0; } this.pB = f64(cap); this.gA = f64(cap); this.gB = f64(cap); this.gAs = f64(cap); this.gBs = f64(cap); this.gAbs = f64(cap); this.gBbs = f64(cap);
     this.cList = new Int32Array(2 * cap);
     if (keep) { this.pI.set(keep.pI.subarray(0, this.nPairs)); this.pJ.set(keep.pJ.subarray(0, this.nPairs)); this.pN.set(keep.pN.subarray(0, this.nPairs)); }
     this.pairCap = cap;
@@ -602,6 +602,20 @@ class Engine {
       const Dp = pD[p] = bondWeight(PAIR[type[pI[p]] * NT + type[pJ[p]]], this.pN[p], mu);
       Zw[pI[p]] += pS[p] * Dp; Zw[pJ[p]] += pS[p] * Dp;
     }
+    /* Valence sharing. A partner's claim on an atom is only meaningful relative to what the atom
+       has to give: an atom cannot contribute a whole bond to two neighbours at once. Where the
+       raw claims exceed the valence they are scaled back in proportion, k = 1 − share·(1 − V/Z),
+       so the competing coordination each bond sees is what its rivals can actually hold rather
+       than what they would claim alone. k is exactly 1 for every atom at or under its valence,
+       which is every equilibrium structure — so bond lengths, bond energies and thermochemistry
+       are untouched by construction, and only the half-made crossing of a reaction changes. */
+    const kSh = this.kSh, kShP = this.kShP, share = TUNE.share;
+    for (let i = 0; i < N; i++) {
+      const Z = Zs[i], V = val[i];
+      if (share === 0 || V <= 0 || Z <= V) { kSh[i] = 1; kShP[i] = 0; continue; }
+      kSh[i] = 1 - share + share * V / Z;
+      kShP[i] = -share * V / (Z * Z);
+    }
     // Free (unpaired) valence per atom, smoothed so forces stay continuous. A half-filled orbital
     // feels much less Pauli repulsion than a closed shell, which is why radicals add without a barrier.
     const open = this.openVal;
@@ -634,15 +648,15 @@ class Engine {
     }
 
     // Pass C — pair energies
-    const pB = this.pB, gA = this.gA, gB = this.gB, gAb = this.gAb, gBb = this.gBb, pN = this.pN, G = this.G, lje = this.lje;
+    const pB = this.pB, gA = this.gA, gB = this.gB, gAs = this.gAs, gBs = this.gBs, gAb = this.gAb, gBb = this.gBb, pN = this.pN, G = this.G, lje = this.lje;
     const gc = 1 / Math.sqrt(rc * rc + COUL_D2), dgc = -rc * gc * gc * gc;
     for (let p = 0; p < P; p++) {
       const r = pR[p];
-      gA[p] = 0; gB[p] = 0; gAb[p] = 0; gBb[p] = 0; pB[p] = 0;
+      gA[p] = 0; gB[p] = 0; gAs[p] = 0; gBs[p] = 0; this.gAbs[p] = 0; this.gBbs[p] = 0; gAb[p] = 0; gBb[p] = 0; pB[p] = 0;
       if (r < 0) continue;
       const i = pI[p], j = pJ[p], ti = type[i], tj = type[j];
       const pp = PAIR[ti * NT + tj], f = pF[p], fp = pFp[p], fs = pS[p];
-      let e = 0, dEdr = 0, lam = 0, pi = 0, pj = 0, dpi = 0, dpj = 0, b = 0, ai = 1, bi = 0, aj = 1, bj = 0;
+      let e = 0, dEdr = 0, lam = 0, pi = 0, pj = 0, dpi = 0, dpj = 0, b = 0, ai = 1, bi = 0, aj = 1, bj = 0, asi = 1, bsi = 0, asj = 1, bsj = 0;
       // Lennard-Jones (shielded) first: its Pauli part decides whether b matters for a distant pair
       lj(r, ljx[i] * ljx[j], lje[i] * lje[j], rc);
       if (pp.bond) {
@@ -658,8 +672,21 @@ class Engine {
           // competing bonds relative to this one (weights D = (De/400)^μ): a stronger incoming bond
           // displaces a weaker one more easily (Evans–Polanyi); an atom at its normal valence is unaffected.
           const Dj = mu === 0 ? 1 : mu === 0.5 ? Math.sqrt(De / 400) : bondWeight(pp, n, mu);
-          if (val[i] > 0) { excess(Zs[i] - fs, Zw[i] - fs * Dj, val[i], Dj, mu); sat(XS); pi = SP; dpi = SPD; ai = XA; bi = XB; }
-          if (val[j] > 0) { excess(Zs[j] - fs, Zw[j] - fs * Dj, val[j], Dj, mu); sat(XS); pj = SP; dpj = SPD; aj = XA; bj = XB; }
+          // C = (Z − this pair)·k(Z): ∂C/∂Z = k + (Z − f)·k′, while the pair's own explicit
+          // appearance contributes −k. The two differ once k varies, so they are carried apart.
+          /* C = c·k(Z) and W = w·k(Z) both carry k, and k varies with Z, so the Zs channel picks
+             up ∂/∂Z through both: XA·(k + c·k′) + XB·w·k′. The Zw channel sees only ∂W/∂Zw = k.
+             The pair's own explicit appearance contributes −k to each. */
+          if (val[i] > 0) {
+            const ki = kSh[i], kp = kShP[i], ci = Zs[i] - fs, wi = Zw[i] - fs * Dj;
+            excess(ci * ki, wi * ki, val[i], Dj, mu); sat(XS); pi = SP; dpi = SPD;
+            ai = XA * (ki + ci * kp) + XB * wi * kp; bi = XB * ki; asi = XA * ki; bsi = XB * ki;
+          }
+          if (val[j] > 0) {
+            const kj = kSh[j], kp = kShP[j], cj = Zs[j] - fs, wj = Zw[j] - fs * Dj;
+            excess(cj * kj, wj * kj, val[j], Dj, mu); sat(XS); pj = SP; dpj = SPD;
+            aj = XA * (kj + cj * kp) + XB * wj * kp; bj = XB * kj; asj = XA * kj; bsj = XB * kj;
+          }
           b = pi * pj;
         }
         if (y < Y_OFF) {
@@ -705,6 +732,8 @@ class Engine {
       if (lam !== 0 && pp.bond) {
         const ga = lam * pj * dpi, gb = lam * pi * dpj; // dE/dx on each side
         gA[p] = ga * ai; gAb[p] = ga * bi; gB[p] = gb * aj; gBb[p] = gb * bj;
+        gAs[p] = ga * asi; gBs[p] = gb * asj;              // the pair's own explicit −k term
+        this.gAbs[p] = ga * bsi; this.gBbs[p] = gb * bsj;
         G[i] += gA[p]; Gb[i] += gAb[p]; G[j] += gB[p]; Gb[j] += gBb[p];
       }
       E += e;
@@ -723,7 +752,7 @@ class Engine {
       const fp = pSp[p]; if (fp === 0) continue;
       const i = pI[p], j = pJ[p];
       const D = pD[p];
-      const coef = (G[i] + Gb[i] * D - gA[p] - gAb[p] * D) + (G[j] + Gb[j] * D - gB[p] - gBb[p] * D);
+      const coef = (G[i] + Gb[i] * D - gAs[p] - this.gAbs[p] * D) + (G[j] + Gb[j] * D - gBs[p] - this.gBbs[p] * D);
       if (coef === 0) continue;
       const s = coef * fp / pR[p], fx = s * pDx[p], fy = s * pDy[p], fz = s * pDz[p];
       F[3 * i] += fx; F[3 * i + 1] += fy; F[3 * i + 2] += fz;
@@ -890,7 +919,7 @@ class Engine {
       const j = pI[q], k = pJ[q];
       const nEff = 1 + (PAIR[this.type[j] * NT + this.type[k]].oo ? TUNE.wpiOO : TUNE.wpi) * (pN[q] - 1);
       const D = this.pD[q], Gb = this.Gb;
-      const dEdS = pS[q] * nEff * ((G[j] + Gb[j] * D - gA[q] - this.gAb[q] * D) + (G[k] + Gb[k] * D - gB[q] - this.gBb[q] * D));
+      const dEdS = pS[q] * nEff * ((G[j] + Gb[j] * D - this.gAs[q] - this.gAbs[q] * D) + (G[k] + Gb[k] * D - this.gBs[q] - this.gBbs[q] * D));
       if (dEdS === 0) continue;
       const m = 1 - pF[q], w = pF[pa] * pF[pb] * m, one = 1 - w;
       let others; // Π over the other shared neighbours

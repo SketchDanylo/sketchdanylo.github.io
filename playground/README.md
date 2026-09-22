@@ -124,6 +124,41 @@ The visual direction follows the [SketchDanylo collection](https://sketchdanylo.
 - A step that runs into extreme curvature splits itself into up to 16 sub-steps. This happens when a hydrogen is squeezed between competing bonds, or in a hard collision at thousands of kelvin. Either the curvature from the previous step triggers it, or a per-step energy check does. The step still advances exactly 1 fs.
 - **Step back** is exact. The engine keeps a checkpoint every 64 steps and replays deterministically, bit-identical, because the RNG state is part of the checkpoint. Hold the button to rewind.
 
+## Valence sharing
+
+An atom cannot give a whole bond to two neighbours at once. The coordination each bond sees is
+therefore scaled back where the raw claims exceed the valence:
+
+    k_i = 1 − share·(1 − V_i / Z_i)     for Z_i > V_i,  k_i = 1 otherwise
+    C_ij = (Z_i − f_ij)·k_i             the competing coordination bond ij is judged against
+
+with `share = 0.5`. `k` is exactly 1 for every atom at or under its valence — every equilibrium
+structure — so bond lengths, bond energies and thermochemistry are untouched by construction, and
+only the half-made crossing of a reaction changes.
+
+Without it, a hydrogen mid-handover contributed a full 1.000 to *both* its old and its new
+partner, reaching coordination 2.0 on a valence of 1. Each bond then saw a full competitor, kept
+0.120 of its attraction, and the total collapsed to **0.24 of one bond** — an artificial wall of
+roughly 330 kJ/mol across every reaction where an atom changes partners. With sharing the total
+through a CH₂ + H₂ crossing runs 0.98 → 0.84 → 0.99 → 0.81, which is bonding roughly conserved,
+as it should be.
+
+Measured against the fitted set, `share = 0.5` changes no barrier at all: H + H₂ 45, H + CH₄ 40,
+F + H₂ 12, Cl + H₂ 50, H + Cl₂ −9, OH + H₂ 45, 2 H₂ + O₂ −486, deepest spurious complex −3 — all
+identical to `share = 0`. H₂ + O₂ still sits unreacted through 100 ps at 300 K. Pushing it to
+`share = 1` does start to bite: H + CH₄ falls to 32, F + H₂ to 3, the handover total overshoots
+past one bond, and a 36 kJ/mol spurious H₃ complex appears — so half is where it stays.
+
+Forces remain the exact gradient of the energy; `regression.cjs` checks analytic against finite
+differences at `share` 0, 0.5 and 1 on a deliberately over-coordinated geometry.
+
+**It does not make CH₂ + H₂ react.** That barrier's remainder is set by the saturation curve
+itself — at a perfectly shared handover each bond still keeps only 0.758, about 105 kJ/mol short
+of one bond — and that curve is the same number that gives H + H₂ its 40 kJ/mol and keeps H₂ and
+O₂ apart. Flattening it for carbenes would flatten it for everything. Singlet CH₂ inserts because
+of orbital structure this model has no way to express, the same absence that makes O₂ need a
+hand-patch.
+
 ## Force field
 
 A custom, experimental bond-order model inspired by reactive force-field ideas. It is not an implementation of Tersoff, Brenner, or ReaxFF, and its fitted examples do not establish general chemical accuracy.

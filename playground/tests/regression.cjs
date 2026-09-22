@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
-const { Engine, BY_SYM } = require('../engine.js');
+const { Engine, BY_SYM, TUNE } = require('../engine.js');
 const { stepsPerSecond, validMolecule, thermalTranslation } = require('../protocol.js');
+const near = (x, y, tol = 1e-9) => assert.ok(Math.abs(x - y) < tol, `${x} vs ${y}`);
 let passed = 0;
 function test(name, fn) { fn(); passed++; console.log('PASS', name); }
 function engine(T = 300) {
@@ -74,5 +75,73 @@ test('Nomenclature schema rejects malformed topology and non-finite positions', 
   for (const mutate of [m => m.atoms[0].x = NaN, m => m.bonds[0].b = 80, m => m.units = 'nm', m => m.atoms[0].el = '__proto__', m => m.bonds.push(m.bonds[0]), m => m.atoms[0].charge = 1.5]) {
     const m = structuredClone(valid); mutate(m); assert.equal(validMolecule(m, BY_SYM), false);
   }
+});
+test('Valence sharing leaves every atom at or under its valence untouched', () => {
+  // equilibrium structures never over-claim, so sharing must be exactly inert there
+  const build = share => {
+    TUNE.share = share;
+    const e = new Engine({ width: 40, height: 30, depth: 20, T: 0, wallT: 0, thermostat: false, seed: 4 });
+    e.addAtom('C', 20, 15, 0, { thermal: false });
+    for (const [dx, dy, dz] of [[.63, .63, .63], [-.63, -.63, .63], [-.63, .63, -.63], [.63, -.63, -.63]]) e.addAtom('H', 20 + dx, 15 + dy, dz, { thermal: false });
+    e.refresh();
+    for (let s = 0; s < 8000; s++) { e.step(); e.vel.fill(0); }
+    e.refresh();
+    return { E: e.Epot, r: Math.hypot(e.pos[3] - e.pos[0], e.pos[4] - e.pos[1], e.pos[5] - e.pos[2]) };
+  };
+  const off = build(0), on = build(0.5);
+  TUNE.share = 0.5;
+  near(on.E, off.E, 1e-9);
+  near(on.r, off.r, 1e-12);
+});
+test('Valence sharing conserves total bonding through a handover', () => {
+  // one hydrogen between its old partner and an incoming carbon: it cannot give a whole bond to
+  // both, and what it does give must add up to about one bond rather than collapsing
+  const crossing = share => {
+    TUNE.share = share;
+    const e = new Engine({ width: 40, height: 30, depth: 20, T: 0, wallT: 0, thermostat: false, seed: 4 });
+    e.addAtom('C', 20, 15, 0, { thermal: false });
+    e.addAtom('H', 21.08, 15, 0, { thermal: false });
+    e.addAtom('H', 19.46, 15.94, 0, { thermal: false });
+    e.addAtom('H', 20, 13.9, 0, { thermal: false });
+    e.addAtom('H', 20, 13.16, 0, { thermal: false });
+    e.refresh();
+    for (let s = 0; s < 400; s++) e._updateBondOrders(1);
+    e.computeForces();
+    let cs = 0, hs = 0;
+    for (const b of e.bonds(0.0001)) {
+      const k = [b.i, b.j].sort().join('-');
+      if (k === '0-3') cs = b.strength;
+      if (k === '3-4') hs = b.strength;
+    }
+    return cs + hs;
+  };
+  const off = crossing(0), on = crossing(0.5);
+  TUNE.share = 0.5;
+  assert.ok(off < 0.7, `without sharing the handover collapses, total ${off.toFixed(2)}`);
+  assert.ok(on > 0.75 && on < 1.25, `with sharing it is conserved, total ${on.toFixed(2)}`);
+});
+test('Forces stay the exact gradient of the energy with sharing active', () => {
+  for (const share of [0, 0.5, 1]) {
+    TUNE.share = share;
+    const e = new Engine({ width: 40, height: 30, depth: 20, T: 0, wallT: 0, thermostat: false, seed: 2 });
+    e.addAtom('C', 20, 15, 0, { thermal: false });
+    e.addAtom('H', 21.08, 15, 0, { thermal: false });
+    e.addAtom('H', 19.46, 15.94, 0, { thermal: false });
+    e.addAtom('H', 20.1, 13.55, 0.2, { thermal: false });   // deliberately over-coordinated
+    e.addAtom('H', 20.0, 12.82, -0.1, { thermal: false });
+    e.refresh(); e.computeForces();
+    const analytic = [...e.frc.slice(0, 3 * e.N)], h = 2e-5;
+    let worst = 0;
+    for (let k = 0; k < 3 * e.N; k++) {
+      const p0 = e.pos[k];
+      e.pos[k] = p0 + h; e.touch(); e.refresh(); e.computeForces(); const Ep = e.Epot;
+      e.pos[k] = p0 - h; e.touch(); e.refresh(); e.computeForces(); const Em = e.Epot;
+      e.pos[k] = p0; e.touch(); e.refresh(); e.computeForces();
+      worst = Math.max(worst, Math.abs(-(Ep - Em) / (2 * h) - analytic[k]));
+    }
+    const scale = Math.max(...analytic.map(Math.abs));
+    assert.ok(worst / scale < 1e-5, `share ${share}: relative gradient error ${(worst / scale).toExponential(2)}`);
+  }
+  TUNE.share = 0.5;
 });
 console.log(`${passed} regression checks passed.`);
