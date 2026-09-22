@@ -1472,10 +1472,13 @@ function dropdown({ options, multi, get, set, summary, label = 'Boundary type' }
     btn.setAttribute('aria-expanded', 'false');
     document.removeEventListener('pointerdown', outside);
     const stage = $('consoleStage');
-    if (stage) stage.removeEventListener('scroll', close);
-    removeEventListener('resize', close);
-    if (focus === true) btn.focus();
+    if (stage) stage.removeEventListener('scroll', reposition);
+    removeEventListener('resize', reposition);
+    if (focus === true) btn.focus({ preventScroll: true });
   };
+  // scrolling or resizing moves the sheet with its button rather than dismissing it: closing on
+  // scroll meant a sheet could vanish the instant it opened, leaving nothing to click
+  const reposition = () => { if (sheet) placeSheet(); };
   /* The sheet floats above everything instead of living inside the scrolling panel: an
      absolutely positioned child is clipped by that panel, so options past its bottom edge
      could not be clicked at all. It flips upward when there is no room below. */
@@ -1483,9 +1486,10 @@ function dropdown({ options, multi, get, set, summary, label = 'Boundary type' }
     const r = btn.getBoundingClientRect();
     sheet.style.width = r.width + 'px';
     sheet.style.maxHeight = Math.max(100,Math.max(r.top-15,innerHeight-r.bottom-15))+'px';
-    sheet.style.left = r.left + 'px';
-    const h = sheet.offsetHeight, below = innerHeight - r.bottom - 10;
-    sheet.style.top = (below >= h || r.top < h + 10 ? r.bottom + 5 : r.top - h - 5) + 'px';
+    sheet.style.left = Math.max(8, Math.min(innerWidth - r.width - 8, r.left)) + 'px';
+    const h = sheet.offsetHeight || 0, below = innerHeight - r.bottom - 10;
+    const top = below >= h || r.top < h + 10 ? r.bottom + 5 : r.top - h - 5;
+    sheet.style.top = Math.max(8, Math.min(Math.max(8, innerHeight - h - 8), top)) + 'px';
   };
   const open = () => {
     if (sheet) return;
@@ -1504,14 +1508,19 @@ function dropdown({ options, multi, get, set, summary, label = 'Boundary type' }
     });
     sheet.addEventListener('keydown', navigate);
     sheet.addEventListener('focusout', leave);
+    // the sheet lives outside `wrap`, so it needs its own keyboard and focus wiring
+    sheet.addEventListener('keydown', navigate);
+    sheet.addEventListener('focusout', leave);
     document.body.appendChild(sheet); wrap.classList.add('open');
     placeSheet();
     btn.setAttribute('aria-expanded', 'true'); paint();
     document.addEventListener('pointerdown', outside);
     const stage = $('consoleStage');
-    if (stage) stage.addEventListener('scroll', close);
-    addEventListener('resize', close);
-    (sheet.querySelector('[aria-selected="true"],[aria-checked="true"]') || sheet.firstElementChild).focus();
+    if (stage) stage.addEventListener('scroll', reposition);
+    addEventListener('resize', reposition);
+    // preventScroll matters: scrolling the panel to reach the focused option moved the button
+    // out from under the sheet the moment it opened
+    (sheet.querySelector('[aria-selected="true"],[aria-checked="true"]') || sheet.firstElementChild).focus({ preventScroll: true });
   };
   btn.onclick = e => { e.stopPropagation(); sheet ? close() : open(); };
   function navigate(e) {
@@ -1521,7 +1530,7 @@ function dropdown({ options, multi, get, set, summary, label = 'Boundary type' }
       if (!sheet) { open(); return; }
       const items = [...sheet.querySelectorAll('.drop-opt')], i = items.indexOf(document.activeElement);
       const next = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : (i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
-      items[next].focus();
+      items[next].focus({ preventScroll: true });
     } else if (e.key === 'Tab' && sheet) close(true);
   }
   const leave=()=>queueMicrotask(()=>{if(!wrap.contains(document.activeElement) && !(sheet && sheet.contains(document.activeElement)))close();});
