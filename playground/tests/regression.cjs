@@ -177,4 +177,44 @@ test('A molecule can be built one atom at a time', () => {
   for (let seed = 1; seed <= 10; seed++) if (build(seed) === 'CH4') made++;
   assert.ok(made >= 7, `two hydrogens dragged onto CH2 gave methane only ${made} times in 10`);
 });
+test('Erasing an atom does not leave the remaining bonds mislabelled', () => {
+  /* The pair list is compacted when an atom goes, but the numbers bondStrength is made of used to
+     stay where they were — so until the next force pass, one pair's strength answered under
+     another pair's name, and the inventory, the feed and the renderer all read it. Paused, it
+     never corrected itself. */
+  const e = new Engine({ width: 30, height: 24, depth: 14, T: 0, thermostat: false });
+  const d = .63;
+  e.addAtom('C', 15, 12, 0, { thermal: false });
+  for (const [x, y, z] of [[d, d, d], [-d, -d, d], [-d, d, -d], [d, -d, -d]]) e.addAtom('H', 15 + x, 12 + y, z, { thermal: false });
+  e.addAtom('Ar', 4, 4, 0, { thermal: false });          // a spectator, far away, erased below
+  e.addAtom('Ar', 26, 20, 0, { thermal: false });
+  e.touch(); e.minimize(800, .1); e.refresh();
+  const before = e.fragments().list.map(g => e.formulaOf(g)).sort().join(' ');
+  assert.equal(before, 'Ar Ar CH4');
+  e.removeAtoms([5]);                                     // and read the scene straight away
+  const after = e.fragments().list.map(g => e.formulaOf(g)).sort().join(' ');
+  assert.equal(after, 'Ar CH4', 'reading the scene right after an erase gave ' + after);
+  const sum = new Float64Array(e.N);
+  for (let p = 0; p < e.nPairs; p++) { if (e.bondStrength(p) <= .25) continue; const v = e.pN[p]; sum[e.pI[p]] += v; sum[e.pJ[p]] += v; }
+  for (let i = 0; i < e.N; i++) assert.ok(sum[i] <= e.val[i] + 0.35, 'atom ' + i + ' carries ' + sum[i].toFixed(2) + ' bonds on a valence of ' + e.val[i]);
+});
+test('Formulas are written the way they are written', () => {
+  const of = list => {
+    const e = new Engine({ width: 60, height: 60, depth: 30, T: 0, thermostat: false });
+    for (const [sym, x, y, z] of list) e.addAtom(sym, x, y, z || 0, { thermal: false });
+    e.touch(); e.refresh();
+    return e.formulaOf([...Array(e.N)].map((_, k) => k));
+  };
+  const cases = {
+    'H2O': [['O', 30, 30], ['H', 30.76, 30.6], ['H', 29.24, 30.6]],
+    'NH3': [['N', 30, 30], ['H', 31, 30.3], ['H', 29.5, 30.9], ['H', 29.5, 29.1, .6]],
+    'NaOH': [['Na', 30, 30], ['O', 31.95, 30], ['H', 32.7, 30.6]],
+    'NaCl': [['Na', 30, 30], ['Cl', 32.36, 30]],
+    'HCl': [['Cl', 30, 30], ['H', 31.27, 30]],
+    'HClO': [['O', 30, 30], ['Cl', 31.7, 30], ['H', 29.3, 30.6]],
+    'SO2': [['S', 30, 30], ['O', 31.43, 30.4], ['O', 28.9, 31]],
+    'CH4': [['C', 30, 30], ['H', 30.63, 30.63, .63], ['H', 29.37, 29.37, .63], ['H', 29.37, 30.63, -.63], ['H', 30.63, 29.37, -.63]],
+  };
+  for (const [want, atoms] of Object.entries(cases)) assert.equal(of(atoms), want);
+});
 console.log(`${passed} regression checks passed.`);

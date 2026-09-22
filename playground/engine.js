@@ -103,6 +103,8 @@ const BY_SYM = Object.create(null);
 for (const e of ELEMENTS) BY_SYM[e.sym] = e;
 const NT = ELEMENTS.length;
 const CHI = Float64Array.from(ELEMENTS, e => e.chi);
+// chalcogens and halogens: with one of these in the formula, hydrogen is written first
+const H_LEADS = new Set(['O', 'S', 'Se', 'Te', 'F', 'Cl', 'Br', 'I']);
 const TETRA = [-1 / 3, -0.2924, -0.2504, -1 / 3]; // cos θ0 for steric number 4 with 0, 1, 2, 3 lone pairs (109.5°, 107°, 104.5°)
 
 /* ---------- measured bonds: order → [re Å, De kJ/mol, k N/m] ---------- */
@@ -399,13 +401,13 @@ class Engine {
   }
   _allocPairs(cap) {
     const f64 = n => new Float64Array(n);
-    const keep = this.pairCap ? { pI: this.pI, pJ: this.pJ, pN: this.pN } : null;
+    const keep = this.pairCap ? { pI: this.pI, pJ: this.pJ, pN: this.pN, pF: this.pF, pSraw: this.pSraw, pB: this.pB } : null;
     this.pI = new Int32Array(cap); this.pJ = new Int32Array(cap); this.pN = f64(cap);
     this.pR = f64(cap); this.pDx = f64(cap); this.pDy = f64(cap); this.pDz = f64(cap);
     this.pF = f64(cap); this.pFp = f64(cap); this.pS = f64(cap); this.pSp = f64(cap); this.pScr = f64(cap); this.pSraw = f64(cap); this.pSpRaw = f64(cap); this.pSig = f64(cap); this.pD = f64(cap); this.gAb = f64(cap); this.gBb = f64(cap);
     if (!this.tri) { this.tri = new Int32Array(4096); this.nTri = 0; } this.pB = f64(cap); this.gA = f64(cap); this.gB = f64(cap); this.gAs = f64(cap); this.gBs = f64(cap); this.gAbs = f64(cap); this.gBbs = f64(cap);
     this.cList = new Int32Array(2 * cap);
-    if (keep) { this.pI.set(keep.pI.subarray(0, this.nPairs)); this.pJ.set(keep.pJ.subarray(0, this.nPairs)); this.pN.set(keep.pN.subarray(0, this.nPairs)); }
+    if (keep) for (const k of ['pI', 'pJ', 'pN', 'pF', 'pSraw', 'pB']) this[k].set(keep[k].subarray(0, this.nPairs));
     this.pairCap = cap;
   }
 
@@ -469,7 +471,9 @@ class Engine {
     for (let p = 0; p < this.nPairs; p++) {
       const a = map[this.pI[p]], b = map[this.pJ[p]];
       if (a < 0 || b < 0) continue;
-      this.pI[np] = a; this.pJ[np] = b; this.pN[np] = this.pN[p]; np++;
+      this.pI[np] = a; this.pJ[np] = b;
+      this.pN[np] = this.pN[p]; this.pF[np] = this.pF[p]; this.pSraw[np] = this.pSraw[p]; this.pB[np] = this.pB[p];
+      np++;
     }
     this.nPairs = np;
     this.N = w;
@@ -496,9 +500,15 @@ class Engine {
   /* ---------- neighbour list (cell grid, Verlet skin) ---------- */
   _rebuild() {
     const N = this.N, pos = this.pos, rl = this.rc + this.skin, rl2 = rl * rl;
-    // remember bond orders by atom-id pair
-    const keep = new Map();
-    for (let p = 0; p < this.nPairs; p++) if (this.pN[p] !== 1) keep.set(this._key(this.pI[p], this.pJ[p]), this.pN[p]);
+    /* Remember each surviving pair by atom-id, and carry across everything anyone may read
+       before the next force pass: the bond order and the three numbers bondStrength is made of.
+       Leaving those behind let a rebuild — or an erase — hand the inventory, the feed and the
+       renderer one pair's strength under another pair's name. */
+    const keep = new Map(), kF = [], kSraw = [], kB = [], kN = [];
+    for (let p = 0; p < this.nPairs; p++) {
+      keep.set(this._key(this.pI[p], this.pJ[p]), kN.length);
+      kN.push(this.pN[p]); kF.push(this.pF[p]); kSraw.push(this.pSraw[p]); kB.push(this.pB[p]);
+    }
     let minx = Infinity, miny = Infinity, minz = Infinity, maxx = -Infinity, maxy = -Infinity, maxz = -Infinity;
     for (let i = 0; i < N; i++) {
       const x = pos[3 * i], y = pos[3 * i + 1], z = pos[3 * i + 2];
@@ -529,7 +539,9 @@ class Engine {
               if (ddx * ddx + ddy * ddy + ddz * ddz > rl2) continue;
               if (np >= this.pairCap) { this.nPairs = np; this._allocPairs(this.pairCap * 2); }
               this.pI[np] = i; this.pJ[np] = j;
-              const n = keep.get(this._key(i, j)); this.pN[np] = n === undefined ? 1 : n;
+              const k = keep.get(this._key(i, j));
+              if (k === undefined) { this.pN[np] = 1; this.pF[np] = this.pSraw[np] = this.pB[np] = 0; }
+              else { this.pN[np] = kN[k]; this.pF[np] = kF[k]; this.pSraw[np] = kSraw[k]; this.pB[np] = kB[k]; }
               np++;
             }
           }
@@ -1710,13 +1722,24 @@ class Engine {
     list.forEach((g, k) => { for (const i of g) comp[i] = k; });
     return { comp, list };
   }
+  /* A written formula is not alphabetical, it is chemical. Two habits cover almost everything a
+     chamber can make: the least electronegative element is written first, which gives NaCl, SO2
+     and H2SO4; and hydrogen leads only in front of a chalcogen or a halogen, which is why water
+     is H2O and ammonia is NH3, and why sodium hydroxide is NaOH rather than either. Carbon still
+     comes first whenever there is any, as everyone writes it. */
   formulaOf(indices) {
     const cnt = {}; let charge = 0;
     for (const i of indices) { const s = ELEMENTS[this.type[i]].sym; cnt[s] = (cnt[s] || 0) + 1; charge += this.formal[i]; }
     const keys = Object.keys(cnt);
+    const chi = k => BY_SYM[k].chi;
+    const byChi = list => list.sort((a, b) => chi(a) - chi(b) || (a < b ? -1 : 1));
     let order;
-    if (cnt.C) order = ['C', 'H', ...keys.filter(k => k !== 'C' && k !== 'H').sort()];
-    else order = keys.sort();
+    if (cnt.C) order = ['C', 'H', ...byChi(keys.filter(k => k !== 'C' && k !== 'H'))];
+    else if (cnt.H && keys.length > 1) {
+      const rest = byChi(keys.filter(k => k !== 'H')), hchi = chi('H');
+      const leads = rest.some(k => H_LEADS.has(k)) && !rest.some(k => chi(k) < hchi);
+      order = leads ? ['H', ...rest] : [...rest, 'H'];
+    } else order = byChi(keys);
     let s = order.filter(k => cnt[k]).map(k => k + (cnt[k] > 1 ? cnt[k] : '')).join('');
     if (charge) s += (Math.abs(charge) > 1 ? Math.abs(Math.round(charge)) : '') + (charge > 0 ? '+' : '−');
     return s;
