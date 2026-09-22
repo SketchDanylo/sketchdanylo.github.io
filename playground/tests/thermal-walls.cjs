@@ -89,14 +89,26 @@ test('It starts a chamber from rest and can set it back to rest', () => {
   e.setTemperature(750);
   near(e.temperature(), 750, 1e-9);        // instant, by definition
 });
-test('It leaves pinned atoms fixed and scales only the total, not the distribution', () => {
+test('It leaves pinned atoms fixed, and shares heat out instead of freezing what it cooled', () => {
   const e = chamber({ thermostatMode: 'kelvin', T: 500 });
   for (let i = 0; i < 6; i++) e.addAtom('Ar', 10 + i * 15, 40, 0, { thermal: true });
   e.addAtom('Ar', 50, 20, 0, { thermal: true }); e.pinned[6] = 1;
+  // one atom left far colder than the rest, as a newly formed molecule is after it is cooled
+  for (let d = 0; d < 3; d++) e.vel[d] *= 0.05;
+  const speed = i => Math.hypot(e.vel[3 * i], e.vel[3 * i + 1], e.vel[3 * i + 2]);
+  const gapBefore = speed(1) / speed(0);
+  for (let s = 0; s < 400; s++) e._kelvin();
+  assert.ok(speed(1) / speed(0) < gapBefore * 0.5, `the cold atom catches up: ${(speed(1) / speed(0)).toFixed(1)} from ${gapBefore.toFixed(1)}`);
+  near(e.temperature(), 500, 1e-9);                 // while the temperature stays exact
+  for (let d = 18; d < 21; d++) assert.equal(e.vel[d], 0);
+});
+test('Sharing can be turned off, leaving a pure rescale', () => {
+  const e = chamber({ thermostatMode: 'kelvin', T: 500, kelvinMix: 0 });
+  for (let i = 0; i < 6; i++) e.addAtom('Ar', 10 + i * 15, 40, 0, { thermal: true });
   const ratio = Math.hypot(e.vel[0], e.vel[1], e.vel[2]) / Math.hypot(e.vel[3], e.vel[4], e.vel[5]);
   e._kelvin();
   near(Math.hypot(e.vel[0], e.vel[1], e.vel[2]) / Math.hypot(e.vel[3], e.vel[4], e.vel[5]), ratio, 1e-12);
-  for (let d = 18; d < 21; d++) assert.equal(e.vel[d], 0);
+  near(e.temperature(), 500, 1e-9);
 });
 test('Kelvin trajectories replay bit-exactly and survive a scene round trip', () => {
   const e = chamber({ thermostatMode: 'kelvin', T: 500, voidTemperature: true });

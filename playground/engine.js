@@ -325,6 +325,7 @@ class Engine {
     // 'csvr'   — canonical sampling, kept for preparing isolated molecules.
     this.thermostatMode = opts.thermostatMode || 'wall';
     this.kelvinWork = 0;            // kJ/mol the Kelvin stat has put in (or taken out)
+    this.kelvinMix = opts.kelvinMix ?? 0.02;  // how fast it shares heat out between atoms, per fs
     this.wallT = opts.wallT ?? this.T;
     this.wallTarget = opts.wallTarget ?? Math.max(288.15, Math.min(623.15, this.T));
     this.wallTau = opts.wallTau ?? 10000; // fs, C_wall / conductance of heater
@@ -1131,10 +1132,13 @@ class Engine {
     const K = this.thermalKinetic(), Kt = 0.5 * Nf * KB * Math.max(0, this.T);
     if (!(K > Kt)) return;
     const sc = Math.sqrt(Kt / K), v = this.vel;
+    const vd = this._vdTmp || (this._vdTmp = [0, 0, 0]), dragging = this.dragVelocity(vd);
     for (let i = 0; i < this.N; i++) {
       if (this.pinned[i]) { v.fill(0, 3 * i, 3 * i + 3); continue; }
-      if (this.driven(i)) continue;                 // work done by the pointer is not heat
-      for (let k = 3 * i; k < 3 * i + 3; k++) v[k] *= sc;
+      const k = 3 * i;
+      if (dragging && this.driven(i)) {
+        for (let d = 0; d < 3; d++) v[k + d] = vd[d] + (v[k + d] - vd[d]) * sc;
+      } else for (let d = 0; d < 3; d++) v[k + d] *= sc;
     }
     this.voidHeat += K - Kt;
   }
@@ -1335,15 +1339,46 @@ class Engine {
     if (this._drivenFor !== this.tweezer.i || this._drivenAt !== this.stepCount || !this.drivenMask) this._markDriven();
     return this.drivenMask[i] === 1;
   }
-  thermalKinetic() {
-    let K = 0; const v = this.vel;
+  /* Only the pointer's own contribution is excluded, which is the dragged cluster's centre-of-mass
+     velocity — the coherent part the servo imposes. Everything else a dragged molecule does is
+     still the sample's: it still vibrates, still rotates, and still has to give up the energy a
+     new bond releases. Exempting those atoms wholesale meant a bond formed while dragging kept
+     its own binding energy and tore itself straight back apart. */
+  dragVelocity(out) {
+    out[0] = out[1] = out[2] = 0;
+    if (!this.tweezer) return false;
+    let M = 0;
     for (let i = 0; i < this.N; i++) {
-      if (this.pinned[i] || this.driven(i)) continue;
-      K += this.mass[i] * (v[3 * i] ** 2 + v[3 * i + 1] ** 2 + v[3 * i + 2] ** 2);
+      if (this.pinned[i] || !this.driven(i)) continue;
+      const w = this.mass[i]; M += w;
+      for (let d = 0; d < 3; d++) out[d] += w * this.vel[3 * i + d];
+    }
+    if (M <= 0) return false;
+    for (let d = 0; d < 3; d++) out[d] /= M;
+    return true;
+  }
+  thermalKinetic() {
+    const v = this.vel, vd = this._vdTmp || (this._vdTmp = [0, 0, 0]);
+    const dragging = this.dragVelocity(vd);
+    let K = 0;
+    for (let i = 0; i < this.N; i++) {
+      if (this.pinned[i]) continue;
+      const k = 3 * i, d = dragging && this.driven(i);
+      const ax = v[k] - (d ? vd[0] : 0), ay = v[k + 1] - (d ? vd[1] : 0), az = v[k + 2] - (d ? vd[2] : 0);
+      K += this.mass[i] * (ax * ax + ay * ay + az * az);
     }
     return 0.5 * KEU * K;
   }
-  dof() { let n = 0; for (let i = 0; i < this.N; i++) if (!this.pinned[i] && !this.driven(i)) n += 3; return n; }
+  // three degrees of freedom belong to the pointer while it holds a cluster; the rest are thermal
+  dof() {
+    let n = 0, held = false;
+    for (let i = 0; i < this.N; i++) {
+      if (this.pinned[i]) continue;
+      n += 3;
+      if (this.driven(i)) held = true;
+    }
+    return held ? Math.max(0, n - 3) : n;
+  }
   temperature() { const nf = this.dof(); return nf ? 2 * this.thermalKinetic() / (nf * KB) : 0; }
   /* Finite-capacity wall reservoir with a first-order heater, then an exact
      Ornstein–Uhlenbeck velocity update at fixed position in the boundary layer.
@@ -1424,14 +1459,37 @@ class Engine {
       this.kelvinWork -= removed;
       return;
     }
+    const vd = this._vdTmp || (this._vdTmp = [0, 0, 0]), dragging = this.dragVelocity(vd);
     const initialK = this.thermalKinetic();
-    let K = initialK;
+    /* Share the heat out before fixing the total. A single global factor preserves whatever ratio
+       the last event happened to leave, so a molecule that has just formed — scaled hard while it
+       carried the whole of its new bond's energy — stays frozen afterwards while the rest of the
+       chamber runs warm, and nothing can ever warm it again. Each atom is pulled gently toward
+       its own share first, which is what a bath does and what "every atom at this temperature"
+       has to mean; the exact total is then imposed as before. */
+    const share = 1.5 * KB * target, lam = this.kelvinMix;
+    if (lam > 0) for (let i = 0; i < this.N; i++) {
+      if (this.pinned[i] || (dragging && this.driven(i))) continue;
+      const k = 3 * i, m = this.mass[i];
+      const ax = v[k], ay = v[k + 1], az = v[k + 2];
+      const Ki = 0.5 * KEU * m * (ax * ax + ay * ay + az * az);
+      if (Ki > 1e-12) {
+        const f = 1 + lam * (Math.sqrt(share / Ki) - 1);
+        v[k] = ax * f; v[k + 1] = ay * f; v[k + 2] = az * f;
+      } else {                        // at rest, scaling cannot lift it: give it a draw to grow from
+        const sg = Math.sqrt(lam * share * 2 / (3 * m * KEU));
+        v[k] += sg * this.gauss(); v[k + 1] += sg * this.gauss(); v[k + 2] += sg * this.gauss();
+      }
+    }
+    let K = this.thermalKinetic();
     if (K <= 1e-14) { this.thermalize(target); K = this.thermalKinetic(); if (K <= 1e-14) return; }
     const Kt = 0.5 * Nf * KB * target, sc = Math.sqrt(Kt / K);
     for (let i = 0; i < this.N; i++) {
       if (this.pinned[i]) { v.fill(0, 3 * i, 3 * i + 3); continue; }
-      if (this.driven(i)) continue;                 // the pointer owns this one, not the stat
-      for (let k = 3 * i; k < 3 * i + 3; k++) v[k] *= sc;
+      const k = 3 * i;
+      if (dragging && this.driven(i)) {             // scale what it does, not where it is taken
+        for (let d = 0; d < 3; d++) v[k + d] = vd[d] + (v[k + d] - vd[d]) * sc;
+      } else for (let d = 0; d < 3; d++) v[k + d] *= sc;
     }
     this.kelvinWork += Kt - initialK;
   }
@@ -1566,7 +1624,7 @@ class Engine {
     return {
       N, time: this.time, stepCount: this.stepCount, rng: this.rngState, nextId: this.nextId,
       box: { ...this.box }, sphere: this.sphere && { ...this.sphere }, T: this.T, tau: this.tau, thermostat: this.thermostat,
-      thermostatMode: this.thermostatMode, kelvinWork: this.kelvinWork, sparkHold: this.sparkHold, wallT: this.wallT, wallTarget: this.wallTarget,
+      thermostatMode: this.thermostatMode, kelvinWork: this.kelvinWork, kelvinMix: this.kelvinMix, sparkHold: this.sparkHold, wallT: this.wallT, wallTarget: this.wallTarget,
       wallMeasured: this.wallMeasured, wallContact: this.wallContact,
       boundsMode: this.boundsMode, fieldK: this.fieldK, fieldRange: this.fieldRange,
       voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, voidVelocity: this.voidVelocity, voidTau: this.voidTau, voidSkin: this.voidSkin,
@@ -1588,7 +1646,7 @@ class Engine {
     this.N = s.N; this.time = s.time; this.stepCount = s.stepCount; this.rngState = s.rng; this.nextId = s.nextId;
     if (s.box) this.box = { ...s.box };
     this.sphere = s.sphere ? { ...s.sphere } : null;
-    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'kelvinWork', 'sparkHold', 'wallMeasured', 'wallContact', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidVelocity', 'voidTau', 'voidSkin', 'voidHeat', 'voidForce', 'pressureControl', 'pressureTarget', 'pressureTau', 'heatToSample', 'heaterWork', 'nextSub', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
+    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'kelvinWork', 'kelvinMix', 'sparkHold', 'wallMeasured', 'wallContact', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidVelocity', 'voidTau', 'voidSkin', 'voidHeat', 'voidForce', 'pressureControl', 'pressureTarget', 'pressureTau', 'heatToSample', 'heaterWork', 'nextSub', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
     this.tweezer = null;
     this.pos.set(s.pos); this.vel.set(s.vel); this.frc.set(s.frc); this.prev.set(s.pos);
     this.type.set(s.type); this.formal.set(s.formal); this.val.set(s.val); this.lp.set(s.lp); this.pinned.set(s.pinned); this.ids.set(s.ids); this.cos0.set(s.cos0);

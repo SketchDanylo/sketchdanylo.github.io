@@ -15,6 +15,20 @@ All unpinned velocities receive the same factor `sqrt(K_target / K)` each step, 
 
 This is a numerical isokinetic control, not a physical wall bath. It preserves instantaneous speed ratios but changes relative velocities, suppresses kinetic-energy fluctuations, and can alter reaction dynamics. An exact temperature readout does not establish accurate reaction rates or canonical sampling. Pinned atoms stay fixed, and work accounting survives replay. See [velocity-rescaling thermostats](https://docs.lammps.org/fix_temp_rescale.html).
 
+It shares heat out as well as fixing the total. A single global factor preserves whatever ratio
+the last event happened to leave, which sounds harmless and is not: a molecule that has just
+formed carries the whole of its new bond's energy, gets scaled hard for it, and then stays frozen
+while the rest of the chamber runs warm — nothing in a uniform rescale can ever warm it again.
+Each atom is first pulled gently toward its own share, `kelvinMix` per fs, and the exact total is
+imposed after. Measured on an H₂ formed in a chamber of argon, per-atom energy relative to the
+spectators: **0.48 before, 0.97 after.** Set `kelvinMix: 0` for the old pure rescale.
+
+Only the pointer's own contribution is excluded from all of this, and that is the dragged
+cluster's centre-of-mass velocity — the coherent part the servo imposes. A dragged molecule still
+vibrates, still rotates, and still has to give up the energy a new bond releases. Exempting those
+atoms wholesale meant two hydrogens dragged together formed H₂, kept the 436 kJ/mol that released,
+and tore straight back apart.
+
 ### Wall heater
 
 A **spatial wall thermostat**, not a global velocity rescale:
