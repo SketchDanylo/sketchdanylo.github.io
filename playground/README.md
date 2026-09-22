@@ -32,6 +32,12 @@ left out of `dof()`, `temperature()` and `thermalKinetic()`, out of every thermo
 out of the void-temperature cap and out of the boundary bath, and it is never itself rescaled —
 the pointer owns it while you hold it, and it counts again the moment you let go.
 
+Dragging is a servo on the whole cluster, not a spring on one atom: the pointer drives the
+dragged molecule's centre of mass with damping and a speed limit, distributed mass-weighted so
+every atom takes the same acceleration and the molecule feels no internal stress. A stiff spring
+on a single atom reached its force cap as soon as the pointer was a few ångström ahead, tore the
+bond, and flung the pieces at kilometres per second — which then counted as the sample's heat.
+
 Counting it was why dragging one molecule stopped every other one. A stat that holds the total
 kinetic energy saw the drag as an enormous excess and scaled the whole chamber down to
 compensate, while the dragged atom, re-accelerated by the tweezer every step, was the only thing

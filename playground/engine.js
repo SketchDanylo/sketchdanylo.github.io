@@ -780,14 +780,39 @@ class Engine {
     }
     // Pass F — container walls and tweezers
     E += this._walls();
+    /* Dragging moves a molecule; it does not whip one atom until the molecule comes off it.
+       A stiff spring on a single atom reaches the force cap the moment the pointer is a few
+       ångström ahead, tears the bond, and flings the pieces at kilometres a second — which then
+       counts as the sample's heat and makes a stat stop everything else. So the pointer drives
+       the whole dragged cluster as one: a damped servo on its centre of mass, distributed
+       mass-weighted so every atom takes the same acceleration and the cluster feels no internal
+       stress at all, with a speed limit that keeps a drag from turning into a projectile. */
     if (this.tweezer) {
       const tw = this.tweezer, i = tw.i;
       if (i < N) {
-        const dx = pos[3 * i] - tw.x, dy = pos[3 * i + 1] - tw.y, k = tw.k || 25;
-        const d = Math.hypot(dx, dy), cap = tw.maxF || 400;
-        let s = k; if (k * d > cap) s = cap / d;
-        F[3 * i] -= s * dx; F[3 * i + 1] -= s * dy;
-        F[3 * i + 2] -= 0.5 * k * pos[3 * i + 2] * 0.2;
+        this._markDriven();
+        const m = this.drivenMask;
+        let M = 0, cx = 0, cy = 0, cz = 0, vx = 0, vy = 0, vz = 0;
+        for (let a2 = 0; a2 < N; a2++) {
+          if (!m[a2]) continue;
+          const w = this.mass[a2]; M += w;
+          cx += w * pos[3 * a2]; cy += w * pos[3 * a2 + 1]; cz += w * pos[3 * a2 + 2];
+          vx += w * this.vel[3 * a2]; vy += w * this.vel[3 * a2 + 1]; vz += w * this.vel[3 * a2 + 2];
+        }
+        if (M > 0) {
+          cx /= M; cy /= M; cz /= M; vx /= M; vy /= M; vz /= M;
+          const tau = tw.tau || 120, vmax = tw.vmax || 0.03;   // fs to close the gap, Å/fs ceiling
+          let wx = (tw.x - cx) / tau, wy = (tw.y - cy) / tau, wz = -cz / tau * 0.2;
+          const ws = Math.hypot(wx, wy, wz);
+          if (ws > vmax) { const f = vmax / ws; wx *= f; wy *= f; wz *= f; }
+          const g = M / (tw.resp || 60) * (ACC > 0 ? 1 / ACC : 1);   // force to reach that speed
+          const fx = g * (wx - vx), fy = g * (wy - vy), fz = g * (wz - vz);
+          for (let a2 = 0; a2 < N; a2++) {
+            if (!m[a2]) continue;
+            const w = this.mass[a2] / M;
+            F[3 * a2] += fx * w; F[3 * a2 + 1] += fy * w; F[3 * a2 + 2] += fz * w;
+          }
+        }
       }
     }
     this.Epot = E;
@@ -1283,7 +1308,33 @@ class Engine {
      other: a stat holding the total kinetic energy saw the drag as a huge excess and scaled the
      whole chamber down to compensate, and the dragged atom — re-accelerated by the tweezer every
      step — was the only thing left moving. */
-  driven(i) { return !!this.tweezer && this.tweezer.i === i; }
+  /* Everything the pointer is dragging, not just the atom it holds. Grab one atom of a molecule
+     and its bonded partners are hauled along by their bonds; that motion is the drag's, not the
+     sample's, and counting it as temperature let a stat scale the rest of the chamber to a halt. */
+  _markDriven() {
+    const N = this.N;
+    if (!this.drivenMask || this.drivenMask.length < N) this.drivenMask = new Uint8Array(N + 100);
+    const m = this.drivenMask;
+    m.fill(0, 0, N);
+    this._drivenFor = this.tweezer ? this.tweezer.i : -1;
+    this._drivenAt = this.stepCount;
+    if (!this.tweezer || this.tweezer.i >= N) return;
+    m[this.tweezer.i] = 1;
+    for (let pass = 0; pass < 8; pass++) {           // flood along bonds to the whole molecule
+      let changed = false;
+      for (let p = 0; p < this.nPairs; p++) {
+        if (this.bondStrength(p) <= 0.25) continue;
+        const i = this.pI[p], j = this.pJ[p];
+        if (m[i] !== m[j]) { m[i] = m[j] = 1; changed = true; }
+      }
+      if (!changed) break;
+    }
+  }
+  driven(i) {
+    if (!this.tweezer) return false;
+    if (this._drivenFor !== this.tweezer.i || this._drivenAt !== this.stepCount || !this.drivenMask) this._markDriven();
+    return this.drivenMask[i] === 1;
+  }
   thermalKinetic() {
     let K = 0; const v = this.vel;
     for (let i = 0; i < this.N; i++) {

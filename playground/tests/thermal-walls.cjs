@@ -130,9 +130,10 @@ test('Dragging one atom does not stop every other one', () => {
       e.needForces = true; e.step();
     }
     assert.ok(rest() > 0.5 * before, `the rest of the chamber keeps moving: ${rest()} vs ${before}`);
-    // the reading is the fluid's, not the drag's — pinned exactly by the stat, capped by the void
+    /* The reading is the fluid's, not the drag's: pinned exactly by the stat, and with only a
+       void the chamber is free to cool, since a drag is no longer a heat source. */
     if (opts.thermostatMode === 'kelvin') near(e.temperature(), 400, 1e-9);
-    else assert.ok(e.temperature() <= 400 + 1e-9 && e.temperature() > 395, `capped near 400, got ${e.temperature()}`);
+    else assert.ok(e.temperature() <= 400 + 1e-9, `never above its setting, got ${e.temperature()}`);
     e.tweezer = null;
   }
 });
@@ -184,5 +185,30 @@ test('The ignition window is part of the state and replays exactly', () => {
   e.restore(snap);
   assert.equal(e.sparkHold, snap.sparkHold);
   for (const want of trace) { e.step(); near(e.pos[0], want[0], 1e-12); near(e.vel[0], want[1], 1e-14); }
+});
+test('Dragging a molecule does not stop the rest either', () => {
+  // holding one atom drags its bonded partners along; that motion is the pointer's, not the
+  // sample's, and counting it as heat let a stat scale everything else to a halt
+  for (const opts of [{ thermostatMode: 'kelvin' }, { thermostat: false, voidTemperature: true }]) {
+    const e = chamber({ T: 400, ...opts });
+    e.addAtom('O', 20, 30, 0, { thermal: true });
+    e.addAtom('H', 20.76, 30.59, 0, { thermal: true });
+    e.addAtom('H', 19.24, 30.59, 0, { thermal: true });
+    e.setBondOrder(0, 1, 1); e.setBondOrder(0, 2, 1);
+    for (let i = 0; i < 12; i++) e.addAtom('Ar', 40 + (i % 4) * 8, 12 + ((i / 4) | 0) * 16, 0, { thermal: true });
+    e.refresh();
+    for (let s = 0; s < 2000; s++) e.step();
+    const rest = () => { let k = 0; for (let i = 3; i < e.N; i++) { const j = 3 * i; k += e.mass[i] * (e.vel[j] ** 2 + e.vel[j + 1] ** 2 + e.vel[j + 2] ** 2); } return k; };
+    const before = rest();
+    e.tweezer = { i: 0, x: e.pos[0], y: e.pos[1], k: 30 };      // hold the oxygen
+    assert.ok(e.driven(1) && e.driven(2), 'the whole molecule counts as dragged');
+    assert.ok(!e.driven(3), 'and nothing else does');
+    for (let s = 0; s < 3000; s++) {
+      e.tweezer.x = 40 + 20 * Math.sin(s / 300); e.tweezer.y = 40 + 15 * Math.cos(s / 300);
+      e.needForces = true; e.step();
+    }
+    assert.ok(rest() > 0.4 * before, `the chamber keeps moving: ${(rest() / before * 100).toFixed(0)}%`);
+    e.tweezer = null;
+  }
 });
 console.log(`${count} thermal-wall checks passed.`);
