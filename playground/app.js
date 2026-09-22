@@ -57,7 +57,8 @@ function updateLab() {
   $('liveTemperature').textContent = eng.N ? eng.temperature().toFixed(1) + ' K' : '—';
   $('liveEnergy').textContent = eng.N ? (eng.Epot + eng.kinetic()).toFixed(1) + ' kJ/mol' : '—';
   const mode = bathMode();
-  $('bathBtn').textContent = mode === 'wall' ? (eng.wallT - 273.15).toFixed(1) + ' °C wall'
+  $('bathBtn').textContent = eng.voidTemperature ? (eng.wallMeasured - 273.15).toFixed(1) + ' °C wall · radiating'
+    : mode === 'wall' ? (eng.wallT - 273.15).toFixed(1) + ' °C wall'
     : mode === 'kelvin' ? fmtT(eng.T) + ' K held' : 'Off · direct setting';
   $('bathBtn').setAttribute('aria-pressed', eng.thermostat);
   $('physicsNotice').hidden = !eng.clamped;
@@ -373,7 +374,7 @@ function renderTPop() {
   pop.querySelector('.head b').textContent = eng.temperature().toFixed(1) + ' K';
   pop.querySelectorAll('.row[data-t]').forEach(r => r.classList.toggle('on', Math.abs(+r.dataset.t - eng.T) < 0.01));
   pop.querySelectorAll('#tPopBath button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === bathMode()));
-  const wall = $('wallNow'); if (wall) wall.textContent = (eng.wallT - 273.15).toFixed(2) + ' °C';
+  const wall = $('wallNow'); if (wall) wall.textContent = (eng.wallMeasured - 273.15).toFixed(2) + ' °C';
   const heat = $('wallHeat'); if (heat) heat.textContent = eng.heatToSample.toFixed(2) + ' kJ/mol';
   const sw = $('statWork'); if (sw) sw.textContent = eng.kelvinWork.toFixed(1) + ' kJ/mol';
 }
@@ -1587,7 +1588,7 @@ function renderEnvironmentApp(stage) {
       if (v === 'temperature') eng.voidTemperature = !eng.voidTemperature;
       else if (v === 'pressure') eng.voidPressure = !eng.voidPressure;
       else eng.voidVelocity = !eng.voidVelocity;
-      boundarySettingsChanged();
+      boundarySettingsChanged(); paintBath();
     },
     summary: v => ({
       label: v.length ? v.map(x=>x[0].toUpperCase()+x.slice(1)).join(' · ') : 'None',
@@ -1614,8 +1615,8 @@ function renderEnvironmentApp(stage) {
   bath.id = 'envBath';
   group('Thermostat', bath);
 
-  const stat = el('div', 'stat-strip compact-stat', '<span>Energy removed</span>' +
-    [['void', GLYPH.drain]]
+  const stat = el('div', 'stat-strip compact-stat', '<span>Removed · wall</span>' +
+    [['void', GLYPH.drain], ['wall', GLYPH.wall]]
       .map(([k, g]) => '<div class="stat" data-k="' + k + '">' + g + '<b>—</b></div>').join(''));
   stage.appendChild(stat);
 
@@ -1626,7 +1627,10 @@ function renderEnvironmentApp(stage) {
   mk('envW', () => (eng.box.x1 - eng.box.x0) / 10, v => { eng.box.x1 = eng.box.x0 + v * 10; }, 1, 50);
   mk('envH', () => (eng.box.y1 - eng.box.y0) / 10, v => { eng.box.y1 = eng.box.y0 + v * 10; }, 1, 50);
   mk('envD', () => (eng.box.z1 - eng.box.z0) / 10, v => { eng.box.z0 = -v * 5; eng.box.z1 = v * 5; }, 0.1, 50);
-  bath.querySelectorAll('button').forEach(b => b.onclick = () => { setBathMode(b.dataset.v); paintBath(); });
+  bath.querySelectorAll('button').forEach(b => b.onclick = () => {
+    if (b.dataset.v === 'wall' && eng.voidTemperature) { toast('A radiating wall cannot be heated — turn the temperature void off, or hold the sample with the Kelvin stat'); return; }
+    setBathMode(b.dataset.v); paintBath();
+  });
   scrub($('baroTarget'), {
     get: () => eng.pressureTarget, set: (v, commit) => { eng.pressureTarget = v; if (commit) boundarySettingsChanged(); },
     min: 0, max: 200, off: 1, map: 'log', unit: 'bar', fmt: v => v < 10 ? v.toFixed(2) : v.toFixed(0),
@@ -1642,7 +1646,10 @@ function renderEnvironmentApp(stage) {
     $('baroTargetWrap').inert = !eng.pressureControl;
   }
   function paintBath() {
-    bath.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === bathMode()));
+    bath.querySelectorAll('button').forEach(b => {
+      b.setAttribute('aria-pressed', b.dataset.v === bathMode());
+      b.classList.toggle('inactive', b.dataset.v === 'wall' && !!eng.voidTemperature);
+    });
   }
   paintBath(); paintBaro();
   const cells = stat.querySelectorAll('.stat');
@@ -1650,6 +1657,13 @@ function renderEnvironmentApp(stage) {
     if (!stage.isConnected) return;
     cells[0].lastElementChild.textContent = (eng.voidTemperature || eng.voidPressure || eng.voidVelocity) ? eng.voidHeat.toFixed(1) + ' kJ/mol' : '—';
     cells[0].title = 'Energy removed by void walls';
+    // the wall is whatever the fluid against it is; a heater only sets what it aims for
+    const mode = bathMode();
+    cells[1].lastElementChild.textContent = eng.wallContact ? (eng.wallMeasured - 273.15).toFixed(0) + '°C' : '—';
+    cells[1].title = 'Wall temperature, measured from the fluid touching it'
+      + (eng.voidTemperature ? ' · radiating away, so no heater drives it'
+        : mode === 'wall' ? ' · heater aiming for ' + (eng.wallTarget - 273.15).toFixed(0) + '°C'
+        : mode === 'kelvin' ? ' · sample held at ' + fmtT(eng.T) + ' K' : ' · no thermostat');
     paintBaro();
     paintBath();
   };

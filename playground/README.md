@@ -42,13 +42,34 @@ The **Conditions** panel sets the chamber geometry and boundary.
 - **Forcefield** uses a conservative harmonic potential, 5 kJ/mol/Å², starting 1.2 Å inside the face. Atoms can penetrate this soft boundary before turning back.
 ### Void walls
 
-These optional numerical absorbers act in a 0.8 Å contact shell, with a 300 fs exponential response. They are artificial energy sinks, not models of vacuum.
+A reflecting chamber hands back everything it receives, so energy a sample releases as it
+settles comes straight off the walls again. A void wall makes the chamber open in one chosen
+respect. None of them can add energy or reverse a velocity; all are deliberate sinks, not
+models of vacuum.
 
-- **Temperature** applies a common damping factor to bonded atoms connected to a wall contact. It removes both internal and translational kinetic energy; it does not guarantee that bonds survive.
-- **Velocity** damps all motion of contacting atoms. At a solid-face crossing it stops the atom at the face.
-- **Pressure** damps normal motion. At a solid-face crossing it stops only the normal velocity. Absorption transfers `m*v` normal momentum, while elastic reflection transfers `2*m*v`; both contribute to measured wall stress.
+- **Temperature** radiates heat away the instant it appears, everywhere — not only where an atom
+  happens to touch a wall. A sample that heats itself, through friction, a reaction or work done
+  on it, never ends a step hotter than the temperature it was set to. One-sided: it only removes,
+  so a cold chamber stays cold and nothing here can drive the sample. The whole sample is scaled
+  at once, so no bond is ever pulled harder at one end than the other.
+- **Velocity** stops an atom dead. Not damped, not reflected: every component is zeroed for as
+  long as it is in contact, and the atom rests at the wall until a neighbour pushes it off. The
+  momentum it delivered is still wall stress and is still reported.
+- **Pressure** absorbs the component along the face it touched, so the atom slides on with its
+  other motion intact, and the wall reports no impulse at all. The pressure radiates away with
+  the chamber exactly the size it was. This is the only channel that drops the gauge to zero.
 
-Removed energy is recorded in `voidHeat`. Rejected integration attempts restore this ledger, so an absorbed collision is counted once. A thermostat can add energy back; this does not make the combined dynamics a validated physical open-system model.
+**The wall is measured, not set.** `wallMeasured` is the kinetic temperature of the fluid lying
+within `wallSkin` of a face — the wall is whatever the sample against it is, and a heater only
+sets what it *aims* for. With a temperature void the heater stands down entirely, because it
+cannot warm a wall that radiates everything away, and the wall simply reports the fluid; that is
+what the gauge and the Environment panel show. To hold an open chamber at a fixed temperature,
+use the **Kelvin stat**, which replaces what the void removes on the same tick.
+
+Removed energy is recorded in `voidHeat`. Rejected integration attempts restore this ledger, so
+an absorbed collision is counted once. Measured over 40,000 steps with hydrogen and oxygen let go
+at 300 K: a closed chamber heats itself past 600 K, while the same chamber with a temperature
+void never exceeds 300.00 K and radiates 26,000 kJ/mol away.
 
 ### Pressure
 

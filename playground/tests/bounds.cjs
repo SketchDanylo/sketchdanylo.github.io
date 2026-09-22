@@ -41,23 +41,68 @@ test('A contained atom keeps its speed when no void is selected', () => {
   assert.equal(e.voidHeat, 0);
 });
 
-test('Void temperature drains the energy an atom carries past the face', () => {
-  const e = chamber({ boundsMode: 'forcefield', voidTemperature: true });
-  e.addAtom('Ar', 55, 30, 0, { thermal: false, v: [0.02, 0, 0] });
-  const K0 = e.kinetic();
-  for (let i = 0; i < 4000; i++) e.step();
-  assert.ok(e.kinetic() < 0.5 * K0, `energy left with the void: ${e.kinetic()} vs ${K0}`);
-  assert.ok(e.voidHeat > 0);
-  assert.ok(e.pos[0] < e.box.x1, 'and the atom is still pushed back inside');
+test('Void temperature radiates self-made heat away instantly, everywhere', () => {
+  // a chamber that heats itself: hydrogen and oxygen let go at the set temperature
+  const build = opts => {
+    const e = new Engine({ width: 26, height: 22, depth: 14, T: 300, wallT: 300, seed: 11, thermostat: false, ...opts });
+    let x = 4, y = 5;
+    for (let m = 0; m < 4; m++) { e.addAtom('H', x, y, 0, { thermal: true }); e.addAtom('H', x + .74, y, 0, { thermal: true }); e.setBondOrder(e.N - 2, e.N - 1, 1); x += 5; if (x > 20) { x = 4; y += 5; } }
+    for (let m = 0; m < 2; m++) { e.addAtom('O', x, y, 0, { thermal: true }); e.addAtom('O', x + 1.21, y, 0, { thermal: true }); e.setBondOrder(e.N - 2, e.N - 1, 2); x += 6; if (x > 20) { x = 4; y += 6; } }
+    return e;
+  };
+  const closed = build({}), open = build({ voidTemperature: true });
+  let hottestClosed = 0, hottestOpen = 0;
+  for (let s = 0; s < 40000; s++) {
+    closed.step(); open.step();
+    hottestClosed = Math.max(hottestClosed, closed.temperature());
+    hottestOpen = Math.max(hottestOpen, open.temperature());
+  }
+  assert.ok(hottestClosed > 450, `a closed chamber heats itself, reached ${hottestClosed.toFixed(0)} K`);
+  assert.ok(hottestOpen <= 300 + 1e-6, `a voided one never exceeds its setting, reached ${hottestOpen.toFixed(2)} K`);
+  assert.ok(open.voidHeat > 0);
 });
 
-test('The void drain never acts inside the chamber', () => {
-  const e = chamber({ voidTemperature: true });
+test('Void temperature only ever removes: a cold chamber is left alone', () => {
+  const e = chamber({ voidTemperature: true, T: 900, thermostat: false });
   e.addAtom('Ar', 30, 30, 0, { thermal: false, v: [0.004, -0.002, 0.001] });
   const before = [...e.vel.slice(0, 3)];
   for (let i = 0; i < 500; i++) e.step();
-  assert.equal(e.voidHeat, 0);
+  assert.equal(e.voidHeat, 0);                       // well below 900 K: nothing to radiate
   for (let d = 0; d < 3; d++) near(e.vel[d], before[d], 1e-12);
+});
+
+test('A velocity void stops an atom dead at the wall and leaves it there', () => {
+  const e = chamber({ voidVelocity: true, thermostat: false });
+  e.addAtom('Ar', 30, 30, 0, { thermal: false, v: [0.02, 0.004, -0.003] });
+  for (let i = 0; i < 6000; i++) e.step();
+  for (let d = 0; d < 3; d++) assert.equal(e.vel[d], 0, `component ${d} is exactly zero, not damped`);
+  const resting = [...e.pos.slice(0, 3)];
+  for (let i = 0; i < 2000; i++) e.step();
+  for (let d = 0; d < 3; d++) assert.equal(e.pos[d], resting[d], 'and it does not drift afterwards');
+});
+
+test('A pressure void takes the face axis only, so an atom slides on', () => {
+  const e = chamber({ voidPressure: true, thermostat: false });
+  // travelling at the +x face with motion along y that has nothing to do with that face
+  // slow enough along y that it never reaches the y faces within the run
+  e.addAtom('Ar', 30, 30, 0, { thermal: false, v: [0.02, 0.002, 0] });
+  const width = e.box.x1 - e.box.x0;
+  for (let i = 0; i < 4000; i++) e.step();
+  assert.ok(e.pos[1] > e.box.y0 + 1 && e.pos[1] < e.box.y1 - 1, 'it never met a y face');
+  assert.equal(e.vel[0], 0, 'the normal component is absorbed');
+  near(e.vel[1], 0.002, 1e-12);                       // tangential motion is untouched
+  near(e.wallForce, 0, 1e-12);
+  near(e.pressureBar, 0, 1e-12);
+  near(e.box.x1 - e.box.x0, width, 1e-12);            // and the chamber never grew
+});
+
+test('The wall reports the fluid lying against it, not a heater setting', () => {
+  const e = chamber({ voidTemperature: true, T: 600, thermostat: true });
+  for (let i = 0; i < 24; i++) e.addAtom('Ar', 6 + (i % 6) * 9, 7 + ((i / 6) | 0) * 9, 0, { thermal: true });
+  for (let s = 0; s < 4000; s++) e.step();
+  assert.ok(e.wallContact > 0, 'atoms are in the boundary layer');
+  near(e.wallT, e.wallMeasured, 1e-12);               // the wall is what the fluid is
+  assert.ok(e.wallMeasured > 0 && e.wallMeasured < 1e5);
 });
 
 test('Solid walls reflect all six faces, conserve energy and report momentum flux', () => {
@@ -129,6 +174,8 @@ test('Every void channel removes energy at both wall kinds, and none can add any
   for (const mode of ['solid', 'forcefield']) for (const ch of ['voidTemperature', 'voidPressure', 'voidVelocity']) {
     const e = chamber({ boundsMode: mode, [ch]: true, T: 600 });
     for (let i = 0; i < 18; i++) e.addAtom('Ar', 6 + (i % 6) * 10, 8 + ((i / 6) | 0) * 18, 0, { thermal: true });
+    // a sample above its setting, so the temperature channel has excess heat to radiate
+    if (ch === 'voidTemperature') e.T = 100;
     const K0 = e.kinetic();
     for (let s = 0; s < 6000; s++) e.step();
     assert.ok(e.voidHeat > 0, `${mode}/${ch} removed energy, got ${e.voidHeat}`);
@@ -146,12 +193,23 @@ test('A reflecting chamber keeps its energy; every channel is opt-in', () => {
     assert.ok(Math.abs(e.kinetic() + e.Epot - E0) < 0.05 * E0, `${mode} conserves energy: ${e.kinetic() + e.Epot} vs ${E0}`);
   }
 });
-test('Absorption reports m*v impulse and accounts for removed energy once', () => {
-  for(const channel of ['voidPressure','voidVelocity']){
-    const e=chamber({[channel]:true});e.addAtom('Ar',59.999,30,0,{thermal:false,v:[.02,.005,0]});
+test('Stopping at a wall reports m*v, and a pressure void deletes that reading', () => {
+  // velocity: the atom stops, and the momentum it delivered is still wall stress
+  {
+    const e=chamber({voidVelocity:true});e.addAtom('Ar',59.999,30,0,{thermal:false,v:[.02,.005,0]});
     const K=e.kinetic(), impulse=e.mass[0]*.02*1e4;e.step();
     near(e.wallForce,impulse/e.dt,1e-9);near(e.kinetic()+e.voidHeat,K,1e-9);near(e.pos[0],60);
-    assert.ok(e.pressureBar>0);const snap=e.snapshot();e.step();const expected=e.snapshot();e.restore(snap);e.step();
+    assert.ok(e.pressureBar>0,'a wall that is struck reports the blow');
+    const snap=e.snapshot();e.step();const expected=e.snapshot();e.restore(snap);e.step();
+    near(e.voidHeat,expected.voidHeat);near(e.pressureEMA,expected.pressureEMA);
+  }
+  // pressure: the same blow lands, and the wall reports nothing at all
+  {
+    const e=chamber({voidPressure:true});e.addAtom('Ar',59.999,30,0,{thermal:false,v:[.02,.005,0]});
+    const K=e.kinetic();e.step();
+    near(e.wallForce,0,1e-12);near(e.pressureBar,0,1e-12);
+    near(e.kinetic()+e.voidHeat,K,1e-9);near(e.pos[0],60);
+    const snap=e.snapshot();e.step();const expected=e.snapshot();e.restore(snap);e.step();
     near(e.voidHeat,expected.voidHeat);near(e.pressureEMA,expected.pressureEMA);
   }
 });
@@ -165,16 +223,17 @@ test('Rejected integration restores the absorbed-energy ledger',()=>{
   e.voidHeat=7;e._save();e._wallImpulse=0;e._reflectWalls();assert.ok(e.voidHeat>7);e._load();near(e.voidHeat,7);
 });
 
-test('A temperature void takes the agitation and leaves the molecule whole', () => {
-  // one N2 drifting into a wall: the bond must survive, the shaking must not
-  const e = chamber({ voidTemperature: true, thermostat: false });
-  e.addAtom('N', 57.0, 30, 0, { thermal: false, v: [0.012, 0, 0] });
-  e.addAtom('N', 58.1, 30, 0, { thermal: false, v: [0.012, 0, 0] });
+test('Radiating heat scales the whole sample at once, so bonds are never strained', () => {
+  // an N2 running hot: radiating must not pull one end of the bond harder than the other
+  const e = chamber({ voidTemperature: true, thermostat: false, T: 50 });
+  e.addAtom('N', 30.0, 30, 0, { thermal: false, v: [0.012, 0, 0] });
+  e.addAtom('N', 31.1, 30, 0, { thermal: false, v: [0.012, 0, 0] });
   e.setBondOrder(0, 1, 3);
   const bond = () => Math.abs(e.pos[0] - e.pos[3]);
   for (let s = 0; s < 4000; s++) e.step();
   assert.ok(bond() > 0.9 && bond() < 1.4, `the bond survived, length ${bond().toFixed(3)} A`);
-  assert.ok(e.voidHeat > 0, 'and the wall took energy');
+  assert.ok(e.voidHeat > 0, 'and the excess was radiated');
+  assert.ok(e.temperature() <= 50 + 1e-6, `held at its setting, ${e.temperature().toFixed(2)} K`);
 });
 test('A velocity void stops what reaches the wall', () => {
   const e = chamber({ voidVelocity: true, thermostat: false });

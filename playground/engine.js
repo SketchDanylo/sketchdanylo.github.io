@@ -332,6 +332,7 @@ class Engine {
     this.wallSkin = opts.wallSkin ?? 2; // Å; zero direct coupling in the interior
     this.wallCoupling = opts.wallCoupling ?? 100; // fs at the surface
     this.heatToSample = 0; this.heaterWork = 0;
+    this.wallMeasured = this.T; this.wallContact = 0; // what the fluid against the wall actually is
     this.rc = opts.rc || 8.0;
     this.skin = 1.0;
     this.rngState = (opts.seed ?? 12345) >>> 0;
@@ -954,27 +955,33 @@ class Engine {
   }
   /* Rectangular solid walls reflect the drift at the face. Soft fields and the
      spherical conditioning vessel retain conservative harmonic potentials. */
+  /* Solid faces reflect what reaches them. A void changes what comes back: with pressure, the
+     normal component is absorbed and the atom slides on; with velocity, the atom stops dead at
+     the face and stays there. Stopping still delivers m*v to the wall and is reported as such —
+     only a pressure void deletes the reading, which is the whole point of that channel. */
   _reflectWalls() {
     if (this.sphere || this.boundsMode !== 'solid') return;
     const b=this.box, lo=[b.x0,b.y0,b.z0], hi=[b.x1,b.y1,b.z1];
-    // Absorption transfers m*v normal momentum; reflection transfers 2*m*v.
     const stop = this.voidPressure || this.voidVelocity, full = this.voidVelocity;
     for(let i=0;i<this.N;i++) {
       if(this.pinned[i]) continue;
       const k=3*i;
       if(stop){
-        const hit=[0,1,2].map(d=>this.pos[k+d]<lo[d] || this.pos[k+d]>hi[d]);
-        if(!hit.some(Boolean))continue;
+        let touched = false;
         for(let d=0;d<3;d++){
           const j=k+d;
-          if(hit[d]){
+          if(this.pos[j]<lo[d] || this.pos[j]>hi[d]){
+            touched = true;
             this.pos[j]=clampNum(this.pos[j],lo[d],hi[d]);
-            this._wallImpulse+=this.mass[i]*Math.abs(this.vel[j])*KEU;
-          }
-          if(full || hit[d]){
+            if(!this.voidPressure) this._wallImpulse+=this.mass[i]*Math.abs(this.vel[j])*KEU;
             this.voidHeat+=0.5*KEU*this.mass[i]*this.vel[j]*this.vel[j];
-            this.vel[j]=0;
+            this.vel[j]=0;                       // absorbed, not reflected
           }
+        }
+        if(full && touched) for(let d=0;d<3;d++){  // and velocity stops the atom outright
+          const j=k+d;
+          this.voidHeat+=0.5*KEU*this.mass[i]*this.vel[j]*this.vel[j];
+          this.vel[j]=0;
         }
         continue;
       }
@@ -1014,7 +1021,7 @@ class Engine {
       const Lx = b.x1 - b.x0, Ly = b.y1 - b.y0, Lz = b.z1 - b.z0;
       this.wallArea = 2 * (Lx * Ly + Lx * Lz + Ly * Lz);
     }
-    this.Ewall = E; this.wallForce = Fsum; this.voidForce = 0; // legacy snapshot field; reflecting walls always transfer momentum
+    this.Ewall = E; this.wallForce = this.voidPressure ? 0 : Fsum; this.voidForce = 0; // legacy snapshot field; reflecting walls always transfer momentum
     return E;
   }
 
@@ -1033,65 +1040,71 @@ class Engine {
     }
     return w;
   }
-  /* Void walls. Each selected channel is an exponential absorber over the contact shell, so it
-     can only take energy out, never put any in, and never reverse a velocity. Energy removed is
-     tallied: with any channel on, the chamber is an open system and does not conserve energy.
+  /* Void walls. Each channel deletes one thing the chamber would otherwise keep. They are not
+     gentle absorbers: what is voided is gone the moment it appears, which is what "void" means.
 
-     The three differ in what they take and from whom:
-       temperature — the whole molecule that touches the wall is cooled at one rate, so a bond
-                     is never pulled by cooling one of its atoms and not the other;
-       velocity    — only the atom in contact, and all of its motion: it stops where it is;
-       pressure    — only the normal component; absorbed collisions still report impulse. */
-  _voidWalls(dt) {
+       velocity    — an atom that reaches the wall stops dead and stays stopped. Not damped, not
+                     reflected: every component is zeroed for as long as it is in contact, so it
+                     rests there until a neighbour pushes it off.
+       pressure    — only the component along the face it touched is absorbed, so the atom can
+                     still slide along the wall. The wall registers no impulse, so the pressure
+                     it would have reported radiates away without the chamber changing size.
+       temperature — handled separately, in _voidHeat: heat is radiated off the instant it
+                     appears, everywhere, not only where an atom happens to touch a wall. */
+  _voidWalls() {
     if (this.sphere) return;
-    const thermal = this.voidTemperature, momentum = this.voidPressure, whole = this.voidVelocity;
-    if (!thermal && !momentum && !whole) return;
+    const momentum = this.voidPressure, whole = this.voidVelocity;
+    if (!momentum && !whole) return;
     const N = this.N, vel = this.vel, per = [0, 0, 0];
-    if (!this._vw || this._vw.length < N) { this._vw = new Float64Array(N + 100); this._va = new Float64Array(3 * N + 300); }
-    const cw = this._vw, axis = this._va;
-    let any = false;
-    for (let i = 0; i < N; i++) {
-      if (this.pinned[i]) { cw[i] = 0; axis[3 * i] = axis[3 * i + 1] = axis[3 * i + 2] = 0; continue; }
-      cw[i] = this._contact(i, per);
-      for (let d = 0; d < 3; d++) axis[3 * i + d] = per[d];
-      if (cw[i] > 0) any = true;
-    }
-    if (!any) return;
-    const mol = thermal ? this._spreadAlongBonds(cw, N) : cw;
     let lost = 0;
-    const tau = Math.max(1e-6, this.voidTau);
     for (let i = 0; i < N; i++) {
       if (this.pinned[i]) continue;
-      const k = 3 * i;
-      const before = vel[k] * vel[k] + vel[k + 1] * vel[k + 1] + vel[k + 2] * vel[k + 2];
-      if (thermal && mol[i] > 0) { const c = Math.exp(-dt * mol[i] / tau); vel[k] *= c; vel[k + 1] *= c; vel[k + 2] *= c; }
-      if (cw[i] > 0) {
-        if (whole) { const c = Math.exp(-dt * cw[i] / tau); vel[k] *= c; vel[k + 1] *= c; vel[k + 2] *= c; }
-        else if (momentum) for (let d = 0; d < 3; d++) if (axis[k + d] > 0) vel[k + d] *= Math.exp(-dt * axis[k + d] / tau);
+      if (this._contact(i, per) <= 0) continue;
+      const k = 3 * i, m = this.mass[i];
+      for (let d = 0; d < 3; d++) {
+        if (!whole && per[d] <= 0) continue;     // pressure takes only the face's own axis
+        const j = k + d;
+        lost += 0.5 * KEU * m * vel[j] * vel[j];
+        vel[j] = 0;
       }
-      const after = vel[k] * vel[k] + vel[k + 1] * vel[k + 1] + vel[k + 2] * vel[k + 2];
-      if (after !== before) lost += 0.5 * KEU * this.mass[i] * (before - after);
     }
     this.voidHeat += lost;
   }
-  /* Carries the strongest contact weight along bonds, so a molecule touching a wall is treated
-     as one body. Small molecules settle in a pass or two; the cap keeps the cost bounded. */
-  _spreadAlongBonds(cw, N) {
-    if (!this._vm || this._vm.length < N) this._vm = new Float64Array(N + 100);
-    const mol = this._vm;
-    for (let i = 0; i < N; i++) mol[i] = cw[i];
-    for (let pass = 0; pass < 8; pass++) {
-      let changed = false;
-      for (let p = 0; p < this.nPairs; p++) {
-        if (this.bondStrength(p) <= 0.25) continue;
-        const i = this.pI[p], j = this.pJ[p];
-        if (mol[j] > mol[i] + 1e-12) { mol[i] = mol[j]; changed = true; }
-        else if (mol[i] > mol[j] + 1e-12) { mol[j] = mol[i]; changed = true; }
-      }
-      if (!changed) break;
+  /* Void temperature. A sample that heats itself — friction, a reaction, work done on it —
+     radiates that heat away as fast as it is made, so the chamber never runs hotter than the
+     temperature it was set to. One-sided: it only ever removes, so a cold chamber stays cold
+     and nothing here can drive the sample. */
+  _voidHeat() {
+    if (!this.voidTemperature) return;
+    const Nf = this.dof(); if (!Nf) return;
+    const K = this.kinetic(), Kt = 0.5 * Nf * KB * Math.max(0, this.T);
+    if (!(K > Kt)) return;
+    const sc = Math.sqrt(Kt / K), v = this.vel;
+    for (let i = 0; i < this.N; i++) {
+      if (this.pinned[i]) { v.fill(0, 3 * i, 3 * i + 3); continue; }
+      for (let k = 3 * i; k < 3 * i + 3; k++) v[k] *= sc;
     }
-    return mol;
+    this.voidHeat += K - Kt;
   }
+  /* What the wall actually is, rather than what a heater was told to make it: the kinetic
+     temperature of the fluid lying against it. With heat radiating away this is the only
+     honest reading, and it is what the gauge shows. */
+  _measureWall() {
+    const b = this.box, p = this.pos, v = this.vel, skin = this.wallSkin;
+    let K = 0, n = 0;
+    for (let i = 0; i < this.N; i++) {
+      if (this.pinned[i]) continue;
+      const k = 3 * i;
+      const distance = this.sphere ? this.sphere.R - Math.hypot(p[k] - this.sphere.x, p[k + 1] - this.sphere.y, p[k + 2] - this.sphere.z) :
+        Math.min(p[k] - b.x0, b.x1 - p[k], p[k + 1] - b.y0, b.y1 - p[k + 1], p[k + 2] - b.z0, b.z1 - p[k + 2]);
+      if (distance >= skin) continue;
+      K += 0.5 * KEU * this.mass[i] * (v[k] * v[k] + v[k + 1] * v[k + 1] + v[k + 2] * v[k + 2]);
+      n += 3;
+    }
+    this.wallMeasured = n ? 2 * K / (n * KB) : 0;
+    this.wallContact = n / 3;
+  }
+
   /* Pressure control: the chamber breathes toward the target instead of being held by hand.
      Whole molecules move with the walls; bond lengths are never scaled. */
   _barostat() {
@@ -1174,14 +1187,18 @@ class Engine {
       if (v2 >= VMAX * VMAX) { clamped++; const s = VMAX / Math.sqrt(v2); vel[3 * i] *= s; vel[3 * i + 1] *= s; vel[3 * i + 2] *= s; }
     }
     this.clamped += clamped;
-    this._voidWalls(dt);
-    // The stat runs last, so whatever the void just removed is replaced within the same step
-    // and the temperature the gauge reads is the temperature that was asked for.
+    this._voidWalls();
     if (this.thermostat) {
       if (this.thermostatMode === 'csvr') this._csvr();
       else if (this.thermostatMode === 'kelvin') this._kelvin();
-      else this._wallBath(dt);
+      // A heater cannot warm a wall that radiates everything away, so it stands down and the
+      // wall simply reports the fluid against it.
+      else if (!this.voidTemperature) this._wallBath(dt);
     }
+    // Radiating last gives it the final say: heat made during this step never survives it.
+    this._voidHeat();
+    this._measureWall();
+    if (this.voidTemperature) this.wallT = this.wallMeasured;
     this.time += dt; this.stepCount++;
     if (!this.sphere && this.boundsMode === 'solid') this.wallForce = this._wallImpulse / dt;
     // Normal momentum flux, exponentially averaged over ~1 ps
@@ -1278,7 +1295,7 @@ class Engine {
   setTemperature(T) {
     if (!Number.isFinite(T) || T < 0) throw new RangeError('Temperature must be finite and non-negative');
     this.checkpoints.length = 0;
-    if (this.thermostat && this.thermostatMode === 'wall') {
+    if (this.thermostat && this.thermostatMode === 'wall' && !this.voidTemperature) {
       this.wallTarget = Math.max(288.15, Math.min(623.15, T));
       this.T = this.wallTarget;
       return; // heater setpoint changes; neither walls nor sample jump
@@ -1455,6 +1472,7 @@ class Engine {
       N, time: this.time, stepCount: this.stepCount, rng: this.rngState, nextId: this.nextId,
       box: { ...this.box }, sphere: this.sphere && { ...this.sphere }, T: this.T, tau: this.tau, thermostat: this.thermostat,
       thermostatMode: this.thermostatMode, kelvinWork: this.kelvinWork, wallT: this.wallT, wallTarget: this.wallTarget,
+      wallMeasured: this.wallMeasured, wallContact: this.wallContact,
       boundsMode: this.boundsMode, fieldK: this.fieldK, fieldRange: this.fieldRange,
       voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, voidVelocity: this.voidVelocity, voidTau: this.voidTau, voidSkin: this.voidSkin,
       pressureControl: this.pressureControl, pressureTarget: this.pressureTarget, pressureTau: this.pressureTau,
@@ -1475,7 +1493,7 @@ class Engine {
     this.N = s.N; this.time = s.time; this.stepCount = s.stepCount; this.rngState = s.rng; this.nextId = s.nextId;
     if (s.box) this.box = { ...s.box };
     this.sphere = s.sphere ? { ...s.sphere } : null;
-    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'kelvinWork', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidVelocity', 'voidTau', 'voidSkin', 'voidHeat', 'voidForce', 'pressureControl', 'pressureTarget', 'pressureTau', 'heatToSample', 'heaterWork', 'nextSub', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
+    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'kelvinWork', 'wallMeasured', 'wallContact', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidVelocity', 'voidTau', 'voidSkin', 'voidHeat', 'voidForce', 'pressureControl', 'pressureTarget', 'pressureTau', 'heatToSample', 'heaterWork', 'nextSub', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
     this.tweezer = null;
     this.pos.set(s.pos); this.vel.set(s.vel); this.frc.set(s.frc); this.prev.set(s.pos);
     this.type.set(s.type); this.formal.set(s.formal); this.val.set(s.val); this.lp.set(s.lp); this.pinned.set(s.pinned); this.ids.set(s.ids); this.cos0.set(s.cos0);

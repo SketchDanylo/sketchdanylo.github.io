@@ -592,3 +592,6 @@ kbd{font:500 9.5px var(--mono);padding:1px 5px;border:1px solid var(--line-hi);b
 .baro-row{display:flex;align-items:center;gap:8px}
 .baro-row .dim{flex:1;justify-content:flex-end;transition:opacity .3s var(--ease)}
 .baro-row .dim.inactive{opacity:.35}
+
+/* a control that cannot act right now, rather than one that is simply off */
+.seg-mini button.inactive{opacity:.35}
