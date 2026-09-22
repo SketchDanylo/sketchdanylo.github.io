@@ -150,4 +150,39 @@ test('A driven atom is excluded from the temperature, and only while it is held'
   e.tweezer = null;
   assert.ok(e.temperature() > one * 10, 'and counts again the moment it is let go');
 });
+test('A spark survives the thermostat long enough to light something', () => {
+  // a stat that holds a total would erase a spark on the step it landed, so ignition holds it off
+  const build = () => {
+    const e = chamber({ T: 300, thermostatMode: 'kelvin' });
+    for (let m = 0; m < 3; m++) { e.addAtom('H', 10 + m * 14, 20, 0, { thermal: true }); e.addAtom('H', 10.74 + m * 14, 20, 0, { thermal: true }); e.setBondOrder(e.N - 2, e.N - 1, 1); }
+    e.refresh();
+    for (let s = 0; s < 2000; s++) e.step();
+    return e;
+  };
+  const quiet = build(), lit = build();
+  const K = lit.kinetic();
+  lit.vel[0] -= 0.25; lit.vel[3] += 0.25;         // pull one bond apart, as the spark does
+  lit.sparkHold = lit.time + 2000;
+  lit.step();
+  assert.ok(lit.kinetic() > K * 2, 'the stat leaves the spark alone while the window is open');
+  while (lit.time < lit.sparkHold) lit.step();
+  for (let s = 0; s < 3000; s++) lit.step();
+  near(lit.temperature(), 300, 1e-6);             // and takes hold again once it closes
+  // without the window the same kick is erased immediately
+  quiet.vel[0] -= 0.25; quiet.vel[3] += 0.25;
+  quiet.step();
+  near(quiet.temperature(), 300, 1e-6);
+});
+test('The ignition window is part of the state and replays exactly', () => {
+  const e = chamber({ T: 400, thermostatMode: 'kelvin' });
+  e.recording = true;
+  for (let i = 0; i < 6; i++) e.addAtom('Ar', 12 + i * 12, 30, 0, { thermal: true });
+  for (let s = 0; s < 200; s++) e.step();
+  e.vel[0] += 0.3; e.sparkHold = e.time + 500;
+  const snap = e.snapshot(), trace = [];
+  for (let i = 0; i < 300; i++) { e.step(); trace.push([e.pos[0], e.vel[0]]); }
+  e.restore(snap);
+  assert.equal(e.sparkHold, snap.sparkHold);
+  for (const want of trace) { e.step(); near(e.pos[0], want[0], 1e-12); near(e.vel[0], want[1], 1e-14); }
+});
 console.log(`${count} thermal-wall checks passed.`);

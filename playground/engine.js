@@ -332,6 +332,11 @@ class Engine {
     this.wallSkin = opts.wallSkin ?? 2; // Å; zero direct coupling in the interior
     this.wallCoupling = opts.wallCoupling ?? 100; // fs at the surface
     this.heatToSample = 0; this.heaterWork = 0;
+    /* Ignition window. A spark is local and fast; coupling to the surroundings is neither. In a
+       chamber of a dozen atoms a thermostat is instantaneous and global, so it would erase a
+       spark on the step it landed and nothing could ever be lit. While this window is open the
+       stat and the temperature void stand back and let the spark do its work. */
+    this.sparkHold = 0;
     this.wallMeasured = this.T; this.wallContact = 0; // what the fluid against the wall actually is
     this.rc = opts.rc || 8.0;
     this.skin = 1.0;
@@ -1210,7 +1215,8 @@ class Engine {
     }
     this.clamped += clamped;
     this._voidWalls();
-    if (this.thermostat) {
+    const igniting = this.time < this.sparkHold;
+    if (this.thermostat && !igniting) {
       if (this.thermostatMode === 'csvr') this._csvr();
       else if (this.thermostatMode === 'kelvin') this._kelvin();
       // A heater cannot warm a wall that radiates everything away, so it stands down and the
@@ -1218,7 +1224,7 @@ class Engine {
       else if (!this.voidTemperature) this._wallBath(dt);
     }
     // Radiating last gives it the final say: heat made during this step never survives it.
-    this._voidHeat();
+    if (!igniting) this._voidHeat();
     this._measureWall();
     if (this.voidTemperature) this.wallT = this.wallMeasured;
     this.time += dt; this.stepCount++;
@@ -1509,7 +1515,7 @@ class Engine {
     return {
       N, time: this.time, stepCount: this.stepCount, rng: this.rngState, nextId: this.nextId,
       box: { ...this.box }, sphere: this.sphere && { ...this.sphere }, T: this.T, tau: this.tau, thermostat: this.thermostat,
-      thermostatMode: this.thermostatMode, kelvinWork: this.kelvinWork, wallT: this.wallT, wallTarget: this.wallTarget,
+      thermostatMode: this.thermostatMode, kelvinWork: this.kelvinWork, sparkHold: this.sparkHold, wallT: this.wallT, wallTarget: this.wallTarget,
       wallMeasured: this.wallMeasured, wallContact: this.wallContact,
       boundsMode: this.boundsMode, fieldK: this.fieldK, fieldRange: this.fieldRange,
       voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, voidVelocity: this.voidVelocity, voidTau: this.voidTau, voidSkin: this.voidSkin,
@@ -1531,7 +1537,7 @@ class Engine {
     this.N = s.N; this.time = s.time; this.stepCount = s.stepCount; this.rngState = s.rng; this.nextId = s.nextId;
     if (s.box) this.box = { ...s.box };
     this.sphere = s.sphere ? { ...s.sphere } : null;
-    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'kelvinWork', 'wallMeasured', 'wallContact', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidVelocity', 'voidTau', 'voidSkin', 'voidHeat', 'voidForce', 'pressureControl', 'pressureTarget', 'pressureTau', 'heatToSample', 'heaterWork', 'nextSub', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
+    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'kelvinWork', 'sparkHold', 'wallMeasured', 'wallContact', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidVelocity', 'voidTau', 'voidSkin', 'voidHeat', 'voidForce', 'pressureControl', 'pressureTarget', 'pressureTau', 'heatToSample', 'heaterWork', 'nextSub', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
     this.tweezer = null;
     this.pos.set(s.pos); this.vel.set(s.vel); this.frc.set(s.frc); this.prev.set(s.pos);
     this.type.set(s.type); this.formal.set(s.formal); this.val.set(s.val); this.lp.set(s.lp); this.pinned.set(s.pinned); this.ids.set(s.ids); this.cos0.set(s.cos0);

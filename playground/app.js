@@ -63,7 +63,7 @@ function updateLab() {
   $('bathBtn').setAttribute('aria-pressed', eng.thermostat);
   $('physicsNotice').hidden = !eng.clamped;
   $('physicsNotice').textContent = eng.clamped ? eng.clamped + ' safety speed clamps · energy affected' : '';
-  const hint = placing ? 'Click to place · Q/E rotate · right-click for the hand' : armed ? armed + ' selected · click to place · right-click for the hand' : tool === 'heat' ? 'Drag to heat · Shift-drag to cool' : tool === 'erase' ? 'Click an atom to erase · Alt: molecule' : viewTilted() ? 'Turning · release to face the chamber again' : '';
+  const hint = placing ? 'Click to place · Q/E rotate · right-click for the hand' : armed ? armed + ' selected · click to place · right-click for the hand' : tool === 'heat' ? 'Drag to heat · Shift-drag to cool' : tool === 'spark' ? 'Click to ignite · a stable mixture needs a starter' : tool === 'erase' ? 'Click an atom to erase · Alt: molecule' : viewTilted() ? 'Turning · release to face the chamber again' : '';
   const ctx = $('toolContext');
   if (ctx.textContent !== hint) {
     ctx.textContent = hint; ctx.classList.toggle('show',!!hint);
@@ -89,7 +89,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const inspector = new AtomInspector({ engine: eng, pause: () => setPlaying(false), focus: () => canvas.focus(),
+const inspector = new AtomInspector({ engine: eng, pause: () => { if(consoleIsOpen())closeConsole();closePop();setPlaying(false); }, focus: () => canvas.focus(),
   screenOf: i => R.toScreen(rp[3 * i], rp[3 * i + 1]),
   remove: id => {
   const i = eng.ids.subarray(0, eng.N).indexOf(id);
@@ -110,12 +110,36 @@ function applyAppearance(){
 }
 motionQuery.addEventListener('change',applyAppearance);
 applyAppearance();
+// Retain the outgoing content while the next view arrives in the same surface.
+const surfaceTransitions=new WeakMap();
+function crossfadeSurface(panel,render,host=panel){
+  const previous=surfaceTransitions.get(panel);
+  if(previous){previous.animations.forEach(a=>a.cancel());previous.ghost.remove();}
+  if(document.documentElement.dataset.motion==='reduced'||!panel.childElementCount||!panel.getClientRects().length){render();return;}
+  const before=host.getBoundingClientRect().height, oldScroll=panel.scrollTop;
+  const ghost=panel.cloneNode(true);
+  ghost.removeAttribute('id');ghost.querySelectorAll('[id]').forEach(n=>n.removeAttribute('id'));
+  ghost.classList.add('surface-outgoing');ghost.inert=true;ghost.setAttribute('aria-hidden','true');
+  render();
+  const after=host.getBoundingClientRect().height;
+  ghost.style.height=panel.clientHeight+'px';
+  panel.append(ghost);ghost.scrollTop=oldScroll;
+  const options={duration:520,easing:'cubic-bezier(.22,1,.36,1)'};
+  const animations=[ghost.animate([{opacity:1},{opacity:0}],{duration:340,easing:'ease-in-out',fill:'forwards'})];
+  [...panel.children].filter(n=>n!==ghost).forEach(n=>animations.push(n.animate([{opacity:0,transform:'translateY(7px)'},{opacity:1,transform:'none'}],options)));
+  if(Math.abs(before-after)>1)animations.push(host.animate([{height:before+'px'},{height:after+'px'}],options));
+  const state={ghost,animations};surfaceTransitions.set(panel,state);
+  Promise.allSettled(animations.map(a=>a.finished)).then(()=>{ghost.remove();if(surfaceTransitions.get(panel)===state)surfaceTransitions.delete(panel);});
+}
 $('fitBtn').onclick = () => fitBox(true);
 $('measurementsBtn').onclick = () => {
-  const panel = $('measurementsPanel'), open = !panel.classList.contains('open');
-  panel.classList.toggle('open', open); panel.inert = !open;
-  $('measurementsBtn').setAttribute('aria-expanded', open);
+  if (openPop?.pop === $('measurementsPanel')) closePop();
+  else showPop($('measurementsPanel'), $('measurementsBtn'), 'above');
 };
+$('measurementsBtn').oncontextmenu = e => { e.preventDefault(); openSpeedPop(); };
+$('fitBtn').oncontextmenu = e => { e.preventDefault(); openConsole('display'); };
+$('gT').oncontextmenu = $('gP').oncontextmenu = e => { e.preventDefault(); openConsole('environment'); };
+document.addEventListener('dragstart', e => { if (!e.target.closest('input,textarea,[contenteditable="true"]')) e.preventDefault(); });
 $('bathBtn').onclick = toggleBath;
 $('resampleBtn').onclick = resampleMotion;
 document.addEventListener('visibilitychange', () => {
@@ -173,7 +197,7 @@ function toast(msg, cls) {
 /* ======================= camera ======================= */
 function fitBox(animate) {
   const b = eng.box, W = R.W, H = R.H;
-  const mobile=W<=760, left=mobile?30:104, right=40, top=mobile?160:150, bottom=mobile?230:136;
+  const mobile=W<=640, left=32, right=32, top=mobile?126:108, bottom=mobile?182:126;
   const aw=Math.max(100,W-left-right), ah=Math.max(100,H-top-bottom);
   const span=clamp(Math.max((b.x1-b.x0)*W/aw,(b.y1-b.y0)*W/ah),SPAN_MIN,5000);
   camTo((b.x0+b.x1)/2-(left-right)*span/(2*W), (b.y0+b.y1)/2-(top-bottom)*span/(2*W),span,animate);
@@ -181,7 +205,7 @@ function fitBox(animate) {
 let camAnim = null;
 function camTo(cx, cy, span, animate) {
   if (!animate || document.documentElement.dataset.motion==='reduced') { R.cam.cx = cx; R.cam.cy = cy; R.cam.span = span; camAnim = null; return; }
-  camAnim = { from: { ...R.cam }, to: { cx, cy, span }, t0: performance.now(), dur: 420 };
+  camAnim = { from: { ...R.cam }, to: { cx, cy, span }, t0: performance.now(), dur: 680 };
 }
 function zoomAt(sx, sy, factor) {
   const [wx, wy] = R.toWorld(sx, sy);
@@ -355,16 +379,28 @@ const tHist = [], pHist = [];
 /* ======================= popovers ======================= */
 let openPop = null;
 function showPop(pop, anchor, place) {
+  if(consoleIsOpen())closeConsole();
+  if(inspector.panel.classList.contains('open'))inspector.close();
   closePop();
-  pop.classList.add('open'); openPop = { pop, anchor };
+  pop.inert = false; pop.classList.add('open'); openPop = { pop, anchor };
+  anchor.setAttribute('aria-expanded', 'true');
   const a = anchor.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
   let x, y;
   if (place === 'below') { x = clamp(a.right - w, 8, innerWidth - w - 8); y = a.bottom + 8; pop.style.setProperty('--oy', '0%'); }
   else if (place === 'right') { x = a.right + 10; y = clamp(a.top + a.height / 2 - h / 2, 8, innerHeight - h - 8); pop.style.setProperty('--ox', '0%'); pop.style.setProperty('--oy', '50%'); }
   else { x = clamp(a.left + a.width / 2 - w / 2, 8, innerWidth - w - 8); y = a.top - h - 10; pop.style.setProperty('--oy', '100%'); }
   pop.style.left = clamp(x, 8, Math.max(8, innerWidth - w - 8)) + 'px'; pop.style.top = clamp(y, 8, Math.max(8, innerHeight - h - 8)) + 'px';
+  (pop.querySelector('button:not(:disabled),select,[tabindex="0"]')||pop).focus();
 }
-function closePop() { if (openPop) { openPop.pop.classList.remove('open'); openPop = null; } }
+function closePop() {
+  if (!openPop) return;
+  const {pop,anchor}=openPop;
+  pop.classList.remove('open'); pop.inert=true; anchor.setAttribute('aria-expanded','false');
+  if(pop.contains(document.activeElement))anchor.focus();
+  openPop=null;
+}
+window.addEventListener('resize',closePop);
+document.querySelectorAll('.pop').forEach(p=>p.inert=true);
 document.addEventListener('pointerdown', e => {
   if (openPop && !openPop.pop.contains(e.target) && !openPop.anchor.contains(e.target)) closePop();
 }, true);
@@ -385,13 +421,14 @@ function openTPop() {
     presets.map((p, i) => '<button class="row" style="--i:' + i + '" data-t="' + p[0] + '"><span class="sw" style="background:' + blackbody(p[0]) + '"></span><span class="k">' + (wallHeater() ? (p[0] - 273.15).toFixed(0) + ' °C' : fmtT(p[0]) + ' K') + '</span><span class="lbl">' + p[1] + '</span></button>').join('') +
     '<div class="sep"></div><div class="seg-mini bath-seg" id="tPopBath"><button data-v="wall">Wall</button><button data-v="kelvin">Kelvin</button><button data-v="off">Off</button></div>' +
     (wallHeater() ? '<div class="kv"><span>Wall now</span><span id="wallNow"></span></div><div class="kv"><span>Heat into sample</span><span id="wallHeat"></span></div><div class="kv"><span>Heater response τ</span><span class="scrub" id="wallTau"></span></div><p class="thermal-note">The wall reaches 63% of a temperature change in τ. Time is simulated, not playback time. Only the 0.2 nm boundary layer contacts the reservoir; the interior warms through interactions. This is a specified nanoscale heater, not a calibrated household thermostat.</p>' : bathMode() === 'kelvin' ? '<div class="kv"><span>Stat work</span><span id="statWork"></span></div><p class="thermal-note">Every atom is rescaled to this temperature on every step, so the measured value is the set value. Against a void wall that is a steady state: what the wall removes, the stat returns the same tick. It fixes the total kinetic energy, not the distribution.</p>' : '<p class="thermal-note">Editing temperature immediately sets the sample’s kinetic temperature. Then it evolves without a heat bath. This changes the velocities, not the geometry or phase.</p>');
+  pop.querySelectorAll('.thermal-note').forEach(note=>{const details=document.createElement('details');details.className='control-note';details.innerHTML='<summary>About this control</summary>';note.before(details);details.append(note);});
   pop.querySelectorAll('.row[data-t]').forEach(r => r.onclick = () => { setT(+r.dataset.t); });
   pop.querySelectorAll('#tPopBath button').forEach(b => {
     b.setAttribute('aria-pressed', b.dataset.v === bathMode());
     b.onclick = () => { setBathMode(b.dataset.v); openTPop(); };
   });
   if (wallHeater()) scrub($('wallTau'), { get: () => eng.wallTau / 1000, set: v => { eng.wallTau = v * 1000; eng.checkpoints.length = 0; scheduleSave(); }, min: 1, max: 100, hardMin: .01, hardMax: 1e15, unit: 'ps', fmt: v => String(+v.toPrecision(4)) });
-  showPop(pop, $('gT'), 'below'); renderTPop();
+  if(openPop?.pop!==pop)showPop(pop, $('gT'), 'below'); renderTPop();
 }
 $('gT').addEventListener('click', e => { if (e.target.closest('.scrub')) return; openPop && openPop.pop.id === 'tPop' ? closePop() : openTPop(); });
 $('bbDot').title = 'Temperature presets';
@@ -476,8 +513,9 @@ function morphIcon() {
 }
 function animatePlayIcon() {
   cancelAnimationFrame(playMorph.raf);
+  if(document.documentElement.dataset.motion==='reduced'){playMorph.t=playMorph.target;morphIcon();return;}
   const t0 = performance.now(), from = playMorph.t, to = playMorph.target;
-  const tick = now => { const k = Math.min(1, (now - t0) / 220); playMorph.t = from + (to - from) * k; morphIcon(); if (k < 1) playMorph.raf = requestAnimationFrame(tick); };
+  const tick = now => { const k = Math.min(1, (now - t0) / 380); playMorph.t = from + (to - from) * k; morphIcon(); if (k < 1) playMorph.raf = requestAnimationFrame(tick); };
   playMorph.raf = requestAnimationFrame(tick);
 }
 function setPlaying(p) {
@@ -495,10 +533,10 @@ function stepOnce(dir) {
   } else if (!safeStep(eng)) return false;
   bondTrack.reset = true; species.reset = true;
   $('feed').replaceChildren();
-  time.manual = { t0: performance.now(), dur: 140 };
+  time.manual = document.documentElement.dataset.motion==='reduced'?null:{ t0: performance.now(), dur: 140 };
   return true;
 }
-function flashBtn(id) { const b = $(id); b.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-4px)' }, { transform: 'translateX(3px)' }, { transform: 'translateX(0)' }], { duration: 260 }); }
+function flashBtn(id) { if(document.documentElement.dataset.motion==='reduced')return; const b = $(id); b.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-4px)' }, { transform: 'translateX(3px)' }, { transform: 'translateX(0)' }], { duration: 260 }); }
 $('playBtn').onclick = togglePlay;
 function holdButton(id, dir) {
   const b = $(id); let timer = null, rate = 0, stop = false;
@@ -520,26 +558,29 @@ holdButton('fwdBtn', 1); holdButton('backBtn', -1);
 const TOOL_ICONS = {
   grab: '<svg viewBox="0 0 20 20"><path d="M7 9V4.8a1.3 1.3 0 012.6 0V9M9.6 8.5V3.6a1.3 1.3 0 012.6 0v5M12.2 8.8V5.2a1.3 1.3 0 012.6 0v6.3c0 3.4-2.2 5.8-5.3 5.8-2.2 0-3.6-1-4.7-2.8L3 11.2a1.3 1.3 0 012.1-1.4L7 12"/></svg>',
   erase: '<svg viewBox="0 0 20 20"><path d="M8.2 16.5h8.3M3.9 12.3l7.4-7.6a1.6 1.6 0 012.3 0l2.2 2.2a1.6 1.6 0 010 2.3l-6.9 7.3H7.6z"/><path d="M7.4 8.8l4.3 4.3"/></svg>',
-  heat: '<svg viewBox="0 0 20 20"><path d="M10 17.5c-3 0-5-2.1-5-4.8 0-3.3 3.2-4.5 3.2-8.2 2.9 1.4 4 3.6 3.6 6 1-.4 1.6-1.4 1.8-2.4 1.3 1.4 1.4 3 1.4 4.6 0 2.7-2 4.8-5 4.8z"/></svg>'
+  heat: '<svg viewBox="0 0 20 20"><path d="M10 17.5c-3 0-5-2.1-5-4.8 0-3.3 3.2-4.5 3.2-8.2 2.9 1.4 4 3.6 3.6 6 1-.4 1.6-1.4 1.8-2.4 1.3 1.4 1.4 3 1.4 4.6 0 2.7-2 4.8-5 4.8z"/></svg>',
+  spark: '<svg viewBox="0 0 20 20"><path d="M11.2 2.5L5 11h4l-.8 6.5L15 9h-4z"/><path d="M3.2 4.2l1.6 1.4M16.8 4.2l-1.6 1.4M2.6 14.8l1.9-.7M17.4 14.8l-1.9-.7"/></svg>'
 };
 const TOOLS = [['grab', 'Grab & pan', 'Drag atoms (pulls while running, moves the molecule while paused). Drag empty space to pan. Shift-drag to select.'],
   ['erase', 'Erase', 'Click or drag over atoms to remove them. Alt removes whole molecules.'],
-  ['heat', 'Heat brush', 'Drag to heat atoms under the brush; Shift or right-drag cools. Alt+scroll resizes.']];
+  ['heat', 'Heat brush', 'Drag to heat atoms under the brush; Shift or right-drag cools. Alt+scroll resizes.'],
+  ['spark', 'Spark', 'Click to ignite. A stable mixture needs a starter, the same as it does on a bench: this breaks a bond where you click and lets the radicals begin the chain.']];
 let tool = 'grab', armed = null; // armed element symbol for placing
-const dockEls = store.get('dockEls', ['H', 'C', 'N', 'O', 'F', 'S', 'P', 'Cl']);
-function staggerDock() { // the dock deals itself out on first paint
-  document.querySelectorAll('.dock .tool, .dock .el').forEach((b, i) => b.style.animationDelay = (0.16 + i * 0.022).toFixed(3) + 's');
-}
+const dockEls = [store.get('lastElement', 'H')].filter(s=>BY_SYM[s]);
+if(!dockEls.length)dockEls.push('H');
+function staggerDock() {} // The rail arrives as one continuous surface.
 function buildDock() {
   $('tools').innerHTML = TOOLS.map(t => '<button class="tool" data-tool="' + t[0] + '" aria-label="' + t[1] + '">' + TOOL_ICONS[t[0]] + '<sup></sup></button>').join('');
   $('elements').innerHTML = dockEls.map(s => '<button class="el" data-el="' + s + '" style="--c:' + BY_SYM[s].color + '" aria-label="' + BY_SYM[s].name + '">' + s + '<i></i><sup></sup></button>').join('');
   $('tools').querySelectorAll('.tool').forEach(b => {
     b.onclick = () => setTool(b.dataset.tool);
-    tipOn(b, () => { const t = TOOLS.find(x => x[0] === b.dataset.tool); return '<b>' + t[1] + '</b> <span class="m">' + keyHint('tool.' + t[0]) + '</span><div style="margin-top:4px">' + t[2] + '</div>'; }, 'right');
+    tipOn(b, () => { const t = TOOLS.find(x => x[0] === b.dataset.tool); return '<b>' + t[1] + '</b> <span class="m">' + keyHint('tool.' + t[0]) + '</span><div style="margin-top:4px">' + t[2] + '</div>'; }, 'above');
   });
   $('elements').querySelectorAll('.el').forEach(b => {
     b.onclick = () => arm(armed === b.dataset.el ? null : b.dataset.el);
-    tipOn(b, () => elTip(b.dataset.el), 'right');
+    tipOn(b, () => elTip(b.dataset.el), 'above');
+    b.oncontextmenu=e=>{e.preventDefault();openElPop();};
+    b.title=BY_SYM[b.dataset.el].name+' · right-click to change element';
   });
   refreshDock(); refreshKeyHints(); staggerDock();
 }
@@ -559,10 +600,7 @@ function refreshDock() {
 }
 function setTool(t) { tool = t; armed = null; placing = null; brush.active = false; refreshDock(); }
 function arm(sym) {
-  if (sym && !dockEls.includes(sym)) {
-    if (dockEls.length >= 9) dockEls.pop();
-    dockEls.push(sym); store.set('dockEls', dockEls); buildDock();
-  }
+  if (sym && !dockEls.includes(sym)) { dockEls.splice(0,dockEls.length,sym); store.set('lastElement',sym); buildDock(); }
   armed = sym; placing = null; refreshDock();
 }
 // periodic flyout
@@ -574,16 +612,38 @@ function ptPos(z) {
   if (z <= 36) return [4, z - 18];
   return [5, z - 36];
 }
-function openElPop() {
-  const pop = $('elPop');
-  pop.innerHTML = '<div class="cap">Elements with bonding parameters. Pick one to place it; it joins the dock.</div><div class="grid">' + PT54.map((s, i) => {
-    const [r, c] = ptPos(i + 1), e = BY_SYM[s];
-    return '<button class="cell ' + (e ? '' : 'off') + (dockEls.includes(s) ? ' pinned' : '') + '" style="grid-row:' + r + ';grid-column:' + c + ';--c:' + (e ? e.color : '#333') + '" data-el="' + s + '">' + s + (e ? '<i></i>' : '') + '</button>';
-  }).join('') + '</div>';
-  pop.querySelectorAll('.cell:not(.off)').forEach(b => { b.onclick = () => { arm(b.dataset.el); closePop(); }; tipOn(b, () => elTip(b.dataset.el), 'above'); });
-  showPop(pop, $('moreEl'), 'right');
+let libraryTab = 'atoms';
+function selectLibrary(tab) {
+  const changed=libraryTab!==tab; libraryTab=tab;
+  const molecules=tab==='molecules';
+  const render=()=>{$('atomsPanel').hidden=molecules; $('tray').hidden=!molecules;};
+  if(changed && openPop?.pop===$('elPop'))crossfadeSurface($('elPop').querySelector('.library-content'),render,$('elPop'));else render();
+  $('atomsTab').setAttribute('aria-selected',!molecules); $('atomsTab').tabIndex=molecules?-1:0;
+  $('trayPill').setAttribute('aria-selected',molecules); $('trayPill').tabIndex=molecules?0:-1;
 }
-$('moreEl').onclick = () => openPop && openPop.pop.id === 'elPop' ? closePop() : openElPop();
+function openElPop(tab='atoms') {
+  const pop=$('elPop');
+  if(!$('periodicGrid').childElementCount){
+    $('periodicGrid').innerHTML=PT54.map((sym,i)=>{
+      const [r,c]=ptPos(i+1), e=BY_SYM[sym];
+      return '<button class="cell '+(e?'':'off')+'" '+(e?'':'disabled ')+'style="grid-row:'+r+';grid-column:'+c+';--c:'+(e?e.color:'#333')+'" data-el="'+sym+'" aria-label="'+(e?e.name:sym+' — unavailable')+'">'+sym+'</button>';
+    }).join('');
+    pop.querySelectorAll('.cell:not(.off)').forEach(b=>{
+      b.onclick=()=>{arm(b.dataset.el);closePop();};
+      tipOn(b,()=>elTip(b.dataset.el),'above');
+    });
+  }
+  selectLibrary(tab); showPop(pop,$('moreEl'),'above');
+}
+$('moreEl').onclick=()=>openPop?.pop===$('elPop')?closePop():openElPop(libraryTab);
+$('moreEl').oncontextmenu=e=>{e.preventDefault();openElPop('molecules');};
+$('atomsTab').onclick=()=>selectLibrary('atoms');
+for(const id of ['atomsTab','trayPill'])$(id).addEventListener('keydown',e=>{
+  if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
+  e.preventDefault();e.stopPropagation();
+  selectLibrary(e.key==='Home'?'atoms':e.key==='End'?'molecules':libraryTab==='atoms'?'molecules':'atoms');
+  $(libraryTab==='atoms'?'atomsTab':'trayPill').focus();
+});
 
 /* tooltips */
 const tip = $('tip'); let tipTimer = 0;
@@ -622,7 +682,7 @@ function placeAtom(sym, x, y, v) {
   const fl = v ? viewDelta(v[0], v[1]) : null;
   eng.addAtom(sym, w[0], w[1], w[2], { v: fl ? [fl[0] + tv[0] * 0.3, fl[1] + tv[1] * 0.3, fl[2] + tv[2] * 0.3] : tv });
   edited();
-  bondTrack.pending.push({ x, y, t0: performance.now(), dur: 420, kind: 'form', big: true });
+  bondTrack.pending.push({ x, y, t0: performance.now(), dur: 680, kind: 'form', big: true });
 }
 // fling: screen drag → velocity (Å/fs). 10 Å of drag ≈ 0.02 Å/fs (2 km/s)
 function flingVel(dx, dy) { const k = 0.002, v = [dx * k, dy * k]; const s = Math.hypot(v[0], v[1]), cap = 0.12; if (s > cap) { v[0] *= cap / s; v[1] *= cap / s; } return v; }
@@ -740,6 +800,7 @@ canvas.addEventListener('pointerdown', e => {
     gesture = { type: 'orbit', sx: e.clientX, sy: e.clientY, yaw: view.yaw, pitch: view.pitch };
     canvas.className = 'orbiting'; return;
   }
+  if (tool === 'spark') { ignite(wx, wy); gesture = { type: 'spark' }; return; }
   if (tool === 'erase') { pushUndo(); gesture = { type: 'erase', alt: e.altKey }; eraseAt(wx, wy, e.altKey); return; }
   if (tool === 'heat') { brush.active = true; brush.cool = e.shiftKey; gesture = { type: 'brush' }; return; }
   const edge = boxEdgeAt(e.clientX, e.clientY);
@@ -856,6 +917,42 @@ function atomTip(i) {
 let spaceHeld = false, boxHot = null;
 
 /* heat brush: rescale velocities of atoms under the brush a little every frame */
+/* A spark, not a heater. Stable mixtures sit there because they are stable — H2 and O2 are
+   metastable at any temperature you can reach, and nothing happens until a radical starts the
+   chain. This deposits one short, sharp, local burst: enough to break the nearest bond and set
+   two radicals loose, which is what a spark plug, a flame or a photon does on a bench.
+   The energy is real and is added to the ledger; it is not a scripted reaction. */
+function ignite(wx, wy) {
+  if (!eng.N) return toast('Nothing to ignite — place a molecule first');
+  const R = 2.2, r2 = R * R, list = [];
+  for (let i = 0; i < eng.N; i++) {
+    const v = viewTilted() ? toView(eng.pos[3 * i], eng.pos[3 * i + 1], eng.pos[3 * i + 2]) : eng.pos.subarray(3 * i, 3 * i + 3);
+    const dx = v[0] - wx, dy = v[1] - wy;
+    if (dx * dx + dy * dy < r2) list.push(i);
+  }
+  if (!list.length) return toast('Nothing within the spark — click closer to a molecule');
+  pushUndo();
+  // give the struck atoms the speed of a very hot gas, directed outward so a bond is pulled apart
+  const SPARK_T = 25000, HOLD = 2000;   // K of directed motion, and fs of ignition window
+  let added = 0;
+  for (const i of list) {
+    const k = 3 * i;
+    const v = viewTilted() ? toView(eng.pos[k], eng.pos[k + 1], eng.pos[k + 2]) : [eng.pos[k], eng.pos[k + 1], eng.pos[k + 2]];
+    let ox = v[0] - wx, oy = v[1] - wy, on = Math.hypot(ox, oy);
+    if (on < 1e-6) { ox = eng.gauss(); oy = eng.gauss(); on = Math.hypot(ox, oy) || 1; }
+    const speed = Math.sqrt(3 * KB * SPARK_T / (eng.mass[i] * 1e4));
+    const dir = viewTilted() ? viewDelta(ox / on, oy / on) : [ox / on, oy / on, 0];
+    const before = eng.vel[k] ** 2 + eng.vel[k + 1] ** 2 + eng.vel[k + 2] ** 2;
+    for (let d = 0; d < 3; d++) eng.vel[k + d] += dir[d] * speed;
+    added += 0.5 * 1e4 * eng.mass[i] * (eng.vel[k] ** 2 + eng.vel[k + 1] ** 2 + eng.vel[k + 2] ** 2 - before);
+  }
+  eng.sparkHold = eng.time + HOLD;      // the stat stands back while the spark does its work
+  eng.checkpoints.length = 0; eng.touch();
+  bondTrack.pending.push({ x: wx, y: wy, t0: performance.now(), dur: 520, kind: 'form', big: true });
+  toast('Spark · ' + added.toFixed(0) + ' kJ/mol into ' + list.length + ' atom' + (list.length === 1 ? '' : 's'));
+  if (!time.playing) toast('Press play to watch what it starts');
+  edited();
+}
 function applyBrush(dt) {
   if (!brush.active) return;
   const f = brush.cool ? Math.exp(-dt * 4) : Math.exp(dt * 2.2), r2 = brush.r * brush.r, list = [];
@@ -965,9 +1062,9 @@ function receive(mol, open) {
   }
   if (!inbox.some(m => m.id === mol.id)) { inbox.unshift(mol); writeInbox(inbox); }
   renderTray(mol.id);
-  const pill = $('trayPill'); pill.classList.remove('ping'); void pill.offsetWidth; pill.classList.add('ping');
+  const pill = $('moreEl'); pill.classList.remove('ping'); void pill.offsetWidth; pill.classList.add('ping');
   if (open) startConditioning(mol);
-  else { $('tray').classList.add('open'); toast((mol.name || pretty(mol.formula)) + ' arrived from Nomenclature', 'ok'); }
+  else { openElPop('molecules'); toast((mol.name || pretty(mol.formula)) + ' arrived from Nomenclature', 'ok'); }
 }
 function thumbSVG(m) {
   const A = m.atoms; let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -984,10 +1081,10 @@ function thumbSVG(m) {
   return s + '</svg>';
 }
 function renderTray(freshId) {
-  $('trayCount').textContent = inbox.length;
+  $('trayCount').textContent = inbox.length; $('trayCount').hidden = !inbox.length;
   const list = $('trayList');
   if (!inbox.length) {
-    list.innerHTML = '<div class="tray-empty">Draw a molecule in <b>Nomenclature</b> and press <b>Playground</b>. It lands here with every hydrogen filled in, ready to be conditioned and placed.</div>';
+    list.innerHTML = '<div class="tray-empty">Export a molecule from <b>Nomenclature</b> to place it here.</div>';
     return;
   }
   list.innerHTML = inbox.map(m => '<button class="mol' + (m.id === freshId ? ' fresh' : '') + '" data-id="' + m.id + '">' + thumbSVG(m) +
@@ -995,11 +1092,11 @@ function renderTray(freshId) {
   list.querySelectorAll('.mol').forEach(b => b.onclick = e => {
     const m = inbox.find(x => x.id === b.dataset.id);
     if (e.target.dataset.x) { inbox = inbox.filter(x => x !== m); writeInbox(inbox); renderTray(); return; }
-    $('tray').classList.remove('open'); startConditioning(m);
+    closePop(); startConditioning(m);
   });
 }
-$('trayPill').onclick = () => $('tray').classList.toggle('open');
-function toggleTray() { $('tray').classList.toggle('open'); }
+$('trayPill').onclick = () => selectLibrary('molecules');
+function toggleTray() { if(openPop?.pop===$('elPop')&&libraryTab==='molecules')closePop();else openElPop('molecules'); }
 // same-origin delivery from Nomenclature
 if ('BroadcastChannel' in window) {
   const ch = new BroadcastChannel('chem-playground');
@@ -1021,7 +1118,7 @@ document.addEventListener('paste', e => {
 });
 
 /* ======================= conditioning ======================= */
-let cond = null, condR = null, placing = null;
+let cond = null, condR = null, placing = null, sheetCloseTimer = null;
 const condPrefs = store.get('cond', { preset: 'normal', T: 500, P: 1 });
 function condCanvasSize() { const c = $('sheetCanvas'); return [c.clientWidth || 300, c.clientHeight || 220]; }
 function condParams() {
@@ -1032,7 +1129,8 @@ function condParams() {
 function startConditioning(mol) {
   if (!validMol(mol)) { toast('Invalid molecule'); return; }
   placing = null; armed = null; refreshDock();
-  $('sheet').hidden = false; $('sheet').classList.remove('leaving');
+  clearTimeout(sheetCloseTimer);
+  $('sheet').hidden = false; $('sheet').inert=false; $('sheet').classList.remove('leaving');
   if (!condR) { condR = new FieldRenderer($('sheetCanvas'), { showBox: false, cell: 4 }); condR.mode = 'density'; }
   const [w, h] = condCanvasSize(); condR.resize(w, h);
   $('sheetName').textContent = mol.name || pretty(mol.formula);
@@ -1118,8 +1216,8 @@ const cTField = scrub($('cT'), { get: () => condPrefs.T, set: (v, c) => { condPr
 const cPField = scrub($('cP'), { get: () => condPrefs.P, set: (v, c) => { condPrefs.P = v; store.set('cond', condPrefs); $('customSmall').textContent = fmtT(condPrefs.T) + ' K · ' + fmtP(v); if (c && cond) buildCondEngine(); }, min: 0.01, max: 1e5, off: 0, map: 'log', unit: 'bar', hardMin: 0, hardMax: 1e7, fmt: v => v >= 1000 ? (v / 1000).toFixed(v >= 1e4 ? 0 : 1) + 'k' : v >= 10 ? v.toFixed(0) : v.toFixed(2) });
 function closeSheet() {
   if (!cond && $('sheet').hidden) return;
-  cond = null; const s = $('sheet'); s.classList.add('leaving');
-  setTimeout(() => { if (!cond) s.hidden = true; s.classList.remove('leaving'); }, 240);
+  cond = null; const s = $('sheet'); s.classList.add('leaving');s.inert=true;clearTimeout(sheetCloseTimer);
+  sheetCloseTimer=setTimeout(() => { if (!cond) s.hidden = true; s.classList.remove('leaving'); }, document.documentElement.dataset.motion==='reduced'?0:340);
 }
 $('condCancel').onclick = closeSheet;
 $('condPlace').onclick = beginPlacing;
@@ -1185,6 +1283,7 @@ act('time.normal', 'Time', 'Normal speed (1×)', ['\\'], () => setSpeed(1));
 act('tool.grab', 'Tools', 'Grab & pan', ['V'], () => setTool('grab'));
 act('tool.erase', 'Tools', 'Erase', ['X'], () => setTool('erase'));
 act('tool.heat', 'Tools', 'Heat brush', ['B'], () => setTool('heat'));
+act('tool.spark', 'Tools', 'Spark', ['G'], () => setTool('spark'));
 act('el.more', 'Tools', 'All elements…', ['E'], () => openElPop());
 for (const [sym, key] of [['H', 'H'], ['C', 'C'], ['N', 'N'], ['O', 'O'], ['F', 'F'], ['S', 'S'], ['P', 'P'], ['Cl', 'L'], ['Na', 'A'], ['Br', ''], ['I', ''], ['He', ''], ['Ar', '']])
   act('el.' + sym, 'Elements', BY_SYM[sym].name, key ? [key] : [], () => arm(armed === sym ? null : sym));
@@ -1212,9 +1311,9 @@ act('edit.all', 'Edit', 'Select all', ['Ctrl+A'], () => { for (let i = 0; i < en
 act('edit.pin', 'Edit', 'Pin / unpin selection', ['K'], pinSelection);
 act('edit.clear', 'Edit', 'Clear the field', ['Shift+Delete'], () => { if (!eng.N) return; pushUndo(); eng.clear(); selection.clear(); edited(); toast('Field cleared — Ctrl+Z brings it back'); });
 act('edit.stopMotion', 'Edit', 'Stop all motion now', [], () => { eng.vel.fill(0); eng.checkpoints.length = 0; toast('All velocities set to zero'); });
-act('ui.molecules', 'Panels', 'Molecules tray', ['M'], toggleTray);
+act('ui.molecules', 'Panels', 'Molecules', ['M'], toggleTray);
 act('ui.keys', 'Panels', 'Shortcuts', ['?'], () => openConsole('keys'));
-act('ui.console', 'Panels', 'Console', ['Shift+M'], () => toggleConsole());
+act('ui.console', 'Panels', 'Settings', ['Shift+M'], () => toggleConsole());
 act('ui.palette', 'Panels', 'Command palette', ['Ctrl+K', '/'], openPalette);
 function nextSpeed(d) {
   const list = SPEEDS.map(s => s[0]);
@@ -1266,6 +1365,7 @@ function prettyKey(k) { return k.replace('Ctrl+', navigator.platform.includes('M
 function refreshKeyHints() {
   document.querySelectorAll('.tool').forEach(b => b.querySelector('sup').textContent = keyHint('tool.' + b.dataset.tool).replace('⇧', ''));
   document.querySelectorAll('.el').forEach(b => b.querySelector('sup').textContent = keyHint('el.' + b.dataset.el));
+  $('menuBtn').title='Settings ('+keyHint('ui.console')+')';
   $('playBtn').title = 'Play / pause (' + keyHint('time.play') + ')';
   $('fwdBtn').title = 'Step forward 1 fs (' + keyHint('time.fwd') + ') — hold to keep stepping';
   $('backBtn').title = 'Step back 1 fs (' + keyHint('time.back') + ') — hold to rewind';
@@ -1286,7 +1386,6 @@ window.addEventListener('keydown', e => {
     if (cond) { closeSheet(); return; }
     if (armed) { arm(null); return; }
     if (selection.size) { selection.clear(); return; }
-    if ($('tray').classList.contains('open')) { $('tray').classList.remove('open'); return; }
     setTool('grab'); return;
   }
   if (e.key === 'Enter' && cond && !placing) { e.preventDefault(); beginPlacing(); return; }
@@ -1347,18 +1446,19 @@ const APPS = [
 ];
 let consoleApp = store.get('consoleApp', 'environment');
 let consoleResume = false, consoleTick = null, consoleCloseTimer = null;
-const consoleIsOpen = () => !$('console').hidden;
+const consoleIsOpen = () => !$('console').hidden && !$('console').classList.contains('closing');
 
 function openConsole(id) {
   if (id) consoleApp = id;
   if (consoleIsOpen() && !$('console').classList.contains('closing')) { selectApp(consoleApp); return; }
   clearTimeout(consoleCloseTimer);
   closePop(); hideTip();
+  if(inspector.panel.classList.contains('open'))inspector.close();
   consoleResume = time.playing;
   setPlaying(false);
   const win = $('consoleWin');
   win.style.removeProperty('--panel-x'); win.style.removeProperty('--panel-y');
-  $('console').hidden = false;
+  $('console').hidden = false; win.inert=false;
   $('console').classList.remove('closing');
   $('menuBtn').setAttribute('aria-expanded', 'true');
   buildRail();
@@ -1373,9 +1473,9 @@ function closeConsole() {
   clearInterval(consoleTick); consoleTick = null;
   clearTimeout(consoleCloseTimer);
   const veil = $('console');
-  veil.classList.add('closing');
+  veil.classList.add('closing'); $('consoleWin').inert=true;
   $('menuBtn').setAttribute('aria-expanded', 'false');
-  consoleCloseTimer = setTimeout(() => { veil.hidden = true; veil.classList.remove('closing'); }, document.documentElement.dataset.motion === 'reduced' ? 0 : 180);
+  consoleCloseTimer = setTimeout(() => { veil.hidden = true; veil.classList.remove('closing'); }, document.documentElement.dataset.motion === 'reduced' ? 0 : 360);
   if (consoleResume) setPlaying(true);
   consoleResume = false;
   $('menuBtn').focus();
@@ -1387,17 +1487,26 @@ function toggleConsole(id) {
 function buildRail() {
   $('consoleRail').innerHTML = APPS.map(a =>
     '<button class="app-tab" role="tab" data-app="' + a.id + '" aria-selected="false">' + ICONS[a.id] + '<span>' + a.name + '</span></button>').join('');
-  $('consoleRail').querySelectorAll('.app-tab').forEach(b => b.onclick = () => selectApp(b.dataset.app));
+  $('consoleRail').querySelectorAll('.app-tab').forEach((b,i) => {
+    b.onclick = () => selectApp(b.dataset.app);
+    b.onkeydown=e=>{
+      if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
+      e.preventDefault();e.stopPropagation();
+      const n=e.key==='Home'?0:e.key==='End'?APPS.length-1:(i+(e.key==='ArrowRight'?1:-1)+APPS.length)%APPS.length;
+      selectApp(APPS[n].id);$('consoleRail').children[n].focus();
+    };
+  });
 }
 function selectApp(id) {
   closeDropdowns();
   const app = APPS.find(a => a.id === id) || APPS[0];
   consoleApp = app.id; store.set('consoleApp', app.id);
-  $('consoleTitle').textContent = app.name;
-  $('consoleRail').querySelectorAll('.app-tab').forEach(b => b.setAttribute('aria-selected', b.dataset.app === app.id));
+  $('consoleTitle').textContent = 'Settings';
+  $('consoleRail').querySelectorAll('.app-tab').forEach(b => (b.setAttribute('aria-selected', b.dataset.app === app.id),b.tabIndex=b.dataset.app===app.id?0:-1));
   const stage = $('consoleStage');
-  stage.scrollTop = 0; stage.innerHTML = '';
-  app.render(stage);
+  const render=()=>{stage.scrollTop=0;stage.replaceChildren();app.render(stage);};
+  if(stage.dataset.view && stage.dataset.view!==app.id)crossfadeSurface(stage,render,$('consoleWin'));else render();
+  stage.dataset.view=app.id;
 }
 function refreshApp() { if (appRefresh) appRefresh(); }
 let appRefresh = null;
@@ -1406,9 +1515,9 @@ $('menuBtn').onclick = () => toggleConsole();
 $('consoleClose').onclick = closeConsole;
 document.addEventListener('keydown',e=>{
   if(e.key!=='Tab')return;
-  const panel=consoleIsOpen()?$('consoleWin'):inspector.panel.classList.contains('open')?inspector.panel:null;
+  const panel=consoleIsOpen()?$('consoleWin'):inspector.panel.classList.contains('open')?inspector.panel:openPop?.pop;
   if(!panel)return;
-  const nodes=[...panel.querySelectorAll('button,select,input,summary,a[href],[tabindex="0"]')].filter(x=>!x.disabled&&x.getClientRects().length);
+  const nodes=[...panel.querySelectorAll('button,select,input,summary,a[href],[tabindex="0"]')].filter(x=>!x.disabled&&!x.closest('[inert],[aria-hidden="true"]')&&x.getClientRects().length);
   if(!nodes.length)return;
   const first=nodes[0],last=nodes[nodes.length-1];
   if(e.shiftKey&&(document.activeElement===first||!panel.contains(document.activeElement))){e.preventDefault();last.focus();}
@@ -1469,7 +1578,12 @@ function dropdown({ options, multi, get, set, summary, label = 'Boundary type' }
   const outside = e => { if (!wrap.contains(e.target) && !(sheet && sheet.contains(e.target))) close(); };
   const close = (focus = false) => {
     if (!sheet) return;
-    sheet.remove(); sheet = null; wrap.classList.remove('open');
+    const leaving=sheet;sheet=null;wrap.classList.remove('open');leaving.inert=true;
+    if(document.documentElement.dataset.motion==='reduced')leaving.remove();
+    else{
+      leaving.style.overflow='hidden';
+      leaving.animate([{height:leaving.offsetHeight+'px',opacity:1},{height:'0px',opacity:0,marginTop:'0px',paddingTop:'0px',paddingBottom:'0px',borderWidth:'0px'}],{duration:320,easing:'cubic-bezier(.4,0,.2,1)',fill:'forwards'}).finished.finally(()=>leaving.remove());
+    }
     btn.setAttribute('aria-expanded', 'false');
     document.removeEventListener('pointerdown', outside);
     if (focus === true) btn.focus({ preventScroll: true });
@@ -1481,6 +1595,7 @@ function dropdown({ options, multi, get, set, summary, label = 'Boundary type' }
      is nothing to keep in step: the panel scrolls, the options travel with their control. */
   const open = () => {
     if (sheet) return;
+    wrap.querySelectorAll('.drop-sheet[inert]').forEach(n=>n.remove());
     document.querySelectorAll('.drop.open .drop-btn').forEach(b => b !== btn && b.click());
     sheet = el('div', 'drop-sheet');
     sheet.setAttribute('role', multi ? 'group' : 'listbox');
@@ -1497,6 +1612,7 @@ function dropdown({ options, multi, get, set, summary, label = 'Boundary type' }
     sheet.addEventListener('keydown', navigate);
     sheet.addEventListener('focusout', leave);
     wrap.appendChild(sheet); wrap.classList.add('open');
+    if(document.documentElement.dataset.motion!=='reduced')sheet.animate([{height:'0px',opacity:0},{height:sheet.offsetHeight+'px',opacity:1}],{duration:440,easing:'cubic-bezier(.22,1,.36,1)'});
     // keep the newly opened options in view when the control sits low in the panel
     sheet.scrollIntoView({ block: 'nearest' });
     btn.setAttribute('aria-expanded', 'true'); paint();
@@ -1873,13 +1989,16 @@ function frame(now) {
       rate.textContent = (time.limited ? 'CPU-bound · ' : '') + fmtRate(time.rateEMA) + (time.limited ? ' · ' + Math.round(time.rateEMA / stepsPerSecond(time.speed) * 100) + '% target' : '');
       rate.classList.toggle('limited', time.limited);
     } else { rate.textContent = eng.canStepBack() ? 'paused · ' + fmtTime(Math.min(eng.historySpan(), eng.time)) + ' rewindable' : 'paused'; rate.classList.remove('limited'); }
+    $('rateDetail').textContent=rate.textContent;
+    $('measurementsBtn').title='Sample measurements · '+rate.textContent+' · right-click for playback presets';
     readTemperature();
     $('pVal').textContent = eng.N ? fmtP(eng.pressureEMA) : '—';
     $('backBtn').disabled = !eng.canStepBack();
     // scale bar
-    const s = R.scale, cands = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2], nm = cands.find(v => v * 10 * s >= 60) || 2;
+    const s = R.scale, cands = [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50], nm = cands.find(v => v * 10 * s >= 60) || 2;
     $('scale').querySelector('i').style.width = (nm * 10 * s) + 'px';
-    $('scale').querySelector('span').textContent = (nm >= 1 ? nm + ' nm' : (nm * 10).toFixed(nm < 0.1 ? 1 : 0) + ' Å') + '  ·  view ' + (R.cam.span / 10).toFixed(2) + ' nm';
+    $('scale').querySelector('span').textContent = nm >= 1 ? nm + ' nm' : (nm * 10).toFixed(nm < 0.01 ? 2 : nm < 0.1 ? 1 : 0) + ' Å';
+    $('fitBtn').title='View '+(R.cam.span/10).toFixed(2)+' nm · click to fit · right-click for display settings';
     ageFeed(now);
     renderTPop(); renderPPop();
   }

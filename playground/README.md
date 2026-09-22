@@ -114,7 +114,11 @@ deterministic replay. A boundary you drag is a user edit, not a simulated piston
 
 The compact settings panel includes persistent contour quality, grid, atom-label, interface-motion and compute-priority controls. Reduced motion follows the operating system by default. Display quality changes rendering resolution only; the physical step stays 1 fs. The actual simulation rate remains visible when CPU-bound.
 
-The visual direction follows the [SketchDanylo collection](https://sketchdanylo.github.io/): graphite glass, neutral gray surfaces, pearl controls and restrained serif headings. A compact panel opens beside the gauges, leaving the chamber visible. Decorative headlines, the duplicate chamber illustration and repeated readouts have been removed; explanations remain in tooltips and the Model tab. Menus, switches, segmented selections and panels use smooth transitions; system or explicit reduced-motion preferences disable them. Selects progressively enhance to native customizable glass pickers in supporting browsers, retaining standard native controls elsewhere. All artwork and controls use CSS/SVG/canvas without an animation library.
+The graphite interface is organized around one bottom control rail. It combines manipulation tools, the last-used element, an **Add** drawer for atoms and imported molecules, and playback. The clock opens sample measurements and composition; the scale bar fits the chamber. Target temperature remains directly editable, while the pressure reading opens chamber measurements and dimensions. No separate inventory chips, Data/Fit row, or molecule-tray button occupies the canvas.
+
+Secondary actions stay near their controls: right-click Add for molecules, the current element to change it, temperature or pressure for Conditions, the scale for Display, and the clock for speed presets. Every secondary action also has a left-click or keyboard route. Text selection and dragging are disabled on interface chrome; value editors and the command input retain normal editing.
+
+Settings tabs crossfade inside the same surface; dropdowns expand and collapse in place; panels retain their contents during exit. Motion uses a shared, non-bouncing curve with 340–600 ms transitions. Closing content becomes inert immediately. Reduced motion disables both CSS transitions and the new scripted transitions. Rendering and simulation timing are independent of interface animation.
 
 ## Time
 
@@ -123,6 +127,37 @@ The visual direction follows the [SketchDanylo collection](https://sketchdanylo.
 - When a frame cannot fit all the steps, the rate readout says **CPU-bound** and shows the actual speed.
 - A step that runs into extreme curvature splits itself into up to 16 sub-steps. This happens when a hydrogen is squeezed between competing bonds, or in a hard collision at thousands of kelvin. Either the curvature from the previous step triggers it, or a per-step energy check does. The step still advances exactly 1 fs.
 - **Step back** is exact. The engine keeps a checkpoint every 64 steps and replays deterministically, bit-identical, because the RNG state is part of the checkpoint. Hold the button to rewind.
+
+## Igniting a reaction
+
+A mixture of reactants usually sits there doing nothing, and that is correct rather than broken.
+H₂ and O₂ are metastable: they do not react by direct collision at any temperature you can reach
+in a browser, because the initiation step is expensive. Real combustion runs as a *chain*, and
+the chain needs a radical to start it. On a bench that comes from a spark, a flame, a hot
+surface or a photon.
+
+The **Spark** tool is that starter. Click, and the atoms within 2.2 Å get a short outward burst
+of directed motion — 25,000 K worth — which is enough to pull a bond apart and set two radicals
+loose. The energy is real, is added to the ledger, and is not a scripted reaction: what happens
+afterwards is ordinary dynamics.
+
+Because the chamber holds only a handful of atoms, a thermostat here is instantaneous and global
+and would erase a spark on the step it landed. So a spark opens a 2 ps **ignition window** during
+which the stat and the temperature void stand back. That window is part of the saved state and
+replays exactly. It is the one place where a temperature void can be briefly exceeded, and
+deliberately so: a spark is hotter than its surroundings, which is the entire point of one.
+
+Measured, three H₂ and two O₂ in a 1.6 nm chamber at 300 K, 150 ps:
+
+| | left alone | after one spark |
+|---|---|---|
+| no thermostat | 3 H₂ + 2 O₂ | 2 H₂ + 2 HO + O₂, sample runs to 2300 K |
+| Kelvin stat | 3 H₂ + 2 O₂ | **H₂ + 2 H₂O + O₂**, held back at 300 K |
+
+That is the whole of hydrogen combustion: metastable until lit, chain-branching once started,
+and the stat carrying the heat away afterwards. Adding a lone H atom from the dock does the same
+job more gently — at 300 K it stalls at HO₂, the real chain-terminating step, and only branches
+to water once the chamber is hot.
 
 ## Valence sharing
 
