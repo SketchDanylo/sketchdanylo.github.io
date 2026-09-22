@@ -729,15 +729,20 @@ function boxCorners() {
   for (const z of [b.z0, b.z1]) for (const y of [b.y0, b.y1]) for (const x of [b.x0, b.x1]) out.push(toView(x, y, z));
   return out;
 }
-function setTilt(yaw, pitch, animate) {
+/* Letting go swings the chamber back to face you. Turning again before it lands takes the view
+   over at once: the swing checks that it is still the one in charge before each frame it draws,
+   so two of them cannot pull the same view in opposite directions. */
+let facing = 0;
+function setTilt(yaw, pitch) {
+  facing = 0;                                    // a hand on the view outranks the swing back
   view.yaw = yaw;
   view.pitch = clamp(pitch, -Math.PI / 2 + 0.02, Math.PI / 2 - 0.02);
-  if (animate) { /* the caller animates by stepping this each frame */ }
 }
 function faceChamber() {
-  const from = { yaw: view.yaw, pitch: view.pitch }, t0 = performance.now();
   if (!viewTilted()) return;
+  const from = { yaw: view.yaw, pitch: view.pitch }, t0 = performance.now(), mine = ++facing;
   const spin = () => {
+    if (facing !== mine) return;
     const k = Math.min(1, (performance.now() - t0) / 380), e = 1 - Math.pow(1 - k, 3);
     view.yaw = from.yaw * (1 - e); view.pitch = from.pitch * (1 - e);
     if (k < 1) requestAnimationFrame(spin);
@@ -798,6 +803,7 @@ canvas.addEventListener('pointerdown', e => {
   if (e.button === 2) {
     if (tool === 'heat') { brush.active = true; brush.cool = true; gesture = { type: 'brush' }; return; }
     // empty scene: turn the chamber in its third dimension for as long as the button is held
+    facing = 0;                                   // stop any swing back that is still running
     gesture = { type: 'orbit', sx: e.clientX, sy: e.clientY, yaw: view.yaw, pitch: view.pitch };
     canvas.className = 'orbiting'; return;
   }
@@ -844,10 +850,7 @@ canvas.addEventListener('pointermove', e => {
     g.d = d; g.mx = mx; g.my = my; return;
   }
   if (g.type === 'pan') { R.cam.cx = g.cx - (e.clientX - g.sx) / R.scale; R.cam.cy = g.cy - (e.clientY - g.sy) / R.scale; camAnim = null; clampCam(); }
-  else if (g.type === 'orbit') {
-    view.yaw = g.yaw + (e.clientX - g.sx) * 0.006;
-    view.pitch = clamp(g.pitch - (e.clientY - g.sy) * 0.006, -Math.PI / 2 + 0.02, Math.PI / 2 - 0.02);
-  }
+  else if (g.type === 'orbit') setTilt(g.yaw + (e.clientX - g.sx) * 0.006, g.pitch - (e.clientY - g.sy) * 0.006);
   else if (g.type === 'tweezer') { if (eng.tweezer) { const w = pointerWorld(e.clientX, e.clientY); eng.tweezer.x = w[0]; eng.tweezer.y = w[1]; eng.needForces = true; } }
   else if (g.type === 'move') {
     const d = viewDelta(wx - g.wx, wy - g.wy); g.wx = wx; g.wy = wy; g.moved = true;
@@ -1352,7 +1355,10 @@ function comboOf(e) {
     k = e.key;
     const ascii = k && k.length === 1 && k.charCodeAt(0) < 128;
     if ((!k || k === 'Unidentified' || (k.length === 1 && !ascii)) && CODE_SYM[c]) k = CODE_SYM[c][e.shiftKey ? 1 : 0];
-    if (k && k.length === 1) { sym = true; k = k.toUpperCase(); }
+    // Shift is part of a symbol's identity — ? is already a shifted / — but not part of a
+    // letter's, so a letter that arrives this way (no key code: on-screen keyboards, some IMEs)
+    // still needs its Shift recorded, or Ctrl+Shift+Z arrives as Ctrl+Z and undoes again.
+    if (k && k.length === 1) { sym = !/[A-Za-z0-9]/.test(k); k = k.toUpperCase(); }
   }
   if (!k) return null;
   const mods = [];
