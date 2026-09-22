@@ -366,7 +366,12 @@ class Engine {
     this.servoWork = 0; this.servoWorkTotal = 0;     // work the pointer has done on the sample
     this._nascentUntil = -1;
     this.wallMeasured = this.T; this.wallContact = 0; // what the fluid against the wall actually is
-    this.rc = opts.rc || 8.0;
+    /* Interaction cutoff. The electrostatics here are damped and already short-ranged, so 6.5 Å
+       reaches everything that is worth more than a few kJ/mol: measured against the whole
+       validation table, moving down from 8 Å changes no bond length by more than 0.02 Å and no
+       reaction energy by more than 0.4 kJ/mol, brings the methane dimer closer to experiment, and
+       leaves a third of the pairs — and a third of every step — behind. */
+    this.rc = opts.rc || 6.5;
     this.skin = 1.0;
     this.rngState = (opts.seed ?? 12345) >>> 0;
     this.N = 0; this.cap = 0;
@@ -504,10 +509,11 @@ class Engine {
        before the next force pass: the bond order and the three numbers bondStrength is made of.
        Leaving those behind let a rebuild — or an erase — hand the inventory, the feed and the
        renderer one pair's strength under another pair's name. */
-    const keep = new Map(), kF = [], kSraw = [], kB = [], kN = [];
+    const keep = this._keepMap || (this._keepMap = new Map()); keep.clear();
+    const kept = this._kept && this._kept.length >= 4 * this.nPairs ? this._kept : (this._kept = new Float64Array(4 * this.pairCap + 64));
     for (let p = 0; p < this.nPairs; p++) {
-      keep.set(this._key(this.pI[p], this.pJ[p]), kN.length);
-      kN.push(this.pN[p]); kF.push(this.pF[p]); kSraw.push(this.pSraw[p]); kB.push(this.pB[p]);
+      keep.set(this._key(this.pI[p], this.pJ[p]), 4 * p);
+      kept[4 * p] = this.pN[p]; kept[4 * p + 1] = this.pF[p]; kept[4 * p + 2] = this.pSraw[p]; kept[4 * p + 3] = this.pB[p];
     }
     let minx = Infinity, miny = Infinity, minz = Infinity, maxx = -Infinity, maxy = -Infinity, maxz = -Infinity;
     for (let i = 0; i < N; i++) {
@@ -518,7 +524,11 @@ class Engine {
     const ny = Math.max(1, Math.min(64, Math.floor((maxy - miny) / rl) + 1));
     const nz = Math.max(1, Math.min(16, Math.floor((maxz - minz) / rl) + 1));
     const cx = Math.max(rl, (maxx - minx) / nx + 1e-9), cy = Math.max(rl, (maxy - miny) / ny + 1e-9), cz = Math.max(rl, (maxz - minz) / nz + 1e-9);
-    const nc = nx * ny * nz, head = new Int32Array(nc).fill(-1), next = new Int32Array(N), cell = new Int32Array(N);
+    const nc = nx * ny * nz;
+    let head = this._clHead, next = this._clNext, cell = this._clCell;
+    if (!head || head.length < nc) head = this._clHead = new Int32Array(Math.max(nc, 1024));
+    if (!next || next.length < N) { next = this._clNext = new Int32Array(N + 128); cell = this._clCell = new Int32Array(N + 128); }
+    head.fill(-1, 0, nc);
     for (let i = N - 1; i >= 0; i--) {
       const ix = Math.min(nx - 1, Math.floor((pos[3 * i] - minx) / cx)), iy = Math.min(ny - 1, Math.floor((pos[3 * i + 1] - miny) / cy)), iz = Math.min(nz - 1, Math.floor((pos[3 * i + 2] - minz) / cz));
       const c = (iz * ny + iy) * nx + ix; cell[i] = c; next[i] = head[c]; head[c] = i;
@@ -541,7 +551,7 @@ class Engine {
               this.pI[np] = i; this.pJ[np] = j;
               const k = keep.get(this._key(i, j));
               if (k === undefined) { this.pN[np] = 1; this.pF[np] = this.pSraw[np] = this.pB[np] = 0; }
-              else { this.pN[np] = kN[k]; this.pF[np] = kF[k]; this.pSraw[np] = kSraw[k]; this.pB[np] = kB[k]; }
+              else { this.pN[np] = kept[k]; this.pF[np] = kept[k + 1]; this.pSraw[np] = kept[k + 2]; this.pB[np] = kept[k + 3]; }
               np++;
             }
           }
@@ -576,11 +586,13 @@ class Engine {
     let E = 0;
 
     // Pass A — geometry, coordination numbers, bond-polarisation charges
+    // Clearing a whole array at once is a memset; clearing nine of them one element at a time,
+    // inside a loop that is mostly skipped anyway, is nine scattered writes per pair.
+    pF.fill(0, 0, P); pFp.fill(0, 0, P); pS.fill(0, 0, P); pSp.fill(0, 0, P); this.pSpRaw.fill(0, 0, P);
     for (let p = 0; p < P; p++) {
       const i = pI[p], j = pJ[p];
       const dx = pos[3 * j] - pos[3 * i], dy = pos[3 * j + 1] - pos[3 * i + 1], dz = pos[3 * j + 2] - pos[3 * i + 2];
       const r2 = dx * dx + dy * dy + dz * dz;
-      pF[p] = 0; pFp[p] = 0; pS[p] = 0; pSp[p] = 0; this.pSpRaw[p] = 0;
       if (r2 > rc2) { pR[p] = -1; continue; }
       const r = Math.sqrt(r2) || 1e-6;
       pR[p] = r; pDx[p] = dx; pDy[p] = dy; pDz[p] = dz;
@@ -617,7 +629,7 @@ class Engine {
     // compete for each other's valence: S_jk = Π_i (1 − f_ij·f_ik). Its gradient is applied in
     // _screenForces once the saturation coefficients G are known.
     const scr = this.pScr, pSraw = this.pSraw;
-    for (let p = 0; p < P; p++) { scr[p] = 1; pSraw[p] = pS[p]; }
+    scr.fill(1, 0, P); pSraw.set(pS.subarray(0, P));
     let nt = 0;
     for (let i = 0; i < N; i++) {
       for (let a = cStart[i]; a < cStart[i + 1]; a++) {
@@ -694,9 +706,10 @@ class Engine {
     // Pass C — pair energies
     const pB = this.pB, gA = this.gA, gB = this.gB, gAs = this.gAs, gBs = this.gBs, gAb = this.gAb, gBb = this.gBb, pN = this.pN, G = this.G, lje = this.lje;
     const gc = 1 / Math.sqrt(rc * rc + COUL_D2), dgc = -rc * gc * gc * gc;
+    gA.fill(0, 0, P); gB.fill(0, 0, P); gAs.fill(0, 0, P); gBs.fill(0, 0, P);
+    this.gAbs.fill(0, 0, P); this.gBbs.fill(0, 0, P); gAb.fill(0, 0, P); gBb.fill(0, 0, P); pB.fill(0, 0, P);
     for (let p = 0; p < P; p++) {
       const r = pR[p];
-      gA[p] = 0; gB[p] = 0; gAs[p] = 0; gBs[p] = 0; this.gAbs[p] = 0; this.gBbs[p] = 0; gAb[p] = 0; gBb[p] = 0; pB[p] = 0;
       if (r < 0) continue;
       const i = pI[p], j = pJ[p], ti = type[i], tj = type[j];
       const pp = PAIR[ti * NT + tj], f = pF[p], fp = pFp[p], fs = pS[p];
@@ -1066,37 +1079,106 @@ class Engine {
   /* Solid faces reflect what reaches them. Only a velocity void changes that: an atom that
      reaches the face stops there instead of bouncing. A pressure void changes nothing about how
      atoms move — it voids the pressure, not the motion — so the wall simply records nothing. */
+  /* Which molecule each atom belongs to, cached for the step. Bonds do not come and go inside one
+     step, so the sub-steps of a step can share one answer. */
+  _fragRoots() {
+    const N = this.N;
+    if (this._fragStamp === this.stepCount && this._fragN === N && this._fragRoot && this._fragRoot.length >= N) return this._fragRoot;
+    let root = this._fragRoot;
+    if (!root || root.length < N) root = this._fragRoot = new Int32Array(N + 128);
+    for (let i = 0; i < N; i++) root[i] = i;
+    const find = i => { while (root[i] !== i) { root[i] = root[root[i]]; i = root[i]; } return i; };
+    for (let p = 0; p < this.nPairs; p++) {
+      if (this.bondStrength(p) <= 0.25) continue;
+      const a = find(this.pI[p]), b = find(this.pJ[p]); if (a !== b) root[a] = b;
+    }
+    for (let i = 0; i < N; i++) root[i] = find(i);
+    this._fragStamp = this.stepCount; this._fragN = N;
+    return root;
+  }
+  /* A solid wall bounces what arrives at it. Bouncing each atom on its own looked right and was
+     not: mirroring one atom of a molecule across the wall while its partners stayed put stretched
+     the bond it was holding, and the stretch is energy nobody paid for — a cold water molecule
+     thrown at a wall at ordinary thermal speed came away 110 kJ/mol hotter, over a thousand
+     kelvin. So the wall bounces the molecule. The whole fragment is carried back inside as one
+     rigid piece, which cannot change a bond length, and the wall reverses the one thing a wall
+     reverses: the fragment's travel into it. Taking twice the centre-of-mass velocity off every
+     atom does exactly that and is exactly energy-neutral, and it leaves the molecule's own
+     spinning and vibrating alone. A lone atom is a fragment of one, so nothing changes for a gas
+     of single atoms. */
   _reflectWalls() {
     if (this.sphere || this.boundsMode !== 'solid') return;
-    const b=this.box, lo=[b.x0,b.y0,b.z0], hi=[b.x1,b.y1,b.z1];
-    const report = !this.voidPressure, halt = this.voidVelocity;
-    for(let i=0;i<this.N;i++) {
-      if(this.pinned[i]) continue;
-      const k=3*i;
-      if(halt){
-        let touched=false;
-        for(let d=0;d<3;d++){
-          const j=k+d;
-          if(this.pos[j]<lo[d] || this.pos[j]>hi[d]){
-            touched=true;
-            this.pos[j]=clampNum(this.pos[j],lo[d],hi[d]);
-            if(report) this._wallImpulse+=this.mass[i]*Math.abs(this.vel[j])*KEU;  // absorbed: m*v
+    const N = this.N, pos = this.pos, vel = this.vel, b = this.box;
+    const lo = this._wLo || (this._wLo = [0, 0, 0]), hi = this._wHi || (this._wHi = [0, 0, 0]);
+    lo[0] = b.x0; lo[1] = b.y0; lo[2] = b.z0; hi[0] = b.x1; hi[1] = b.y1; hi[2] = b.z1;
+    let any = false;
+    for (let i = 0; i < N && !any; i++) {
+      if (this.pinned[i]) continue;
+      const k = 3 * i;
+      for (let d = 0; d < 3; d++) if (pos[k + d] < lo[d] || pos[k + d] > hi[d]) { any = true; break; }
+    }
+    if (!any) return;
+    const report = !this.voidPressure;
+    if (this.voidVelocity) {          // the velocity void: whatever touches the wall stops there
+      for (let i = 0; i < N; i++) {
+        if (this.pinned[i]) continue;
+        const k = 3 * i;
+        let touched = false;
+        for (let d = 0; d < 3; d++) {
+          const j = k + d;
+          if (pos[j] < lo[d] || pos[j] > hi[d]) {
+            touched = true;
+            pos[j] = clampNum(pos[j], lo[d], hi[d]);
+            if (report) this._wallImpulse += this.mass[i] * Math.abs(vel[j]) * KEU;  // absorbed: m*v
           }
         }
-        if(touched) for(let d=0;d<3;d++){          // and it stops where it stands
-          const j=k+d;
-          this.voidHeat+=0.5*KEU*this.mass[i]*this.vel[j]*this.vel[j];
-          this.vel[j]=0;
+        if (touched) for (let d = 0; d < 3; d++) {
+          const j = k + d;
+          this.voidHeat += 0.5 * KEU * this.mass[i] * vel[j] * vel[j];
+          vel[j] = 0;
         }
-        continue;
       }
-      for(let d=0;d<3;d++) {
-        const j=k+d, x=this.pos[j], L=hi[d]-lo[d];
-        if(x>=lo[d] && x<=hi[d]) continue;
-        const u=(x-lo[d])/L, cell=Math.floor(u), folded=((u%2)+2)%2;
-        this.pos[j]=lo[d]+L*(folded<=1?folded:2-folded);
-        if(report) this._wallImpulse+=2*this.mass[i]*Math.abs(this.vel[j])*KEU*Math.abs(cell);
-        if(Math.abs(cell)%2===1) this.vel[j]=-this.vel[j];   // reflection is untouched
+      return;
+    }
+    const root = this._fragRoots();
+    let acc = this._wAcc;
+    if (!acc || acc.length < 7 * N) acc = this._wAcc = new Float64Array(7 * (N + 128));
+    acc.fill(0, 0, 7 * N);            // per molecule: mass, momentum(3), deepest overshoot(3)
+    for (let i = 0; i < N; i++) {
+      if (this.pinned[i]) continue;
+      const r = 7 * root[i], k = 3 * i, m = this.mass[i];
+      acc[r] += m;
+      for (let d = 0; d < 3; d++) {
+        acc[r + 1 + d] += m * vel[k + d];
+        const x = pos[k + d];
+        const o = x < lo[d] ? x - lo[d] : x > hi[d] ? x - hi[d] : 0;
+        // remember the shift that would carry the atom furthest out back where it belongs, folded
+        // the same way however many chamber-lengths it has travelled
+        if (Math.abs(o) > Math.abs(acc[r + 4 + d])) {
+          const L = hi[d] - lo[d], u = (x - lo[d]) / L, folded = ((u % 2) + 2) % 2;
+          acc[r + 4 + d] = (lo[d] + L * (folded <= 1 ? folded : 2 - folded)) - x;
+        }
+      }
+    }
+    // a molecule still travelling into the wall has that travel reversed; one that has already
+    // turned around, or merely straddles a face, is only carried back inside
+    for (let i = 0; i < N; i++) {
+      const r = 7 * i;
+      if (root[i] !== i || acc[r] <= 0) continue;
+      const M = acc[r];
+      for (let d = 0; d < 3; d++) {
+        const V = acc[r + 1 + d] / M;
+        const shift = acc[r + 4 + d];
+        acc[r + 1 + d] = shift !== 0 && (shift > 0) !== (V > 0) && V !== 0 ? 2 * V : 0;
+        if (report && acc[r + 1 + d] !== 0) this._wallImpulse += Math.abs(acc[r + 1 + d]) * M * KEU;
+      }
+    }
+    for (let i = 0; i < N; i++) {
+      if (this.pinned[i]) continue;
+      const r = 7 * root[i], k = 3 * i;
+      for (let d = 0; d < 3; d++) {
+        pos[k + d] += acc[r + 4 + d];
+        vel[k + d] -= acc[r + 1 + d];
       }
     }
   }
@@ -1178,37 +1260,54 @@ class Engine {
       if (nas[i] > 0) { nas[i] -= dt; any = true; }
     }
     if (!any) return;
-    const { list } = this.fragments();
+    /* Which atoms belong to the same molecule, over arrays kept between steps: while anything is
+       fresh this runs every step, so it is three passes over the atoms and one over the pairs,
+       and it allocates nothing. */
+    let root = this._tbRoot, acc = this._tbAcc;
+    if (!root || root.length < N) { root = this._tbRoot = new Int32Array(N + 128); acc = this._tbAcc = new Float64Array(7 * (N + 128)); }
+    for (let i = 0; i < N; i++) root[i] = i;
+    const find = i => { while (root[i] !== i) { root[i] = root[root[i]]; i = root[i]; } return i; };
+    for (let p = 0; p < this.nPairs; p++) {
+      if (this.bondStrength(p) <= 0.25) continue;
+      const a = find(this.pI[p]), b = find(this.pJ[p]); if (a !== b) root[a] = b;
+    }
+    acc.fill(0, 0, 7 * N);                   // per molecule: mass, momentum(3), atoms, fresh, internal K
+    for (let i = 0; i < N; i++) {
+      if (this.pinned[i]) continue;
+      const r = 7 * find(i), w = this.mass[i], k = 3 * i;
+      acc[r] += w; acc[r + 1] += w * this.vel[k]; acc[r + 2] += w * this.vel[k + 1]; acc[r + 3] += w * this.vel[k + 2];
+      acc[r + 4]++; if (nas[i] > 0) acc[r + 5] = 1;
+    }
+    let fresh = false;
+    for (let i = 0; i < N; i++) {
+      if (this.pinned[i]) continue;
+      const r = 7 * find(i);
+      if (!acc[r + 5] || acc[r + 4] < 2) continue;
+      fresh = true;
+      const M = acc[r], k = 3 * i;
+      const ax = this.vel[k] - acc[r + 1] / M, ay = this.vel[k + 1] - acc[r + 2] / M, az = this.vel[k + 2] - acc[r + 3] / M;
+      acc[r + 6] += this.mass[i] * (ax * ax + ay * ay + az * az);
+    }
+    if (!fresh) return;
     const KT = 0.5 * KB * this.T, damp = -Math.expm1(-dt / this.thirdBodyTau);
-    for (const g of list) {
-      if (g.length < 2) continue;
-      let fresh = false;
-      for (const i of g) if (nas[i] > 0) { fresh = true; break; }
-      if (!fresh) continue;
-      let M = 0, vx = 0, vy = 0, vz = 0;
-      for (const i of g) { if (this.pinned[i]) continue; const w = this.mass[i]; M += w; vx += w * this.vel[3 * i]; vy += w * this.vel[3 * i + 1]; vz += w * this.vel[3 * i + 2]; }
-      if (M <= 0) continue;
-      vx /= M; vy /= M; vz /= M;
-      let K = 0, n = 0;
-      for (const i of g) {
-        if (this.pinned[i]) continue;
-        const k = 3 * i, ax = this.vel[k] - vx, ay = this.vel[k + 1] - vy, az = this.vel[k + 2] - vz;
-        K += this.mass[i] * (ax * ax + ay * ay + az * az); n += 3;
-      }
-      K *= 0.5 * KEU;
-      const nf = n - 3;                      // the fragment's own translation is not its temperature
-      if (nf <= 0 || K <= 0) continue;
-      const want = nf * KT;
-      if (K <= want) continue;               // nothing in excess: leave it alone
+    // turn each molecule's excess into the factor its velocities are scaled by, in place of K
+    for (let i = 0; i < N; i++) {
+      const r = 7 * i;
+      if (root[i] !== i || !acc[r + 5] || acc[r + 4] < 2) { acc[r + 5] = 0; continue; }
+      const K = 0.5 * KEU * acc[r + 6], want = (3 * acc[r + 4] - 3) * KT;
+      if (K <= want || K <= 0) { acc[r + 5] = 0; continue; }
       const lam = Math.sqrt(Math.max(0, 1 + (want / K - 1) * damp));
-      for (const i of g) {
-        if (this.pinned[i]) continue;
-        const k = 3 * i;
-        this.vel[k] = vx + (this.vel[k] - vx) * lam;
-        this.vel[k + 1] = vy + (this.vel[k + 1] - vy) * lam;
-        this.vel[k + 2] = vz + (this.vel[k + 2] - vz) * lam;
-      }
+      acc[r + 6] = lam;
       this.thirdBodyHeat += K * (1 - lam * lam);
+    }
+    for (let i = 0; i < N; i++) {
+      if (this.pinned[i]) continue;
+      const r = 7 * find(i); if (!acc[r + 5]) continue;
+      const M = acc[r], lam = acc[r + 6], k = 3 * i;
+      const vx = acc[r + 1] / M, vy = acc[r + 2] / M, vz = acc[r + 3] / M;
+      this.vel[k] = vx + (this.vel[k] - vx) * lam;
+      this.vel[k + 1] = vy + (this.vel[k + 1] - vy) * lam;
+      this.vel[k + 2] = vz + (this.vel[k + 2] - vz) * lam;
     }
   }
   _voidWalls() {

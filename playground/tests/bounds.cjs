@@ -128,6 +128,44 @@ test('Corner and multiple-face drift crossings are folded without losing energy'
   assert.ok(e._wallImpulse>0);
 });
 
+test('A solid wall bounces a molecule without heating it', () => {
+  /* Bouncing each atom on its own mirrored one across the wall while its partners stayed put,
+     which stretched the bond it was holding: a cold water molecule thrown at a wall at ordinary
+     thermal speed came away 110 kJ/mol hotter and over a thousand kelvin. The wall bounces the
+     molecule now, as one rigid piece. */
+  for (const speed of [0.005, 0.01, 0.02, 0.05]) {
+    const e = new Engine({ width: 30, height: 24, depth: 14, T: 0, seed: 7, thermostat: false, boundsMode: 'solid' });
+    e.addAtom('O', 15, 12, 0, { thermal: false });
+    e.addAtom('H', 15.76, 12.6, 0, { thermal: false });
+    e.addAtom('H', 14.24, 12.6, 0, { thermal: false });
+    e.touch(); e.minimize(1500, 0.02); e.refresh();
+    const bonds = [Math.hypot(e.pos[3] - e.pos[0], e.pos[4] - e.pos[1], e.pos[5] - e.pos[2]),
+                   Math.hypot(e.pos[6] - e.pos[0], e.pos[7] - e.pos[1], e.pos[8] - e.pos[2])];
+    for (let i = 0; i < 3; i++) { e.vel[3 * i] = speed; e.vel[3 * i + 1] = speed * 0.6; }
+    const E0 = e.Epot + e.kinetic();
+    for (let i = 0; i < 20000; i++) e.step();
+    const drift = e.Epot + e.kinetic() - E0;
+    assert.ok(Math.abs(drift) < 1, `at ${speed} Å/fs the wall added ${drift.toFixed(1)} kJ/mol`);
+    const now = [Math.hypot(e.pos[3] - e.pos[0], e.pos[4] - e.pos[1], e.pos[5] - e.pos[2]),
+                 Math.hypot(e.pos[6] - e.pos[0], e.pos[7] - e.pos[1], e.pos[8] - e.pos[2])];
+    for (let k = 0; k < 2; k++) assert.ok(Math.abs(now[k] - bonds[k]) < 0.06, 'a bounce stretched an O–H bond to ' + now[k].toFixed(3));
+  }
+});
+test('A molecule crossing a corner comes back whole', () => {
+  const e = new Engine({ width: 30, height: 24, depth: 14, T: 0, seed: 7, thermostat: false, boundsMode: 'solid' });
+  e.addAtom('O', 15, 12, 0, { thermal: false });
+  e.addAtom('H', 15.76, 12.6, 0, { thermal: false });
+  e.addAtom('H', 14.24, 12.6, 0, { thermal: false });
+  e.touch(); e.minimize(1500, 0.02); e.refresh();
+  const d = (a, b) => Math.hypot(e.pos[3 * a] - e.pos[3 * b], e.pos[3 * a + 1] - e.pos[3 * b + 1], e.pos[3 * a + 2] - e.pos[3 * b + 2]);
+  const was = [d(0, 1), d(0, 2), d(1, 2)];
+  for (let i = 0; i < 3; i++) { e.pos[3 * i] += 20; e.pos[3 * i + 1] -= 16; e.vel[3 * i] = .02; e.vel[3 * i + 1] = -.02; }
+  const K = e.kinetic();                          // out through a corner, and travelling further out
+  e._reflectWalls();
+  near(d(0, 1), was[0], 1e-12); near(d(0, 2), was[1], 1e-12); near(d(1, 2), was[2], 1e-12);
+  near(e.kinetic(), K, 1e-10);
+  for (let i = 0; i < 3; i++) { assert.ok(e.pos[3 * i] >= 0 && e.pos[3 * i] <= 30); assert.ok(e.pos[3 * i + 1] >= 0 && e.pos[3 * i + 1] <= 24); }
+});
 test('Boundary settings survive a checkpoint replay', () => {
   const e = chamber({ boundsMode: 'forcefield', voidTemperature: true, voidPressure: true });
   e.recording = true;
