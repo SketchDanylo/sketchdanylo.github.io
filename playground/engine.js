@@ -478,11 +478,12 @@ class Engine {
       if (a < 0 || b < 0) continue;
       this.pI[np] = a; this.pJ[np] = b;
       this.pN[np] = this.pN[p]; this.pF[np] = this.pF[p]; this.pSraw[np] = this.pSraw[p]; this.pB[np] = this.pB[p];
+      if (this._pBonded) this._pBonded[np] = this._pBonded[p];
       np++;
     }
     this.nPairs = np;
     this.N = w;
-    if (this._boWas) this._boWas.fill(0); if (this._nascent) this._nascent.fill(0); this._boPrimed = false;
+    if (this._nascent) this._nascent.fill(0); this._bondPrimed = false;
     if (this.tweezer) { const t = map[this.tweezer.i]; if (t == null || t < 0) this.tweezer = null; else this.tweezer.i = t; }
     this.needRebuild = true; this.needForces = true;
     return map;
@@ -511,9 +512,12 @@ class Engine {
        renderer one pair's strength under another pair's name. */
     const keep = this._keepMap || (this._keepMap = new Map()); keep.clear();
     const kept = this._kept && this._kept.length >= 4 * this.nPairs ? this._kept : (this._kept = new Float64Array(4 * this.pairCap + 64));
+    let kb = null;
+    if (this._pBonded) { kb = this._keptBond && this._keptBond.length >= this.nPairs ? this._keptBond : (this._keptBond = new Uint8Array(this.pairCap + 64)); }
     for (let p = 0; p < this.nPairs; p++) {
       keep.set(this._key(this.pI[p], this.pJ[p]), 4 * p);
       kept[4 * p] = this.pN[p]; kept[4 * p + 1] = this.pF[p]; kept[4 * p + 2] = this.pSraw[p]; kept[4 * p + 3] = this.pB[p];
+      if (kb) kb[p] = this._pBonded[p];
     }
     let minx = Infinity, miny = Infinity, minz = Infinity, maxx = -Infinity, maxy = -Infinity, maxz = -Infinity;
     for (let i = 0; i < N; i++) {
@@ -550,8 +554,11 @@ class Engine {
               if (np >= this.pairCap) { this.nPairs = np; this._allocPairs(this.pairCap * 2); }
               this.pI[np] = i; this.pJ[np] = j;
               const k = keep.get(this._key(i, j));
-              if (k === undefined) { this.pN[np] = 1; this.pF[np] = this.pSraw[np] = this.pB[np] = 0; }
-              else { this.pN[np] = kept[k]; this.pF[np] = kept[k + 1]; this.pSraw[np] = kept[k + 2]; this.pB[np] = kept[k + 3]; }
+              if (k === undefined) { this.pN[np] = 1; this.pF[np] = this.pSraw[np] = this.pB[np] = 0; if (this._pBonded) this._pBonded[np] = 0; }
+              else {
+                this.pN[np] = kept[k]; this.pF[np] = kept[k + 1]; this.pSraw[np] = kept[k + 2]; this.pB[np] = kept[k + 3];
+                if (kb) this._pBonded[np] = kb[k >> 2];
+              }
               np++;
             }
           }
@@ -1235,30 +1242,33 @@ class Engine {
      internal motion is touched: it keeps travelling and keeps spinning, it just stops ringing.
      Nothing is ever added, so this can only ever be a sink. */
   _thirdBody(dt) {
-    const N = this.N;
+    const N = this.N, P = this.nPairs;
     if (!this.thirdBody || N < 2 || this.time < this.sparkHold) return;
-    let was = this._boWas, nas = this._nascent;
-    if (!was || was.length < N) { was = this._boWas = new Float64Array(this.cap + 64); nas = this._nascent = new Float64Array(this.cap + 64); this._boPrimed = false; }
-    // how much bonding each atom holds right now, counted continuously so a bond that merely
-    // stretches does not read as one that has come and gone
-    const now = this._boNow && this._boNow.length >= N ? this._boNow : (this._boNow = new Float64Array(this.cap + 64));
-    now.fill(0, 0, N);
-    for (let p = 0; p < this.nPairs; p++) {
-      const v = this.bondStrength(p) * this.pN[p];
-      if (v <= 0) continue;
-      now[this.pI[p]] += v; now[this.pJ[p]] += v;
-    }
-    /* A lagging copy of that, so what counts as new is the rise above where the atom has been
-       sitting. A settled bond breathes around its baseline and never gets ahead of it; a bond
-       that forms takes an atom from nothing to one in about ten femtoseconds, which does. */
-    const follow = -Math.expm1(-dt / 400);
-    if (!this._boPrimed) { was.set(now.subarray(0, N)); this._boPrimed = true; return; }
+    let bonded = this._pBonded, nas = this._nascent;
+    if (!nas || nas.length < N) { nas = this._nascent = new Float64Array(this.cap + 64); }
+    if (!bonded || bonded.length < P) { bonded = this._pBonded = new Uint8Array(this.pairCap + 64); this._bondPrimed = false; }
+    /* What counts as a bond that has just formed is the bond itself crossing from open to made,
+       with a wide gap between the two marks so a settled bond can stretch and breathe all it likes
+       without ever reading as new. Watching how fast an atom's bonding rose instead — which is
+       what this did first — misses the one case the sandbox is for: a bond made by hand takes a
+       second of pointer movement to close, slowly enough that any running average keeps up with
+       it, and the new molecule was left holding the whole four hundred kilojoules it had just
+       released. That is why a hydrogen brought to a carbon would not stay on it. */
     let any = false;
-    for (let i = 0; i < N; i++) {
-      if (now[i] - was[i] > 0.5) nas[i] = this.thirdBodyWindow;
-      was[i] += (now[i] - was[i]) * follow;
-      if (nas[i] > 0) { nas[i] -= dt; any = true; }
+    if (!this._bondPrimed) {
+      for (let p = 0; p < P; p++) bonded[p] = this.bondStrength(p) * this.pN[p] > 0.6 ? 1 : 0;
+      this._bondPrimed = true;
+    } else {
+      for (let p = 0; p < P; p++) {
+        const v = this.bondStrength(p) * this.pN[p];
+        if (!bonded[p]) {
+          if (v <= 0.6) continue;
+          bonded[p] = 1;
+          nas[this.pI[p]] = nas[this.pJ[p]] = this.thirdBodyWindow;
+        } else if (v < 0.2) bonded[p] = 0;
+      }
     }
+    for (let i = 0; i < N; i++) if (nas[i] > 0) { nas[i] -= dt; any = true; }
     if (!any) return;
     /* Which atoms belong to the same molecule, over arrays kept between steps: while anything is
        fresh this runs every step, so it is three passes over the atoms and one over the pairs,
@@ -1873,7 +1883,7 @@ class Engine {
       pressureControl: this.pressureControl, pressureTarget: this.pressureTarget, pressureTau: this.pressureTau,
       voidHeat: this.voidHeat, voidForce: this.voidForce,
       thirdBody: this.thirdBody, thirdBodyTau: this.thirdBodyTau, thirdBodyWindow: this.thirdBodyWindow, thirdBodyHeat: this.thirdBodyHeat, servoWork: this.servoWork, servoWorkTotal: this.servoWorkTotal,
-      boWas: this._boPrimed && this._boWas ? this._boWas.slice(0, N) : null, nascent: this._nascent ? this._nascent.slice(0, N) : null,
+      pBonded: this._bondPrimed && this._pBonded ? this._pBonded.slice(0, this.nPairs) : null, nascent: this._nascent ? this._nascent.slice(0, N) : null,
       wallTau: this.wallTau, wallCapacity: this.wallCapacity, wallSkin: this.wallSkin, wallCoupling: this.wallCoupling,
       heatToSample: this.heatToSample, heaterWork: this.heaterWork,
       nextSub: this.nextSub || 1, lastSub: this.lastSub || 1, Epot: this.Epot, Ewall: this.Ewall,
@@ -1913,11 +1923,14 @@ class Engine {
     if (!s.pI) this.pN.set(pn.subarray(0, Math.min(pn.length, this.nPairs)));
     for (const key of ['Epot', 'Ewall', 'wallForce', 'wallArea', 'pressureBar', 'pressureEMA']) if (s[key] !== undefined) this[key] = s[key];
     this.needRebuild = s.needRebuild ?? true; this.needForces = s.needForces ?? false;
-    // how long each atom's newest bond still counts as new, so a replayed step relaxes the same way
-    if (s.boWas && s.nascent) {
-      if (!this._boWas || this._boWas.length < this.N) { this._boWas = new Float64Array(this.cap + 64); this._nascent = new Float64Array(this.cap + 64); }
-      this._boWas.set(s.boWas); this._nascent.set(s.nascent); this._boPrimed = true;
-    } else { this._boPrimed = false; if (this._boWas) { this._boWas.fill(0); this._nascent.fill(0); } }
+    // which bonds were already made and how long each new one still counts as new, so a replayed
+    // step relaxes exactly the way the first one did
+    if (s.pBonded && s.nascent) {
+      if (!this._nascent || this._nascent.length < this.N) this._nascent = new Float64Array(this.cap + 64);
+      if (!this._pBonded || this._pBonded.length < this.nPairs) this._pBonded = new Uint8Array(this.pairCap + 64);
+      this._pBonded.fill(0); this._pBonded.set(s.pBonded.subarray(0, Math.min(s.pBonded.length, this.nPairs)));
+      this._nascent.set(s.nascent); this._bondPrimed = true;
+    } else { this._bondPrimed = false; if (this._nascent) this._nascent.fill(0); }
   }
   _checkpoint() {
     const s = this.snapshot();

@@ -134,7 +134,7 @@ class AtomInspector {
     const status=this.el('quantumStatus');status.hidden=false;status.className='calculating';status.textContent='Preparing calculation';
     this.el('quantumResults').textContent='';this.el('quantumMethod').textContent='HF / STO-3G';this.slices=null;this.scf=null;this.el('orbitalControls').hidden=true;
     this.el('electronCanvas').getContext('2d').clearRect(0,0,320,280);
-    const worker=this.worker=new Worker('quantum-worker.js?v=20260923-build29');
+    const worker=this.worker=new Worker('quantum-worker.js?v=20260923-build30');
     worker.onmessage=({data})=>{
       if(this.worker!==worker)return;
       if(data.status){status.textContent=data.status;return;}

@@ -37,7 +37,9 @@ const T = {
   C2H6: [['C', 0, 0, 0], ['C', 1.54, 0, 0], ['H', -0.4, 1, 0], ['H', -0.4, -0.5, 0.9], ['H', -0.4, -0.5, -0.9], ['H', 1.94, -1, 0], ['H', 1.94, 0.5, 0.9], ['H', 1.94, 0.5, -0.9]],
   C6H6: [['C', 1.4000, 0.0000, 0], ['C', 0.7000, 1.2124, 0], ['C', -0.7000, 1.2124, 0], ['C', -1.4000, 0.0000, 0], ['C', -0.7000, -1.2124, 0], ['C', 0.7000, -1.2124, 0], ['H', 2.4800, 0.0000, 0], ['H', 1.2400, 2.1477, 0], ['H', -1.2400, 2.1477, 0], ['H', -2.4800, 0.0000, 0], ['H', -1.2400, -2.1477, 0], ['H', 1.2400, -2.1477, 0]],
   NaCl: [['Na', 0, 0, 0], ['Cl', 2.36, 0, 0]], Na: [['Na', 0, 0, 0]], Na2: [['Na', 0, 0, 0], ['Na', 3.08, 0, 0]],
-  CH2O: [['C', 0, 0, 0], ['O', 1.21, 0, 0], ['H', -0.57, 0.94, 0], ['H', -0.57, -0.94, 0]]
+  CH2O: [['C', 0, 0, 0], ['O', 1.21, 0, 0], ['H', -0.57, 0.94, 0], ['H', -0.57, -0.94, 0]],
+  CH2: [['C', 0, 0, 0], ['H', -0.9, -0.75, 0], ['H', 0.9, -0.75, 0]],
+  CH: [['C', 0, 0, 0], ['H', 0, -1.12, 0]]
 };
 const Emol = {};
 function E(name) { if (Emol[name] === undefined) Emol[name] = relax(build(T[name])); return Emol[name]; }
@@ -103,7 +105,7 @@ function dimer(A, B, shift) {
   const both = [...geo(A), ...geo(B).map(b => [b[0], b[1] + shift[0], b[2] + shift[1], b[3] + shift[2]])];
   const e = build(both); relax(e, 2); return e.Epot - E(A) - E(B);
 }
-module.exports = { FAST, elementary, dimer, dE: (r, p) => p.reduce((s, x) => s + E(x), 0) - r.reduce((s, x) => s + E(x), 0), resetCache, E, geo, T };
+module.exports = { FAST, elementary, transfer, dimer, dE: (r, p) => p.reduce((s, x) => s + E(x), 0) - r.reduce((s, x) => s + E(x), 0), resetCache, E, geo, T };
 if (require.main !== module) return;
 const rows = [];
 function step(label, barrier, dH, lit) { rows.push({ reaction: label, 'barrier (kJ/mol)': +barrier.toFixed(1), 'lit. Ea': lit[0], 'ΔE model': +dH.toFixed(1), 'lit. ΔH': lit[1] }); }
