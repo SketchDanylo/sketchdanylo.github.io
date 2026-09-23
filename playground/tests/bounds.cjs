@@ -24,7 +24,8 @@ test('Both bounds contain a fast atom, the forcefield over a longer distance', (
     e.addAtom('Ar', 55, 30, 0, { thermal: false, v: [0.02, 0, 0] }); // ~ 2 km/s outward
     for (let i = 0; i < 4000; i++) { e.step(); record(e.pos[0] - e.box.x1); }
     assert.ok(e.pos[0] < e.box.x1, 'atom ends inside the chamber');
-    if(e.boundsMode==='solid') assert.equal(deepSolid,0);
+    // a solid face is a stiff force starting at the face: a fast argon goes a fraction of an ångström in
+    if(e.boundsMode==='solid') assert.ok(deepSolid < 0.3, `solid face yielded ${deepSolid} Å`);
   }
   assert.ok(deepSolid < deepField, `forcefield yields further: ${deepSolid} vs ${deepField}`);
   assert.ok(deepField < 8, 'the forcefield still turns the atom around');
@@ -108,17 +109,20 @@ test('The wall reports the fluid lying against it, not a heater setting', () => 
   assert.ok(e.wallMeasured > 0 && e.wallMeasured < 1e5);
 });
 
-test('Solid walls reflect all six faces, conserve energy and report momentum flux', () => {
+test('Solid walls turn an atom round at all six faces, keep its energy and report the momentum it delivered', () => {
   for(let axis=0;axis<3;axis++) for(const sign of [-1,1]) {
     const e=chamber();   // no void selected: the face gives back everything it receives
-    const xyz=[30,30,0], v=[0,0,0]; xyz[axis]=(axis===2?0:30)+sign*29.99; v[axis]=sign*.02;
+    const xyz=[30,30,0], v=[0,0,0]; xyz[axis]=(axis===2?0:30)+sign*29.9; v[axis]=sign*.02;
     e.addAtom('Ar',...xyz,{thermal:false,v});
-    const K=e.kinetic(); e.step();
-    near(e.kinetic(),K); assert.equal(Math.sign(e.vel[axis]),-sign);
-    const area=6*60*60, force=2*e.mass[0]*.02*1e4/e.dt;
-    near(e.wallForce,force); near(e.pressureBar,force/area*16605.39,1e-5);
-    for(let k=0;k<5000;k++) {e.step(); assert.ok(e.pos[axis]>= (axis===2?-30:0) && e.pos[axis]<= (axis===2?30:60));}
-    near(e.kinetic(),K);
+    e.computeForces();
+    const K=e.kinetic();
+    let J=0;                                       // impulse the face delivered, from its own force
+    for(let k=0;k<120;k++){ e.step(); J+=e.wallForce*e.dt; }
+    assert.equal(Math.sign(e.vel[axis]),-sign,'turned round');
+    near(e.kinetic(),K,1e-4*K);                    // off the face again, with the speed it arrived with
+    near(J,2*e.mass[0]*.02*1e4,0.01*2*e.mass[0]*.02*1e4);
+    for(let k=0;k<5000;k++) {e.step(); assert.ok(e.pos[axis]>= (axis===2?-30:0)-0.3 && e.pos[axis]<= (axis===2?30:60)+0.3);}
+    near(e.kinetic()+e.Epot,K,1e-3*K);
   }
 });
 test('Corner and multiple-face drift crossings are folded without losing energy', () => {
@@ -128,28 +132,37 @@ test('Corner and multiple-face drift crossings are folded without losing energy'
   assert.ok(e._wallImpulse>0);
 });
 
-test('A solid wall bounces a molecule without heating it', () => {
-  /* Bouncing each atom on its own mirrored one across the wall while its partners stayed put,
-     which stretched the bond it was holding: a cold water molecule thrown at a wall at ordinary
-     thermal speed came away 110 kJ/mol hotter and over a thousand kelvin. The wall bounces the
-     molecule now, as one rigid piece. */
+test('A solid wall bounces a molecule without making or losing energy', () => {
+  /* Bouncing each atom on its own mirrored one across the wall while its partners stayed put:
+     a cold water molecule thrown at a wall at thermal speed came away 110 kJ/mol hotter. Carrying
+     the whole molecule back fixed that alone but shoved it into its neighbours in a crowd. The face
+     is a stiff force now, and a molecule hitting it is knocked into vibration the way a real one
+     is — energy moves from its travel into its bonds, and the total stays put. */
   for (const speed of [0.005, 0.01, 0.02, 0.05]) {
     const e = new Engine({ width: 30, height: 24, depth: 14, T: 0, seed: 7, thermostat: false, boundsMode: 'solid' });
     e.addAtom('O', 15, 12, 0, { thermal: false });
     e.addAtom('H', 15.76, 12.6, 0, { thermal: false });
     e.addAtom('H', 14.24, 12.6, 0, { thermal: false });
     e.touch(); e.minimize(1500, 0.02); e.refresh();
-    const bonds = [Math.hypot(e.pos[3] - e.pos[0], e.pos[4] - e.pos[1], e.pos[5] - e.pos[2]),
-                   Math.hypot(e.pos[6] - e.pos[0], e.pos[7] - e.pos[1], e.pos[8] - e.pos[2])];
     for (let i = 0; i < 3; i++) { e.vel[3 * i] = speed; e.vel[3 * i + 1] = speed * 0.6; }
     const E0 = e.Epot + e.kinetic();
     for (let i = 0; i < 20000; i++) e.step();
     const drift = e.Epot + e.kinetic() - E0;
-    assert.ok(Math.abs(drift) < 1, `at ${speed} Å/fs the wall added ${drift.toFixed(1)} kJ/mol`);
-    const now = [Math.hypot(e.pos[3] - e.pos[0], e.pos[4] - e.pos[1], e.pos[5] - e.pos[2]),
-                 Math.hypot(e.pos[6] - e.pos[0], e.pos[7] - e.pos[1], e.pos[8] - e.pos[2])];
-    for (let k = 0; k < 2; k++) assert.ok(Math.abs(now[k] - bonds[k]) < 0.06, 'a bounce stretched an O–H bond to ' + now[k].toFixed(3));
+    assert.ok(Math.abs(drift) < 2, `at ${speed} Å/fs the wall changed the energy by ${drift.toFixed(1)} kJ/mol`);
+    assert.equal(e.fragments().list.map(f => e.formulaOf(f)).join('+'), 'H2O');
   }
+});
+test('A crowded chamber against solid walls keeps its energy', () => {
+  const e = new Engine({ width: 20, height: 14, depth: 10, T: 300, seed: 3, thermostat: false, boundsMode: 'solid' });
+  for (let i = 0; i < 5; i++) for (let j = 0; j < 3; j++) {
+    const x = 2.5 + i * 3.8, y = 2.5 + j * 4.2;
+    e.addAtom('O', x, y, 0); e.addAtom('H', x + 0.76, y + 0.6, 0); e.addAtom('H', x - 0.76, y + 0.6, 0);
+  }
+  e.touch(); e.minimize(800, 0.2); e.refresh(); e.thermalize(300);
+  const E0 = e.Epot + e.kinetic();
+  for (let s = 0; s < 20000; s++) e.step();
+  // before this was +173 kJ/mol in 20 ps, and +4122 with the per-atom mirror before that
+  assert.ok(Math.abs(e.Epot + e.kinetic() - E0) < 10, `drifted ${(e.Epot + e.kinetic() - E0).toFixed(1)} kJ/mol`);
 });
 test('A molecule crossing a corner comes back whole', () => {
   const e = new Engine({ width: 30, height: 24, depth: 14, T: 0, seed: 7, thermostat: false, boundsMode: 'solid' });
@@ -209,7 +222,8 @@ test('Solid collision pressure and velocities replay exactly',()=>{
 test('Time-averaged collision pressure agrees with ideal-gas momentum balance',()=>{
   const e=chamber();e.addAtom('Ar',30,30,0,{thermal:false,v:[.02,.02,.02]});
   let p=0;const n=6000;for(let i=0;i<n;i++){e.step();p+=e.pressureBar;}
-  near(p/n,(2*e.kinetic()/3)/(60**3)*16605.39,1e-6);
+  // a contact lasts a few femtoseconds rather than none, so this agrees to a fraction of a percent, not to the digit
+  const ideal=(2*e.kinetic()/3)/(60**3)*16605.39; near(p/n,ideal,0.005*ideal);
 });
 test('Every void channel removes energy at both wall kinds, and none can add any', () => {
   for (const mode of ['solid', 'forcefield']) for (const ch of ['voidTemperature', 'voidPressure', 'voidVelocity']) {
@@ -256,7 +270,8 @@ test('Stopping at a wall reports m*v, and a pressure void deletes that reading',
     const K=open.kinetic(); open.step(); closed.step();
     assert.deepEqual([...open.vel.slice(0,3)],[...closed.vel.slice(0,3)],'the bounce is untouched');
     near(open.pos[0],closed.pos[0],1e-12);
-    near(open.kinetic(),K,1e-12); assert.equal(open.voidHeat,0);
+    // mid-contact some of the energy sits in the face's spring; none of it is taken away
+    near(open.kinetic()+open.Ewall,K,1e-3*K); assert.equal(open.voidHeat,0);
     near(open.wallForce,0,1e-12); near(open.pressureBar,0,1e-12);
     assert.ok(closed.pressureBar>0,'while a closed chamber reports the blow');
     const snap=open.snapshot();open.step();const expected=open.snapshot();open.restore(snap);open.step();

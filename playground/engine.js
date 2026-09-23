@@ -48,14 +48,16 @@ const BO_ON = 0.50, BO_OFF = 0.85;  // …tapered to zero between r₁+on and r�
 const COUL_D2 = 0.3;                // Coulomb short-range shielding (Å²)
 const LJ_SHIELD = 0.55;             // LJ shielding radius as a fraction of r_min
 const OPEN_W = 0.25;                // smoothing width of the free-valence ramp
-const SUB_MAX = 64, SUB_ETOL = 6;  // at most 64 sub-steps; redo a step whose energy error exceeds 6 kJ/mol
-/* A reaction is the one moment a 1 fs step cannot follow: an atom entering a bond well is pulled
-   from thermal speed to several times it inside one step, and the error is not small — it is
-   hundreds of kJ/mol, enough to blow the molecule that just formed straight back apart. The
-   curvature predictor below looks at the step that has already happened, so it always arrives
-   one step late. These two look at the step about to happen. */
-const SUB_DX = 0.06;                // Å a single sub-step may carry an atom
-const SUB_DV = 0.04;                // Å/fs a single sub-step may change an atom's speed by
+const SUB_DX = 0.1;                 // Å an atom may travel in one sub-step
+const SUB_HOLD = 200;               // fs a finer sub-step count is kept before it may relax
+/* At most 64 sub-steps; redo a step whose energy error exceeds 1.5 kJ/mol plus 0.2% of the kinetic
+   energy. It was 6, which let two hydrogens plunging into their 436 kJ/mol well lose 15 to 36 kJ/mol
+   over a few steps each just under the line — enough to stay bound with nothing to take the energy,
+   which an isolated pair cannot do. A strict guard only became affordable once a redone step stayed
+   finer instead of dropping straight back, because the dropping back was itself a source of drift. */
+const SUB_MAX = 64, SUB_ETOL = 1.5;
+const SOLID_W = 0.05;               // Å over which a solid face's force eases in
+const WALL_FOLD = 1.0;              // Å past a solid face before an atom is carried back rather than pushed
 const CORE_A = 800;                 // kJ/mol, strength of the nuclear hard core
 const VMAX = 0.6;                   // Å/fs safety speed limit (60 km/s)
 
@@ -303,6 +305,7 @@ class Engine {
     // Soft enough, and reaching in little enough, that ordinary thermal atoms still lean past
     // the face — otherwise a forcefield would hide the chamber's outside from every void wall.
     this.fieldK = opts.fieldK ?? 5;           // kJ/mol/Å², forcefield stiffness
+    this.solidK = opts.solidK ?? 4000;        // kJ/mol/Å², a solid face: about as stiff as a C–H bond
     this.fieldRange = opts.fieldRange ?? 1.2; // Å the forcefield reaches inward
     // Void wall: what the region beyond the chamber face does to what reaches it.
     /* Void walls: what the boundary refuses to hand back. Each channel deletes one quantity the
@@ -1103,26 +1106,25 @@ class Engine {
     this._fragStamp = this.stepCount; this._fragN = N;
     return root;
   }
-  /* A solid wall bounces what arrives at it. Bouncing each atom on its own looked right and was
-     not: mirroring one atom of a molecule across the wall while its partners stayed put stretched
-     the bond it was holding, and the stretch is energy nobody paid for — a cold water molecule
-     thrown at a wall at ordinary thermal speed came away 110 kJ/mol hotter, over a thousand
-     kelvin. So the wall bounces the molecule. The whole fragment is carried back inside as one
-     rigid piece, which cannot change a bond length, and the wall reverses the one thing a wall
-     reverses: the fragment's travel into it. Taking twice the centre-of-mass velocity off every
-     atom does exactly that and is exactly energy-neutral, and it leaves the molecule's own
-     spinning and vibrating alone. A lone atom is a fragment of one, so nothing changes for a gas
-     of single atoms. */
+  /* The safety net behind a solid face. Ordinary contact is the face's own force, in _walls. What
+     is left for this is an atom the face never had the chance to push — one put far outside by
+     an edit, a smaller chamber or the barostat. That is carried back inside with the molecule it
+     belongs to as one rigid piece, so no bond is stretched on the way, and its travel into the
+     face, if it is still travelling that way, is reversed. The velocity void also lives here:
+     an atom that touches a face while it is on stops where it stands. */
   _reflectWalls() {
     if (this.sphere || this.boundsMode !== 'solid') return;
     const N = this.N, pos = this.pos, vel = this.vel, b = this.box;
     const lo = this._wLo || (this._wLo = [0, 0, 0]), hi = this._wHi || (this._wHi = [0, 0, 0]);
     lo[0] = b.x0; lo[1] = b.y0; lo[2] = b.z0; hi[0] = b.x1; hi[1] = b.y1; hi[2] = b.z1;
+    // the face's force handles ordinary contact; this only acts on contact when the velocity void
+    // is on, and otherwise only on an atom left far outside by an edit, a resize or the barostat
+    const margin = this.voidVelocity ? 0 : WALL_FOLD;
     let any = false;
     for (let i = 0; i < N && !any; i++) {
       if (this.pinned[i]) continue;
       const k = 3 * i;
-      for (let d = 0; d < 3; d++) if (pos[k + d] < lo[d] || pos[k + d] > hi[d]) { any = true; break; }
+      for (let d = 0; d < 3; d++) if (pos[k + d] < lo[d] - margin || pos[k + d] > hi[d] + margin) { any = true; break; }
     }
     if (!any) return;
     const report = !this.voidPressure;
@@ -1158,7 +1160,7 @@ class Engine {
       for (let d = 0; d < 3; d++) {
         acc[r + 1 + d] += m * vel[k + d];
         const x = pos[k + d];
-        const o = x < lo[d] ? x - lo[d] : x > hi[d] ? x - hi[d] : 0;
+        const o = x < lo[d] - WALL_FOLD ? x - lo[d] : x > hi[d] + WALL_FOLD ? x - hi[d] : 0;
         // remember the shift that would carry the atom furthest out back where it belongs, folded
         // the same way however many chamber-lengths it has travelled
         if (Math.abs(o) > Math.abs(acc[r + 4 + d])) {
@@ -1211,6 +1213,30 @@ class Engine {
         if (e <= 0) continue;
         E += 0.5 * K * e * e; F[3 * i + d] += dir * K * e;
         Fsum += K * e;
+      }
+      /* A solid face is a force too, just a stiff one that starts exactly at the face. It used to
+         be a rule instead — anything past the face was put back and had its velocity turned
+         round — and a rule applied to positions is energy nobody pays for. Mirroring one atom of
+         a molecule stretched its bonds; carrying the whole molecule back pushed it into its
+         neighbours; either way a crowded chamber against a solid wall heated itself, by 170 kJ/mol
+         in 20 ps for fifteen waters. As a force it is integrated like every other force: it
+         conserves energy, it pushes on the one atom that touches so a spinning molecule is turned
+         by the wall rather than shoved off it, and the pressure is simply what it pushes with.
+         At this stiffness a room-temperature atom goes about 0.04 Å past the face and comes back. */
+      if (!field && this.boundsMode === 'solid') {
+        // the force grows from zero with zero slope over the first SOLID_W, then linearly: a force
+        // that switched on with a kink cost a fast atom a quarter of a percent of its energy per bounce
+        const Ks = this.solidK, w = SOLID_W;
+        for (let i = 0; i < N; i++) for (let d = 0; d < 3; d++) {
+          const x = pos[3 * i + d];
+          let e, dir;
+          if (x < lo[d]) { e = lo[d] - x; dir = 1; } else if (x > hi[d]) { e = x - hi[d]; dir = -1; } else continue;
+          let f;
+          if (e < w) { f = Ks * e * e / (2 * w); E += Ks * e * e * e / (6 * w); }
+          else { f = Ks * (e - w / 2); E += Ks * (e * e / 2 - w * e / 2 + w * w / 6); }
+          F[3 * i + d] += dir * f;
+          Fsum += f;
+        }
       }
       const Lx = b.x1 - b.x0, Ly = b.y1 - b.y0, Lz = b.z1 - b.z0;
       this.wallArea = 2 * (Lx * Ly + Lx * Lz + Ly * Lz);
@@ -1425,16 +1451,6 @@ class Engine {
     if (this.needForces) { this._checkRebuild(); this.computeForces(); this.needForces = false; }
     const forceRebuild = this.stepCount % this.ckEvery === 0; // makes replay bit-identical
     let nsub = Math.max(1, Math.min(SUB_MAX, this.nextSub || 1));
-    // How far and how fast the step is about to push the fastest atom, before it is taken
-    let vm2 = 0, am2 = 0;
-    for (let i = 0; i < N; i++) {
-      if (this.pinned[i]) continue;
-      const k = 3 * i;
-      const v2 = vel[k] ** 2 + vel[k + 1] ** 2 + vel[k + 2] ** 2; if (v2 > vm2) vm2 = v2;
-      const s2 = (F[k] ** 2 + F[k + 1] ** 2 + F[k + 2] ** 2) * (ACC / this.mass[i]) ** 2; if (s2 > am2) am2 = s2;
-    }
-    const ahead = Math.max(Math.sqrt(vm2) * dt / SUB_DX, Math.sqrt(am2) * dt / SUB_DV);
-    if (ahead > nsub) nsub = Math.min(SUB_MAX, Math.ceil(ahead));
     const canCheck = N > 0;
     let E0 = 0, K0 = 0;
     this._save();
@@ -1444,24 +1460,70 @@ class Engine {
       this._integrate(nsub, forceRebuild);
       if (!canCheck || nsub >= SUB_MAX) break;
       const dE = Math.abs(this.Epot + this.kinetic() + this.voidHeat - this._sv.voidHeat - this.servoWork - E0);
-      if (dE <= SUB_ETOL + 0.005 * K0) break;
-      this._load(); nsub = Math.min(SUB_MAX, nsub * 4); this.redone++; // redo this step more finely
+      if (dE <= SUB_ETOL + 0.002 * K0) break;
+      this._load(); nsub = Math.min(SUB_MAX, nsub * 2); this.redone++; // redo this step at half the sub-step: a gentler jump shifts the conserved energy less
     }
     this.lastSub = nsub;
     this.servoWorkTotal += this.servoWork;
+    // a step that had to be redone finer stays finer for a while, rather than dropping straight back
+    if (nsub > (this.nextSub || 1)) { this.nextSub = nsub; this.subHold = SUB_HOLD; }
     // curvature felt by each atom this step → sub-steps for the next one (ω·dt ≤ 0.6)
-    let w2max = 0;
-    const Fo = this.Fold, prev = this.prev;
+    let w2max = 0, vmax2 = 0;
     for (let i = 0; i < N; i++) {
       if (this.pinned[i]) continue;
-      const dx = pos[3 * i] - prev[3 * i], dy = pos[3 * i + 1] - prev[3 * i + 1], dz = pos[3 * i + 2] - prev[3 * i + 2];
-      const d2 = dx * dx + dy * dy + dz * dz; if (d2 < 1e-10) continue;
-      const fx = F[3 * i] - Fo[3 * i], fy = F[3 * i + 1] - Fo[3 * i + 1], fz = F[3 * i + 2] - Fo[3 * i + 2];
-      const w2 = Math.sqrt((fx * fx + fy * fy + fz * fz) / d2) * ACC / this.mass[i];
+      const v2 = vel[3 * i] ** 2 + vel[3 * i + 1] ** 2 + vel[3 * i + 2] ** 2;
+      if (v2 > vmax2) vmax2 = v2;
+    }
+    /* How finely to step comes from the things that are actually stiff, read from where they are
+       now. Each formed bond sets a floor from its own curvature at its current length — a hot
+       bond squeezed to 0.8 Å sits on a Morse wall nearly three times stiffer than at rest — over
+       its reduced mass; so does a solid face an atom is about to meet; and anything moving fast
+       enough to cross SUB_DX in a sub-step sets one too, which is what catches a spark or a
+       violent impact driving atoms into each other's cores. What this replaced was an estimate
+       read off how far each atom had just moved. A molecule flying across the chamber moves a long
+       way whatever its bonds are doing, so it looked soft; and in a big chamber some atom always
+       spiked it, so it flickered — and flicker is itself a source of drift. */
+    { const need = Math.sqrt(vmax2) * dt / SUB_DX, w2 = need > 1 ? (0.5 * need / dt) ** 2 : 0; if (w2 > w2max) w2max = w2; }
+    const type = this.type, mass = this.mass;
+    for (let p = 0; p < this.nPairs; p++) {
+      if (this.pF[p] < 0.3 || this.pR[p] <= 0) continue;
+      const i = this.pI[p], j = this.pJ[p];
+      const pp = PAIR[type[i] * NT + type[j]]; if (!pp.bond) continue;
+      const lo = Math.min(2, Math.max(1, Math.floor(this.pN[p]))), a = pp.a[lo];
+      const ey = Math.exp(-a * (this.pR[p] - pp.re[lo]));
+      const curv = a * a * pp.De[lo] * Math.max(2, 4 * ey * ey - 2 * this.pB[p] * ey);
+      const w2 = curv * (1 / mass[i] + 1 / mass[j]) * ACC;
       if (w2 > w2max) w2max = w2;
     }
-    const need = Math.sqrt(w2max) * dt / 1.0;
-    this.nextSub = need > 1 ? Math.min(SUB_MAX, Math.ceil(need)) : 1;
+    // an atom that could reach a solid face during the next step is stepped as finely as the face
+    // needs from its first femtosecond of contact, not from the step after it has already arrived
+    if (!this.sphere && this.boundsMode === 'solid') {
+      const b = this.box, lo = [b.x0, b.y0, b.z0], hi = [b.x1, b.y1, b.z1];
+      for (let i = 0; i < N; i++) {
+        if (this.pinned[i]) continue;
+        const k = 3 * i;
+        let near = false;
+        for (let d = 0; d < 3 && !near; d++) {
+          const reach = Math.abs(vel[k + d]) * dt * 1.5 + SOLID_W;
+          if (pos[k + d] < lo[d] + reach || pos[k + d] > hi[d] - reach) near = true;
+        }
+        if (near) { const w2 = this.solidK * ACC / mass[i]; if (w2 > w2max) w2max = w2; }
+      }
+    }
+    /* ω·dt ≤ 0.5, about a dozen steps across the fastest vibration. At ω·dt ≤ 1 a cluster of
+       fifteen water molecules gained 180 kJ/mol in 20 ps with no thermostat — the O–H stretch
+       was being integrated with nine points per period. At 0.5 the same cluster keeps its energy
+       to half a kJ/mol, and because an O–H or H–H bond is always present the count settles at a
+       steady two instead of flickering between one and two, which is its own source of drift. */
+    const need = Math.sqrt(w2max) * dt / 0.5;
+    /* Go finer at once; come back down only after SUB_HOLD fs in which nothing asked for more.
+       Velocity Verlet keeps energy only while its step length holds still: a bouncing water
+       molecule stepped at a steady two sub-steps kept its energy to 1 kJ/mol over 20 ps, and the
+       same molecule stepped at two-and-occasionally-three gained 128. The count has to change
+       sometimes, but it should change rarely, not flicker with every compression. */
+    const want = need > 1 ? Math.min(SUB_MAX, Math.ceil(need)) : 1, cur = this.nextSub || 1;
+    if (want >= cur) { this.nextSub = want; this.subHold = SUB_HOLD; }
+    else if ((this.subHold -= dt) <= 0) { this.nextSub = want; this.subHold = SUB_HOLD; }
     // Safety net: a numerically broken state is rolled back and paused; a merely very fast atom
     // (rare after sub-stepping) is capped at 60 km/s and counted, so hot gases keep running.
     let clamped = 0;
@@ -1490,7 +1552,7 @@ class Engine {
     this._measureWall();
     if (this.voidTemperature) this.wallT = this.wallMeasured;
     this.time += dt; this.stepCount++;
-    if (!this.sphere && this.boundsMode === 'solid') this.wallForce = this._wallImpulse / dt;
+    if (!this.sphere && this.boundsMode === 'solid') this.wallForce += this._wallImpulse / dt;
     // Normal momentum flux, exponentially averaged over ~1 ps
     const Pinst = this.wallArea > 0 ? this.wallForce / this.wallArea * BAR : 0;
     this.pressureBar = Pinst;
@@ -1886,7 +1948,7 @@ class Engine {
       pBonded: this._bondPrimed && this._pBonded ? this._pBonded.slice(0, this.nPairs) : null, nascent: this._nascent ? this._nascent.slice(0, N) : null,
       wallTau: this.wallTau, wallCapacity: this.wallCapacity, wallSkin: this.wallSkin, wallCoupling: this.wallCoupling,
       heatToSample: this.heatToSample, heaterWork: this.heaterWork,
-      nextSub: this.nextSub || 1, lastSub: this.lastSub || 1, Epot: this.Epot, Ewall: this.Ewall,
+      nextSub: this.nextSub || 1, subHold: this.subHold || 0, lastSub: this.lastSub || 1, Epot: this.Epot, Ewall: this.Ewall,
       wallForce: this.wallForce, wallArea: this.wallArea, pressureBar: this.pressureBar, pressureEMA: this.pressureEMA,
       needForces: this.needForces, needRebuild: this.needRebuild, redone: this.redone, clamped: this.clamped,
       built: this.built.slice(0, n3), pI: this.pI.slice(0, this.nPairs), pJ: this.pJ.slice(0, this.nPairs), pN: this.pN.slice(0, this.nPairs),
@@ -1900,7 +1962,7 @@ class Engine {
     this.N = s.N; this.time = s.time; this.stepCount = s.stepCount; this.rngState = s.rng; this.nextId = s.nextId;
     if (s.box) this.box = { ...s.box };
     this.sphere = s.sphere ? { ...s.sphere } : null;
-    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'kelvinWork', 'kelvinMix', 'sparkHold', 'wallMeasured', 'wallContact', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidVelocity', 'voidTau', 'voidSkin', 'voidHeat', 'voidForce', 'thirdBody', 'thirdBodyTau', 'thirdBodyWindow', 'thirdBodyHeat', 'servoWork', 'servoWorkTotal', 'pressureControl', 'pressureTarget', 'pressureTau', 'heatToSample', 'heaterWork', 'nextSub', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
+    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'kelvinWork', 'kelvinMix', 'sparkHold', 'wallMeasured', 'wallContact', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidVelocity', 'voidTau', 'voidSkin', 'voidHeat', 'voidForce', 'thirdBody', 'thirdBodyTau', 'thirdBodyWindow', 'thirdBodyHeat', 'servoWork', 'servoWorkTotal', 'pressureControl', 'pressureTarget', 'pressureTau', 'heatToSample', 'heaterWork', 'nextSub', 'subHold', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
     this.tweezer = null;
     this.pos.set(s.pos); this.vel.set(s.vel); this.frc.set(s.frc); this.prev.set(s.pos);
     this.type.set(s.type); this.formal.set(s.formal); this.val.set(s.val); this.lp.set(s.lp); this.pinned.set(s.pinned); this.ids.set(s.ids); this.cos0.set(s.cos0);
