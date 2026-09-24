@@ -37,7 +37,7 @@ function dragOnto(e, h, to, fs) {
 }
 const justAbove = (e, c, gap) => () => [e.pos[3 * c], e.pos[3 * c + 1] + gap];
 function reactiveDrag(opts = {}) {
-  const e = new Engine({ width: 36, height: 20, depth: 12, T: 300, thermostat: false, thirdBody: false, ...opts });
+  const e = new Engine({ width: 36, height: 20, depth: 12, T: 300, thermostat: false, ...opts });
   methylene(e, 18, 10);
   const h = e.addAtom('H', 18, 14.5, 0, { thermal: false });
   e.touch(); e.refresh();
@@ -60,7 +60,7 @@ test('The outcome of a reactive drag no longer depends on the step size', () => 
 });
 
 test('The servo\'s work is measured, and it is all the energy a non-reactive drag adds', () => {
-  const e = new Engine({ width: 36, height: 20, depth: 12, T: 300, thermostat: false, thirdBody: false });
+  const e = new Engine({ width: 36, height: 20, depth: 12, T: 300, thermostat: false });
   const c = e.addAtom('C', 10, 10, 0, { thermal: false });
   e.addAtom('H', 9.45, 9.1, 0, { thermal: false }); e.addAtom('H', 10.55, 9.1, 0, { thermal: false });
   e.touch(); e.minimize(600, .2); e.refresh();
@@ -72,34 +72,24 @@ test('The servo\'s work is measured, and it is all the energy a non-reactive dra
   assert.ok(e.servoWorkTotal > 0, 'the drag did no work at all');
 });
 
-test('The third body only ever removes energy, and leaves a settled molecule alone', () => {
-  const e = new Engine({ width: 30, height: 24, depth: 14, T: 300, seed: 5, thermostat: false });
-  e.addAtom('O', 15, 12, 0, { thermal: true });
-  e.addAtom('H', 15.76, 12.6, 0, { thermal: true }); e.addAtom('H', 14.24, 12.6, 0, { thermal: true });
-  e.touch(); e.minimize(800, .1); e.refresh(); e.thermalize(300);
-  const E0 = total(e);
-  for (let i = 0; i < 20000; i++) e.step();
-  assert.equal(e.thirdBodyHeat, 0, 'a molecule that formed no new bond was cooled anyway');
-  assert.ok(Math.abs(total(e) - E0) < 30, `drifted ${(total(e) - E0).toFixed(1)} kJ/mol on its own`);
-});
-
-test('A new bond hands its energy over, and the books balance', () => {
-  const e = new Engine({ width: 24, height: 20, depth: 12, T: 300, seed: 48, thermostat: false, thirdBodyTau: 100 });
-  e.addAtom('H', 10, 10, 0, { thermal: true }); e.addAtom('H', 14, 10.3, 0, { thermal: true });
+test('An insulated chamber keeps all the heat a reaction releases', () => {
+  /* There is no switch for a third body. What carries a new bond's energy away is whatever is
+     really there: other molecules, the walls, the surrounding bath. With the thermostat off the
+     sample is insulated, and two H atoms that bond leave all 436 kJ/mol in the chamber. */
+  const e = new Engine({ width: 24, height: 20, depth: 12, T: 300, seed: 48, thermostat: false });
+  e.addAtom('H', 10, 10, 0, { thermal: true }); e.addAtom('H', 12.4, 10.1, 0, { thermal: true });
   e.touch(); e.refresh();
   const E0 = total(e);
   for (let i = 0; i < 12000; i++) e.step();
-  assert.equal(products(e), 'H2');
-  assert.ok(e.thirdBodyHeat > 100, `only ${e.thirdBodyHeat.toFixed(0)} kJ/mol carried away`);
-  // everything that left the sample is either the bond energy or the third body's share
-  assert.ok(total(e) + e.thirdBodyHeat - E0 > -260, 'more energy left than anything accounts for');
+  assert.ok(Math.abs(total(e) - E0) < 15, `energy went from ${E0.toFixed(1)} to ${total(e).toFixed(1)} kJ/mol`);
 });
 
-test('Without a third body an isolated pair of radicals cannot stay together', () => {
-  const run = thirdBody => {
+test('Two H atoms alone cannot keep their bond; in a bath they can', () => {
+  // H + H needs a third body to take the energy: in an empty insulated box there is none
+  const run = opts => {
     let made = 0;
     for (let s = 0; s < 12; s++) {
-      const e = new Engine({ width: 24, height: 20, depth: 12, T: 300, seed: 31 + s * 17, thermostat: false, thirdBody, thirdBodyTau: 100 });
+      const e = new Engine({ width: 24, height: 20, depth: 12, T: 300, seed: 31 + s * 17, ...opts });
       e.addAtom('H', 10, 10, 0, { thermal: true }); e.addAtom('H', 14, 10.3, 0, { thermal: true });
       e.touch(); e.refresh();
       for (let i = 0; i < 12000; i++) e.step();
@@ -107,14 +97,14 @@ test('Without a third body an isolated pair of radicals cannot stay together', (
     }
     return made;
   };
-  assert.ok(run(false) <= 3, 'an empty chamber should not be able to hold a fresh bond together');
-  assert.ok(run(true) >= 9, 'with a third body the pair should almost always stay together');
+  assert.ok(run({ thermostat: false }) <= 4, 'an empty insulated chamber should not hold a fresh bond together');
+  assert.ok(run({ thermostatMode: 'kelvin' }) >= 10, 'surroundings that touch every atom should take the energy');
 });
 
 test('A molecule can be built by hand whichever way the temperature is held', () => {
-  /* The pointer brings a hydrogen to a methyl radical and lets go. Before the third body this
-     worked only under the Kelvin stat, because the Kelvin stat happens to drain the new bond's
-     energy as a side effect of holding the whole chamber at one temperature. */
+  /* The pointer brings a hydrogen to a methyl radical and lets go. The new C–H bond releases
+     ~440 kJ/mol. The Kelvin bath takes it at once. Behind a wall heater or insulated, the fresh
+     methane keeps it for a while and now and then throws the H back off, as a real one would. */
   const built = opts => {
     let made = 0;
     for (let s = 0; s < 8; s++) {
@@ -132,23 +122,10 @@ test('A molecule can be built by hand whichever way the temperature is held', ()
     }
     return made;
   };
-  for (const opts of [{ thermostatMode: 'kelvin' }, { thermostatMode: 'wall', wallT: 300 }, { thermostat: false }]) {
-    const label = opts.thermostat === false ? 'off' : opts.thermostatMode;
-    assert.ok(built(opts) >= 6, `${label} built methane only ${built(opts)} times in 8`);
+  for (const [opts, need] of [[{ thermostatMode: 'kelvin' }, 7], [{ thermostatMode: 'wall', wallT: 300 }, 4], [{ thermostat: false }, 4]]) {
+    const label = opts.thermostat === false ? 'off' : opts.thermostatMode, n = built(opts);
+    assert.ok(n >= need, `${label} built methane only ${n} times in 8`);
   }
-});
-
-test('Third-body state survives a snapshot, so a replayed step relaxes the same way', () => {
-  const e = new Engine({ width: 24, height: 20, depth: 12, T: 300, seed: 48, thirdBodyTau: 100 });
-  e.addAtom('H', 10, 10, 0, { thermal: true }); e.addAtom('H', 12.4, 10.1, 0, { thermal: true });
-  e.touch(); e.refresh();
-  for (let i = 0; i < 900; i++) e.step();       // long enough to be inside a nascent window
-  assert.ok(e._nascent.some(v => v > 0), 'nothing was fresh to save');
-  const s = e.snapshot();
-  const a = []; for (let i = 0; i < 400; i++) { e.step(); a.push(e.thirdBodyHeat); }
-  e.restore(s);
-  const b = []; for (let i = 0; i < 400; i++) { e.step(); b.push(e.thirdBodyHeat); }
-  assert.deepEqual(b, a);
 });
 
 console.log(count + ' reactive-drag checks passed.');

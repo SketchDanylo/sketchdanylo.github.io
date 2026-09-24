@@ -465,19 +465,7 @@ class Engine {
        spark on the step it landed and nothing could ever be lit. While this window is open the
        stat and the temperature void stand back and let the spark do its work. */
     this.sparkHold = 0;
-    /* Third body. Two radicals that meet in an empty chamber cannot stay together: the bond they
-       make releases hundreds of kJ/mol into the two atoms that made it, and with nothing else to
-       take it the molecule tears itself apart again on the next vibration. Real gases are not
-       empty — the energy leaves in a collision with whatever else is there, or at the vessel wall,
-       which is why radical recombination is a three-body reaction in every textbook. A chamber of
-       twenty atoms has no third body, so this is it: for a short while after a bond forms, the new
-       molecule's own vibration is bled off toward the set temperature. It only ever removes. */
-    this.thirdBody = opts.thirdBody ?? true;
-    this.thirdBodyTau = opts.thirdBodyTau ?? 220;   // fs to carry the excess away
-    this.thirdBodyWindow = opts.thirdBodyWindow ?? 900; // fs a new bond counts as new
-    this.thirdBodyHeat = 0;                          // kJ/mol taken, for the books
     this.servoWork = 0; this.servoWorkTotal = 0;     // work the pointer has done on the sample
-    this._nascentUntil = -1;
     this.wallMeasured = this.T; this.wallContact = 0; // what the fluid against the wall actually is
     /* Interaction cutoff. The electrostatics here are damped and already short-ranged, so 6.5 Å
        reaches everything that is worth more than a few kJ/mol: measured against the whole
@@ -591,12 +579,10 @@ class Engine {
       if (a < 0 || b < 0) continue;
       this.pI[np] = a; this.pJ[np] = b;
       this.pN[np] = this.pN[p]; this.pF[np] = this.pF[p]; this.pSraw[np] = this.pSraw[p]; this.pB[np] = this.pB[p];
-      if (this._pBonded) this._pBonded[np] = this._pBonded[p];
       np++;
     }
     this.nPairs = np;
     this.N = w;
-    if (this._nascent) this._nascent.fill(0); this._bondPrimed = false;
     if (this.tweezer) { const t = map[this.tweezer.i]; if (t == null || t < 0) this.tweezer = null; else this.tweezer.i = t; }
     this.needRebuild = true; this.needForces = true;
     return map;
@@ -625,12 +611,9 @@ class Engine {
        renderer one pair's strength under another pair's name. */
     const keep = this._keepMap || (this._keepMap = new Map()); keep.clear();
     const kept = this._kept && this._kept.length >= 4 * this.nPairs ? this._kept : (this._kept = new Float64Array(4 * this.pairCap + 64));
-    let kb = null;
-    if (this._pBonded) { kb = this._keptBond && this._keptBond.length >= this.nPairs ? this._keptBond : (this._keptBond = new Uint8Array(this.pairCap + 64)); }
     for (let p = 0; p < this.nPairs; p++) {
       keep.set(this._key(this.pI[p], this.pJ[p]), 4 * p);
       kept[4 * p] = this.pN[p]; kept[4 * p + 1] = this.pF[p]; kept[4 * p + 2] = this.pSraw[p]; kept[4 * p + 3] = this.pB[p];
-      if (kb) kb[p] = this._pBonded[p];
     }
     let minx = Infinity, miny = Infinity, minz = Infinity, maxx = -Infinity, maxy = -Infinity, maxz = -Infinity;
     for (let i = 0; i < N; i++) {
@@ -667,11 +650,8 @@ class Engine {
               if (np >= this.pairCap) { this.nPairs = np; this._allocPairs(this.pairCap * 2); }
               this.pI[np] = i; this.pJ[np] = j;
               const k = keep.get(this._key(i, j));
-              if (k === undefined) { this.pN[np] = 1; this.pF[np] = this.pSraw[np] = this.pB[np] = 0; if (this._pBonded) this._pBonded[np] = 0; }
-              else {
-                this.pN[np] = kept[k]; this.pF[np] = kept[k + 1]; this.pSraw[np] = kept[k + 2]; this.pB[np] = kept[k + 3];
-                if (kb) this._pBonded[np] = kb[k >> 2];
-              }
+              if (k === undefined) { this.pN[np] = 1; this.pF[np] = this.pSraw[np] = this.pB[np] = 0; }
+              else { this.pN[np] = kept[k]; this.pF[np] = kept[k + 1]; this.pSraw[np] = kept[k + 2]; this.pB[np] = kept[k + 3]; }
               np++;
             }
           }
@@ -1573,90 +1553,6 @@ class Engine {
      still approaching one is untouched, and an atom held at the wall is never clamped against its
      own bonded neighbours. Pressure is not handled here: voiding a pressure reading must not
      change how anything moves. */
-  /* A bond that has just formed is still carrying the energy it released. Find those atoms, and
-     for a short window bleed the molecule they belong to back toward the set temperature — the
-     collision with a third body that a nearly empty chamber cannot provide. Only the molecule's
-     internal motion is touched: it keeps travelling and keeps spinning, it just stops ringing.
-     Nothing is ever added, so this can only ever be a sink. */
-  _thirdBody(dt) {
-    const N = this.N, P = this.nPairs;
-    if (!this.thirdBody || N < 2 || this.time < this.sparkHold) return;
-    let bonded = this._pBonded, nas = this._nascent;
-    if (!nas || nas.length < N) { nas = this._nascent = new Float64Array(this.cap + 64); }
-    if (!bonded || bonded.length < P) { bonded = this._pBonded = new Uint8Array(this.pairCap + 64); this._bondPrimed = false; }
-    /* What counts as a bond that has just formed is the bond itself crossing from open to made,
-       with a wide gap between the two marks so a settled bond can stretch and breathe all it likes
-       without ever reading as new. Watching how fast an atom's bonding rose instead — which is
-       what this did first — misses the one case the sandbox is for: a bond made by hand takes a
-       second of pointer movement to close, slowly enough that any running average keeps up with
-       it, and the new molecule was left holding the whole four hundred kilojoules it had just
-       released. That is why a hydrogen brought to a carbon would not stay on it. */
-    let any = false;
-    if (!this._bondPrimed) {
-      for (let p = 0; p < P; p++) bonded[p] = this.bondStrength(p) * this.pN[p] > 0.6 ? 1 : 0;
-      this._bondPrimed = true;
-    } else {
-      for (let p = 0; p < P; p++) {
-        const v = this.bondStrength(p) * this.pN[p];
-        if (!bonded[p]) {
-          if (v <= 0.6) continue;
-          bonded[p] = 1;
-          nas[this.pI[p]] = nas[this.pJ[p]] = this.thirdBodyWindow;
-        } else if (v < 0.2) bonded[p] = 0;
-      }
-    }
-    for (let i = 0; i < N; i++) if (nas[i] > 0) { nas[i] -= dt; any = true; }
-    if (!any) return;
-    /* Which atoms belong to the same molecule, over arrays kept between steps: while anything is
-       fresh this runs every step, so it is three passes over the atoms and one over the pairs,
-       and it allocates nothing. */
-    let root = this._tbRoot, acc = this._tbAcc;
-    if (!root || root.length < N) { root = this._tbRoot = new Int32Array(N + 128); acc = this._tbAcc = new Float64Array(7 * (N + 128)); }
-    for (let i = 0; i < N; i++) root[i] = i;
-    const find = i => { while (root[i] !== i) { root[i] = root[root[i]]; i = root[i]; } return i; };
-    for (let p = 0; p < this.nPairs; p++) {
-      if (this.bondStrength(p) <= 0.25) continue;
-      const a = find(this.pI[p]), b = find(this.pJ[p]); if (a !== b) root[a] = b;
-    }
-    acc.fill(0, 0, 7 * N);                   // per molecule: mass, momentum(3), atoms, fresh, internal K
-    for (let i = 0; i < N; i++) {
-      if (this.pinned[i]) continue;
-      const r = 7 * find(i), w = this.mass[i], k = 3 * i;
-      acc[r] += w; acc[r + 1] += w * this.vel[k]; acc[r + 2] += w * this.vel[k + 1]; acc[r + 3] += w * this.vel[k + 2];
-      acc[r + 4]++; if (nas[i] > 0) acc[r + 5] = 1;
-    }
-    let fresh = false;
-    for (let i = 0; i < N; i++) {
-      if (this.pinned[i]) continue;
-      const r = 7 * find(i);
-      if (!acc[r + 5] || acc[r + 4] < 2) continue;
-      fresh = true;
-      const M = acc[r], k = 3 * i;
-      const ax = this.vel[k] - acc[r + 1] / M, ay = this.vel[k + 1] - acc[r + 2] / M, az = this.vel[k + 2] - acc[r + 3] / M;
-      acc[r + 6] += this.mass[i] * (ax * ax + ay * ay + az * az);
-    }
-    if (!fresh) return;
-    const KT = 0.5 * KB * this.T, damp = -Math.expm1(-dt / this.thirdBodyTau);
-    // turn each molecule's excess into the factor its velocities are scaled by, in place of K
-    for (let i = 0; i < N; i++) {
-      const r = 7 * i;
-      if (root[i] !== i || !acc[r + 5] || acc[r + 4] < 2) { acc[r + 5] = 0; continue; }
-      const K = 0.5 * KEU * acc[r + 6], want = (3 * acc[r + 4] - 3) * KT;
-      if (K <= want || K <= 0) { acc[r + 5] = 0; continue; }
-      const lam = Math.sqrt(Math.max(0, 1 + (want / K - 1) * damp));
-      acc[r + 6] = lam;
-      this.thirdBodyHeat += K * (1 - lam * lam);
-    }
-    for (let i = 0; i < N; i++) {
-      if (this.pinned[i]) continue;
-      const r = 7 * find(i); if (!acc[r + 5]) continue;
-      const M = acc[r], lam = acc[r + 6], k = 3 * i;
-      const vx = acc[r + 1] / M, vy = acc[r + 2] / M, vz = acc[r + 3] / M;
-      this.vel[k] = vx + (this.vel[k] - vx) * lam;
-      this.vel[k + 1] = vy + (this.vel[k + 1] - vy) * lam;
-      this.vel[k + 2] = vz + (this.vel[k + 2] - vz) * lam;
-    }
-  }
   _voidWalls() {
     if (this.sphere || !this.voidVelocity) return;
     const b = this.box, lo = [b.x0, b.y0, b.z0], hi = [b.x1, b.y1, b.z1];
@@ -1849,7 +1745,6 @@ class Engine {
     }
     this.clamped += clamped;
     this._voidWalls();
-    this._thirdBody(dt);
     const igniting = this.time < this.sparkHold;
     if (this.thermostat && !igniting) {
       if (this.thermostatMode === 'csvr') this._csvr();
@@ -2255,8 +2150,7 @@ class Engine {
       voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, voidVelocity: this.voidVelocity, voidTau: this.voidTau, voidSkin: this.voidSkin,
       pressureControl: this.pressureControl, pressureTarget: this.pressureTarget, pressureTau: this.pressureTau,
       voidHeat: this.voidHeat, voidForce: this.voidForce,
-      thirdBody: this.thirdBody, thirdBodyTau: this.thirdBodyTau, thirdBodyWindow: this.thirdBodyWindow, thirdBodyHeat: this.thirdBodyHeat, servoWork: this.servoWork, servoWorkTotal: this.servoWorkTotal,
-      pBonded: this._bondPrimed && this._pBonded ? this._pBonded.slice(0, this.nPairs) : null, nascent: this._nascent ? this._nascent.slice(0, N) : null,
+      servoWork: this.servoWork, servoWorkTotal: this.servoWorkTotal,
       wallTau: this.wallTau, wallCapacity: this.wallCapacity, wallSkin: this.wallSkin, wallCoupling: this.wallCoupling,
       heatToSample: this.heatToSample, heaterWork: this.heaterWork,
       nextSub: this.nextSub || 1, subHold: this.subHold || 0, lastSub: this.lastSub || 1, Epot: this.Epot, Ewall: this.Ewall,
@@ -2273,7 +2167,7 @@ class Engine {
     this.N = s.N; this.time = s.time; this.stepCount = s.stepCount; this.rngState = s.rng; this.nextId = s.nextId;
     if (s.box) this.box = { ...s.box };
     this.sphere = s.sphere ? { ...s.sphere } : null;
-    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'kelvinWork', 'kelvinMix', 'sparkHold', 'wallMeasured', 'wallContact', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidVelocity', 'voidTau', 'voidSkin', 'voidHeat', 'voidForce', 'thirdBody', 'thirdBodyTau', 'thirdBodyWindow', 'thirdBodyHeat', 'servoWork', 'servoWorkTotal', 'pressureControl', 'pressureTarget', 'pressureTau', 'heatToSample', 'heaterWork', 'nextSub', 'subHold', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
+    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'kelvinWork', 'kelvinMix', 'sparkHold', 'wallMeasured', 'wallContact', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidVelocity', 'voidTau', 'voidSkin', 'voidHeat', 'voidForce', 'servoWork', 'servoWorkTotal', 'pressureControl', 'pressureTarget', 'pressureTau', 'heatToSample', 'heaterWork', 'nextSub', 'subHold', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
     this.tweezer = null;
     this.pos.set(s.pos); this.vel.set(s.vel); this.frc.set(s.frc); this.prev.set(s.pos);
     this.type.set(s.type); this.formal.set(s.formal); this.val.set(s.val); this.lp.set(s.lp); this.pinned.set(s.pinned); this.ids.set(s.ids); this.cos0.set(s.cos0);
@@ -2296,14 +2190,6 @@ class Engine {
     if (!s.pI) this.pN.set(pn.subarray(0, Math.min(pn.length, this.nPairs)));
     for (const key of ['Epot', 'Ewall', 'wallForce', 'wallArea', 'pressureBar', 'pressureEMA']) if (s[key] !== undefined) this[key] = s[key];
     this.needRebuild = s.needRebuild ?? true; this.needForces = s.needForces ?? false;
-    // which bonds were already made and how long each new one still counts as new, so a replayed
-    // step relaxes exactly the way the first one did
-    if (s.pBonded && s.nascent) {
-      if (!this._nascent || this._nascent.length < this.N) this._nascent = new Float64Array(this.cap + 64);
-      if (!this._pBonded || this._pBonded.length < this.nPairs) this._pBonded = new Uint8Array(this.pairCap + 64);
-      this._pBonded.fill(0); this._pBonded.set(s.pBonded.subarray(0, Math.min(s.pBonded.length, this.nPairs)));
-      this._nascent.set(s.nascent); this._bondPrimed = true;
-    } else { this._bondPrimed = false; if (this._nascent) this._nascent.fill(0); }
   }
   _checkpoint() {
     const s = this.snapshot();
@@ -2340,7 +2226,7 @@ class Engine {
   toJSON() {
     const atoms = [];
     for (let i = 0; i < this.N; i++) atoms.push([ELEMENTS[this.type[i]].sym, +this.pos[3 * i].toFixed(4), +this.pos[3 * i + 1].toFixed(4), +this.pos[3 * i + 2].toFixed(4), +this.vel[3 * i].toFixed(6), +this.vel[3 * i + 1].toFixed(6), +this.vel[3 * i + 2].toFixed(6), this.formal[i], this.val[i]]);
-    return { format: 'chem-playground/scene@1', box: this.box, T: this.T, tau: this.tau, thermostat: this.thermostat, thermostatMode: this.thermostatMode, kelvinWork: this.kelvinWork, boundsMode: this.boundsMode, voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, voidVelocity: this.voidVelocity, dampingVersion: 3, voidTau: this.voidTau, voidSkin: this.voidSkin, voidHeat: this.voidHeat, thirdBody: this.thirdBody, thirdBodyTau: this.thirdBodyTau, thirdBodyHeat: this.thirdBodyHeat, pressureControl: this.pressureControl, pressureTarget: this.pressureTarget, wallT: this.wallT, wallTarget: this.wallTarget, wallTau: this.wallTau, heatToSample: this.heatToSample, heaterWork: this.heaterWork, time: this.time, atoms };
+    return { format: 'chem-playground/scene@1', box: this.box, T: this.T, tau: this.tau, thermostat: this.thermostat, thermostatMode: this.thermostatMode, kelvinWork: this.kelvinWork, boundsMode: this.boundsMode, voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, voidVelocity: this.voidVelocity, dampingVersion: 3, voidTau: this.voidTau, voidSkin: this.voidSkin, voidHeat: this.voidHeat, pressureControl: this.pressureControl, pressureTarget: this.pressureTarget, wallT: this.wallT, wallTarget: this.wallTarget, wallTau: this.wallTau, heatToSample: this.heatToSample, heaterWork: this.heaterWork, time: this.time, atoms };
   }
 }
 

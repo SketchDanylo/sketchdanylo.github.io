@@ -581,14 +581,11 @@ kbd{font:500 9.5px var(--mono);padding:1px 5px;border:1px solid var(--line-hi);b
 .seg-mini button{display:grid;place-items:center;padding:6px 14px}
 .seg-mini button[aria-pressed=true] .gl .path{animation:glRise 2.4s ease-in-out infinite}
 @keyframes glRise{0%,100%{opacity:.35;transform:translateY(1px)}50%{opacity:1;transform:translateY(-1px)}}
-/* the third body leaves with what the bond gave off, and another takes its place */
-.stat .gl.third .face,.drop-opt:hover .gl.third .face{animation:glAway 2.6s ease-in-out infinite}
-@keyframes glAway{0%{opacity:0;transform:translate(-3px,3px)}35%{opacity:1;transform:none}100%{opacity:0;transform:translate(4px,-4px)}}
 /* the void's outside glows on the chamber drawing */
 .chamber-art .quantum .cross{stroke:#ff6b5b;stroke-width:1.2;fill:none;stroke-linecap:round}
 .chamber-art .push path:not(.cross){stroke:#7fa7c9;stroke-width:1.2;fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:.3}
 @media(prefers-reduced-motion:reduce){
-  .drop-opt:hover .gl .ball,.seg-mini button[aria-pressed=true] .gl .path,.gl.third .face{animation:none!important}
+  .drop-opt:hover .gl .ball,.seg-mini button[aria-pressed=true] .gl .path{animation:none!important}
 }
 
 /* pressure control: passive or held, with the target beside it */

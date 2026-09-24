@@ -111,7 +111,10 @@ test('...and without insertion it never did', () => {
 });
 
 test('A bare carbon atom and CH insert too: C + 2 H2 makes methane by way of CH2', () => {
-  assert.ok((runs(e => { e.addAtom('C', 10, 8, 0, q); H2(e, 4, 5); H2(e, 15, 11); }, 6)['CH4'] || 0) >= 5);
+  // two encounters in a row: some chambers are still waiting on the second H2 when the clock stops,
+  // but nothing ends up anywhere but methane or on the way to it
+  const t = runs(e => { e.addAtom('C', 10, 8, 0, q); H2(e, 4, 5); H2(e, 15, 11); }, 6);
+  assert.ok((t['CH4'] || 0) >= 4 && Object.keys(t).every(k => k === 'CH4' || k === 'CH2 + H2'), JSON.stringify(t));
   assert.ok((runs(e => { e.addAtom('C', 8, 8, 0, q); e.addAtom('H', 8, 6.88, 0, q); H2(e, 14, 8.4); }, 6)['CH3'] || 0) >= 5);
 });
 

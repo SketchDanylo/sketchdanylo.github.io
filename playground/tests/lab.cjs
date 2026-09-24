@@ -85,16 +85,21 @@ console.log('\nThings that go on their own:');
   assert.ok(howOften(salt, 'NaCl') >= 8, 'sodium and chlorine should make salt');
   show('Na + Cl2 → NaCl + Cl', experiment(e => { put.Na(e, 10, 12); put.Cl2(e, 18, 12.4); }, { steps: 60000 }));
 }
-console.log('\nThings that need lighting (adiabatic, as a closed vessel is):');
+console.log('\nThings that need lighting (a vessel with its walls at room temperature):');
+/* The flash itself is too fast for the walls to matter; afterwards the heat leaves through them,
+   as it does from a real flask. Sealed perfectly (thermostat off) the products would keep every
+   kJ/mol they released - thousands of kelvin across a handful of molecules - and at that
+   temperature water and salt really do sit partly split into atoms. */
 {
-  const cold = experiment(e => { put.H2(e, 8, 8); put.H2(e, 8, 16); put.O2(e, 20, 12); }, { thermostat: false, steps: 60000 });
-  const lit = experiment(e => { put.H2(e, 8, 8); put.H2(e, 8, 16); put.O2(e, 20, 12); }, { thermostat: false, steps: 60000, ignite: () => [0, 1] });
+  const vessel = { thermostatMode: 'wall', wallT: 300, wallTarget: 300, steps: 60000 };
+  const cold = experiment(e => { put.H2(e, 8, 8); put.H2(e, 8, 16); put.O2(e, 20, 12); }, vessel);
+  const lit = experiment(e => { put.H2(e, 8, 8); put.H2(e, 8, 16); put.O2(e, 20, 12); }, { ...vessel, ignite: () => [0, 1] });
   show('2 H2 + O2, unlit', cold);
   show('2 H2 + O2, sparked', lit);
   assert.equal(howOften(cold, '2 H2 + O2'), RUNS);
   assert.ok(howOften(lit, '2 H2 + O2') <= RUNS - 7, 'a spark should start something');
-  show('CH4 + 2 O2, sparked', experiment(e => { put.CH4(e, 8, 12); put.O2(e, 20, 8); put.O2(e, 20, 17); }, { thermostat: false, steps: 60000, ignite: () => [0, 1, 2, 3, 4] }));
-  const salt = experiment(e => { put.Na2(e, 9, 12); put.Cl2(e, 20, 12); }, { thermostat: false, steps: 60000, ignite: () => [2, 3] });
+  show('CH4 + 2 O2, sparked', experiment(e => { put.CH4(e, 8, 12); put.O2(e, 20, 8); put.O2(e, 20, 17); }, { ...vessel, ignite: () => [0, 1, 2, 3, 4] }));
+  const salt = experiment(e => { put.Na2(e, 9, 12); put.Cl2(e, 20, 12); }, { ...vessel, ignite: () => [2, 3] });
   show('Na2 + Cl2, sparked', salt);
   assert.ok(howOften(salt, '2 NaCl') >= 8, 'a lit sodium/chlorine mixture should make salt');
 }
