@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { Engine, KB } = require('../engine.js');
+const { Engine, KB, KEU } = require('../engine.js');
 const near = (a, b, tol = 1e-9) => assert.ok(Math.abs(a - b) < tol, `${a} vs ${b}`);
 let count = 0;
 function test(name, run) { run(); console.log('PASS', name); count++; }
@@ -66,50 +66,61 @@ test('Wall history reproduces velocities, reservoir state and heat on replay', (
   assert.ok(e.stepBack(100)); const actual = e.snapshot();
   for (const key of ['pos', 'vel', 'rng', 'wallT', 'wallTarget', 'wallTau', 'heatToSample', 'heaterWork']) assert.deepEqual(actual[key], expected[key], key);
 });
-test('The Kelvin stat holds the setpoint exactly, every step and everywhere', () => {
+test('The Kelvin bath holds the setpoint on average, with the Boltzmann spread of energies', () => {
+  /* A real sample at 450 K is not every atom at 450 K: each atom's kinetic energy follows
+     Maxwell–Boltzmann, mean 1.5 kT and variance 1.5 (kT)^2, and about 1.9% of atoms at any moment
+     carry more than 5 kT. Those are the ones that react. The reading fluctuates about the
+     setpoint as any small sample's does. */
+  // helium: the bath relaxes it in about a picosecond, so a minute of simulated time is a tight average
   const e = chamber({ thermostatMode: 'kelvin', T: 450 });
-  for (let i = 0; i < 20; i++) e.addAtom('Ar', 8 + (i % 5) * 20, 12 + ((i / 5) | 0) * 22, 0, { thermal: true });
-  for (let s = 0; s < 2000; s++) { e.step(); near(e.temperature(), 450, 1e-9); }
+  for (let i = 0; i < 40; i++) e.addAtom('He', 8 + (i % 5) * 20, 8 + ((i / 5) | 0) * 11, 0, { thermal: true });
+  const kT = KB * 450; let n = 0, s1 = 0, s2 = 0, over = 0, Tsum = 0, steps = 0;
+  for (let s = 0; s < 3000; s++) e.step();
+  for (let s = 0; s < 60000; s++) {
+    e.step(); Tsum += e.temperature(); steps++;
+    if (s % 10) continue;
+    for (let a = 0; a < e.N; a++) {
+      const x = 0.5 * KEU * e.mass[a] * (e.vel[3 * a] ** 2 + e.vel[3 * a + 1] ** 2 + e.vel[3 * a + 2] ** 2) / kT;
+      n++; s1 += x; s2 += x * x; if (x > 5) over++;
+    }
+  }
+  const mean = s1 / n, variance = s2 / n - mean * mean;
+  near(Tsum / steps, 450, 450 * 0.03);
+  near(mean, 1.5, 0.06);
+  near(variance, 1.5, 0.15);
+  near(over / n, 0.0186, 0.004);
 });
-test('It replaces exactly what a void wall removes', () => {
+test('It replaces what a void wall removes, on average', () => {
+  // against a radiating wall the steady state sits a little below the setpoint: the bath has to
+  // carry heat in as fast as the wall throws it out (helium, so the bath is quick about it)
   const e = chamber({ thermostatMode: 'kelvin', T: 450, voidTemperature: true, voidVelocity: true });
-  for (let i = 0; i < 20; i++) e.addAtom('Ar', 8 + (i % 5) * 20, 12 + ((i / 5) | 0) * 22, 0, { thermal: true });
-  for (let s = 0; s < 4000; s++) e.step();
-  near(e.temperature(), 450, 1e-9);
+  for (let i = 0; i < 20; i++) e.addAtom('He', 8 + (i % 5) * 20, 12 + ((i / 5) | 0) * 22, 0, { thermal: true });
+  let T = 0; for (let s = 0; s < 4000; s++) e.step();
+  for (let s = 0; s < 20000; s++) { e.step(); T += e.temperature(); }
+  assert.ok(T / 20000 > 300 && T / 20000 <= 450 * 1.03, `held at ${(T / 20000).toFixed(0)} K against a radiating wall`);
   assert.ok(e.voidHeat > 0, 'the wall took energy');
-  assert.ok(e.kelvinWork > 0, 'and the stat put it back');
+  assert.ok(e.kelvinWork > 0, 'and the bath put it back');
 });
-test('It starts a chamber from rest and can set it back to rest', () => {
+test('A temperature edit is instant, from rest, to rest and back', () => {
   const e = chamber({ thermostatMode: 'kelvin', T: 300 });
   for (let i = 0; i < 6; i++) e.addAtom('Ar', 10 + i * 15, 40, 0, { thermal: false });
   assert.equal(e.kinetic(), 0);
-  e.step();
-  near(e.temperature(), 300, 1e-9);
+  for (let s = 0; s < 20000; s++) e.step();         // argon relaxes over ~10 ps
+  assert.ok(e.temperature() > 100, 'the bath warms a chamber that started at rest');
   e.setTemperature(0);
   near(e.temperature(), 0, 1e-12);
   e.setTemperature(750);
   near(e.temperature(), 750, 1e-9);        // instant, by definition
 });
-test('It leaves pinned atoms fixed, and shares heat out instead of freezing what it cooled', () => {
+test('It leaves pinned atoms fixed, and warms what was left cold', () => {
   const e = chamber({ thermostatMode: 'kelvin', T: 500 });
-  for (let i = 0; i < 6; i++) e.addAtom('Ar', 10 + i * 15, 40, 0, { thermal: true });
+  for (let i = 0; i < 6; i++) e.addAtom('He', 10 + i * 15, 40, 0, { thermal: true });
   e.addAtom('Ar', 50, 20, 0, { thermal: true }); e.pinned[6] = 1;
-  // one atom left far colder than the rest, as a newly formed molecule is after it is cooled
-  for (let d = 0; d < 3; d++) e.vel[d] *= 0.05;
-  const speed = i => Math.hypot(e.vel[3 * i], e.vel[3 * i + 1], e.vel[3 * i + 2]);
-  const gapBefore = speed(1) / speed(0);
-  for (let s = 0; s < 400; s++) e._kelvin();
-  assert.ok(speed(1) / speed(0) < gapBefore * 0.5, `the cold atom catches up: ${(speed(1) / speed(0)).toFixed(1)} from ${gapBefore.toFixed(1)}`);
-  near(e.temperature(), 500, 1e-9);                 // while the temperature stays exact
+  for (let d = 0; d < 3; d++) e.vel[d] *= 0.01;
+  let K0 = 0; for (let s = 0; s < 3000; s++) { e._kelvin(); K0 += e.vel[0] ** 2 + e.vel[1] ** 2 + e.vel[2] ** 2; }
+  const kT = KB * 500, avg = 0.5 * KEU * e.mass[0] * K0 / 3000 / kT;
+  assert.ok(avg > 0.9, `the cold atom warmed to ${avg.toFixed(2)} kT on average`);
   for (let d = 18; d < 21; d++) assert.equal(e.vel[d], 0);
-});
-test('Sharing can be turned off, leaving a pure rescale', () => {
-  const e = chamber({ thermostatMode: 'kelvin', T: 500, kelvinMix: 0 });
-  for (let i = 0; i < 6; i++) e.addAtom('Ar', 10 + i * 15, 40, 0, { thermal: true });
-  const ratio = Math.hypot(e.vel[0], e.vel[1], e.vel[2]) / Math.hypot(e.vel[3], e.vel[4], e.vel[5]);
-  e._kelvin();
-  near(Math.hypot(e.vel[0], e.vel[1], e.vel[2]) / Math.hypot(e.vel[3], e.vel[4], e.vel[5]), ratio, 1e-12);
-  near(e.temperature(), 500, 1e-9);
 });
 test('Kelvin trajectories replay bit-exactly and survive a scene round trip', () => {
   const e = chamber({ thermostatMode: 'kelvin', T: 500, voidTemperature: true });
@@ -126,7 +137,9 @@ test('Kelvin trajectories replay bit-exactly and survive a scene round trip', ()
 test('Kelvin startup from rest accounts for all injected energy',()=>{
   const e=chamber({thermostatMode:'kelvin',T:300});e.addAtom('Ar',50,50,0,{thermal:false});
   e._kelvin();near(e.kelvinWork,e.kinetic(),1e-10);
-  e.T=0;e._kelvin();near(e.kelvinWork,0,1e-10);near(e.kinetic(),0);
+  // at 0 K the bath only drains, and every joule it takes is on the books
+  const K1=e.kinetic();e.T=0;e._kelvin();near(e.kelvinWork,e.kinetic(),1e-10);assert.ok(e.kinetic()<K1);
+  e.setTemperature(0);near(e.kinetic(),0);
 });
 test('Dragging one atom does not stop every other one', () => {
   // an atom held by the pointer is driven from outside; counting its motion as temperature made
@@ -138,14 +151,15 @@ test('Dragging one atom does not stop every other one', () => {
     const rest = () => { let k = 0; for (let i = 1; i < e.N; i++) { const j = 3 * i; k += e.mass[i] * (e.vel[j] ** 2 + e.vel[j + 1] ** 2 + e.vel[j + 2] ** 2); } return k; };
     const before = rest();
     e.tweezer = { i: 0, x: e.pos[0], y: e.pos[1], k: 30 };
+    let Tavg = 0;
     for (let s = 0; s < 3000; s++) {
       e.tweezer.x = 50 + 30 * Math.sin(s / 300); e.tweezer.y = 50 + 20 * Math.cos(s / 300);
-      e.needForces = true; e.step();
+      e.needForces = true; e.step(); if (s >= 1000) Tavg += e.temperature() / 2000;
     }
     assert.ok(rest() > 0.5 * before, `the rest of the chamber keeps moving: ${rest()} vs ${before}`);
-    /* The reading is the fluid's, not the drag's: pinned exactly by the stat, and with only a
+    /* The reading is the fluid's, not the drag's: held by the bath on average, and with only a
        void the chamber is free to cool, since a drag is no longer a heat source. */
-    if (opts.thermostatMode === 'kelvin') near(e.temperature(), 400, 1e-9);
+    if (opts.thermostatMode === 'kelvin') near(Tavg, 400, 400 * 0.25);   // 20 argon atoms over 2 ps: one sample's worth
     else assert.ok(e.temperature() <= 400 + 1e-9, `never above its setting, got ${e.temperature()}`);
     e.tweezer = null;
   }
@@ -180,12 +194,13 @@ test('A spark survives the thermostat long enough to light something', () => {
   lit.step();
   assert.ok(lit.kinetic() > K * 2, 'the stat leaves the spark alone while the window is open');
   while (lit.time < lit.sparkHold) lit.step();
-  for (let s = 0; s < 3000; s++) lit.step();
-  near(lit.temperature(), 300, 1e-6);             // and takes hold again once it closes
-  // without the window the same kick is erased immediately
+  const settle = e => { for (let s = 0; s < 3000; s++) e.step(); let T = 0; for (let s = 0; s < 6000; s++) { e.step(); T += e.temperature() / 6000; } return T; };
+  near(settle(lit), 300, 300 * 0.3);              // and takes hold again once it closes
+  // without the window the bath drains the same kick within a few τ
   quiet.vel[0] -= 0.25; quiet.vel[3] += 0.25;
-  quiet.step();
-  near(quiet.temperature(), 300, 1e-6);
+  const K1 = quiet.kinetic(); for (let s = 0; s < 1000; s++) quiet.step();
+  assert.ok(quiet.kinetic() < K1 * 0.5, 'the bath took the kick away');
+  near(settle(quiet), 300, 300 * 0.3);
 });
 test('The ignition window is part of the state and replays exactly', () => {
   const e = chamber({ T: 400, thermostatMode: 'kelvin' });
