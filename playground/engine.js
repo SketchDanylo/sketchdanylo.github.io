@@ -230,27 +230,27 @@ function satF(r, pp) {
 }
 /* The multiplicity a pair counts with in coordination: sigma plus a partial pi, as Pass A does. */
 function nEffOf(ti, tj, n) { return 1 + (PAIR[ti * NT + tj].oo ? TUNE.wpiOO : TUNE.wpi) * (n - 1); }
-/* How much of a carbene an atom is: 1 with two spare valences, fading to 0 by 1.5 and by 2.5, so a
-   radical with one spare valence and a bare carbon atom with four are both out. Smooth, so the
-   forces are too. */
+/* How much of a carbene an atom is: 1 with two spare valences or more, fading to 0 by 1.5, so a
+   radical with one (CH3) is out while CH2, CH and a bare carbon atom are in. Smooth, so the forces
+   are too. */
 let HW = 0, HWD = 0;
 function carbeneWeight(spare) {
-  const lo = (spare - 1.5) / 0.5, hi = (2.5 - spare) / 0.5;
-  if (lo <= 0 || hi <= 0) { HW = 0; HWD = 0; return 0; }
-  const a = lo >= 1 ? 1 : lo * lo * (3 - 2 * lo), da = lo >= 1 ? 0 : 6 * lo * (1 - lo) / 0.5;
-  const b = hi >= 1 ? 1 : hi * hi * (3 - 2 * hi), db = hi >= 1 ? 0 : -6 * hi * (1 - hi) / 0.5;
-  HW = a * b; HWD = da * b + a * db; return HW;
+  // two free valences or more once the two new bonds are set aside: CH2, CH, a bare C
+  const lo = (spare - 1.5) / 0.5;
+  if (lo <= 0) { HW = 0; HWD = 0; return 0; }
+  if (lo >= 1) { HW = 1; HWD = 0; return 1; }
+  HW = lo * lo * (3 - 2 * lo); HWD = 6 * lo * (1 - lo) / 0.5; return HW;
 }
-/* ...and it holds about two single bonds besides the pair it is inserting between. CO relaxes to
-   C=O here, which also leaves carbon two spare valences, but beside one multiple bond — and CO does
-   not insert into H2 (the barrier is some 330 kJ/mol). Window 1.6 to 2.4, fading out by 1.2 and 2.8. */
+/* ...and carries no multiple bond. CO relaxes to C=O here, which also leaves carbon two spare
+   valences, but beside a double bond — and CO does not insert into H2 (the barrier is some
+   330 kJ/mol). CH2, CH and a bare carbon atom carry none, and all three insert. */
 let GW = 0, GWD = 0;
-function sigmaWindow(n) {
-  const lo = (n - 1.2) / 0.4, hi = (2.8 - n) / 0.4;
-  if (lo <= 0 || hi <= 0) { GW = 0; GWD = 0; return 0; }
-  const a = lo >= 1 ? 1 : lo * lo * (3 - 2 * lo), da = lo >= 1 ? 0 : 6 * lo * (1 - lo) / 0.4;
-  const b = hi >= 1 ? 1 : hi * hi * (3 - 2 * hi), db = hi >= 1 ? 0 : -6 * hi * (1 - hi) / 0.4;
-  GW = a * b; GWD = da * b + a * db; return GW;
+function piWindow(pi) {
+  // no multiple bond: full up to 0.2 of a π bond, gone by 0.5
+  const t = (0.5 - pi) / 0.3;
+  if (t >= 1) { GW = 1; GWD = 0; return 1; }
+  if (t <= 0) { GW = 0; GWD = 0; return 0; }
+  GW = t * t * (3 - 2 * t); GWD = -6 * t * (1 - t) / 0.3; return GW;
 }
 /* How much room a radical's unpaired electrons take around it, as extra steric number.
    Counting them as nothing — which is what the angles did — is right for CH3 and wrong for almost
@@ -1105,9 +1105,10 @@ class Engine {
      the pull of an empty orbital on a bond's electrons starts before the ends' repulsion does. Built
      on the bond switch (1.6 A) or the saturation value (a tenth by 2 A) it arrived too late: the
      carbon was stopped at 2.2 A, 140 kJ/mol up the ends' repulsion, before it could engage.
-       Only an atom with two spare valences once these two new bonds are set aside qualifies, so a
-     radical with one (H, OH, CH3) cannot, and a settled molecule - every atom at its valence - is
-     untouched: competition only matters to an atom over its valence. */
+       Only an atom with two or more spare valences once these two new bonds are set aside, and no
+     multiple bond, qualifies — CH2, CH, a bare C — so a radical with one (H, OH, CH3) cannot, and a
+     settled molecule - every atom at its valence - is untouched: competition only matters to an
+     atom over its valence. */
   _insertionScreen() {
     this.nIns = 0;
     if (!TUNE.insert) return;
@@ -1154,9 +1155,11 @@ class Engine {
           const na = 1, nb = 1;
           const spare = val[c] - (zr[c] - sr[pa] - sr[pb]);
           carbeneWeight(spare); if (HW <= 0) continue;
-          // and those two spare valences sit beside two single bonds: CH2, not C=O
-          const sigma = zs[c] - sr[pa] - sr[pb];
-          sigmaWindow(sigma); if (GW <= 0) continue;
+          // and no multiple bond on the centre: CH2, CH and a bare C atom insert, C=O and C=C do not.
+          // pi = the π part of the centre's other bonds, V − Zs counted with and without multiplicity
+          const nfa = nEffOf(type[c], type[a], pN[pa]), nfb = nEffOf(type[c], type[b], pN[pb]);
+          const pi = (zr[c] - zs[c]) - sr[pa] * (nfa - 1) - sr[pb] * (nfb - 1);
+          piWindow(pi); if (GW <= 0) continue;
           const hw = HW * GW, hwd = HWD * GW, hgd = HW * GWD;
           // how far the carbene has reached each end, on its own reach rather than the bond's
           const ppa = PAIR[type[c] * NT + type[a]], ppb = PAIR[type[c] * NT + type[b]];
@@ -1179,6 +1182,7 @@ class Engine {
           rec[o + 4] = w; rec[o + 5] = hw; rec[o + 6] = hwd; rec[o + 7] = A; rec[o + 8] = 3 * om * om;
           rec[o + 9] = na; rec[o + 10] = nb; rec[o + 11] = Sa; rec[o + 12] = dSa; rec[o + 13] = Sb; rec[o + 14] = dSb; rec[o + 15] = hgd;
           rec[o + 16] = a; rec[o + 17] = b; rec[o + 18] = Ea; rec[o + 19] = dEa; rec[o + 20] = Eb; rec[o + 21] = dEb;
+          rec[o + 22] = nfa; rec[o + 23] = nfb;
         }
       }
     }
@@ -1231,12 +1235,13 @@ class Engine {
         push(pa, dEdspare * na * spr[pa]);
         push(pb, dEdspare * nb * spr[pb]);
       }
-      // sigma = the centre's single-bond count without the two arms: every other pair raises it
-      const dEdsig = dEdw * INS_MAX * hg * A * fq * EE;
-      if (dEdsig !== 0) {
-        Hg[c] += dEdsig; anyH = true;
-        push(pa, -dEdsig * spr[pa]);
-        push(pb, -dEdsig * spr[pb]);
+      // pi = Σ over the centre's other pairs of S·(n − 1): up with the weighted count, down with the
+      // plain one, and the two arms' own π parts set aside
+      const dEdpi = dEdw * INS_MAX * hg * A * fq * EE;
+      if (dEdpi !== 0) {
+        Hc[c] += dEdpi; Hg[c] -= dEdpi; anyH = true;
+        push(pa, -dEdpi * (rec[o + 22] - 1) * spr[pa]);
+        push(pb, -dEdpi * (rec[o + 23] - 1) * spr[pb]);
       }
     }
     if (!anyH) return;

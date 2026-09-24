@@ -82,6 +82,15 @@ test('...and without insertion it never did', () => {
   assert.equal(t['CH2 + H2'], 6, JSON.stringify(t));
 });
 
+test('A bare carbon atom and CH insert too: C + 2 H2 makes methane by way of CH2', () => {
+  assert.ok((runs(e => { e.addAtom('C', 10, 8, 0, q); H2(e, 4, 5); H2(e, 15, 11); }, 6)['CH4'] || 0) >= 5);
+  assert.ok((runs(e => { e.addAtom('C', 8, 8, 0, q); e.addAtom('H', 8, 6.88, 0, q); H2(e, 14, 8.4); }, 6)['CH3'] || 0) >= 5);
+});
+
+test('Carbide cannot: C4- has a closed shell and nothing to share, and making CH4 from H2 would strand four electrons', () => {
+  assert.equal(runs(e => { e.addAtom('C', 10, 8, 0, { thermal: false, charge: -4 }); H2(e, 4, 5); H2(e, 15, 11); }, 3)['C4− + 2 H2'], 3);
+});
+
 test('A radical cannot insert: CH3 + H2 and H + H2 are left alone', () => {
   assert.equal(runs(e => { CH3(e, 6, 8); H2(e, 13, 8.4); }, 6)['CH3 + H2'], 6);
   assert.equal(runs(e => { e.addAtom('H', 6, 8, 0, q); H2(e, 13, 8.4); }, 6)['H + H2'], 6);
