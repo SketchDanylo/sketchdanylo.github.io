@@ -106,8 +106,13 @@ for (const e of ELEMENTS) BY_SYM[e.sym] = e;
 const NT = ELEMENTS.length;
 const CHI = Float64Array.from(ELEMENTS, e => e.chi);
 // chalcogens and halogens: with one of these in the formula, hydrogen is written first
-const INS_MAX = 0.98;                // how completely a carbene can take over a sigma bond's pair
+const INS_MAX = 0.6;                 // how much of a sigma bond's competition a carbene can take over
 const INS_ON = 0.8, INS_OFF = 1.8;   // Å past the bond length: fully engaged, and first felt
+const INS_T1 = 0.8, INS_T2 = 1.15;   // an end's new bond + old bond order: lends fully, lends nothing
+const INS_Q0 = 0.05, INS_Q1 = 0.15;  // the old bond's reach: not a bond, a bond
+const INS_QC = 0.3;                  // Å: Pauling length of the old bond's order
+const INS_U0 = 0.9, INS_U1 = 0.99;   // a new bond's reach: still forming, formed
+const INS_REC = 35;                  // slots per insertion term
 const INSERTS = new Uint8Array(ELEMENT_ROWS.length);
 for (const sym of ['C', 'Si']) { const k = ELEMENT_ROWS.findIndex(r => r[0] === sym); if (k >= 0) INSERTS[k] = 1; }
 const H_LEADS = new Set(['O', 'S', 'Se', 'Te', 'F', 'Cl', 'Br', 'I']);
@@ -289,6 +294,39 @@ function radicalDomains(x, Z, lp) {
   RD_E = RD_SIGMA * g; RD_EX = RD_SIGMA * gu * du; RD_EZ = -RD_SIGMA * gm * dm;
 }
 /* An end with nothing to spare counts fully; one with 0.75 of a valence free is a ring partner. */
+/* ...and an end lends only the valence it has. A hydrogen has one bond to give: while its reach
+   to the carbene and to its partner sum to about one, it is on its way from one to the other and
+   the carbene may take it over; past that it would be holding two bonds at once. Without this the
+   screen let a hydrogen keep its H–H bond at full strength *and* bond to carbon, and CH2 + H2
+   stuck as a CH2·H2 complex 550 kJ/mol more stable than it has any right to be. */
+let CW = 0, CWD = 0;
+function conserveWindow(T) {
+  const t = (INS_T2 - T) / (INS_T2 - INS_T1);
+  if (t >= 1) { CW = 1; CWD = 0; return; }
+  if (t <= 0) { CW = 0; CWD = 0; return; }
+  CW = t * t * (3 - 2 * t); CWD = -6 * t * (1 - t) / (INS_T2 - INS_T1);
+}
+/* Whether the two ends share a bond at all, by its saturation reach rather than its structural
+   switch: the switch is gone by 1.1 Å of H–H while the bond still competes out to 1.6, and a screen
+   that quit with the switch handed the competition back mid-stretch. Starting at a reach of 0.05
+   keeps the 1-3 neighbours of a settled molecule out (geminal H in methane: 0.045). */
+/* ...and only while the new bonds are still forming. Once both are whole the job is done, and a
+   settled carbon — whose two bonds, set aside, would leave it two spare valences like any carbene —
+   is exactly untouched however hot its neighbours get. */
+let UW = 0, UWD = 0;
+function formingWindow(x) {
+  const t = (INS_U1 - x) / (INS_U1 - INS_U0);
+  if (t >= 1) { UW = 1; UWD = 0; return; }
+  if (t <= 0) { UW = 0; UWD = 0; return; }
+  UW = t * t * (3 - 2 * t); UWD = -6 * t * (1 - t) / (INS_U1 - INS_U0);
+}
+let QW = 0, QWD = 0;
+function bondGate(x) {
+  const t = (x - INS_Q0) / (INS_Q1 - INS_Q0);
+  if (t >= 1) { QW = 1; QWD = 0; return; }
+  if (t <= 0) { QW = 0; QWD = 0; return; }
+  QW = t * t * (3 - 2 * t); QWD = 6 * t * (1 - t) / (INS_Q1 - INS_Q0);
+}
 let EW = 0, EWD = 0;
 function endWindow(se) {
   const t = (0.75 - se) / 0.4;
@@ -1093,13 +1131,13 @@ class Engine {
     }
     return E;
   }
-  /* Insertion. A carbene - a carbon or silicon holding exactly two free valences, CH2 or SiH2 -
+  /* Insertion. A carbene - a carbon or silicon with two or more free valences, CH2, CH, C, SiH2 -
      can do what no radical can: take a sigma bond's own electron pair into its empty orbital, so it
      bonds to both ends at once while the bond between them lets go. That is why singlet methylene
      inserts into H2 with no barrier at all and makes methane, while an H atom, an OH or a CH3 has to
      pull one end off first and pays for it. In this model the pair shows up as the sigma bond's
      competition at its two ends: an H already bonded to its partner offers almost nothing to a
-     newcomer. So when a carbene reaches both ends of one bond, that bond stops competing at those
+     newcomer. So when a carbene reaches both ends of one bond, that bond competes less at those
      ends, in proportion to how far the carbene has reached. Its reach is its own - first felt
      1.8 A past the bond length, fully engaged by 0.8 A past it, so 2.9 to 1.9 A for C-H - because
      the pull of an empty orbital on a bond's electrons starts before the ends' repulsion does. Built
@@ -1108,7 +1146,15 @@ class Engine {
        Only an atom with two or more spare valences once these two new bonds are set aside, and no
      multiple bond, qualifies — CH2, CH, a bare C — so a radical with one (H, OH, CH3) cannot, and a
      settled molecule - every atom at its valence - is untouched: competition only matters to an
-     atom over its valence. */
+     atom over its valence.
+       And a hydrogen has one bond to give, not two. The crossing is three-centre: the H–H bond
+     hands its order over to the two C–H bonds, the sum staying about one on each hydrogen. A screen
+     that ignored that (full strength, whatever either bond was doing) let an H keep its H–H bond
+     whole and bond to carbon besides - 1.4 bonds on one hydrogen - and CH2 + H2 settled as a
+     CH2·H2 complex held together by 550 kJ/mol of double counting, never becoming methane. So an
+     end lends only while its new bond and its old one's order sum to about one (conserveWindow),
+     only while the new bonds are still forming (formingWindow), and the old bond is measured by
+     its reach, not its switch (bondGate), so the screen never quits halfway through the stretch. */
   _insertionScreen() {
     this.nIns = 0;
     if (!TUNE.insert) return;
@@ -1148,7 +1194,8 @@ class Engine {
           const pb = lst[y], b = pI[pb] === c ? pJ[pb] : pI[pb];
           if (a === b) continue;
           const q = this.pairMap.get(a < b ? a * 1048576 + b : b * 1048576 + a);
-          if (q === undefined || pF[q] <= 0) continue;           // the two ends must share a bond
+          if (q === undefined || sr[q] <= INS_Q0) continue;      // the two ends must share a bond
+          bondGate(sr[q]); const Q = QW, dQ = QWD;
           // Only the σ part of each arm is a new bond. Setting an arm's π part aside too made an
           // ethylene carbon — two H and its own C=C — look like it had two free valences, and it
           // was treated as a carbene inserting into its neighbour's C–H: pyramidal, C=C at 1.24 Å.
@@ -1170,19 +1217,36 @@ class Engine {
           // A ring bond seen from the third atom of a three-membered ring has ends with a free
           // valence each (the third atom is already their partner) - that is cyclopropane, not an
           // insertion, and treating it as one made cyclopropane 180 kJ/mol too stable.
-          const sea = val[a] - (zr[a] - sr[pa]), seb = val[b] - (zr[b] - sr[pb]);
+          // Counted with the bond at full strength, so the window stays put while the bond stretches.
+          // Counting its current strength switched the screen off halfway through the stretch, while
+          // the bond still competed: the competition the carbene saw went back up, and the reaction
+          // had to climb out of a pit the screen itself had dug.
+          const nq = nEffOf(type[a], type[b], pN[q]), gap = nq * (1 - sr[q]);
+          const sea = val[a] - (zr[a] - sr[pa]) - gap, seb = val[b] - (zr[b] - sr[pb]) - gap;
           endWindow(sea); const Ea = EW, dEa = EWD; if (Ea <= 0) continue;
           endWindow(seb); const Eb = EW, dEb = EWD; if (Eb <= 0) continue;
-          const w = INS_MAX * hw * A * pF[q] * Ea * Eb;
+          // the bond's order, Pauling-style, starting to fall the moment it stretches: the saturation
+          // reach sits flat at 1 until 0.82 Å of H–H, and the carbene had nothing to pull on until then
+          const ppq = PAIR[type[a] * NT + type[b]], xq = pR[q] - (ppq.re[1] - 0.1);
+          let rq = 0, drq = 0;
+          if (xq > 0.2) { rq = xq - 0.1; drq = 1; } else if (xq > 0) { rq = xq * xq / 0.4; drq = xq / 0.2; }
+          const mq = Math.exp(-rq / INS_QC), dmq = -mq * drq / INS_QC;
+          formingWindow(sr[pa]); const Ua = UW, dUa = UWD; if (Ua <= 0) continue;
+          formingWindow(sr[pb]); const Ub = UW, dUb = UWD; if (Ub <= 0) continue;
+          conserveWindow(sr[pa] + mq); const Ca = CW * Ua, dCa = CWD * Ua, dUCa = CW * dUa; if (Ca <= 0) continue;
+          conserveWindow(sr[pb] + mq); const Cb = CW * Ub, dCb = CWD * Ub, dUCb = CW * dUb; if (Cb <= 0) continue;
+          const w = INS_MAX * hw * A * Q * Ea * Eb * Ca * Cb;
           if (w <= 0) continue;
           scr[q] *= 1 - w;
-          if (!rec || rec.length < 24 * (this.nIns + 1)) { const t = new Float64Array(Math.max(192, 48 * (this.nIns + 1))); if (rec) t.set(rec); rec = this._ins = t; }
-          const o = 24 * this.nIns++;
+          if (!rec || rec.length < INS_REC * (this.nIns + 1)) { const t = new Float64Array(INS_REC * Math.max(8, 2 * (this.nIns + 1))); if (rec) t.set(rec); rec = this._ins = t; }
+          const o = INS_REC * this.nIns++;
           rec[o] = q; rec[o + 1] = pa; rec[o + 2] = pb; rec[o + 3] = c;
           rec[o + 4] = w; rec[o + 5] = hw; rec[o + 6] = hwd; rec[o + 7] = A; rec[o + 8] = 3 * om * om;
           rec[o + 9] = na; rec[o + 10] = nb; rec[o + 11] = Sa; rec[o + 12] = dSa; rec[o + 13] = Sb; rec[o + 14] = dSb; rec[o + 15] = hgd;
-          rec[o + 16] = a; rec[o + 17] = b; rec[o + 18] = Ea; rec[o + 19] = dEa; rec[o + 20] = Eb; rec[o + 21] = dEb;
+          rec[o + 16] = a; rec[o + 17] = b; rec[o + 18] = Ea * Ca; rec[o + 19] = dEa * Ca; rec[o + 20] = Eb * Cb; rec[o + 21] = dEb * Cb;
           rec[o + 22] = nfa; rec[o + 23] = nfb;
+          rec[o + 24] = Ca; rec[o + 25] = dCa; rec[o + 26] = Cb; rec[o + 27] = dCb; rec[o + 28] = Ea * Eb; rec[o + 29] = nq;
+          rec[o + 30] = Q; rec[o + 31] = dQ; rec[o + 32] = dmq; rec[o + 33] = dUCa; rec[o + 34] = dUCb;
         }
       }
     }
@@ -1203,7 +1267,7 @@ class Engine {
     };
     let anyH = false;
     for (let t = 0; t < this.nIns; t++) {
-      const o = 24 * t, q = rec[o], pa = rec[o + 1], pb = rec[o + 2], c = rec[o + 3];
+      const o = INS_REC * t, q = rec[o], pa = rec[o + 1], pb = rec[o + 2], c = rec[o + 3];
       const ea = rec[o + 16], eb = rec[o + 17], Ea = rec[o + 18], dEa = rec[o + 19], Eb = rec[o + 20], dEb = rec[o + 21], EE = Ea * Eb;
       const w = rec[o + 4], h = rec[o + 5], hd = rec[o + 6], A = rec[o + 7], Ad = rec[o + 8], na = rec[o + 9], nb = rec[o + 10];
       const Sa = rec[o + 11], dSa = rec[o + 12], Sb = rec[o + 13], dSb = rec[o + 14], hg = rec[o + 15];
@@ -1214,11 +1278,18 @@ class Engine {
       const dEdS = sr[q] * nEff * ((G[j] + Gb[j] * D - this.gAs[q] - this.gAbs[q] * D) + (G[k] + Gb[k] * D - this.gBs[q] - this.gBbs[q] * D));
       if (dEdS === 0) continue;
       const dEdw = -dEdS * scr[q] / (1 - w);
-      const fq = pF[q];
-      // w = INS_MAX * h(spare, sigma) * A(Sa*Sb) * f(q) * Ea(spare of a) * Eb(spare of b)
+      const fq = rec[o + 30], nq = rec[o + 29];
+      // w = INS_MAX * h(spare, pi) * A(Sa*Sb) * Q(sr_q) * Ea(spare of a) * Eb(spare of b) * Ca * Cb
       push(pa, dEdw * INS_MAX * h * Ad * Sb * fq * EE * dSa);
       push(pb, dEdw * INS_MAX * h * Ad * Sa * fq * EE * dSb);
-      push(q, dEdw * INS_MAX * h * A * EE * pFp[q]);
+      push(q, dEdw * INS_MAX * h * A * EE * rec[o + 31] * spr[q]);
+      // each end: Ca = C(sr_a + m_q)·U(sr_a), and likewise b
+      const base0 = dEdw * INS_MAX * h * A * fq * rec[o + 28];
+      const gTa = base0 * rec[o + 25] * rec[o + 26], gTb = base0 * rec[o + 24] * rec[o + 27];
+      const gUa = base0 * rec[o + 33] * rec[o + 26], gUb = base0 * rec[o + 24] * rec[o + 34];
+      if (gTa !== 0 || gTb !== 0 || gUa !== 0 || gUb !== 0) {
+        push(pa, (gTa + gUa) * spr[pa]); push(pb, (gTb + gUb) * spr[pb]); push(q, (gTa + gTb) * rec[o + 32]);
+      }
       // each end's spare = V - (its coordination - its arm): all its pairs lower it, its arm not
       for (let e2 = 0; e2 < 2; e2++) {
         const at = e2 ? eb : ea, arm = e2 ? pb : pa;
@@ -1226,6 +1297,7 @@ class Engine {
         if (dEdse === 0) continue;
         Hc[at] -= dEdse; anyH = true;
         push(arm, dEdse * spr[arm]);
+        push(q, dEdse * nq * spr[q]);               // the bond counted at full strength
       }
       // spare = V - (all of the centre's coordination - the two arms): every other pair of the
       // centre lowers it one-for-one, the two arms not at all

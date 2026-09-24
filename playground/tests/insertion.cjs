@@ -10,7 +10,13 @@ const { Engine, TUNE } = require('../engine.js');
 let count = 0;
 function test(name, run) { run(); console.log('PASS', name); count++; }
 const q = { thermal: false };
+/* A formula alone let a stuck CH2·H2 complex — a hydrogen still bonded to its partner *and* to
+   carbon — pass as methane. So a product counts only if every hydrogen in it has exactly one bond:
+   anything else is reported as 'H with 2 bonds'. */
 const products = e => {
+  const n = new Int32Array(e.N);
+  for (const b of e.bonds()) { n[b.i]++; n[b.j]++; }
+  for (let k = 0; k < e.N; k++) if (n[k] > 1 && e.formulaOf([k]) === 'H') return 'H with 2 bonds';
   const c = {};
   for (const f of e.fragments().list) { const s = e.formulaOf(f); c[s] = (c[s] || 0) + 1; }
   return Object.keys(c).sort().map(k => (c[k] > 1 ? c[k] + ' ' : '') + k).join(' + ');
@@ -33,8 +39,11 @@ function runs(build, seeds, steps = 60000, opts = {}) {
 }
 
 test('Forces are the exact gradient of the energy through an insertion', () => {
-  const geoms = [2.3, 2.0, 1.7, 1.4].map(d => [['C', 0, 0, 0], ['H', -0.9, -0.75, 0.05], ['H', 0.9, -0.75, -0.04], ['H', -0.37, d, 0.02], ['H', 0.37, d + 0.03, -0.03]]);
-  geoms.push([['Si', 0, 0, 0], ['H', -1.2, -0.9, 0], ['H', 1.2, -0.9, 0.1], ['H', -0.37, 2.0, 0], ['H', 0.37, 2.02, 0.05]]);
+  // an H–H bond already stretching, where the carbene takes it over: from first reach to deep in,
+  // and across each window's edge
+  const geoms = [[0.9, 2.8], [0.9, 2.2], [0.92, 2.0], [1.0, 1.9], [1.1, 1.6], [1.2, 2.5]].map(([s, d]) =>
+    [['C', 0, 0, 0], ['H', -0.9, -0.75, 0.05], ['H', 0.9, -0.75, -0.04], ['H', -s / 2, d, 0.02], ['H', s / 2, d + 0.03, -0.03]]);
+  geoms.push([['Si', 0, 0, 0], ['H', -1.2, -0.9, 0], ['H', 1.2, -0.9, 0.1], ['H', -0.5, 2.3, 0], ['H', 0.5, 2.32, 0.05]]);
   for (const atoms of geoms) {
     const e = new Engine({ width: 200, height: 200, depth: 200, T: 0, thermostat: false });
     e.box = { x0: -100, x1: 100, y0: -100, y1: 100, z0: -100, z1: 100 };
@@ -73,6 +82,25 @@ test('Settled molecules are untouched: switching insertion off changes no energy
 test('CH2 + H2 makes methane at room temperature', () => {
   const t = runs(e => { CH2(e, 6, 8); H2(e, 13, 8.4); }, 8);
   assert.ok((t['CH4'] || 0) >= 7, JSON.stringify(t));
+});
+
+test('A hydrogen never holds more than one bond on the way: the crossing is three-centre, not two bonds', () => {
+  // Summed over its bonds, each H stays at about one all through the reaction. The screen used to
+  // let an H keep its H–H bond whole and bond to carbon as well — 1.4 bonds — and stop there.
+  let most = 0, reacted = 0;
+  for (let s = 0; s < 3; s++) {
+    const e = new Engine({ width: 20, height: 16, depth: 11, T: 300, seed: 40 + s * 17, thermostatMode: 'kelvin' });
+    CH2(e, 6, 8); H2(e, 13, 8.4); e.touch(); e.minimize(1500, 0.05); e.refresh(); e.thermalize(300);
+    for (let i = 0; i < 40000; i++) {
+      e.step(); if (i % 10) continue;
+      const sum = new Float64Array(e.N);
+      for (const b of e.bonds(0.05)) { sum[b.i] += b.strength * b.order; sum[b.j] += b.strength * b.order; }
+      for (let k = 1; k < e.N; k++) if (e.formulaOf([k]) === 'H') most = Math.max(most, sum[k]);
+    }
+    if (products(e) === 'CH4') reacted++;
+  }
+  assert.ok(reacted >= 2, `${reacted}/3 made methane`);
+  assert.ok(most < 1.15, `a hydrogen held ${most.toFixed(2)} bonds`);
 });
 
 test('...and without insertion it never did', () => {
