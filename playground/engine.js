@@ -63,10 +63,13 @@ const VMAX = 0.6;                   // Å/fs safety speed limit (60 km/s)
 
 /* ---------- element data ----------
  sym, Z, name, mass, χ(Pauling), rcov[single,double,triple] (Pyykkö), r_vdw (Bondi/Alvarez),
- UFF x (Å), UFF D (kcal/mol), valences, valence electrons, max bond order, angle K (kJ/mol/rad²), color */
+ UFF x (Å), UFF D (kcal/mol), valences, valence electrons, max bond order, angle K (kJ/mol/rad²), color
+ The noble gases use the classic Lennard-Jones parameters fitted to their measured second virial
+ coefficients (Hirschfelder, Curtiss & Bird: r_min = 2^(1/6)σ, D = ε) instead of UFF's, which left
+ argon, krypton and xenon with positive B2 where the real gases are strongly negative. */
 const ELEMENT_ROWS = [
   ['H', 1, 'Hydrogen', 1.008, 2.20, [0.32], 1.20, 2.886, 0.044, [1], 1, 1, 0, '#f3f3ef'],
-  ['He', 2, 'Helium', 4.0026, 0, [0.46], 1.40, 2.362, 0.056, [0], 2, 0, 0, '#d9ffff'],
+  ['He', 2, 'Helium', 4.0026, 0, [0.46], 1.40, 2.891, 0.0203, [0], 2, 0, 0, '#d9ffff'],
   ['Li', 3, 'Lithium', 6.94, 0.98, [1.33, 1.24], 1.82, 2.451, 0.025, [1], 1, 1, 60, '#cc80ff'],
   ['Be', 4, 'Beryllium', 9.0122, 1.57, [1.02, 0.90, 0.85], 1.53, 2.745, 0.085, [2], 2, 2, 120, '#c2ff00'],
   ['B', 5, 'Boron', 10.81, 2.04, [0.85, 0.78, 0.73], 1.92, 4.083, 0.180, [3], 3, 2, 200, '#ffb5b5'],
@@ -74,7 +77,7 @@ const ELEMENT_ROWS = [
   ['N', 7, 'Nitrogen', 14.007, 3.04, [0.71, 0.60, 0.54], 1.55, 3.660, 0.069, [3], 5, 3, 250, '#5b8cff'],
   ['O', 8, 'Oxygen', 15.999, 3.44, [0.63, 0.57, 0.53], 1.52, 3.500, 0.060, [2], 6, 2, 200, '#ff4d3d'],
   ['F', 9, 'Fluorine', 18.998, 3.98, [0.64, 0.59, 0.53], 1.47, 3.364, 0.050, [1], 7, 1, 0, '#90e050'],
-  ['Ne', 10, 'Neon', 20.180, 0, [0.67], 1.54, 3.243, 0.042, [0], 8, 0, 0, '#b3e3f5'],
+  ['Ne', 10, 'Neon', 20.180, 0, [0.67], 1.54, 3.086, 0.0707, [0], 8, 0, 0, '#b3e3f5'],
   ['Na', 11, 'Sodium', 22.990, 0.93, [1.55, 1.60], 2.27, 2.983, 0.030, [1], 1, 1, 60, '#ab5cf2'],
   ['Mg', 12, 'Magnesium', 24.305, 1.31, [1.39, 1.32, 1.27], 1.73, 3.021, 0.111, [2], 2, 2, 100, '#8aff00'],
   ['Al', 13, 'Aluminium', 26.982, 1.61, [1.26, 1.13, 1.11], 1.84, 4.499, 0.505, [3], 3, 2, 150, '#bfa6a6'],
@@ -82,23 +85,29 @@ const ELEMENT_ROWS = [
   ['P', 15, 'Phosphorus', 30.974, 2.19, [1.11, 1.02, 0.94], 1.80, 4.147, 0.305, [3, 5], 5, 3, 180, '#ff8a1f'],
   ['S', 16, 'Sulfur', 32.06, 2.58, [1.03, 0.94, 0.95], 1.80, 4.035, 0.274, [2, 4, 6], 6, 2, 180, '#ffd23f'],
   ['Cl', 17, 'Chlorine', 35.45, 3.16, [0.99, 0.95, 0.93], 1.75, 3.947, 0.227, [1, 3, 5, 7], 7, 1, 150, '#3fd06a'],
-  ['Ar', 18, 'Argon', 39.948, 0, [0.96], 1.88, 3.868, 0.185, [0], 8, 0, 0, '#80d1e3'],
+  ['Ar', 18, 'Argon', 39.948, 0, [0.96], 1.88, 3.822, 0.2381, [0], 8, 0, 0, '#80d1e3'],
   ['K', 19, 'Potassium', 39.098, 0.82, [1.96, 1.93], 2.75, 3.812, 0.035, [1], 1, 1, 60, '#8f40d4'],
   ['Ca', 20, 'Calcium', 40.078, 1.00, [1.71, 1.47, 1.33], 2.31, 3.399, 0.238, [2], 2, 2, 100, '#3dff00'],
   ['Fe', 26, 'Iron', 55.845, 1.83, [1.16, 1.09, 1.02], 2.04, 2.912, 0.013, [2, 3], 2, 2, 100, '#e06633'],
   ['Cu', 29, 'Copper', 63.546, 1.90, [1.12, 1.15, 1.20], 1.40, 3.495, 0.005, [1, 2], 1, 1, 100, '#c88033'],
   ['Zn', 30, 'Zinc', 65.38, 1.65, [1.18, 1.20], 1.39, 2.763, 0.124, [2], 2, 1, 100, '#7d80b0'],
   ['Br', 35, 'Bromine', 79.904, 2.96, [1.14, 1.09, 1.10], 1.85, 4.189, 0.251, [1, 3, 5], 7, 1, 150, '#c9563a'],
-  ['Kr', 36, 'Krypton', 83.798, 3.00, [1.17, 1.21, 1.08], 2.02, 4.141, 0.220, [0, 2], 8, 1, 0, '#5cb8d1'],
+  ['Kr', 36, 'Krypton', 83.798, 3.00, [1.17, 1.21, 1.08], 2.02, 4.041, 0.3398, [0, 2], 8, 1, 0, '#5cb8d1'],
   ['I', 53, 'Iodine', 126.90, 2.66, [1.33, 1.29, 1.25], 1.98, 4.500, 0.339, [1, 3, 5, 7], 7, 1, 150, '#a064d8'],
-  ['Xe', 54, 'Xenon', 131.29, 2.60, [1.31, 1.35, 1.22], 2.16, 4.404, 0.332, [0, 2, 4, 6], 8, 1, 100, '#429eb0']
+  ['Xe', 54, 'Xenon', 131.29, 2.60, [1.31, 1.35, 1.22], 2.16, 4.602, 0.4392, [0, 2, 4, 6], 8, 1, 100, '#429eb0']
 ];
+/* Dispersion is not exchange repulsion. UFF gives each element one depth D for both, but fitting
+   it to how real gases attract (second virial coefficients) wanted hydrogen's softened by two
+   thirds — and softening the Pauli wall with it let atoms pile into each other in a reactive
+   drag. So the wall keeps UFF's D and the attraction takes its own, where one was fitted (kcal/mol,
+   to measured B2 of H2, O2, CO2 and CH4 at 300 K; N2, CH4 at 600 K, ethane and ethylene blind). */
+const LJ_ATTRACT = { H: 0.0189, C: 0.1235, O: 0.0898 };
 // Homonuclear single-bond dissociation energies for fallback (Pauling-type) estimates, kJ/mol
 const D_HOMO = { H: 436, Li: 105, Be: 60, B: 293, C: 348, N: 163, O: 146, F: 155, Na: 72, Mg: 30, Al: 186, Si: 222, P: 201, S: 266, Cl: 242, K: 55, Ca: 40, Fe: 100, Cu: 190, Zn: 30, Br: 193, Kr: 0, I: 151, Xe: 0 };
 
 const ELEMENTS = ELEMENT_ROWS.map((r, t) => ({
   t, sym: r[0], Z: r[1], name: r[2], mass: r[3], chi: r[4], rcov: r[5], rvdw: r[6],
-  ljX: r[7], ljD: r[8] * 4.184, valences: r[9], ve: r[10], maxOrder: r[11], kAngle: r[12], color: r[13],
+  ljX: r[7], ljD: r[8] * 4.184, ljDA: (LJ_ATTRACT[r[0]] ?? r[8]) * 4.184, valences: r[9], ve: r[10], maxOrder: r[11], kAngle: r[12], color: r[13],
   bonds: r[9].some(v => v > 0)
 }));
 const BY_SYM = Object.create(null);
@@ -415,26 +424,32 @@ function excess(C, W, V, D, mu) {
    Shielding: r_s⁶ = r⁶ + s⁶, so the Pauli wall stays finite at contact. x2 = r_min², eps = depth. */
 let LR = 0, LDR = 0, LA = 0, LDA = 0, LXR = 0, LXA = 0;
 const S6 = Math.pow(LJ_SHIELD, 6);
-function lj(r, x2, eps, rc) {
+/* Lennard-Jones, split into its Pauli wall (inside r_min) and its attraction, switched smoothly to
+   zero over the last LJ_SW Å before the cutoff. It used to be force-shifted all the way in instead,
+   which pulled every dispersion well up by a third (argon's 0.77 kJ/mol well became 0.55) and left
+   N2, O2, CO2 and the noble gases far too slippery: their second virial coefficients came out
+   positive where real ones are negative. A switch leaves the well exactly as it is. */
+const LJ_SW = 1.0;
+function lj(r, x2, eps, epsA, rc) {
+  // wall: eps·(u⁶ − 1)² inside r_min; attraction: −epsA held flat inside, epsA·(u¹² − 2u⁶) outside
   const x6 = x2 * x2 * x2, r2 = r * r, r6 = r2 * r2 * r2, d6 = r6 + S6 * x6;
   const u6 = x6 / d6, du6 = -6 * u6 * r2 * r2 * r / d6; // d(u⁶)/dr
-  const rc2 = rc * rc, rc6 = rc2 * rc2 * rc2, uc6 = x6 / (rc6 + S6 * x6);
-  const ljc = eps * (uc6 * uc6 - 2 * uc6), dljc = eps * (2 * uc6 - 2) * (-6 * uc6 * rc2 * rc2 * rc / (rc6 + S6 * x6));
-  const v = eps * (u6 * u6 - 2 * u6), dv = eps * (2 * u6 - 2) * du6;
   // Derivatives with respect to x2 are needed when a polar H radius changes with charge.
-  const dx6 = 3 * x2 * x2, dc6 = rc6 + S6 * x6;
-  const ux = dx6 * r6 / (d6 * d6), ucx = dx6 * rc6 / (dc6 * dc6);
-  const ucr = -6 * rc2 * rc2 * rc * x6 / (dc6 * dc6);
-  const ucrx = -6 * rc2 * rc2 * rc * dx6 * (rc6 - S6 * x6) / (dc6 * dc6 * dc6);
-  const vcx = eps * (2 * uc6 - 2) * ucx;
-  const dvcx = eps * (2 * ucx * ucr + (2 * uc6 - 2) * ucrx);
-  const vx = eps * (2 * u6 - 2) * ux;
-  if (u6 > 1) { // inside r_min: Pauli wall, attraction held at its (shifted) value at r_min
-    LR = v + eps; LDR = dv;
-    const rm = Math.sqrt(Math.cbrt(x6 - S6 * x6));
-    LA = -eps - ljc - dljc * (rm - rc); LDA = 0;
-    LXR = vx; LXA = -vcx - dvcx * (rm - rc) - dljc * rm / (2 * x2);
-  } else { LR = 0; LDR = 0; LA = v - ljc - dljc * (r - rc); LDA = dv - dljc; LXR = 0; LXA = vx - vcx - dvcx * (r - rc); }
+  const ux = 3 * x2 * x2 * r6 / (d6 * d6);
+  if (u6 > 1) {
+    const w = u6 - 1;
+    LR = eps * w * w; LDR = 2 * eps * w * du6; LXR = 2 * eps * w * ux;
+    LA = -epsA; LDA = 0; LXA = 0;
+    return;
+  }
+  LR = 0; LDR = 0; LXR = 0;
+  const v = epsA * (u6 * u6 - 2 * u6), dv = epsA * (2 * u6 - 2) * du6, vx = epsA * (2 * u6 - 2) * ux;
+  const ron = rc - LJ_SW;
+  if (r <= ron) { LA = v; LDA = dv; LXA = vx; return; }
+  if (r >= rc) { LA = 0; LDA = 0; LXA = 0; return; }
+  const rc2 = rc * rc, ro2 = ron * ron, den = (rc2 - ro2) * (rc2 - ro2) * (rc2 - ro2), a = rc2 - r2;
+  const S = a * a * (rc2 + 2 * r2 - 3 * ro2) / den, dS = 12 * r * a * (ro2 - r2) / den;
+  LA = v * S; LDA = dv * S + v * dS; LXA = vx * S;
 }
 
 /* Effective valence and lone pairs for an element carrying a formal charge. */
@@ -519,12 +534,11 @@ class Engine {
     this.sparkHold = 0;
     this.servoWork = 0; this.servoWorkTotal = 0;     // work the pointer has done on the sample
     this.wallMeasured = this.T; this.wallContact = 0; // what the fluid against the wall actually is
-    /* Interaction cutoff. The electrostatics here are damped and already short-ranged, so 6.5 Å
-       reaches everything that is worth more than a few kJ/mol: measured against the whole
-       validation table, moving down from 8 Å changes no bond length by more than 0.02 Å and no
-       reaction energy by more than 0.4 kJ/mol, brings the methane dimer closer to experiment, and
-       leaves a third of the pairs — and a third of every step — behind. */
-    this.rc = opts.rc || 6.5;
+    /* Interaction cutoff. Bonds and reaction energies are converged well inside 6.5 Å, but the
+       dispersion that makes a real gas non-ideal is not: second virial coefficients of Ar, N2, O2
+       and CO2 needed the attraction out to 8 Å. The LJ switch now tapers only the last ångström,
+       so the extra reach costs about a tenth of a step, not a third. */
+    this.rc = opts.rc || 8.0;
     this.skin = 1.0;
     this.rngState = (opts.seed ?? 12345) >>> 0;
     this.N = 0; this.cap = 0;
@@ -550,7 +564,7 @@ class Engine {
     const f64 = n => new Float64Array(n);
     const arrays = {
       pos: f64(3 * cap), vel: f64(3 * cap), frc: f64(3 * cap), prev: f64(3 * cap), built: f64(3 * cap),
-      mass: f64(cap), phi: f64(cap), Zs: f64(cap), openVal: f64(cap), Zw: f64(cap), Gb: f64(cap), kSh: f64(cap), kShP: f64(cap), qg: f64(cap), Gz: f64(cap), formal: f64(cap), q: f64(cap), Z: f64(cap), cos0: f64(cap), G: f64(cap), ljx: f64(cap), ljq: f64(cap), lje: f64(cap),
+      mass: f64(cap), phi: f64(cap), Zs: f64(cap), openVal: f64(cap), Zw: f64(cap), Gb: f64(cap), kSh: f64(cap), kShP: f64(cap), qg: f64(cap), Gz: f64(cap), formal: f64(cap), q: f64(cap), Z: f64(cap), cos0: f64(cap), G: f64(cap), ljx: f64(cap), ljq: f64(cap), lje: f64(cap), ljeA: f64(cap),
       type: new Int16Array(cap), val: new Int8Array(cap), lp: new Int8Array(cap), pinned: new Uint8Array(cap),
       ids: new Uint32Array(cap), cStart: new Int32Array(cap + 1), cCount: new Int32Array(cap)
     };
@@ -603,7 +617,7 @@ class Engine {
     } else { this.vel[i3] = this.vel[i3 + 1] = this.vel[i3 + 2] = 0; }
     this.frc[i3] = this.frc[i3 + 1] = this.frc[i3 + 2] = 0;
     this.cos0[i] = -1 / 3; this.pinned[i] = 0; this.ids[i] = this.nextId++;
-    this.ljx[i] = el.ljX; this.lje[i] = Math.sqrt(el.ljD);
+    this.ljx[i] = el.ljX; this.lje[i] = Math.sqrt(el.ljD); this.ljeA[i] = Math.sqrt(el.ljDA);
     this.needRebuild = true; this.needForces = true;
     return i;
   }
@@ -894,7 +908,7 @@ class Engine {
     }
 
     // Pass C — pair energies
-    const pB = this.pB, gA = this.gA, gB = this.gB, gAs = this.gAs, gBs = this.gBs, gAb = this.gAb, gBb = this.gBb, pN = this.pN, G = this.G, lje = this.lje;
+    const pB = this.pB, gA = this.gA, gB = this.gB, gAs = this.gAs, gBs = this.gBs, gAb = this.gAb, gBb = this.gBb, pN = this.pN, G = this.G, lje = this.lje, ljeA = this.ljeA;
     const gc = 1 / Math.sqrt(rc * rc + COUL_D2), dgc = -rc * gc * gc * gc;
     gA.fill(0, 0, P); gB.fill(0, 0, P); gAs.fill(0, 0, P); gBs.fill(0, 0, P);
     this.gAbs.fill(0, 0, P); this.gBbs.fill(0, 0, P); gAb.fill(0, 0, P); gBb.fill(0, 0, P); pB.fill(0, 0, P);
@@ -905,7 +919,7 @@ class Engine {
       const pp = PAIR[ti * NT + tj], f = pF[p], fp = pFp[p], fs = pS[p];
       let e = 0, dEdr = 0, lam = 0, pi = 0, pj = 0, dpi = 0, dpj = 0, b = 0, ai = 1, bi = 0, aj = 1, bj = 0, asi = 1, bsi = 0, asj = 1, bsj = 0;
       // Lennard-Jones (shielded) first: its Pauli part decides whether b matters for a distant pair
-      lj(r, ljx[i] * ljx[j], lje[i] * lje[j], rc);
+      lj(r, ljx[i] * ljx[j], lje[i] * lje[j], ljeA[i] * ljeA[j], rc);
       if (pp.bond) {
         // Morse with bond-order-interpolated parameters
         const n = pN[p], lo = Math.min(2, Math.floor(n)), t = n - lo, hi = lo + 1;
@@ -1442,7 +1456,7 @@ class Engine {
       const re = pp.re[1], De = pp.De[1], a = pp.a[1], y = a * (r - re);
       if (y < Y_OFF) { smoothSwitch(y, Y_ON, Y_OFF); const ey = Math.exp(-y), VR = De * ey * ey; X += SW * VR; dX += SWD * a * VR - 2 * a * SW * VR; }
     }
-    lj(r, this.ljx[j] * this.ljx[k], this.lje[j] * this.lje[k], this.rc);
+    lj(r, this.ljx[j] * this.ljx[k], this.lje[j] * this.lje[k], this.ljeA[j] * this.ljeA[k], this.rc);
     const qq = this.q[j] * this.q[k], h = this._coulH(r);
     const wP = (1 - b) * (1 - sr);
     X += wP * LR + LA + COUL * qq * h;
@@ -2264,7 +2278,7 @@ class Engine {
     this.tweezer = null;
     this.pos.set(s.pos); this.vel.set(s.vel); this.frc.set(s.frc); this.prev.set(s.pos);
     this.type.set(s.type); this.formal.set(s.formal); this.val.set(s.val); this.lp.set(s.lp); this.pinned.set(s.pinned); this.ids.set(s.ids); this.cos0.set(s.cos0);
-    for (let i = 0; i < this.N; i++) { const el = ELEMENTS[this.type[i]]; this.mass[i] = el.mass; this.ljx[i] = el.ljX; this.lje[i] = Math.sqrt(el.ljD); }
+    for (let i = 0; i < this.N; i++) { const el = ELEMENTS[this.type[i]]; this.mass[i] = el.mass; this.ljx[i] = el.ljX; this.lje[i] = Math.sqrt(el.ljD); this.ljeA[i] = Math.sqrt(el.ljDA); }
     // rebuild pair list with the saved bond orders
     this.nPairs = 0;
     this._rebuild();

@@ -50,7 +50,11 @@ test('A bond formed under the pointer does not fabricate energy', () => {
   const drift = total(e) - E0 - e.servoWorkTotal;
   // before the fix this was +1100 kJ/mol and the molecule came apart into four loose atoms
   assert.ok(Math.abs(drift) < 60, `drift ${drift.toFixed(1)} kJ/mol`);
-  assert.ok(e.temperature() < 2500, `left the sample at ${e.temperature().toFixed(0)} K`);
+  // a four-atom molecule swings its energy between motion and stretch every few fs, so one frame's
+  // kinetic temperature says nothing: average over the vibrations, and check it held together
+  let T = 0; for (let i = 0; i < 500; i++) { e.step(); T += e.temperature() / 500; }
+  assert.equal(products(e), 'CH3');
+  assert.ok(T < 3500, `left the sample at ${T.toFixed(0)} K on average`);
 });
 
 test('The outcome of a reactive drag no longer depends on the step size', () => {
