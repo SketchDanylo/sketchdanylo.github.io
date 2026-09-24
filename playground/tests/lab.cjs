@@ -84,6 +84,12 @@ console.log('\nThings that go on their own:');
   show('Na + Cl → NaCl', salt);
   assert.ok(howOften(salt, 'NaCl') >= 8, 'sodium and chlorine should make salt');
   show('Na + Cl2 → NaCl + Cl', experiment(e => { put.Na(e, 10, 12); put.Cl2(e, 18, 12.4); }, { steps: 60000 }));
+  // Sodium burns in chlorine without a spark. The energies were always right; what it lacked was
+  // the fast tail of the Boltzmann spread, which the old Kelvin stat erased by holding every atom
+  // at exactly the mean energy.
+  const burn = experiment(e => { put.Na2(e, 9, 12); put.Cl2(e, 20, 12); }, { steps: 60000 });
+  show('Na2 + Cl2 → 2 NaCl, unlit', burn);
+  assert.ok(howOften(burn, '2 NaCl') >= 7, 'sodium should burn in chlorine without a spark');
 }
 console.log('\nThings that need lighting (a vessel with its walls at room temperature):');
 /* The flash itself is too fast for the walls to matter; afterwards the heat leaves through them,
@@ -105,11 +111,6 @@ console.log('\nThings that need lighting (a vessel with its walls at room temper
 }
 console.log('\nWhere this model stops:');
 {
-  show('Na2 + Cl2, unlit', experiment(e => { put.Na2(e, 9, 12); put.Cl2(e, 20, 12); }, { steps: 60000 }));
-  console.log('    ^ real sodium and chlorine need no spark. Nothing here transfers an electron between');
-  console.log('      two closed shells, so every reaction has to start at a radical. The energies are');
-  console.log('      right (2 NaCl is 506 kJ/mol below Na2 + Cl2, against about 518 measured) and a');
-  console.log('      spark starts it, but it will not light itself.');
   show('HCl + NH3 → NH4Cl', experiment(e => { put.HCl(e, 9, 12); put.NH3(e, 18, 13); }, { steps: 60000 }));
   console.log('    ^ the white smoke of an acid meeting a base is a proton moving between two ions.');
   console.log('      This engine shares electrons between neutral atoms; it has no proton to move.');

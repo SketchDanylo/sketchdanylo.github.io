@@ -39,7 +39,7 @@ const Q_MAX = 1.1;                  // saturation of bond-polarisation charge (e
 //   wpiOO = the same for O=O, lower still (triplet O₂ is a diradical);
 //   oo3e = extra O–O bond order when only one oxygen is unpaired (three-electron bond, HO₂·);
 //   mu   = strength weighting of excess valence (Evans–Polanyi: exothermic transfers get lower barriers).
-const TUNE = { kappa: 0.38, c1: 0.6, c4: 10.82, k: 6, kb: 1.3, yoff: 3.0, wpi: 0.85, wpiOO: 0.78, oo3e: 0.45, mu: 0.5, kbo: 0.4, tsStab: 0, pauliOpen: 0, share: 0.5, insert: 1 };
+const TUNE = { kappa: 0.38, c1: 0.6, c4: 10.82, k: 6, kb: 1.3, yoff: 3.0, wpi: 0.85, wpiOO: 0.78, oo3e: 0.45, mu: 0.5, kbo: 0.4, tsStab: 0, pauliOpen: 0, share: 0.5, insert: 1, vstate: 1, cap: 0.10 };
 const RAMP_W = 0.15;
 const Y_ON = 3.6, Y_OFF = 5.6;      // Morse taper window (in units of a·(r − re))
 const COORD_R1 = 1.22, COORD_R2 = 1.50; // structural coordination switch (× single-bond length)
@@ -197,7 +197,7 @@ function refreshSaturation() {
   for (const pp of PAIR) {
     if (!pp.bond) continue;
     pp.sBeta = TUNE.kb * pp.a[1];
-    pp.sOff = BO_CAP + TUNE.yoff / pp.sBeta; pp.sOn = BO_CAP + 0.6 * TUNE.yoff / pp.sBeta;
+    pp.sOff = TUNE.cap + TUNE.yoff / pp.sBeta; pp.sOn = TUNE.cap + 0.6 * TUNE.yoff / pp.sBeta;
     pp.s2 = pp.s1 + pp.sOff;
   }
 }
@@ -224,9 +224,10 @@ function smoothSwitch(x, x1, x2) { // 1 → 0 between x1 and x2
 let SF = 0, SFD = 0;
 function satF(r, pp) {
   const d = r - pp.s1;
-  if (d <= BO_CAP) { SF = 1; SFD = 0; return; }
+  const cap = TUNE.cap;
+  if (d <= cap) { SF = 1; SFD = 0; return; }
   if (d >= pp.sOff) { SF = 0; SFD = 0; return; }
-  const x = d - BO_CAP, beta = pp.sBeta;
+  const x = d - cap, beta = pp.sBeta;
   let s, ds;
   if (x < BO_W) { s = x * x / (2 * BO_W); ds = x / BO_W; } else { s = x - BO_W / 2; ds = 1; }
   const e = Math.exp(-beta * s), de = -beta * ds * e;
@@ -292,6 +293,29 @@ function radicalDomains(x, Z, lp) {
   const g = Math.pow(Math.pow(u, -RD_P) + Math.pow(m, -RD_P), -1 / RD_P);
   const gu = Math.pow(g / u, RD_P + 1), gm = Math.pow(g / m, RD_P + 1);
   RD_E = RD_SIGMA * g; RD_EX = RD_SIGMA * gu * du; RD_EZ = -RD_SIGMA * gm * dm;
+}
+/* Valence-state energy. A bond's energy is not the same whichever bond of the atom it is: carbon's
+   four C–H bonds cost 439, 462, 424 and 338 kJ/mol to break in turn (CH4 → CH3 → CH2 → CH → C),
+   nitrogen's 453, 391, 332, oxygen's 497 then 430. The atom rehybridises as it goes — promotion,
+   spin pairing, lone pairs relaxing — and a partly bonded atom pays for being half-way. A pair
+   potential gives every bond the average, so every radical came out too stable: OH by 33 kJ/mol,
+   NH2 by 63, CH2 by 61, CH by 75. This adds, per atom, the difference between the average and the
+   stepwise ladder, as a smooth function of its bonding Z (full multiplicity: N≡N counts three).
+   Zero at no bonds and at a full shell, so atoms, every closed-shell molecule and every fitted
+   bond energy are untouched. Tabulated at whole Z from the hydride ladders (ΔfH, NIST-JANAF),
+   joined by a cubic that is flat at both ends. */
+const VSTATE = { C: [0, 73, 59, 18, 0], N: [0, 51, 55, 0], O: [0, 32, 0], S: [0, 17, 0] };
+const VS_TAB = new Array(ELEMENT_ROWS.length).fill(null);
+for (const [sym, tab] of Object.entries(VSTATE)) { const k = ELEMENT_ROWS.findIndex(r => r[0] === sym); if (k >= 0) VS_TAB[k] = tab; }
+let VS = 0, VSD = 0;
+function valenceState(tab, z) {
+  const V = tab.length - 1;
+  if (z <= 0 || z >= V) { VS = 0; VSD = 0; return; }
+  const k = Math.floor(z), t = z - k, p0 = tab[k], p1 = tab[k + 1];
+  const m0 = k === 0 ? 0 : (tab[k + 1] - tab[k - 1]) / 2, m1 = k + 1 === V ? 0 : (tab[k + 2] - tab[k]) / 2;
+  const t2 = t * t, t3 = t2 * t;
+  VS = (2 * t3 - 3 * t2 + 1) * p0 + (t3 - 2 * t2 + t) * m0 + (-2 * t3 + 3 * t2) * p1 + (t3 - t2) * m1;
+  VSD = (6 * t2 - 6 * t) * p0 + (3 * t2 - 4 * t + 1) * m0 + (-6 * t2 + 6 * t) * p1 + (3 * t2 - 2 * t) * m1;
 }
 /* An end with nothing to spare counts fully; one with 0.75 of a valence free is a ring partner. */
 /* ...and an end lends only the valence it has. A hydrogen has one bond to give: while its reach
@@ -681,6 +705,9 @@ class Engine {
     F.fill(0, 0, 3 * N);
     const phi = this.phi, Zs = this.Zs, pS = this.pS, pSp = this.pSp, qg = this.qg;
     const Zw = this.Zw, Gb = this.Gb, pD = this.pD, mu = TUNE.mu;
+    let Zf = this._Zf, Gf = this._Gf;
+    if (!Zf || Zf.length < N) { Zf = this._Zf = new Float64Array(this.cap + 64); Gf = this._Gf = new Float64Array(this.cap + 64); }
+    Zf.fill(0, 0, N); Gf.fill(0, 0, N);
     for (let i = 0; i < N; i++) { Z[i] = 0; Zs[i] = 0; Zw[i] = 0; Gb[i] = 0; q[i] = 0; this.G[i] = 0; this.cCount[i] = 0; phi[i] = 0; }
     let E = 0;
 
@@ -755,6 +782,7 @@ class Engine {
       const n = this.pN[p], S = scr[p] * (1 + (PAIR[type[pI[p]] * NT + type[pJ[p]]].oo ? TUNE.wpiOO : TUNE.wpi) * (n - 1));
       pS[p] *= S; pSp[p] *= S;
       Zs[pI[p]] += pS[p]; Zs[pJ[p]] += pS[p];
+      const zf = pSraw[p] * scr[p] * n; Zf[pI[p]] += zf; Zf[pJ[p]] += zf;
       const Dp = pD[p] = bondWeight(PAIR[type[pI[p]] * NT + type[pJ[p]]], this.pN[p], mu);
       Zw[pI[p]] += pS[p] * Dp; Zw[pJ[p]] += pS[p] * Dp;
     }
@@ -771,6 +799,13 @@ class Engine {
       if (share === 0 || V <= 0 || Z <= V) { kSh[i] = 1; kShP[i] = 0; continue; }
       kSh[i] = 1 - share + share * V / Z;
       kShP[i] = -share * V / (Z * Z);
+    }
+    if (TUNE.vstate) for (let i = 0; i < N; i++) {
+      const tab = VS_TAB[type[i]];
+      if (!tab || val[i] !== tab.length - 1) continue;      // a charged atom has another ladder
+      valenceState(tab, Zf[i]);
+      if (VS === 0 && VSD === 0) continue;
+      E += TUNE.vstate * VS; Gf[i] = TUNE.vstate * VSD;
     }
     // Free (unpaired) valence per atom, smoothed so forces stay continuous. A half-filled orbital
     // feels much less Pauli repulsion than a closed shell, which is why radicals add without a barrier.
@@ -910,7 +945,8 @@ class Engine {
       const fp = pSp[p]; if (fp === 0) continue;
       const i = pI[p], j = pJ[p];
       const D = pD[p];
-      const coef = (G[i] + Gb[i] * D - gAs[p] - this.gAbs[p] * D) + (G[j] + Gb[j] * D - gBs[p] - this.gBbs[p] * D);
+      let coef = (G[i] + Gb[i] * D - gAs[p] - this.gAbs[p] * D) + (G[j] + Gb[j] * D - gBs[p] - this.gBbs[p] * D);
+      if (Gf[i] !== 0 || Gf[j] !== 0) coef += (Gf[i] + Gf[j]) * this.pN[p] / (1 + (PAIR[type[i] * NT + type[j]].oo ? TUNE.wpiOO : TUNE.wpi) * (this.pN[p] - 1));
       if (coef === 0) continue;
       const s = coef * fp / pR[p], fx = s * pDx[p], fy = s * pDy[p], fz = s * pDz[p];
       F[3 * i] += fx; F[3 * i + 1] += fy; F[3 * i + 2] += fz;
@@ -1254,7 +1290,8 @@ class Engine {
       const nEff = nEffOf(type[j], type[k], pN[q]);
       const D = this.pD[q];
       // dE/d(scr[q]), exactly as the ordinary screening forces take it
-      const dEdS = sr[q] * nEff * ((G[j] + Gb[j] * D - this.gAs[q] - this.gAbs[q] * D) + (G[k] + Gb[k] * D - this.gBs[q] - this.gBbs[q] * D));
+      const dEdS = sr[q] * nEff * ((G[j] + Gb[j] * D - this.gAs[q] - this.gAbs[q] * D) + (G[k] + Gb[k] * D - this.gBs[q] - this.gBbs[q] * D))
+        + sr[q] * pN[q] * (this._Gf[j] + this._Gf[k]);
       if (dEdS === 0) continue;
       const dEdw = -dEdS * scr[q] / (1 - w);
       const fq = rec[o + 30], nq = rec[o + 29];
@@ -1311,7 +1348,8 @@ class Engine {
       const j = pI[q], k = pJ[q];
       const nEff = 1 + (PAIR[this.type[j] * NT + this.type[k]].oo ? TUNE.wpiOO : TUNE.wpi) * (pN[q] - 1);
       const D = this.pD[q], Gb = this.Gb;
-      const dEdS = pS[q] * nEff * ((G[j] + Gb[j] * D - this.gAs[q] - this.gAbs[q] * D) + (G[k] + Gb[k] * D - this.gBs[q] - this.gBbs[q] * D));
+      const dEdS = pS[q] * nEff * ((G[j] + Gb[j] * D - this.gAs[q] - this.gAbs[q] * D) + (G[k] + Gb[k] * D - this.gBs[q] - this.gBbs[q] * D))
+        + pS[q] * pN[q] * (this._Gf[j] + this._Gf[k]);
       if (dEdS === 0) continue;
       const m = 1 - pF[q], w = pF[pa] * pF[pb] * m, one = 1 - w;
       let others; // Π over the other shared neighbours
