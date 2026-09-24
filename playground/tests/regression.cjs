@@ -95,15 +95,18 @@ test('Valence sharing leaves every atom at or under its valence untouched', () =
 });
 test('Valence sharing conserves total bonding through a handover', () => {
   // one hydrogen between its old partner and an incoming carbon: it cannot give a whole bond to
-  // both, and what it does give must add up to about one bond rather than collapsing
+  // both, and what it does give must add up to about one bond rather than collapsing. The carbon
+  // is a methyl, a radical with one free valence: a CH2 would be a carbene, which takes the H2
+  // pair in by insertion and does not need sharing to hold the handover together.
   const crossing = share => {
     TUNE.share = share;
     const e = new Engine({ width: 40, height: 30, depth: 20, T: 0, wallT: 0, thermostat: false, seed: 4 });
     e.addAtom('C', 20, 15, 0, { thermal: false });
-    e.addAtom('H', 21.08, 15, 0, { thermal: false });
-    e.addAtom('H', 19.46, 15.94, 0, { thermal: false });
+    e.addAtom('H', 21.03, 15.36, 0, { thermal: false });
+    e.addAtom('H', 19.49, 15.36, 0.89, { thermal: false });
     e.addAtom('H', 20, 13.9, 0, { thermal: false });
     e.addAtom('H', 20, 13.16, 0, { thermal: false });
+    e.addAtom('H', 19.49, 15.36, -0.89, { thermal: false });
     e.refresh();
     for (let s = 0; s < 400; s++) e._updateBondOrders(1);
     e.computeForces();

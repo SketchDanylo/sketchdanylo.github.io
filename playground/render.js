@@ -445,6 +445,18 @@ class FieldRenderer {
       ctx.strokeStyle = sc.eraseHover ? '#ff6b5b' : 'rgba(255,178,63,.95)'; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(x, y, Math.max(7, ELEMENTS[T[i]].rvdw * (this.mode === 'space' ? 1.05 : 0.5) * s), 0, Math.PI * 2); ctx.stroke();
     }
+    // the bond the break tool is pointing at: traced, with a cut across its middle
+    if (sc.cleave && sc.cleave.i < sc.N && sc.cleave.j < sc.N) {
+      const { i, j } = sc.cleave;
+      const [x1, y1] = this.toScreen(P[3 * i], P[3 * i + 1]), [x2, y2] = this.toScreen(P[3 * j], P[3 * j + 1]);
+      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, L = Math.hypot(x2 - x1, y2 - y1) || 1, nx = -(y2 - y1) / L, ny = (x2 - x1) / L;
+      const pulse = 0.75 + 0.25 * Math.sin((sc.now || 0) / 160), c = Math.max(6, Math.min(14, L * 0.35));
+      ctx.strokeStyle = 'rgba(143,211,255,' + (0.55 * pulse).toFixed(3) + ')'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      ctx.strokeStyle = 'rgba(214,236,255,' + (0.95 * pulse).toFixed(3) + ')'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(mx - nx * c + (x2 - x1) / L * 2, my - ny * c + (y2 - y1) / L * 2); ctx.lineTo(mx + nx * c - (x2 - x1) / L * 2, my + ny * c - (y2 - y1) / L * 2); ctx.stroke();
+      ctx.lineCap = 'butt';
+    }
     if (sc.tweezer) {
       const tw = sc.tweezer, i = tw.i;
       if (i < sc.N) {

@@ -39,7 +39,7 @@ const Q_MAX = 1.1;                  // saturation of bond-polarisation charge (e
 //   wpiOO = the same for O=O, lower still (triplet O₂ is a diradical);
 //   oo3e = extra O–O bond order when only one oxygen is unpaired (three-electron bond, HO₂·);
 //   mu   = strength weighting of excess valence (Evans–Polanyi: exothermic transfers get lower barriers).
-const TUNE = { kappa: 0.38, c1: 0.6, c4: 10.82, k: 6, kb: 1.3, yoff: 3.0, wpi: 0.85, wpiOO: 0.78, oo3e: 0.45, mu: 0.5, kbo: 0.4, tsStab: 0, pauliOpen: 0, share: 0.5 };
+const TUNE = { kappa: 0.38, c1: 0.6, c4: 10.82, k: 6, kb: 1.3, yoff: 3.0, wpi: 0.85, wpiOO: 0.78, oo3e: 0.45, mu: 0.5, kbo: 0.4, tsStab: 0, pauliOpen: 0, share: 0.5, insert: 1 };
 const RAMP_W = 0.15;
 const Y_ON = 3.6, Y_OFF = 5.6;      // Morse taper window (in units of a·(r − re))
 const COORD_R1 = 1.22, COORD_R2 = 1.50; // structural coordination switch (× single-bond length)
@@ -106,6 +106,10 @@ for (const e of ELEMENTS) BY_SYM[e.sym] = e;
 const NT = ELEMENTS.length;
 const CHI = Float64Array.from(ELEMENTS, e => e.chi);
 // chalcogens and halogens: with one of these in the formula, hydrogen is written first
+const INS_MAX = 0.98;                // how completely a carbene can take over a sigma bond's pair
+const INS_ON = 0.8, INS_OFF = 1.8;   // Å past the bond length: fully engaged, and first felt
+const INSERTS = new Uint8Array(ELEMENT_ROWS.length);
+for (const sym of ['C', 'Si']) { const k = ELEMENT_ROWS.findIndex(r => r[0] === sym); if (k >= 0) INSERTS[k] = 1; }
 const H_LEADS = new Set(['O', 'S', 'Se', 'Te', 'F', 'Cl', 'Br', 'I']);
 const TETRA = [-1 / 3, -0.2924, -0.2504, -1 / 3]; // cos θ0 for steric number 4 with 0, 1, 2, 3 lone pairs (109.5°, 107°, 104.5°)
 
@@ -223,6 +227,30 @@ function satF(r, pp) {
   const e = Math.exp(-beta * s), de = -beta * ds * e;
   smoothSwitch(d, pp.sOn, pp.sOff);
   SF = e * SW; SFD = de * SW + e * SWD;
+}
+/* The multiplicity a pair counts with in coordination: sigma plus a partial pi, as Pass A does. */
+function nEffOf(ti, tj, n) { return 1 + (PAIR[ti * NT + tj].oo ? TUNE.wpiOO : TUNE.wpi) * (n - 1); }
+/* How much of a carbene an atom is: 1 with two spare valences, fading to 0 by 1.5 and by 2.5, so a
+   radical with one spare valence and a bare carbon atom with four are both out. Smooth, so the
+   forces are too. */
+let HW = 0, HWD = 0;
+function carbeneWeight(spare) {
+  const lo = (spare - 1.5) / 0.5, hi = (2.5 - spare) / 0.5;
+  if (lo <= 0 || hi <= 0) { HW = 0; HWD = 0; return 0; }
+  const a = lo >= 1 ? 1 : lo * lo * (3 - 2 * lo), da = lo >= 1 ? 0 : 6 * lo * (1 - lo) / 0.5;
+  const b = hi >= 1 ? 1 : hi * hi * (3 - 2 * hi), db = hi >= 1 ? 0 : -6 * hi * (1 - hi) / 0.5;
+  HW = a * b; HWD = da * b + a * db; return HW;
+}
+/* ...and it holds about two single bonds besides the pair it is inserting between. CO relaxes to
+   C=O here, which also leaves carbon two spare valences, but beside one multiple bond — and CO does
+   not insert into H2 (the barrier is some 330 kJ/mol). Window 1.6 to 2.4, fading out by 1.2 and 2.8. */
+let GW = 0, GWD = 0;
+function sigmaWindow(n) {
+  const lo = (n - 1.2) / 0.4, hi = (2.8 - n) / 0.4;
+  if (lo <= 0 || hi <= 0) { GW = 0; GWD = 0; return 0; }
+  const a = lo >= 1 ? 1 : lo * lo * (3 - 2 * lo), da = lo >= 1 ? 0 : 6 * lo * (1 - lo) / 0.4;
+  const b = hi >= 1 ? 1 : hi * hi * (3 - 2 * hi), db = hi >= 1 ? 0 : -6 * hi * (1 - hi) / 0.4;
+  GW = a * b; GWD = da * b + a * db; return GW;
 }
 let SP = 0, SPD = 0;          // saturation p(x), dp/dx
 function sat(x) { // p(x) = 1 / (1 + c1·r + c4·r⁴), r = smooth ramp(x)
@@ -655,6 +683,7 @@ class Engine {
       }
     }
     this.nTri = nt;
+    this._insertionScreen();
     // Only integration / minimisation advances this internal model variable.
     // A force query or display refresh must not change the physical state.
     if (relaxDt > 0) this._updateBondOrders(relaxDt);
@@ -814,6 +843,7 @@ class Engine {
     E += this._angles();
     // Pass S — forces from the screening factor
     this._screenForces();
+    this._insertionForces();
     // Pass D — many-body forces from the coordination dependence of b
     for (let p = 0; p < P; p++) {
       const fp = pSp[p]; if (fp === 0) continue;
@@ -1012,6 +1042,140 @@ class Engine {
       Gz[i] = dEdc0sum * dc0; // dE/dZ_i through θ0
     }
     return E;
+  }
+  /* Insertion. A carbene - a carbon or silicon holding exactly two free valences, CH2 or SiH2 -
+     can do what no radical can: take a sigma bond's own electron pair into its empty orbital, so it
+     bonds to both ends at once while the bond between them lets go. That is why singlet methylene
+     inserts into H2 with no barrier at all and makes methane, while an H atom, an OH or a CH3 has to
+     pull one end off first and pays for it. In this model the pair shows up as the sigma bond's
+     competition at its two ends: an H already bonded to its partner offers almost nothing to a
+     newcomer. So when a carbene reaches both ends of one bond, that bond stops competing at those
+     ends, in proportion to how far the carbene has reached. Its reach is its own - first felt
+     1.8 A past the bond length, fully engaged by 0.8 A past it, so 2.9 to 1.9 A for C-H - because
+     the pull of an empty orbital on a bond's electrons starts before the ends' repulsion does. Built
+     on the bond switch (1.6 A) or the saturation value (a tenth by 2 A) it arrived too late: the
+     carbon was stopped at 2.2 A, 140 kJ/mol up the ends' repulsion, before it could engage.
+       Only an atom with two spare valences once these two new bonds are set aside qualifies, so a
+     radical with one (H, OH, CH3) cannot, and a settled molecule - every atom at its valence - is
+     untouched: competition only matters to an atom over its valence. */
+  _insertionScreen() {
+    this.nIns = 0;
+    if (!TUNE.insert) return;
+    const N = this.N, P = this.nPairs, type = this.type, val = this.val;
+    const pI = this.pI, pJ = this.pJ, pF = this.pF, sr = this.pSraw, pN = this.pN, scr = this.pScr;
+    let zr = this._insZr, zs = this._insZs, head = this._insHead;
+    if (!zr || zr.length < N) { zr = this._insZr = new Float64Array(this.cap + 64); zs = this._insZs = new Float64Array(this.cap + 64); head = this._insHead = new Int32Array(this.cap + 64); }
+    zr.fill(0, 0, N); zs.fill(0, 0, N); head.fill(-1, 0, N);
+    for (let p = 0; p < P; p++) {
+      const v = sr[p]; if (v <= 0) continue;
+      const w = v * nEffOf(type[pI[p]], type[pJ[p]], pN[p]);
+      zr[pI[p]] += w; zr[pJ[p]] += w; zs[pI[p]] += v; zs[pJ[p]] += v;
+    }
+    let cand = false;
+    for (let i = 0; i < N; i++) if (INSERTS[type[i]] && val[i] - zr[i] > -1) { cand = true; break; }
+    if (!cand) return;
+    // pairs within saturation reach of each candidate centre, as linked lists
+    let nxt = this._insNext, lst = this._insList;
+    if (!nxt || nxt.length < 2 * P) { nxt = this._insNext = new Int32Array(2 * this.pairCap + 64); lst = this._insList = new Int32Array(2 * this.pairCap + 64); }
+    let m = 0;
+    const pR = this.pR;
+    for (let p = 0; p < P; p++) {
+      const r = pR[p]; if (!(r > 0)) continue;
+      const pp = PAIR[type[pI[p]] * NT + type[pJ[p]]]; if (!pp.bond || r >= pp.re[1] + INS_OFF) continue;
+      for (let e = 0; e < 2; e++) {
+        const c = e ? pJ[p] : pI[p];
+        if (!INSERTS[type[c]] || val[c] - zr[c] <= -1) continue;
+        lst[m] = p; nxt[m] = head[c]; head[c] = m; m++;
+      }
+    }
+    let rec = this._ins;
+    for (let c = 0; c < N; c++) {
+      if (head[c] < 0) continue;
+      for (let x = head[c]; x >= 0; x = nxt[x]) {
+        const pa = lst[x], a = pI[pa] === c ? pJ[pa] : pI[pa];
+        for (let y = nxt[x]; y >= 0; y = nxt[y]) {
+          const pb = lst[y], b = pI[pb] === c ? pJ[pb] : pI[pb];
+          if (a === b) continue;
+          const q = this.pairMap.get(a < b ? a * 1048576 + b : b * 1048576 + a);
+          if (q === undefined || pF[q] <= 0) continue;           // the two ends must share a bond
+          const na = nEffOf(type[c], type[a], pN[pa]), nb = nEffOf(type[c], type[b], pN[pb]);
+          const spare = val[c] - (zr[c] - sr[pa] * na - sr[pb] * nb);
+          carbeneWeight(spare); if (HW <= 0) continue;
+          // and those two spare valences sit beside two single bonds: CH2, not C=O
+          const sigma = zs[c] - sr[pa] - sr[pb];
+          sigmaWindow(sigma); if (GW <= 0) continue;
+          const hw = HW * GW, hwd = HWD * GW, hgd = HW * GWD;
+          // how far the carbene has reached each end, on its own reach rather than the bond's
+          const ppa = PAIR[type[c] * NT + type[a]], ppb = PAIR[type[c] * NT + type[b]];
+          smoothSwitch(pR[pa], ppa.re[1] + INS_ON, ppa.re[1] + INS_OFF); const Sa = SW, dSa = SWD;
+          smoothSwitch(pR[pb], ppb.re[1] + INS_ON, ppb.re[1] + INS_OFF); const Sb = SW, dSb = SWD;
+          const u = Sa * Sb, om = 1 - u, A = 1 - om * om * om;
+          const w = INS_MAX * hw * A * pF[q];
+          if (w <= 0) continue;
+          scr[q] *= 1 - w;
+          if (!rec || rec.length < 16 * (this.nIns + 1)) { const t = new Float64Array(Math.max(128, 32 * (this.nIns + 1))); if (rec) t.set(rec); rec = this._ins = t; }
+          const o = 16 * this.nIns++;
+          rec[o] = q; rec[o + 1] = pa; rec[o + 2] = pb; rec[o + 3] = c;
+          rec[o + 4] = w; rec[o + 5] = hw; rec[o + 6] = hwd; rec[o + 7] = A; rec[o + 8] = 3 * om * om;
+          rec[o + 9] = na; rec[o + 10] = nb; rec[o + 11] = Sa; rec[o + 12] = dSa; rec[o + 13] = Sb; rec[o + 14] = dSb; rec[o + 15] = hgd;
+        }
+      }
+    }
+  }
+  _insertionForces() {
+    if (!this.nIns) return;
+    const rec = this._ins, sr = this.pSraw, spr = this.pSpRaw, pF = this.pF, pFp = this.pFp, scr = this.pScr;
+    const pI = this.pI, pJ = this.pJ, pN = this.pN, type = this.type, G = this.G, Gb = this.Gb;
+    const pR = this.pR, pDx = this.pDx, pDy = this.pDy, pDz = this.pDz, F = this.frc, N = this.N, P = this.nPairs;
+    let Hc = this._insHc, Hg = this._insHg;
+    if (!Hc || Hc.length < N) { Hc = this._insHc = new Float64Array(this.cap + 64); Hg = this._insHg = new Float64Array(this.cap + 64); }
+    Hc.fill(0, 0, N); Hg.fill(0, 0, N);
+    const push = (p, dEdr) => {
+      if (dEdr === 0 || !(pR[p] > 0)) return;
+      const s = dEdr / pR[p], i = pI[p], j = pJ[p], fx = s * pDx[p], fy = s * pDy[p], fz = s * pDz[p];
+      F[3 * i] += fx; F[3 * i + 1] += fy; F[3 * i + 2] += fz;
+      F[3 * j] -= fx; F[3 * j + 1] -= fy; F[3 * j + 2] -= fz;
+    };
+    let anyH = false;
+    for (let t = 0; t < this.nIns; t++) {
+      const o = 16 * t, q = rec[o], pa = rec[o + 1], pb = rec[o + 2], c = rec[o + 3];
+      const w = rec[o + 4], h = rec[o + 5], hd = rec[o + 6], A = rec[o + 7], Ad = rec[o + 8], na = rec[o + 9], nb = rec[o + 10];
+      const Sa = rec[o + 11], dSa = rec[o + 12], Sb = rec[o + 13], dSb = rec[o + 14], hg = rec[o + 15];
+      const j = pI[q], k = pJ[q];
+      const nEff = nEffOf(type[j], type[k], pN[q]);
+      const D = this.pD[q];
+      // dE/d(scr[q]), exactly as the ordinary screening forces take it
+      const dEdS = sr[q] * nEff * ((G[j] + Gb[j] * D - this.gAs[q] - this.gAbs[q] * D) + (G[k] + Gb[k] * D - this.gBs[q] - this.gBbs[q] * D));
+      if (dEdS === 0) continue;
+      const dEdw = -dEdS * scr[q] / (1 - w);
+      const fq = pF[q];
+      // w = INS_MAX * h(spare) * A(Sa*Sb) * f(q), with Sa and Sb the carbene's reach to each end
+      push(pa, dEdw * INS_MAX * h * Ad * Sb * fq * dSa);
+      push(pb, dEdw * INS_MAX * h * Ad * Sa * fq * dSb);
+      push(q, dEdw * INS_MAX * h * A * pFp[q]);
+      // spare = V - (all of the centre's coordination - the two arms): every other pair of the
+      // centre lowers it one-for-one, the two arms not at all
+      const dEdspare = dEdw * INS_MAX * hd * A * fq;
+      if (dEdspare !== 0) {
+        Hc[c] -= dEdspare; anyH = true;
+        push(pa, dEdspare * na * spr[pa]);
+        push(pb, dEdspare * nb * spr[pb]);
+      }
+      // sigma = the centre's single-bond count without the two arms: every other pair raises it
+      const dEdsig = dEdw * INS_MAX * hg * A * fq;
+      if (dEdsig !== 0) {
+        Hg[c] += dEdsig; anyH = true;
+        push(pa, -dEdsig * spr[pa]);
+        push(pb, -dEdsig * spr[pb]);
+      }
+    }
+    if (!anyH) return;
+    for (let p = 0; p < P; p++) {
+      if (spr[p] === 0) continue;
+      const hsum = Hc[pI[p]] + Hc[pJ[p]], gsum = Hg[pI[p]] + Hg[pJ[p]];
+      if (hsum === 0 && gsum === 0) continue;
+      push(p, (hsum * nEffOf(type[pI[p]], type[pJ[p]], pN[p]) + gsum) * spr[p]);
+    }
   }
   _screenForces() {
     const tri = this.tri, pS = this.pSraw, pN = this.pN, scr = this.pScr, G = this.G, gA = this.gA, gB = this.gB;

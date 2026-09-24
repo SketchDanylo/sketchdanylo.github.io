@@ -1,7 +1,7 @@
 /* Chem Playground — application: time loop, tools, conditions, molecules, keybinds. */
 (function () {
 'use strict';
-const { Engine, ELEMENTS, BY_SYM, KB } = ChemEngine;
+const { Engine, ELEMENTS, BY_SYM, KB, PAIR } = ChemEngine;
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d) { try { const v = localStorage.getItem('cp.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -63,7 +63,7 @@ function updateLab() {
   $('bathBtn').setAttribute('aria-pressed', eng.thermostat);
   $('physicsNotice').hidden = !eng.clamped;
   $('physicsNotice').textContent = eng.clamped ? eng.clamped + ' safety speed clamps · energy affected' : '';
-  const hint = placing ? 'Click to place · Q/E rotate · right-click for the hand' : armed ? armed + ' selected · click to place · right-click for the hand' : tool === 'heat' ? 'Drag to heat · Shift-drag to cool' : tool === 'spark' ? 'Click to ignite · a stable mixture needs a starter' : tool === 'erase' ? 'Click an atom to erase · Alt: molecule' : viewTilted() ? 'Turning · release to face the chamber again' : '';
+  const hint = placing ? 'Click to place · Q/E rotate · right-click for the hand' : armed ? armed + ' selected · click to place · right-click for the hand' : tool === 'heat' ? 'Drag to heat · Shift-drag to cool' : tool === 'spark' ? 'Click to ignite · a stable mixture needs a starter' : tool === 'cleave' ? 'Click a bond to split it' : tool === 'erase' ? 'Click an atom to erase · Alt: molecule' : viewTilted() ? 'Turning · release to face the chamber again' : '';
   const ctx = $('toolContext');
   if (ctx.textContent !== hint) {
     ctx.textContent = hint; ctx.classList.toggle('show',!!hint);
@@ -560,12 +560,14 @@ const TOOL_ICONS = {
   grab: '<svg viewBox="0 0 20 20"><path d="M7 9V4.8a1.3 1.3 0 012.6 0V9M9.6 8.5V3.6a1.3 1.3 0 012.6 0v5M12.2 8.8V5.2a1.3 1.3 0 012.6 0v6.3c0 3.4-2.2 5.8-5.3 5.8-2.2 0-3.6-1-4.7-2.8L3 11.2a1.3 1.3 0 012.1-1.4L7 12"/></svg>',
   erase: '<svg viewBox="0 0 20 20"><path d="M8.2 16.5h8.3M3.9 12.3l7.4-7.6a1.6 1.6 0 012.3 0l2.2 2.2a1.6 1.6 0 010 2.3l-6.9 7.3H7.6z"/><path d="M7.4 8.8l4.3 4.3"/></svg>',
   heat: '<svg viewBox="0 0 20 20"><path d="M10 17.5c-3 0-5-2.1-5-4.8 0-3.3 3.2-4.5 3.2-8.2 2.9 1.4 4 3.6 3.6 6 1-.4 1.6-1.4 1.8-2.4 1.3 1.4 1.4 3 1.4 4.6 0 2.7-2 4.8-5 4.8z"/></svg>',
-  spark: '<svg viewBox="0 0 20 20"><path d="M11.2 2.5L5 11h4l-.8 6.5L15 9h-4z"/><path d="M3.2 4.2l1.6 1.4M16.8 4.2l-1.6 1.4M2.6 14.8l1.9-.7M17.4 14.8l-1.9-.7"/></svg>'
+  spark: '<svg viewBox="0 0 20 20"><path d="M11.2 2.5L5 11h4l-.8 6.5L15 9h-4z"/><path d="M3.2 4.2l1.6 1.4M16.8 4.2l-1.6 1.4M2.6 14.8l1.9-.7M17.4 14.8l-1.9-.7"/></svg>',
+  cleave: '<svg viewBox="0 0 20 20"><circle cx="4.6" cy="15.4" r="2.3"/><circle cx="15.4" cy="4.6" r="2.3"/><path d="M6.4 13.6l2.2-2.2M11.4 8.6l2.2-2.2M7.4 6.8l5.8 6.4"/></svg>'
 };
 const TOOLS = [['grab', 'Grab & pan', 'Drag atoms (pulls while running, moves the molecule while paused). Drag empty space to pan. Shift-drag to select.'],
   ['erase', 'Erase', 'Click or drag over atoms to remove them. Alt removes whole molecules.'],
   ['heat', 'Heat brush', 'Drag to heat atoms under the brush; Shift or right-drag cools. Alt+scroll resizes.'],
-  ['spark', 'Spark', 'Click to ignite. A stable mixture needs a starter, the same as it does on a bench: this breaks a bond where you click and lets the radicals begin the chain.']];
+  ['spark', 'Spark', 'Click to ignite. A stable mixture needs a starter, the same as it does on a bench: this breaks a bond where you click and lets the radicals begin the chain.'],
+  ['cleave', 'Break bond', 'Click a bond to split it into two radicals, the way light breaks one on a bench: it gets just enough energy to come apart, and what the two halves do next is chemistry.']];
 let tool = 'grab', armed = null; // armed element symbol for placing
 const dockEls = [store.get('lastElement', 'H')].filter(s=>BY_SYM[s]);
 if(!dockEls.length)dockEls.push('H');
@@ -808,6 +810,7 @@ canvas.addEventListener('pointerdown', e => {
     canvas.className = 'orbiting'; return;
   }
   if (tool === 'spark') { ignite(wx, wy); gesture = { type: 'spark' }; return; }
+  if (tool === 'cleave') { cleave(wx, wy); gesture = { type: 'cleave' }; return; }
   if (tool === 'erase') { pushUndo(); gesture = { type: 'erase', alt: e.altKey }; eraseAt(wx, wy, e.altKey); return; }
   if (tool === 'heat') { brush.active = true; brush.cool = e.shiftKey; gesture = { type: 'brush' }; return; }
   const edge = boxEdgeAt(e.clientX, e.clientY);
@@ -834,7 +837,7 @@ canvas.addEventListener('pointermove', e => {
   brush.x = wx; brush.y = wy;
   if (placing) { placing.x = wx; placing.y = wy; }
   if (!gesture) {
-    hoverAtom = (armed || placing) ? -1 : hitAtom(wx, wy);
+    hoverAtom = (armed || placing || tool === 'cleave') ? -1 : hitAtom(wx, wy);   // the break tool aims at bonds, not atoms
     const edge = !armed && !placing && tool === 'grab' ? boxEdgeAt(e.clientX, e.clientY) : null;
     boxHot = edge && hoverAtom < 0 ? edge : null;
     if (boxHot) canvas.className = 'resize-' + boxHot; else refreshDock();
@@ -955,6 +958,49 @@ function ignite(wx, wy) {
   bondTrack.pending.push({ x: wx, y: wy, t0: performance.now(), dur: 520, kind: 'form', big: true });
   toast('Spark · ' + added.toFixed(0) + ' kJ/mol into ' + list.length + ' atom' + (list.length === 1 ? '' : 's'));
   if (!time.playing) toast('Press play to watch what it starts');
+  edited();
+}
+/* Break a bond. Light does this on a bench: a photon lands in one bond and the two halves fly apart
+   as radicals, each keeping its electron. So the bond nearest the pointer gets its own dissociation
+   energy and a little more, as equal and opposite momentum along its axis — nothing else in the
+   chamber is touched, and whatever the two radicals go on to do is the engine's business. This is
+   how H2 becomes two H atoms that a CH2 can take, or Cl2 two Cl atoms that start a chain. */
+function cleaveTarget(wx, wy, bonds) {
+  let best = null, bd = Infinity;
+  for (const b of bonds || eng.bonds()) {
+    if (b.strength < 0.4) continue;
+    const i = b.i, j = b.j;
+    const x1 = rp[3 * i], y1 = rp[3 * i + 1], x2 = rp[3 * j], y2 = rp[3 * j + 1];
+    const dx = x2 - x1, dy = y2 - y1, L2 = dx * dx + dy * dy || 1e-9;
+    const t = Math.max(0, Math.min(1, ((wx - x1) * dx + (wy - y1) * dy) / L2));
+    const d = Math.hypot(x1 + t * dx - wx, y1 + t * dy - wy);
+    // closer to the middle than to either atom: pointing at an atom is not pointing at its bond
+    const reach = Math.min(1.1, 0.35 + 0.5 * Math.sqrt(L2));
+    if (d < reach && t > 0.15 && t < 0.85 && d < bd) { bd = d; best = b; }
+  }
+  return best;
+}
+function cleave(wx, wy) {
+  const b = cleaveTarget(wx, wy);
+  if (!b) return toast(eng.N ? 'Point at a bond, between two atoms' : 'Place a molecule first');
+  pushUndo();
+  const i = b.i, j = b.j, k = 3 * i, l = 3 * j;
+  const pp = PAIR[eng.type[i] * ELEMENTS.length + eng.type[j]];
+  const ord = Math.min(3, Math.max(1, Math.round(b.order)));
+  const E = (pp.De[ord] || pp.De[1]) * 1.15 + 20;           // kJ/mol: enough to come apart, with a little left over
+  let nx = eng.pos[l] - eng.pos[k], ny = eng.pos[l + 1] - eng.pos[k + 1], nz = eng.pos[l + 2] - eng.pos[k + 2];
+  const r = Math.hypot(nx, ny, nz) || 1; nx /= r; ny /= r; nz /= r;
+  const mi = eng.mass[i], mj = eng.mass[j], mu = mi * mj / (mi + mj);
+  const vrel = Math.sqrt(2 * E / (mu * 1e4));                // Å/fs apart, along the bond
+  const ui = -vrel * mj / (mi + mj), uj = vrel * mi / (mi + mj);  // momentum is conserved
+  eng.vel[k] += ui * nx; eng.vel[k + 1] += ui * ny; eng.vel[k + 2] += ui * nz;
+  eng.vel[l] += uj * nx; eng.vel[l + 1] += uj * ny; eng.vel[l + 2] += uj * nz;
+  eng.sparkHold = eng.time + 400;       // the stat stands back long enough for the halves to part
+  eng.checkpoints.length = 0; eng.touch();
+  const mx = (rp[3 * i] + rp[3 * j]) / 2, my = (rp[3 * i + 1] + rp[3 * j + 1]) / 2;
+  bondTrack.pending.push({ x: mx, y: my, t0: performance.now(), dur: 520, kind: 'break', big: true });
+  toast(ELEMENTS[eng.type[i]].sym + '–' + ELEMENTS[eng.type[j]].sym + ' broken · ' + E.toFixed(0) + ' kJ/mol');
+  if (!time.playing) toast('Press play to watch the halves part');
   edited();
 }
 function applyBrush(dt) {
@@ -1288,6 +1334,7 @@ act('tool.grab', 'Tools', 'Grab & pan', ['V'], () => setTool('grab'));
 act('tool.erase', 'Tools', 'Erase', ['X'], () => setTool('erase'));
 act('tool.heat', 'Tools', 'Heat brush', ['B'], () => setTool('heat'));
 act('tool.spark', 'Tools', 'Spark', ['G'], () => setTool('spark'));
+act('tool.cleave', 'Tools', 'Break bond', ['D'], () => setTool('cleave'));   // D: dissociate — C is carbon
 act('el.more', 'Tools', 'All elements…', ['E'], () => openElPop());
 for (const [sym, key] of [['H', 'H'], ['C', 'C'], ['N', 'N'], ['O', 'O'], ['F', 'F'], ['S', 'S'], ['P', 'P'], ['Cl', 'L'], ['Na', 'A'], ['Br', ''], ['I', ''], ['He', ''], ['Ar', '']])
   act('el.' + sym, 'Elements', BY_SYM[sym].name, key ? [key] : [], () => arm(armed === sym ? null : sym));
@@ -2003,8 +2050,9 @@ function frame(now) {
   } else if (armed && !gesture) {
     ghost = { atoms: [{ t: BY_SYM[armed].t, x: lastMouse.wx, y: lastMouse.wy, z: 0 }], bonds: [], ok: true };
   }
+  const cleaveHover = tool === 'cleave' && !armed && !placing && !gesture ? cleaveTarget(lastMouse.wx, lastMouse.wy, bonds) : null;
   R.draw({
-    N: eng.N, type: eng.type, pos: rp, bonds, box: eng.box, box3: viewTilted() ? boxCorners() : null,
+    N: eng.N, type: eng.type, pos: rp, bonds, box: eng.box, box3: viewTilted() ? boxCorners() : null, cleave: cleaveHover,
     bounds: { mode: eng.boundsMode, range: eng.fieldRange, voidT: eng.voidTemperature, voidP: eng.voidPressure },
     boxHot: gesture && gesture.type === 'box' ? gesture.edge : boxHot,
     hover: gesture ? -1 : hoverAtom, eraseHover: tool === 'erase' && !armed, selected: selection, pinned: eng.pinned.subarray(0, eng.N), ghost, flashes, now,
