@@ -252,6 +252,50 @@ function sigmaWindow(n) {
   const b = hi >= 1 ? 1 : hi * hi * (3 - 2 * hi), db = hi >= 1 ? 0 : -6 * hi * (1 - hi) / 0.4;
   GW = a * b; GWD = da * b + a * db; return GW;
 }
+/* How much room a radical's unpaired electrons take around it, as extra steric number.
+   Counting them as nothing — which is what the angles did — is right for CH3 and wrong for almost
+   everything else. CH3's one electron sits in the p orbital above its plane of three bonds, so it
+   stays flat. But an atom that already has a lone pair shares its nonbonding space with the
+   unpaired electron just as water shares it between two lone pairs: NH2 is bent to 103°, like
+   water, not 120°. And an atom with no lone pair and fewer than three bonds puts an unpaired
+   electron into the open place in its plane, where it pushes about two thirds as hard as a bond:
+   CH2 is bent to about 134° and BH2 to 129°, not straight. So:
+     with a lone pair:    each unpaired electron is one more nonbonding domain, and the tetrahedral
+                          angle follows the nonbonding count (NH2 -> the water angle);
+     without one:         0.85 of a domain for each unpaired electron, up to the room left in the
+                          plane (3 − bonds) — so CH3, with three bonds, gets none and stays flat.
+   A closed shell has no free valence and is exactly as before. Smooth throughout, so the forces
+   are the exact gradient. RD_E is the extra steric number, RD_EX its derivative in the free
+   valence x = V − Zs, RD_EZ in the structural coordination Z; RD_C4 the tetrahedral-limit cos θ,
+   RD_C4X its derivative in x. */
+let RD_E = 0, RD_EX = 0, RD_EZ = 0, RD_C4 = 0, RD_C4X = 0;
+const RD_W = 0.2, RD_SIGMA = 0.85, RD_P = 4;
+function rdRamp(x) { if (x <= 0) return [0, 0]; if (x < RD_W) return [x * x / (2 * RD_W), x / RD_W]; return [x - RD_W / 2, 1]; }
+function radicalDomains(x, Z, lp) {
+  const [u, du] = rdRamp(x);
+  if (lp >= 1) {
+    RD_E = u; RD_EX = du; RD_EZ = 0;
+    const L = lp + u;
+    if (L >= 3) { RD_C4 = TETRA[3]; RD_C4X = 0; }
+    else { const k = Math.floor(L), f = L - k, d = TETRA[k + 1] - TETRA[k]; RD_C4 = TETRA[k] + d * f; RD_C4X = d * du; }
+    return;
+  }
+  RD_C4 = TETRA[0]; RD_C4X = 0;
+  const [m, dm] = rdRamp(3 - Z);                     // the room left in the plane
+  if (u <= 0 || m <= 0) { RD_E = 0; RD_EX = 0; RD_EZ = 0; return; }
+  // a smooth min(u, m)
+  const g = Math.pow(Math.pow(u, -RD_P) + Math.pow(m, -RD_P), -1 / RD_P);
+  const gu = Math.pow(g / u, RD_P + 1), gm = Math.pow(g / m, RD_P + 1);
+  RD_E = RD_SIGMA * g; RD_EX = RD_SIGMA * gu * du; RD_EZ = -RD_SIGMA * gm * dm;
+}
+/* An end with nothing to spare counts fully; one with 0.75 of a valence free is a ring partner. */
+let EW = 0, EWD = 0;
+function endWindow(se) {
+  const t = (0.75 - se) / 0.4;
+  if (t >= 1) { EW = 1; EWD = 0; return; }
+  if (t <= 0) { EW = 0; EWD = 0; return; }
+  EW = t * t * (3 - 2 * t); EWD = -6 * t * (1 - t) / 0.4;
+}
 let SP = 0, SPD = 0;          // saturation p(x), dp/dx
 function sat(x) { // p(x) = 1 / (1 + c1·r + c4·r⁴), r = smooth ramp(x)
   if (x <= 0) { SP = 1; SPD = 0; return; }
@@ -994,13 +1038,16 @@ class Engine {
       const c0 = cStart[i], c1 = cStart[i + 1], deg = c1 - c0;
       const el = ELEMENTS[type[i]];
       if (deg < 2 || el.kAngle === 0) continue;
-      // VSEPR: ideal cos θ0 is a smooth function of the continuous steric number SN = Z + lone pairs
-      const lp = this.lp[i], sn = Z[i] + lp, c4 = TETRA[Math.min(3, lp)];
-      let c0v, dc0;
+      // VSEPR: ideal cos θ0 is a smooth function of the continuous steric number SN = Z + lone
+      // pairs + whatever room the atom's unpaired electrons take (radicalDomains, below)
+      const lp = this.lp[i];
+      radicalDomains(this.val[i] - this.Zs[i], Z[i], lp);
+      const sn = Z[i] + lp + RD_E, c4 = RD_C4;
+      let c0v, dc0, dc0c4 = 0;
       if (sn <= 2) { c0v = -1; dc0 = 0; }
       else if (sn < 3) { const t = sn - 2; c0v = -1 + 0.5 * (3 * t * t - 2 * t * t * t); dc0 = 0.5 * (6 * t - 6 * t * t); }
-      else if (sn < 4) { const t = sn - 3; c0v = -0.5 + (c4 + 0.5) * (3 * t * t - 2 * t * t * t); dc0 = (c4 + 0.5) * (6 * t - 6 * t * t); }
-      else { c0v = c4; dc0 = 0; }
+      else if (sn < 4) { const t = sn - 3, st = 3 * t * t - 2 * t * t * t; c0v = -0.5 + (c4 + 0.5) * st; dc0 = (c4 + 0.5) * (6 * t - 6 * t * t); dc0c4 = st; }
+      else { c0v = c4; dc0 = 0; dc0c4 = 1; }
       cos0[i] = c0v;
       // E = Kc·(c − c0)² + Kl·ℓ(c0)·(1 + c); ℓ switches on a harmonic pull toward 180° for sp centres
       const K = el.kAngle, Kc = 1.2 * K, Kl = 2 * K;
@@ -1039,7 +1086,10 @@ class Engine {
           E += this._exclude13(j, k, w, fpj * fk, fj * fpk, ux, uy, uz, ru, vx, vy, vz, rv, i);
         }
       }
-      Gz[i] = dEdc0sum * dc0; // dE/dZ_i through θ0
+      Gz[i] = dEdc0sum * dc0 * (1 + RD_EZ);                  // dE/dZ_i through θ0
+      // and through the free valence x = V − Zs, which sets how much room the unpaired electrons take
+      const dEdx = dEdc0sum * (dc0 * RD_EX + dc0c4 * RD_C4X);
+      if (dEdx !== 0) this.G[i] -= dEdx;
     }
     return E;
   }
@@ -1098,8 +1148,11 @@ class Engine {
           if (a === b) continue;
           const q = this.pairMap.get(a < b ? a * 1048576 + b : b * 1048576 + a);
           if (q === undefined || pF[q] <= 0) continue;           // the two ends must share a bond
-          const na = nEffOf(type[c], type[a], pN[pa]), nb = nEffOf(type[c], type[b], pN[pb]);
-          const spare = val[c] - (zr[c] - sr[pa] * na - sr[pb] * nb);
+          // Only the σ part of each arm is a new bond. Setting an arm's π part aside too made an
+          // ethylene carbon — two H and its own C=C — look like it had two free valences, and it
+          // was treated as a carbene inserting into its neighbour's C–H: pyramidal, C=C at 1.24 Å.
+          const na = 1, nb = 1;
+          const spare = val[c] - (zr[c] - sr[pa] - sr[pb]);
           carbeneWeight(spare); if (HW <= 0) continue;
           // and those two spare valences sit beside two single bonds: CH2, not C=O
           const sigma = zs[c] - sr[pa] - sr[pb];
@@ -1110,14 +1163,22 @@ class Engine {
           smoothSwitch(pR[pa], ppa.re[1] + INS_ON, ppa.re[1] + INS_OFF); const Sa = SW, dSa = SWD;
           smoothSwitch(pR[pb], ppb.re[1] + INS_ON, ppb.re[1] + INS_OFF); const Sb = SW, dSb = SWD;
           const u = Sa * Sb, om = 1 - u, A = 1 - om * om * om;
-          const w = INS_MAX * hw * A * pF[q];
+          // and the bond's two ends have nothing to spare without it: H2's hydrogens, a C-H.
+          // A ring bond seen from the third atom of a three-membered ring has ends with a free
+          // valence each (the third atom is already their partner) - that is cyclopropane, not an
+          // insertion, and treating it as one made cyclopropane 180 kJ/mol too stable.
+          const sea = val[a] - (zr[a] - sr[pa]), seb = val[b] - (zr[b] - sr[pb]);
+          endWindow(sea); const Ea = EW, dEa = EWD; if (Ea <= 0) continue;
+          endWindow(seb); const Eb = EW, dEb = EWD; if (Eb <= 0) continue;
+          const w = INS_MAX * hw * A * pF[q] * Ea * Eb;
           if (w <= 0) continue;
           scr[q] *= 1 - w;
-          if (!rec || rec.length < 16 * (this.nIns + 1)) { const t = new Float64Array(Math.max(128, 32 * (this.nIns + 1))); if (rec) t.set(rec); rec = this._ins = t; }
-          const o = 16 * this.nIns++;
+          if (!rec || rec.length < 24 * (this.nIns + 1)) { const t = new Float64Array(Math.max(192, 48 * (this.nIns + 1))); if (rec) t.set(rec); rec = this._ins = t; }
+          const o = 24 * this.nIns++;
           rec[o] = q; rec[o + 1] = pa; rec[o + 2] = pb; rec[o + 3] = c;
           rec[o + 4] = w; rec[o + 5] = hw; rec[o + 6] = hwd; rec[o + 7] = A; rec[o + 8] = 3 * om * om;
           rec[o + 9] = na; rec[o + 10] = nb; rec[o + 11] = Sa; rec[o + 12] = dSa; rec[o + 13] = Sb; rec[o + 14] = dSb; rec[o + 15] = hgd;
+          rec[o + 16] = a; rec[o + 17] = b; rec[o + 18] = Ea; rec[o + 19] = dEa; rec[o + 20] = Eb; rec[o + 21] = dEb;
         }
       }
     }
@@ -1138,7 +1199,8 @@ class Engine {
     };
     let anyH = false;
     for (let t = 0; t < this.nIns; t++) {
-      const o = 16 * t, q = rec[o], pa = rec[o + 1], pb = rec[o + 2], c = rec[o + 3];
+      const o = 24 * t, q = rec[o], pa = rec[o + 1], pb = rec[o + 2], c = rec[o + 3];
+      const ea = rec[o + 16], eb = rec[o + 17], Ea = rec[o + 18], dEa = rec[o + 19], Eb = rec[o + 20], dEb = rec[o + 21], EE = Ea * Eb;
       const w = rec[o + 4], h = rec[o + 5], hd = rec[o + 6], A = rec[o + 7], Ad = rec[o + 8], na = rec[o + 9], nb = rec[o + 10];
       const Sa = rec[o + 11], dSa = rec[o + 12], Sb = rec[o + 13], dSb = rec[o + 14], hg = rec[o + 15];
       const j = pI[q], k = pJ[q];
@@ -1149,20 +1211,28 @@ class Engine {
       if (dEdS === 0) continue;
       const dEdw = -dEdS * scr[q] / (1 - w);
       const fq = pF[q];
-      // w = INS_MAX * h(spare) * A(Sa*Sb) * f(q), with Sa and Sb the carbene's reach to each end
-      push(pa, dEdw * INS_MAX * h * Ad * Sb * fq * dSa);
-      push(pb, dEdw * INS_MAX * h * Ad * Sa * fq * dSb);
-      push(q, dEdw * INS_MAX * h * A * pFp[q]);
+      // w = INS_MAX * h(spare, sigma) * A(Sa*Sb) * f(q) * Ea(spare of a) * Eb(spare of b)
+      push(pa, dEdw * INS_MAX * h * Ad * Sb * fq * EE * dSa);
+      push(pb, dEdw * INS_MAX * h * Ad * Sa * fq * EE * dSb);
+      push(q, dEdw * INS_MAX * h * A * EE * pFp[q]);
+      // each end's spare = V - (its coordination - its arm): all its pairs lower it, its arm not
+      for (let e2 = 0; e2 < 2; e2++) {
+        const at = e2 ? eb : ea, arm = e2 ? pb : pa;
+        const dEdse = dEdw * INS_MAX * h * A * fq * (e2 ? Ea * dEb : dEa * Eb);
+        if (dEdse === 0) continue;
+        Hc[at] -= dEdse; anyH = true;
+        push(arm, dEdse * spr[arm]);
+      }
       // spare = V - (all of the centre's coordination - the two arms): every other pair of the
       // centre lowers it one-for-one, the two arms not at all
-      const dEdspare = dEdw * INS_MAX * hd * A * fq;
+      const dEdspare = dEdw * INS_MAX * hd * A * fq * EE;
       if (dEdspare !== 0) {
         Hc[c] -= dEdspare; anyH = true;
         push(pa, dEdspare * na * spr[pa]);
         push(pb, dEdspare * nb * spr[pb]);
       }
       // sigma = the centre's single-bond count without the two arms: every other pair raises it
-      const dEdsig = dEdw * INS_MAX * hg * A * fq;
+      const dEdsig = dEdw * INS_MAX * hg * A * fq * EE;
       if (dEdsig !== 0) {
         Hg[c] += dEdsig; anyH = true;
         push(pa, -dEdsig * spr[pa]);
