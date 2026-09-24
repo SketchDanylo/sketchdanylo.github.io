@@ -39,7 +39,7 @@ const Q_MAX = 1.1;                  // saturation of bond-polarisation charge (e
 //   wpiOO = the same for O=O, lower still (triplet O₂ is a diradical);
 //   oo3e = extra O–O bond order when only one oxygen is unpaired (three-electron bond, HO₂·);
 //   mu   = strength weighting of excess valence (Evans–Polanyi: exothermic transfers get lower barriers).
-const TUNE = { kappa: 0.38, c1: 0.6, c4: 10.82, k: 6, kb: 1.3, yoff: 3.0, wpi: 0.85, wpiOO: 0.78, oo3e: 0.45, mu: 0.5, kbo: 0.4, tsStab: 0, pauliOpen: 0, share: 0.5, insert: 1, vstate: 1, cap: 0.10 };
+const TUNE = { kappa: 0.38, c1: 0.6, c4: 10.82, k: 6, kb: 1.3, yoff: 3.0, wpi: 0.85, wpiOO: 0.78, oo3e: 0.45, mu: 0.5, kbo: 0.4, tsStab: 0, pauliOpen: 0, share: 0.5, insert: 1, vstate: 1, cap: 0.10, gel: 1 };
 const RAMP_W = 0.15;
 const Y_ON = 3.6, Y_OFF = 5.6;      // Morse taper window (in units of a·(r − re))
 const COORD_R1 = 1.22, COORD_R2 = 1.50; // structural coordination switch (× single-bond length)
@@ -317,6 +317,35 @@ function valenceState(tab, z) {
   VS = (2 * t3 - 3 * t2 + 1) * p0 + (t3 - 2 * t2 + t) * m0 + (-2 * t3 + 3 * t2) * p1 + (t3 - t2) * m1;
   VSD = (6 * t2 - 6 * t) * p0 + (3 * t2 - 4 * t + 1) * m0 + (-6 * t2 + 6 * t) * p1 + (3 * t2 - 2 * t) * m1;
 }
+/* Electronic degeneracy. A free atom has several electronic states at (nearly) the same energy — a
+   halogen atom 4 (²P3/2, and 2 more ²P1/2 when hot), oxygen 9 (³P), hydrogen 2 — while the molecule
+   it forms has one. Those states are entropy, R·ln g, and they are why real F2, Cl2, O2, I2 and H2
+   come apart at flame temperatures 20–30 times more readily than a single potential surface says
+   (measured against textbook statistical mechanics with spectroscopic constants: the whole gap was
+   this factor). The equilibrium of the electronically averaged system is sampled exactly on the
+   free-energy surface U − kT·ln g, with g following the atom's bonding Z smoothly between the free
+   atom and its radicals (OH ²Π 4, CH ²Π 4, CH2 ³B1 3, NH ³Σ 3, CH3 and NH2 doublets 2) and 1 for a
+   full shell. It vanishes at 0 K and for every closed-shell molecule. Levels: NIST ASD. */
+const GEL = {
+  H: T => [Math.log(2), 0],
+  C: T => [Math.log(1 + 3 * Math.exp(-23.6 / T) + 5 * Math.exp(-62.4 / T)), Math.log(4), Math.log(3), Math.log(2), 0],
+  N: T => [Math.log(4), Math.log(3), Math.log(2), 0],
+  O: T => [Math.log(5 + 3 * Math.exp(-227.7 / T) + Math.exp(-326.6 / T)), Math.log(4), 0],
+  F: T => [Math.log(4 + 2 * Math.exp(-581.0 / T)), 0],
+  S: T => [Math.log(5 + 3 * Math.exp(-570.0 / T) + Math.exp(-825.0 / T)), Math.log(4), 0],
+  Cl: T => [Math.log(4 + 2 * Math.exp(-1269.6 / T)), 0],
+  Br: T => [Math.log(4 + 2 * Math.exp(-5302 / T)), 0],
+  I: T => [Math.log(4), 0],
+};
+// 1 for an oxygen whose bonding is O2's own (Z = 2), fading to 0 by Z = 1 (coming apart) and Z = 2.6 (a third partner)
+let OB = 0, OBD = 0;
+function o2Bump(z) {
+  if (z <= 1 || z >= 2.6) { OB = 0; OBD = 0; return; }
+  if (z <= 2) { const t = z - 1; OB = t * t * (3 - 2 * t); OBD = 6 * t * (1 - t); return; }
+  const t = (2.6 - z) / 0.6; OB = t * t * (3 - 2 * t); OBD = -6 * t * (1 - t) / 0.6;
+}
+const GEL_TAB = new Array(ELEMENT_ROWS.length).fill(null);
+for (const [sym, f] of Object.entries(GEL)) { const k = ELEMENT_ROWS.findIndex(r => r[0] === sym); if (k >= 0) GEL_TAB[k] = f; }
 /* An end with nothing to spare counts fully; one with 0.75 of a valence free is a ring partner. */
 /* ...and an end lends only the valence it has. A hydrogen has one bond to give: while its reach
    to the carbene and to its partner sum to about one, it is on its way from one to the other and
@@ -806,6 +835,32 @@ class Engine {
       valenceState(tab, Zf[i]);
       if (VS === 0 && VSD === 0) continue;
       E += TUNE.vstate * VS; Gf[i] = TUNE.vstate * VSD;
+    }
+    if (TUNE.gel && this.T > 0) {
+      const kT = KB * this.T;
+      let tabs = this._gelTabs;
+      if (!tabs || this._gelT !== this.T) { tabs = this._gelTabs = GEL_TAB.map(f => f && f(this.T)); this._gelT = this.T; }
+      for (let i = 0; i < N; i++) {
+        const tab = tabs[type[i]];
+        if (!tab || val[i] !== tab.length - 1) continue;
+        valenceState(tab, Zf[i]);
+        let L = VS, dL = VSD;
+        if (Zf[i] <= 0) { L = tab[0]; dL = 0; }                 // the free atom itself
+        if (L === 0 && dL === 0) continue;
+        E -= TUNE.gel * kT * L; Gf[i] -= TUNE.gel * kT * dL;
+      }
+      /* Ground-state O2 is itself a triplet (³Σg⁻, g = 3), which no other common diatomic is: an
+         O=O double bond between two oxygens with no other partner carries ln 3, fading as either
+         oxygen takes on more (ozone, peroxides) or the bond comes apart. */
+      const tO = BY_SYM.O.t;
+      for (let p = 0; p < P; p++) {
+        const i = pI[p], j = pJ[p];
+        if (type[i] !== tO || type[j] !== tO || !(this.pN[p] > 1) || pSraw[p] <= 0) continue;
+        o2Bump(Zf[i]); const bi = OB, dbi = OBD; if (bi === 0) continue;
+        o2Bump(Zf[j]); const bj = OB, dbj = OBD; if (bj === 0) continue;
+        const c = TUNE.gel * kT * Math.log(3) * Math.min(1, this.pN[p] - 1);
+        E -= c * bi * bj; Gf[i] -= c * dbi * bj; Gf[j] -= c * bi * dbj;
+      }
     }
     // Free (unpaired) valence per atom, smoothed so forces stay continuous. A half-filled orbital
     // feels much less Pauli repulsion than a closed shell, which is why radicals add without a barrier.

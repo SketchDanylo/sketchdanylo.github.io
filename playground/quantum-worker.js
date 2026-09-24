@@ -1,5 +1,5 @@
 /* Runs only local, vendored numerical code. No molecular data leaves the device. */
-importScripts('vendor/qchem/basis.js?v=20260924-build38','vendor/qchem/linalg.js?v=20260924-build38','vendor/qchem/integrals.js?v=20260924-build38','vendor/qchem/eri.js?v=20260924-build38','vendor/qchem/scf.js?v=20260924-build38','vendor/qchem/uhf.js?v=20260924-build38','quantum-core.js?v=20260924-build38');
+importScripts('vendor/qchem/basis.js?v=20260924-build39','vendor/qchem/linalg.js?v=20260924-build39','vendor/qchem/integrals.js?v=20260924-build39','vendor/qchem/eri.js?v=20260924-build39','vendor/qchem/scf.js?v=20260924-build39','vendor/qchem/uhf.js?v=20260924-build39','quantum-core.js?v=20260924-build39');
 const ready = fetch('vendor/qchem/sto-3g-h-ar.json').then(r => {
   if (!r.ok) throw Error('Could not load the quantum basis.');
   return r.json();

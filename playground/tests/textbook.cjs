@@ -120,4 +120,77 @@ test('Atomization enthalpies of molecules and radicals match measured thermochem
   console.log('    not yet right (printed, not asserted): CO, CO2, CH2O, NO, NO2, N2O, N2O4, O3, SO2, ClO, H2O2, N2H4 — oxides and dative bonds');
 });
 
+test("A dissociation equilibrium obeys van 't Hoff and Le Chatelier exactly as statistical mechanics predicts", () => {
+  /* F2 ⇌ 2F in the bath. Exact classical statistical mechanics of the engine's own F–F potential:
+     K = [F2]/[F]^2 = ½ ∫_bonded 4πr² e^{−U/kT} dr, with "bonded" exactly as the simulation detects it.
+     Hotter → more atoms (van 't Hoff); a larger box, lower pressure → more atoms (Le Chatelier). */
+  const q = { thermal: false };
+  const pair = (r, T) => {
+    const e = new Engine({ width: 200, height: 200, depth: 200, T, thermostat: false });
+    e.box = { x0: -100, x1: 100, y0: -100, y1: 100, z0: -100, z1: 100 };
+    e.addAtom('F', 0, 0, 0, q); e.addAtom('F', r, 0, 0, q); e.touch(); e.refresh();
+    for (let k = 0; k < 200; k++) e.computeForces(1);
+    return [e.Epot, e.nPairs ? e.bondStrength(0) : 0];
+  };
+  const predict = (T, L, Nat) => {
+    const Einf = pair(9, T)[0];
+    let I = 0; for (let r = 0.9; r <= 3; r += 0.002) { const [U, s] = pair(r, T); if (s > 0.25) I += 4 * Math.PI * r * r * Math.exp(-(U - Einf) / (KB * T)) * 0.002; }
+    const a = I / (L * L * L), Nx = (-1 + Math.sqrt(1 + 4 * a * Nat)) / (2 * a);
+    return Nx / Nat;
+  };
+  const simulate = (T, L) => {
+    const e = new Engine({ width: L, height: L, depth: L, T, seed: 3, thermostatMode: 'kelvin' });
+    const n = 3, h = L / n; let k = 0;
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) for (let l = 0; l < 2 && k < 16; l++, k++) {
+      const x = (i + .5) * h, y = (j + .5) * h, z = e.box.z0 + (l + .5) * L / 2;
+      e.addAtom('F', x - .7, y, z, q); e.addAtom('F', x + .7, y, z, q); e.setBondOrder(e.N - 2, e.N - 1, 1);
+    }
+    e.touch(); e.refresh(); e.thermalize(T);
+    let sum = 0, cnt = 0;
+    for (let s = 0; s < 3000000; s++) {
+      e.step(); if (s < 750000 || s % 200) continue;
+      let free = 0; for (const f of e.fragments().list) if (f.length === 1) free++;
+      sum += free / e.N; cnt++;
+    }
+    return sum / cnt;
+  };
+  const dense = simulate(1500, 60), dilute = simulate(1500, 120);
+  const pd = predict(1500, 60, 32), pl = predict(1500, 120, 32);
+  assert.ok(Math.abs(dense - pd) < 0.09, `at 20 bar: α ${dense.toFixed(3)} against ${pd.toFixed(3)}`);
+  assert.ok(Math.abs(dilute - pl) < 0.09, `at 3 bar: α ${dilute.toFixed(3)} against ${pl.toFixed(3)}`);
+  assert.ok(dilute > dense + 0.15, 'lowering the pressure shifts the equilibrium toward atoms');
+});
+
+test('Dissociation equilibria of F2, Cl2, I2 and O2 match real thermodynamics at flame temperatures', () => {
+  /* Real K = [X2]/[X]^2 from textbook statistical mechanics with measured spectroscopic constants
+     (Huber & Herzberg), D0 (JANAF/ATcT) and atomic fine-structure levels (NIST): this is how the
+     JANAF tables are built. The engine's K is exact classical statistical mechanics of its own
+     surface. Before free atoms carried their electronic degeneracy, every one was 20–30× off. */
+  const q = { thermal: false }, h = 6.62607015e-34, kB = 1.380649e-23, amu = 1.66053907e-27, NA = 6.02214076e23, c2 = 1.438777;
+  const DATA = {
+    F: { m: 18.998, D0: 154.6, we: 916.64, Be: 0.89019, gA: T => 4 + 2 * Math.exp(-c2 * 404.1 / T), gM: 1, T: 2000 },
+    Cl: { m: 35.45, D0: 239.2, we: 559.7, Be: 0.2440, gA: T => 4 + 2 * Math.exp(-c2 * 882.4 / T), gM: 1, T: 2500 },
+    I: { m: 126.904, D0: 148.8, we: 214.5, Be: 0.03737, gA: T => 4, gM: 1, T: 1200 },
+    O: { m: 15.999, D0: 493.6, we: 1580.2, Be: 1.4456, gA: T => 5 + 3 * Math.exp(-c2 * 158.3 / T) + Math.exp(-c2 * 227 / T), gM: 3, T: 3500 },
+  };
+  const bad = [];
+  for (const [X, d] of Object.entries(DATA)) {
+    const T = d.T, at = r => {
+      const e = new Engine({ width: 200, height: 200, depth: 200, T, thermostat: false });
+      e.box = { x0: -100, x1: 100, y0: -100, y1: 100, z0: -100, z1: 100 };
+      e.addAtom(X, 0, 0, 0, q); e.addAtom(X, r, 0, 0, q); e.touch(); e.refresh();
+      if (X === 'O') e.setBondOrder(0, 1, 2);
+      for (let k = 0; k < 100; k++) e.computeForces(1);
+      return [e.Epot, e.nPairs ? e.bondStrength(0) : 0];
+    };
+    const Einf = at(9)[0]; let I = 0;
+    for (let r = 0.5; r <= 4.5; r += 0.005) { const [U, s] = at(r); if (s > 0.25) I += 4 * Math.PI * r * r * Math.exp(-(U - Einf) / (KB * T)) * 0.005; }
+    const kT = kB * T, tr = m => Math.pow(2 * Math.PI * m * amu * kT / (h * h), 1.5) * 1e-30;
+    const qA = tr(d.m) * d.gA(T), qM = tr(2 * d.m) * (T / (2 * c2 * d.Be)) / (1 - Math.exp(-c2 * d.we / T)) * d.gM;
+    const real = qM / (qA * qA) * Math.exp(d.D0 * 1000 / (NA * kT)), engine = I / 2, ratio = real / engine;
+    if (ratio < 0.6 || ratio > 1.6) bad.push(`${X}2 at ${T} K: real/engine ${ratio.toFixed(2)}`);
+  }
+  assert.equal(bad.length, 0, bad.join('; '));
+});
+
 console.log(count + ' textbook checks passed.');
