@@ -450,7 +450,8 @@ function renderPPop() {
   $('pNow').textContent = fmtP(eng.pressureEMA);
   $('pVol').textContent = (V / 1000).toFixed(1) + ' nm³';
   const nMol = species.count || 0;
-  $('pIdeal').textContent = fmtP(nMol * KB * eng.temperature() / V * 16605.39);
+  // against the gauge's own running temperature, not one frame's: a small sample's T jitters by tens of percent
+  $('pIdeal').textContent = fmtP(nMol * KB * (tStat.live ? tStat.mean : eng.temperature()) / V * 16605.39);
   $('pAtoms').textContent = eng.N;
 }
 function saveBox() { const b = eng.box; store.set('box', { w: b.x1 - b.x0, h: b.y1 - b.y0, d: b.z1 - b.z0 }); }

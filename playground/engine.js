@@ -1015,7 +1015,8 @@ class Engine {
       const i = pI[p], j = pJ[p];
       const D = pD[p];
       let coef = (G[i] + Gb[i] * D - gAs[p] - this.gAbs[p] * D) + (G[j] + Gb[j] * D - gBs[p] - this.gBbs[p] * D);
-      if (Gf[i] !== 0 || Gf[j] !== 0) coef += (Gf[i] + Gf[j]) * this.pN[p] / (1 + (PAIR[type[i] * NT + type[j]].oo ? TUNE.wpiOO : TUNE.wpi) * (this.pN[p] - 1));
+      const gz = Gf[i] + Gf[j];
+      if (gz !== 0) coef += gz * this.pN[p] / (1 + (PAIR[type[i] * NT + type[j]].oo ? TUNE.wpiOO : TUNE.wpi) * (this.pN[p] - 1));
       if (coef === 0) continue;
       const s = coef * fp / pR[p], fx = s * pDx[p], fy = s * pDy[p], fz = s * pDz[p];
       F[3 * i] += fx; F[3 * i + 1] += fy; F[3 * i + 2] += fz;
@@ -1116,6 +1117,18 @@ class Engine {
       // as the new bond forms instead of afterwards
       sig[p] = raw <= 0 || raw >= 1 ? raw : Math.pow(raw, TUNE.kbo);
     }
+    /* What a partner can offer a newcomer is its unpaired valence: what is left after every bond it
+       already has, π included. Only to a partner it is already bonded to (σ ≈ 1) does it offer the
+       rest of its σ-free valence, which is what its π bonds are made of. Counting σ-free valence for
+       everyone made N≡N look like a double radical: two N2 molecules brushing past at 3000 K pulled
+       each other's π bonds apart and fused into N4…N7 chains, and each π bond that gave way put
+       its energy nowhere (4900 kJ/mol in 50 ps). A radical still frees a π bond as it approaches. */
+    const openR = this._openR && this._openR.length >= N ? this._openR : (this._openR = new Float64Array(this.cap));
+    openR.fill(0, 0, N);
+    for (let p = 0; p < this.nPairs; p++) { const v = sig[p]; if (v <= 0) continue; openR[pI[p]] += v * pN[p]; openR[pJ[p]] += v * pN[p]; }
+    for (let i = 0; i < N; i++) openR[i] = val[i] - openR[i];         // may go below zero: over-full
+    // this pair's own reach is added back, so an approaching radical stays a whole radical to its partner
+    const capOf = (k, v, pn) => { const o = Math.max(0, Math.min(val[k], openR[k] + v * pn)), v4 = v * v * v * v; return o + v4 * (spare[k] - o); };
     // Two passes: a partner consumes valence only to the extent that it can bond at all, so a radical
     // approaching a double bond frees the pi bond while a saturated molecule drifting past does not.
     // An already-formed bond (sigma ≈ 1) always counts in full.
@@ -1123,15 +1136,15 @@ class Engine {
       Zs.fill(0, 0, N);
       for (let p = 0; p < this.nPairs; p++) {
         const v = sig[p]; if (v <= 0) continue;
-        const i = pI[p], j = pJ[p];
-        const wi = pass === 0 ? 1 : Math.min(1, spare[j] + v), wj = pass === 0 ? 1 : Math.min(1, spare[i] + v);
+        const i = pI[p], j = pJ[p], v4 = v * v * v * v;
+        const wi = pass === 0 ? 1 : Math.min(1, capOf(j, v, pN[p]) + v4), wj = pass === 0 ? 1 : Math.min(1, capOf(i, v, pN[p]) + v4);
         Zs[i] += v * wi; Zs[j] += v * wj;
       }
       for (let i = 0; i < N; i++) spare[i] = Math.max(0, val[i] - Zs[i]);
     }
     for (let i = 0; i < N; i++) {
       let s = 0;
-      for (let c = cStart[i]; c < cStart[i + 1]; c++) { const p = cList[c], k = pI[p] === i ? pJ[p] : pI[p]; s += sig[p] * Math.min(2, spare[k]); }
+      for (let c = cStart[i]; c < cStart[i + 1]; c++) { const p = cList[c], k = pI[p] === i ? pJ[p] : pI[p]; s += sig[p] * Math.min(2, capOf(k, sig[p], pN[p])); }
       D[i] = s;
     }
     const rate = -Math.expm1(Math.log(0.92) * dt); // identical decay over any subdivision
@@ -1142,8 +1155,8 @@ class Engine {
         const i = pI[p], j = pJ[p];
         const pp = PAIR[type[i] * NT + type[j]];
         if (pp.maxOrder > 1 && D[i] > 1e-9 && D[j] > 1e-9) {
-          const si = spare[i] * f * Math.min(2, spare[j]) / D[i];
-          const sj = spare[j] * f * Math.min(2, spare[i]) / D[j];
+          const si = spare[i] * f * Math.min(2, capOf(j, f, pN[p])) / D[i];
+          const sj = spare[j] * f * Math.min(2, capOf(i, f, pN[p])) / D[j];
           target = 1 + Math.min(si, sj, pp.maxOrder - 1);
         }
         // three-electron O–O bond (HO₂·, RO₂·): one oxygen keeps an unpaired valence, the other does not
@@ -1773,7 +1786,14 @@ class Engine {
       this._integrate(nsub, forceRebuild);
       if (!canCheck || nsub >= SUB_MAX) break;
       const dE = Math.abs(this.Epot + this.kinetic() + this.voidHeat - this._sv.voidHeat - this.servoWork - E0);
-      if (dE <= SUB_ETOL + 0.002 * K0) break;
+      // 0.02% of the kinetic energy: at 0.2% an exploding H2/F2 sample at 8000 K random-walked 470 kJ/mol
+      // in 50 ps; at 0.02% it holds to about 20, and an ordinary room-temperature scene runs no slower
+      // One tolerance, bath or not. Holding an insulated chamber to 0.3 kJ/mol a step was tried: it
+      // also redid the ordinary energy wobble of a hot vibrating molecule, and every redo changed the
+      // step length, which moves the conserved energy — a lone water bouncing off the walls at 3000 K
+      // drifted 2.8 kJ/mol instead of 0.3 — while a hot insulated gas kept its energy no better
+      // (within 1% of its kinetic energy over 20 ps either way) and ran 1.7 times slower
+      if (dE <= SUB_ETOL + 0.0002 * K0) break;
       this._load(); nsub = Math.min(SUB_MAX, nsub * 2); this.redone++; // redo this step at half the sub-step: a gentler jump shifts the conserved energy less
     }
     this.lastSub = nsub;
@@ -1802,10 +1822,26 @@ class Engine {
       if (this.pF[p] < 0.3 || this.pR[p] <= 0) continue;
       const i = this.pI[p], j = this.pJ[p];
       const pp = PAIR[type[i] * NT + type[j]]; if (!pp.bond) continue;
-      const lo = Math.min(2, Math.max(1, Math.floor(this.pN[p]))), a = pp.a[lo];
-      const ey = Math.exp(-a * (this.pR[p] - pp.re[lo]));
+      const lo = Math.min(2, Math.max(1, Math.floor(this.pN[p]))), a = pp.a[lo], De = pp.De[lo];
+      /* Read at the inner turning point of the bond's own vibration, not at its current length: the
+         stretch energy (Morse at this length plus the kinetic energy along the bond) fixes how far in
+         it will swing, and that holds still for a whole period. Read at the current length, a hot
+         O–H asked for three sub-steps at the bottom of every swing and two at the top, and each
+         change of step shifted the conserved energy: a water molecule bouncing off the walls at
+         3000 K drifted 6 kJ/mol in 20 ps. */
+      const r = this.pR[p], ux = (pos[3 * j] - pos[3 * i]) / r, uy = (pos[3 * j + 1] - pos[3 * i + 1]) / r, uz = (pos[3 * j + 2] - pos[3 * i + 2]) / r;
+      const vr = (vel[3 * j] - vel[3 * i]) * ux + (vel[3 * j + 1] - vel[3 * i + 1]) * uy + (vel[3 * j + 2] - vel[3 * i + 2]) * uz;
+      const y = Math.exp(-a * (r - pp.re[lo])), mu = mass[i] * mass[j] / (mass[i] + mass[j]);
+      const Es = De * (1 - y) * (1 - y) + 0.5 * KEU * mu * vr * vr;
+      const ey = Math.max(y, 1 + Math.sqrt(Math.min(Es, 4 * De) / De));
       const curv = a * a * pp.De[lo] * Math.max(2, 4 * ey * ey - 2 * this.pB[p] * ey);
-      const w2 = curv * (1 / mass[i] + 1 / mass[j]) * ACC;
+      /* and a bond ringing near its dissociation energy is stepped finer still, up to three times
+         at the limit: its swing hits a steep inner wall at full speed, where the curvature changes
+         faster than one sub-step can follow. H + H in an insulated chamber leaves an H2 ringing
+         between 0.42 and 2.4 Å with all 436 kJ/mol; at the plain rule it bled 15–20 kJ/mol in
+         12 ps, at this one it keeps within 2 for about one sub-step more. */
+      const hf = 1 + 2 * Math.min(1, Es / De);
+      const w2 = curv * (1 / mass[i] + 1 / mass[j]) * ACC * hf * hf;
       if (w2 > w2max) w2max = w2;
     }
     // an atom that could reach a solid face during the next step is stepped as finely as the face
@@ -1835,8 +1871,14 @@ class Engine {
        same molecule stepped at two-and-occasionally-three gained 128. The count has to change
        sometimes, but it should change rarely, not flicker with every compression. */
     const want = need > 1 ? Math.min(SUB_MAX, Math.ceil(need)) : 1, cur = this.nextSub || 1;
-    if (want >= cur) { this.nextSub = want; this.subHold = SUB_HOLD; }
-    else if ((this.subHold -= dt) <= 0) { this.nextSub = want; this.subHold = SUB_HOLD; }
+    /* When the hold runs out, drop only to the finest count anything actually asked for during it,
+       never to what this one instant asks. A hot bond asks for many sub-steps at the bottom of its
+       swing and none at the top; dropping on whatever the moment said let a newly made H2, ringing
+       out to 2.4 Å, fall to one sub-step at the top of a swing, climb back through redone steps on
+       the way in, and bleed 2 kJ/mol a picosecond. */
+    this.subPeak = Math.max(this.subPeak || 1, want);
+    if (want >= cur) { this.nextSub = want; this.subHold = SUB_HOLD; this.subPeak = want; }
+    else if ((this.subHold -= dt) <= 0) { this.nextSub = Math.min(cur, this.subPeak); this.subHold = SUB_HOLD; this.subPeak = want; }
     // Safety net: a numerically broken state is rolled back and paused; a merely very fast atom
     // (rare after sub-stepping) is capped at 60 km/s and counted, so hot gases keep running.
     let clamped = 0;
@@ -2260,7 +2302,7 @@ class Engine {
       servoWork: this.servoWork, servoWorkTotal: this.servoWorkTotal,
       wallTau: this.wallTau, wallCapacity: this.wallCapacity, wallSkin: this.wallSkin, wallCoupling: this.wallCoupling,
       heatToSample: this.heatToSample, heaterWork: this.heaterWork,
-      nextSub: this.nextSub || 1, subHold: this.subHold || 0, lastSub: this.lastSub || 1, Epot: this.Epot, Ewall: this.Ewall,
+      nextSub: this.nextSub || 1, subHold: this.subHold || 0, subPeak: this.subPeak || 1, lastSub: this.lastSub || 1, Epot: this.Epot, Ewall: this.Ewall,
       wallForce: this.wallForce, wallArea: this.wallArea, pressureBar: this.pressureBar, pressureEMA: this.pressureEMA,
       needForces: this.needForces, needRebuild: this.needRebuild, redone: this.redone, clamped: this.clamped,
       built: this.built.slice(0, n3), pI: this.pI.slice(0, this.nPairs), pJ: this.pJ.slice(0, this.nPairs), pN: this.pN.slice(0, this.nPairs),
@@ -2274,7 +2316,7 @@ class Engine {
     this.N = s.N; this.time = s.time; this.stepCount = s.stepCount; this.rngState = s.rng; this.nextId = s.nextId;
     if (s.box) this.box = { ...s.box };
     this.sphere = s.sphere ? { ...s.sphere } : null;
-    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'kelvinWork', 'sparkHold', 'wallMeasured', 'wallContact', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidVelocity', 'voidTau', 'voidSkin', 'voidHeat', 'voidForce', 'servoWork', 'servoWorkTotal', 'pressureControl', 'pressureTarget', 'pressureTau', 'heatToSample', 'heaterWork', 'nextSub', 'subHold', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
+    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'kelvinWork', 'sparkHold', 'wallMeasured', 'wallContact', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidVelocity', 'voidTau', 'voidSkin', 'voidHeat', 'voidForce', 'servoWork', 'servoWorkTotal', 'pressureControl', 'pressureTarget', 'pressureTau', 'heatToSample', 'heaterWork', 'nextSub', 'subHold', 'subPeak', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
     this.tweezer = null;
     this.pos.set(s.pos); this.vel.set(s.vel); this.frc.set(s.frc); this.prev.set(s.pos);
     this.type.set(s.type); this.formal.set(s.formal); this.val.set(s.val); this.lp.set(s.lp); this.pinned.set(s.pinned); this.ids.set(s.ids); this.cos0.set(s.cos0);

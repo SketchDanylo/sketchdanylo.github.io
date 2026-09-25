@@ -52,8 +52,10 @@ test('A bond formed under the pointer does not fabricate energy', () => {
   assert.ok(Math.abs(drift) < 60, `drift ${drift.toFixed(1)} kJ/mol`);
   // a four-atom molecule swings its energy between motion and stretch every few fs, so one frame's
   // kinetic temperature says nothing: average over the vibrations, and check it held together
-  let T = 0; for (let i = 0; i < 500; i++) { e.step(); T += e.temperature() / 500; }
-  assert.equal(products(e), 'CH3');
+  // a fresh C–H swings out to ~1.9 Å at this energy; bound means it always comes back
+  let T = 0, far = 0;
+  for (let i = 0; i < 500; i++) { e.step(); T += e.temperature() / 500; far = Math.max(far, Math.hypot(e.pos[3 * h] - e.pos[0], e.pos[3 * h + 1] - e.pos[1], e.pos[3 * h + 2] - e.pos[2])); }
+  assert.ok(far < 2.6, `the new hydrogen got ${far.toFixed(2)} Å from its carbon`);
   assert.ok(T < 3500, `left the sample at ${T.toFixed(0)} K on average`);
 });
 
