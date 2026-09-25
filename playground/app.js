@@ -72,7 +72,9 @@ function updateLab() {
 }
 
 /* ======================= engine ======================= */
-const savedBox = store.get('box', { w: 36, h: 20, d: 12 });
+// a portrait phone starts with a tall chamber, so it fills the screen instead of a strip across it
+const portrait = innerWidth < 760 && innerHeight > innerWidth;
+const savedBox = store.get('box', portrait ? { w: 20, h: 30, d: 12 } : { w: 36, h: 20, d: 12 });
 const eng = new Engine({ width: savedBox.w, height: savedBox.h, depth: savedBox.d, T: store.get('T', STP_T) });
 eng.thermostat = store.get('thermostat', true);
 eng.thermostatMode = store.get('bathMode', 'kelvin') === 'wall' ? 'wall' : 'kelvin';
