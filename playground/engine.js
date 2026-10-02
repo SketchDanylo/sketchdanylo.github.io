@@ -39,7 +39,7 @@ const Q_MAX = 1.1;                  // saturation of bond-polarisation charge (e
 //   wpiOO = the same for O=O, lower still (triplet O₂ is a diradical);
 //   oo3e = extra O–O bond order when only one oxygen is unpaired (three-electron bond, HO₂·);
 //   mu   = strength weighting of excess valence (Evans–Polanyi: exothermic transfers get lower barriers).
-const TUNE = { kappa: 0.38, c1: 0.6, c4: 10.82, k: 6, kb: 1.3, yoff: 3.0, wpi: 0.85, wpiOO: 0.78, oo3e: 0.45, mu: 0.5, kbo: 0.4, tsStab: 0, pauliOpen: 0, share: 0.5, insert: 1, vstate: 1, cap: 0.10, gel: 1 };
+const TUNE = { kappa: 0.38, c1: 0.6, c4: 10.82, k: 6, kb: 1.3, yoff: 3.0, wpi: 0.85, wpiOO: 0.78, oo3e: 0.45, mu: 0.5, kbo: 0.4, tsStab: 0, pauliOpen: 0, share: 0.5, insert: 1, vstate: 1, cap: 0.10, gel: 1, pairIter: 6, pairEps: 0.02 };
 const RAMP_W = 0.15;
 const Y_ON = 3.6, Y_OFF = 5.6;      // Morse taper window (in units of a·(r − re))
 const COORD_R1 = 1.22, COORD_R2 = 1.50; // structural coordination switch (× single-bond length)
@@ -1149,6 +1149,26 @@ class Engine {
       for (let c = cStart[i]; c < cStart[i + 1]; c++) { const p = cList[c], k = pI[p] === i ? pJ[p] : pI[p]; s += sig[p] * Math.min(2, capOf(k, sig[p], pN[p])); }
       D[i] = s;
     }
+    const P = this.nPairs;
+    const grow = a => a && a.length >= P ? a : new Float64Array(Math.max(P, 64));
+    const wA = this._wA = grow(this._wA), wB = this._wB = grow(this._wB), oA = this._oA = grow(this._oA), oB = this._oB = grow(this._oB), nA = this._nA = grow(this._nA), nB = this._nB = grow(this._nB);
+    for (let p = 0; p < P; p++) {
+      const f = sig[p];
+      if (f <= 0) { wA[p] = wB[p] = oA[p] = oB[p] = 0; continue; }
+      const i = pI[p], j = pJ[p];
+      wA[p] = f * Math.min(2, capOf(j, f, pN[p])); wB[p] = f * Math.min(2, capOf(i, f, pN[p]));
+      oA[p] = D[i] > 1e-9 ? spare[i] * wA[p] / D[i] : 0; oB[p] = D[j] > 1e-9 ? spare[j] * wB[p] / D[j] : 0;
+    }
+    for (let it = 0; it < TUNE.pairIter; it++) {
+      D.fill(0, 0, N);
+      for (let p = 0; p < P; p++) { if (wA[p] <= 0 && wB[p] <= 0) continue; D[pI[p]] += wA[p] * (TUNE.pairEps + oB[p]); D[pJ[p]] += wB[p] * (TUNE.pairEps + oA[p]); }
+      for (let p = 0; p < P; p++) {
+        const i = pI[p], j = pJ[p];
+        nA[p] = D[i] > 1e-12 ? spare[i] * wA[p] * (TUNE.pairEps + oB[p]) / D[i] : 0;
+        nB[p] = D[j] > 1e-12 ? spare[j] * wB[p] * (TUNE.pairEps + oA[p]) / D[j] : 0;
+      }
+      oA.set(nA.subarray(0, P)); oB.set(nB.subarray(0, P));
+    }
     const rate = -Math.expm1(Math.log(0.92) * dt); // identical decay over any subdivision
     for (let p = 0; p < this.nPairs; p++) {
       const f = sig[p];
@@ -1156,11 +1176,7 @@ class Engine {
       if (f > 0) {
         const i = pI[p], j = pJ[p];
         const pp = PAIR[type[i] * NT + type[j]];
-        if (pp.maxOrder > 1 && D[i] > 1e-9 && D[j] > 1e-9) {
-          const si = spare[i] * f * Math.min(2, capOf(j, f, pN[p])) / D[i];
-          const sj = spare[j] * f * Math.min(2, capOf(i, f, pN[p])) / D[j];
-          target = 1 + Math.min(si, sj, pp.maxOrder - 1);
-        }
+        if (pp.maxOrder > 1 && wA[p] > 0 && wB[p] > 0) target = 1 + Math.min(oA[p], oB[p], pp.maxOrder - 1);
         // three-electron O–O bond (HO₂·, RO₂·): one oxygen keeps an unpaired valence, the other does not
         if (pp.oo) target = Math.min(pp.maxOrder, target + TUNE.oo3e * f * Math.min(1, Math.abs(spare[i] - spare[j])));
       }
