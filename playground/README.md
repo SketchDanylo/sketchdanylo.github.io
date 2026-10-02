@@ -27,17 +27,11 @@ Two things follow, and both are worth knowing before building anything:
 
 ### Kelvin stat
 
-All unpinned velocities receive the same factor `sqrt(K_target / K)` each step, after void-wall absorption. This fixes the **total kinetic temperature**, not each atom's energy. Startup from rest initializes velocities and records the injected energy in `kelvinWork`.
+Every unpinned atom is coupled to a bath at the target temperature by an exact Ornstein–Uhlenbeck (Langevin) velocity update: `v ← c·v + σ·ξ`, with `c = e^(−dt/τ)` and fluctuation–dissipation noise `σ² = (1 − c²)·kT/m`. Each atom relaxes toward the bath on its own, so a molecule that has just formed sheds its new bond's energy without any other atom being touched, and the sample samples the canonical ensemble with its natural kinetic-energy fluctuations.
 
-This is a numerical isokinetic control, not a physical wall bath. It preserves instantaneous speed ratios but changes relative velocities, suppresses kinetic-energy fluctuations, and can alter reaction dynamics. An exact temperature readout does not establish accurate reaction rates or canonical sampling. Pinned atoms stay fixed, and work accounting survives replay. See [velocity-rescaling thermostats](https://docs.lammps.org/fix_temp_rescale.html).
+The coupling time is `tau` (default **250 fs**) for hydrogen and scales with mass, `τ_atom = tau · m / 1.008`, the way friction from a light buffer gas does — about 3 ps for carbon, 9 ps for chlorine. The temperature is therefore **held on average, not exactly**: a reaction that releases heat faster than this drains it warms the sample until the bath catches up, and a runaway chain can outpace it entirely. Lower `tau` to clamp harder, at the cost of more strongly damped dynamics.
 
-It shares heat out as well as fixing the total. A single global factor preserves whatever ratio
-the last event happened to leave, which sounds harmless and is not: a molecule that has just
-formed carries the whole of its new bond's energy, gets scaled hard for it, and then stays frozen
-while the rest of the chamber runs warm — nothing in a uniform rescale can ever warm it again.
-Each atom is first pulled gently toward its own share, `kelvinMix` per fs, and the exact total is
-imposed after. Measured on an H₂ formed in a chamber of argon, per-atom energy relative to the
-spectators: **0.48 before, 0.97 after.** Set `kelvinMix: 0` for the old pure rescale.
+Setting a new temperature rescales velocities once, immediately (`_kelvinSet`); startup from rest initializes velocities. All energy the bath adds or removes is recorded in `kelvinWork`. Pinned atoms stay fixed, and work accounting survives replay. See [Langevin thermostats](https://docs.lammps.org/fix_langevin.html).
 
 Only the pointer's own contribution is excluded from all of this, and that is the dragged
 cluster's centre-of-mass velocity — the coherent part the servo imposes. A dragged molecule still
@@ -124,7 +118,7 @@ within `wallSkin` of a face — the wall is whatever the sample against it is, a
 sets what it *aims* for. With a temperature void the heater stands down entirely, because it
 cannot warm a wall that radiates everything away, and the wall simply reports the fluid; that is
 what the gauge and the Environment panel show. To hold an open chamber at a fixed temperature,
-use the **Kelvin stat**, which replaces what the void removes on the same tick.
+use the **Kelvin stat**, which keeps replacing what the void removes.
 
 Removed energy is recorded in `voidHeat`. Rejected integration attempts restore this ledger, so
 an absorbed collision is counted once. Measured over 40,000 steps with hydrogen and oxygen let go
@@ -244,6 +238,7 @@ A custom, experimental bond-order model inspired by reactive force-field ideas. 
 | Bond order | Spare valence shared between neighbours → C=C, C≡C, O=O, N≡N, CO₂, aromatic 1.5. It follows the same long-ranged, screened bond order the saturation uses, so a partner weakens a π bond *while* its own bond forms; a partner claims valence only insofar as it can bond at all, so a radical frees the π bond and a saturated molecule drifting past does not | Radical addition to alkenes |
 | π blocking | A π bond blocks an incoming partner at 0.85 of a σ bond, being weaker and more polarizable. O₂'s π counts 0.78 (triplet O₂ is a diradical) and an O–O bond with one unpaired oxygen gains 0.45 order (the three-electron bond of HO₂·) | Cl + ethene; O₂ and HO₂ chemistry |
 | Angles | VSEPR, θ₀ a smooth function of the continuous steric number | 109.5°, 107°, 104.5°, 120°, 180° |
+| π torsion | Across a bond of order n > 1: `(n − 1)²·(De₂ − De₁)·⟨sin²φ·sin²θ₁·sin²θ₂⟩ / 0.5625`, averaged over the substituent pairs and switched with every bond involved. It fades out as either end gains a third substituent (2 → 2.5), since that centre is turning sp³. Twisting breaks the π bond, so the barrier is the π-bond energy itself; the angle factors keep it smooth through linear geometries | Ethene 90° twist: 248 kJ/mol unrelaxed (exp. ≈ 272) |
 | Non-bonded | Shielded Lennard-Jones (UFF); its Pauli wall fades where the Morse term already repels, and between atoms that can still bond. Shifted-force Coulomb between saturating bond-polarisation charges | UFF, Pauling electronegativity |
 | Charge scale | 0.38 e per unit electronegativity difference per bond, calibrated on condensed water rather than the gas-phase dimer — the same deliberate over-polarisation the TIP3P family uses. Covalent bonds, NaCl and HCl are unaffected | Water cohesion, O–O distance |
 | Walls | Specular hard reflection or optional soft harmonic field; pressure from normal momentum transfer | Idealized boundaries |

@@ -1782,7 +1782,7 @@ function renderEnvironmentApp(stage) {
 
   const bath = el('span', 'seg-mini',
     '<button data-v="wall" aria-label="Wall heater" title="Wall heater — warms the boundary; the interior follows. Heat a reaction releases leaves only through the walls">' + GLYPH.wall + '<span>Wall</span></button>' +
-    '<button data-v="kelvin" aria-label="Kelvin stat" title="Kelvin stat — the sample sits in surroundings at this temperature, touching every atom, so heat a reaction releases leaves at once, as into a solvent or a dense gas">' + GLYPH.kelvin + '<span>Kelvin</span></button>' +
+    '<button data-v="kelvin" aria-label="Kelvin stat" title="Kelvin stat — the sample sits in surroundings at this temperature, touching every atom, so heat a reaction releases drains away within picoseconds, as into a solvent or a dense gas">' + GLYPH.kelvin + '<span>Kelvin</span></button>' +
     '<button data-v="off" aria-label="Thermostat off" title="Off — insulated: heat a reaction releases stays in the sample and warms it. Setting a temperature is a one-off edit">' + GLYPH.off + '<span>Off</span></button>');
   bath.id = 'envBath';
   group('Thermostat', bath);

@@ -115,6 +115,7 @@ for (const e of ELEMENTS) BY_SYM[e.sym] = e;
 const NT = ELEMENTS.length;
 const CHI = Float64Array.from(ELEMENTS, e => e.chi);
 // chalcogens and halogens: with one of these in the formula, hydrogen is written first
+const TORS_NORM = 0.5625, TORS_W = 0.5;
 const INS_MAX = 0.6;                 // how much of a sigma bond's competition a carbene can take over
 const INS_ON = 0.8, INS_OFF = 1.8;   // Å past the bond length: fully engaged, and first felt
 const INS_T1 = 0.8, INS_T2 = 1.15;   // an end's new bond + old bond order: lends fully, lends nothing
@@ -1006,6 +1007,7 @@ class Engine {
     }
     // Pass E — angles (VSEPR) and 1-3 exclusions (the exclusions also add to G)
     E += this._angles();
+    E += this._torsions();
     // Pass S — forces from the screening factor
     this._screenForces();
     this._insertionForces();
@@ -1225,6 +1227,83 @@ class Engine {
       // and through the free valence x = V − Zs, which sets how much room the unpaired electrons take
       const dEdx = dEdc0sum * (dc0 * RD_EX + dc0c4 * RD_C4X);
       if (dEdx !== 0) this.G[i] -= dEdx;
+    }
+    return E;
+  }
+  _torsions() {
+    const pos = this.pos, F = this.frc, cStart = this.cStart, cList = this.cList, pI = this.pI, pJ = this.pJ, pF = this.pF, pFp = this.pFp, pN = this.pN, type = this.type;
+    const nb = this._torsNb || (this._torsNb = { a: [[], []], f: [[], []], fp: [[], []], q: [[], []], s: [[], []] });
+    const pairForce = (q, s) => {
+      const a = pI[q], b = pJ[q];
+      const dx = pos[3 * b] - pos[3 * a], dy = pos[3 * b + 1] - pos[3 * a + 1], dz = pos[3 * b + 2] - pos[3 * a + 2];
+      const r = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-6, c = s / r;
+      F[3 * a] += c * dx; F[3 * a + 1] += c * dy; F[3 * a + 2] += c * dz;
+      F[3 * b] -= c * dx; F[3 * b + 1] -= c * dy; F[3 * b + 2] -= c * dz;
+    };
+    let E = 0;
+    for (let p = 0; p < this.nPairs; p++) {
+      const pi = pN[p] - 1, fjk = pF[p];
+      if (pi <= 1e-6 || fjk <= 0) continue;
+      const j = pI[p], k = pJ[p], pp = PAIR[type[j] * NT + type[k]];
+      if (pp.maxOrder < 2) continue;
+      const pc = Math.min(1, pi), V = pc * pc * (pp.De[2] - pp.De[1]) / TORS_NORM;
+      if (V <= 0) continue;
+      const S = [0, 0];
+      for (let side = 0; side < 2; side++) {
+        const c = side ? k : j, o = side ? j : k;
+        nb.a[side].length = nb.f[side].length = nb.fp[side].length = nb.q[side].length = nb.s[side].length = 0;
+        for (let t = cStart[c]; t < cStart[c + 1]; t++) {
+          const q = cList[t], m = pI[q] === c ? pJ[q] : pI[q];
+          if (m === o || pF[q] <= 0) continue;
+          nb.a[side].push(m); nb.f[side].push(pF[q]); nb.fp[side].push(pFp[q]); nb.q[side].push(q); nb.s[side].push(0);
+          S[side] += pF[q];
+        }
+      }
+      if (!nb.a[0].length || !nb.a[1].length) continue;
+      const hS = [1, 1], dhS = [0, 0];
+      for (let side = 0; side < 2; side++) {
+        const t = (S[side] - 2) / TORS_W;
+        if (t >= 1) hS[side] = 0;
+        else if (t > 0) { hS[side] = 1 - t * t * (3 - 2 * t); dhS[side] = -6 * t * (1 - t) / TORS_W; }
+      }
+      if (hS[0] === 0 || hS[1] === 0) continue;
+      const Cv = V * fjk * hS[0] * hS[1];
+      const Dj = Math.max(S[0], 1), Dk = Math.max(S[1], 1), inv = 1 / (Dj * Dk);
+      const b2x = pos[3 * k] - pos[3 * j], b2y = pos[3 * k + 1] - pos[3 * j + 1], b2z = pos[3 * k + 2] - pos[3 * j + 2];
+      const L2 = b2x * b2x + b2y * b2y + b2z * b2z;
+      let sum = 0;
+      for (let u = 0; u < nb.a[0].length; u++) {
+        const i = nb.a[0][u], fji = nb.f[0][u];
+        const b1x = pos[3 * j] - pos[3 * i], b1y = pos[3 * j + 1] - pos[3 * i + 1], b1z = pos[3 * j + 2] - pos[3 * i + 2];
+        const L1 = b1x * b1x + b1y * b1y + b1z * b1z;
+        for (let w = 0; w < nb.a[1].length; w++) {
+          const l = nb.a[1][w]; if (l === i) continue;
+          const fkl = nb.f[1][w];
+          const b3x = pos[3 * l] - pos[3 * k], b3y = pos[3 * l + 1] - pos[3 * k + 1], b3z = pos[3 * l + 2] - pos[3 * k + 2];
+          const L3 = b3x * b3x + b3y * b3y + b3z * b3z;
+          const cx = b2y * b3z - b2z * b3y, cy = b2z * b3x - b2x * b3z, cz = b2x * b3y - b2y * b3x;
+          const T = b1x * cx + b1y * cy + b1z * cz, den = 1 / (L1 * L2 * L3), g = T * T * den;
+          sum += fji * fkl * g; nb.s[0][u] += fkl * g; nb.s[1][w] += fji * g;
+          const A = Cv * fji * fkl * inv, h = 2 * T * den;
+          const d1x = A * (h * cx - 2 * g * b1x / L1), d1y = A * (h * cy - 2 * g * b1y / L1), d1z = A * (h * cz - 2 * g * b1z / L1);
+          const d2x = A * (h * (b3y * b1z - b3z * b1y) - 2 * g * b2x / L2), d2y = A * (h * (b3z * b1x - b3x * b1z) - 2 * g * b2y / L2), d2z = A * (h * (b3x * b1y - b3y * b1x) - 2 * g * b2z / L2);
+          const d3x = A * (h * (b1y * b2z - b1z * b2y) - 2 * g * b3x / L3), d3y = A * (h * (b1z * b2x - b1x * b2z) - 2 * g * b3y / L3), d3z = A * (h * (b1x * b2y - b1y * b2x) - 2 * g * b3z / L3);
+          F[3 * i] += d1x; F[3 * i + 1] += d1y; F[3 * i + 2] += d1z;
+          F[3 * j] -= d1x - d2x; F[3 * j + 1] -= d1y - d2y; F[3 * j + 2] -= d1z - d2z;
+          F[3 * k] -= d2x - d3x; F[3 * k + 1] -= d2y - d3y; F[3 * k + 2] -= d2z - d3z;
+          F[3 * l] -= d3x; F[3 * l + 1] -= d3y; F[3 * l + 2] -= d3z;
+        }
+      }
+      const G = sum * inv;
+      E += Cv * G;
+      if (pFp[p] !== 0) pairForce(p, V * hS[0] * hS[1] * G * pFp[p]);
+      for (let side = 0; side < 2; side++) {
+        const own = side ? Dk : Dj, over = S[side] > 1 ? G / own : 0, sw = V * fjk * G * hS[1 - side] * dhS[side];
+        for (let u = 0; u < nb.a[side].length; u++) {
+          const fp = nb.fp[side][u]; if (fp === 0) continue;
+          pairForce(nb.q[side][u], (Cv * (nb.s[side][u] * inv - over) + sw) * fp);
+        }
+      }
     }
     return E;
   }
