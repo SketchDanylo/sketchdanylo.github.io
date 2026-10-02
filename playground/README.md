@@ -399,3 +399,32 @@ tetrahedral network that makes ice is never strongly preferred. Water models tha
 (TIP4P/Ice, TIP5P) add off-atom charge sites for exactly this reason. A small cluster also melts far below
 bulk ice in reality, so part of the gap is finite size. See
 [water models including TIP4P/Ice](https://docs.lammps.org/stable/Howto_tip4p.html).
+
+### Over-coordination — open
+
+`node playground/tests/overcoordination.cjs` pushes an H onto the back of CH₄. Real CH₅ does not exist,
+but here it is bound by about 118 kJ/mol behind a 205 kJ/mol hump, and five-coordinate carbon from
+CH₃ + CH₄ by about 84. Hot hydrocarbons find these wells: cyclohexene at 1200 K tears open within
+0.1–0.5 ps instead of surviving.
+
+The cause is a mismatch between two curves. A C–H stretched by 0.3 Å still collects about 81 % of its
+Morse attraction, but `satF` counts it as only 0.68 of a used valence. The stretched hydrogens then look
+open-shell, and they bond to each other: in the CH₅ well the H–H Morse terms alone gain 171 kJ/mol.
+
+What was tried, so it is not repeated:
+
+- `kb = 1.0` (valence use decays like the attraction) closes both wells but roughly doubles every
+  transfer barrier, because `c1`, `c4` and `kb` were fitted together.
+- A joint refit of `kb`, `c1`, `c4`, `cap`, `mu`, `kbo`, `k` and `oo3e` against the nine barriers,
+  seven atomization energies, the methane dimer and both wells reaches CH₅ +208 and keeps hot
+  cyclohexene intact for 5–10 ps. But every fit that does so needs `c1` ≈ 0.14, which makes a small
+  excess on hydrogen almost free: CH₂ + H₂ then stalls as a CH₂·H₂ complex (`insertion.cjs` fails) and
+  H₂ dissociates among noble gases at 3000 K (`conditions.cjs` fails). With `c1` held at 0.6, closing
+  the wells needs `cap` ≥ 0.19, and the barriers rise past 75 kJ/mol.
+- Screening the Morse attraction between atoms that share a bonded neighbour removes the H–H part,
+  but the minimiser finds the next well (an H capping three stretched hydrogens), and hot cyclohexene
+  still tears within 0.5 ps.
+
+A fix probably needs valence use to follow the attraction a bond still provides, with the barriers
+recovered by a term that acts only on shared, three-centre geometries, not by flattening the
+saturation curve.

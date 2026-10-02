@@ -18,7 +18,7 @@ const TPL = {
   Na: [['Na', 0, 0, 0]], Ar: [['Ar', 0, 0, 0]], He: [['He', 0, 0, 0]], H: [['H', 0, 0, 0]], F: [['F', 0, 0, 0]],
 };
 const ORD = { O2: [[0, 1, 2]], N2: [[0, 1, 3]], C2H4: [[0, 1, 2]] };
-const VAL = { H: 1, C: 4, N: 3, O: 2, F: 1, Cl: 1, Na: 6, Ar: 0, He: 0 };   // Na bonds ionically: Na2Cl2 is a real ring
+const VAL = { H: 1, C: 4, N: 3, O: 2, F: 1, Cl: 1, Na: 6, Ar: 0, He: 0 };   // Na bonds ionically: Na2Cl2 is a real ring, and a halide bridging two Na⁺ is not over its covalent valence
 function run(mix, T, ps, seed, L = 40) {
   const e = new Engine({ width: L, height: L, depth: L, T, seed, thermostatMode: 'kelvin' });
   let s = seed * 7919 + 17; const rng = () => (s = (s * 16807) % 2147483647) / 2147483647;
@@ -35,7 +35,8 @@ function run(mix, T, ps, seed, L = 40) {
   }
   e.touch(); e.refresh(); e.minimize(300, 1); e.refresh(); e.thermalize(T);
   for (let i = 0; i < ps * 1000; i++) e.step();
-  const n = new Float64Array(e.N); for (const b of e.bonds()) { n[b.i] += b.order; n[b.j] += b.order; }
+  const n = new Float64Array(e.N), sym = k => e.formulaOf([k]), ionic = (a, b) => sym(a) === 'Na' && sym(b) !== 'Na';
+  for (const b of e.bonds()) { if (!ionic(b.j, b.i)) n[b.i] += b.order; if (!ionic(b.i, b.j)) n[b.j] += b.order; }
   const over = []; for (let k = 0; k < e.N; k++) { const el = e.formulaOf([k]); if (n[k] > VAL[el] + 0.6) over.push(el + k); }
   const c = {}; for (const f of e.fragments().list) { const k = e.formulaOf(f); c[k] = (c[k] || 0) + 1; }
   return { c, over };
