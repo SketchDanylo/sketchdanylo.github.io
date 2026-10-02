@@ -53,4 +53,10 @@ test('Butadiene sits unreacted at room temperature: no radicals, no lost hydroge
   for (const f of frags) { assert.equal(e.formulaOf(f), 'C4H6'); assert.equal(e.isRadical(f), false); }
 });
 
+test('Allyl is a radical even though its unpaired electron is shared half and half between the ends', () => {
+  const e = relaxed([['C', -1.25, -.4, 0], ['C', 0, .3, 0], ['C', 1.25, -.4, 0], ['H', -2.15, .2, 0], ['H', -1.3, -1.48, 0], ['H', 0, 1.38, 0], ['H', 2.15, .2, 0], ['H', 1.3, -1.48, 0]]);
+  assert.ok(Math.abs(order(e, 0, 1) - order(e, 1, 2)) < 0.01, 'allyl should stay symmetric');
+  assert.equal(e.isRadical([...Array(e.N).keys()]), true);
+});
+
 console.log(count + ' conjugation checks passed.');

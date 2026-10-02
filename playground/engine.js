@@ -2376,8 +2376,9 @@ class Engine {
       }
       this._boStamp = this.stepCount + ':' + this.N + ':' + this.Epot;
     }
-    for (const i of indices) if (this.val[i] - this._boSum[i] > 0.5) return true;
-    return false;
+    let total = 0;
+    for (const i of indices) { const free = this.val[i] - this._boSum[i]; if (free > 0.5) return true; if (free > 0) total += free; }
+    return total >= 0.75;
   }
 
   /* ---------- state, history ---------- */
