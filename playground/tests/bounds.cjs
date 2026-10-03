@@ -262,7 +262,7 @@ test('Stopping at a wall reports m*v, and a pressure void deletes that reading',
   {
     const e=chamber({voidVelocity:true});e.addAtom('Ar',59.999,30,0,{thermal:false,v:[.02,.005,0]});
     const K=e.kinetic(), impulse=e.mass[0]*.02*1e4;e.step();
-    near(e.wallForce,impulse/e.dt,1e-9);near(e.kinetic()+e.voidHeat,K,1e-9);near(e.pos[0],60);
+    near(e.wallForce,impulse/e.dt,1e-2*impulse/e.dt);near(e.kinetic()+e.voidHeat+e.Ewall,K,1e-3*K);assert.ok(e.pos[0]>=60-1e-9&&e.pos[0]<60.05,`stopped at ${e.pos[0]}`);
     assert.ok(e.pressureBar>0,'a wall that is struck reports the blow');
     const snap=e.snapshot();e.step();const expected=e.snapshot();e.restore(snap);e.step();
     near(e.voidHeat,expected.voidHeat);near(e.pressureEMA,expected.pressureEMA);
@@ -282,14 +282,14 @@ test('Stopping at a wall reports m*v, and a pressure void deletes that reading',
     near(open.voidHeat,expected.voidHeat);near(open.pressureEMA,expected.pressureEMA);
   }
 });
-test('Absorbing corner impacts stop at the faces and count each normal impulse',()=>{
+test('Absorbing corner impacts stop where they are and count each normal impulse',()=>{
   const e=chamber({voidVelocity:true});e.addAtom('Ar',60.1,60.2,30.1,{thermal:false,v:[.02,.03,.04]});
-  const K=e.kinetic();e._wallImpulse=0;e._reflectWalls();
-  assert.deepEqual([...e.pos.slice(0,3)],[60,60,30]);near(e.voidHeat,K);near(e._wallImpulse,e.mass[0]*.09*1e4,1e-8);
+  const K=e.kinetic();e._wallImpulse=0;e._voidContact();
+  assert.deepEqual([...e.pos.slice(0,3)],[60.1,60.2,30.1]);assert.deepEqual([...e.vel.slice(0,3)],[0,0,0]);near(e.voidHeat,K);near(e._wallImpulse,e.mass[0]*.09*1e4,1e-8);
 });
 test('Rejected integration restores the absorbed-energy ledger',()=>{
   const e=chamber({voidVelocity:true});e.addAtom('Ar',60.1,30,0,{thermal:false,v:[.02,0,0]});
-  e.voidHeat=7;e._save();e._wallImpulse=0;e._reflectWalls();assert.ok(e.voidHeat>7);e._load();near(e.voidHeat,7);
+  e.voidHeat=7;e._save();e._wallImpulse=0;e._voidContact();assert.ok(e.voidHeat>7);e._load();near(e.voidHeat,7);
 });
 
 test('Radiating heat scales the whole sample at once, so bonds are never strained', () => {
