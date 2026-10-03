@@ -22,7 +22,8 @@ function isolate(src, atoms, place, T) {
   cx /= atoms.length; cy /= atoms.length; cz /= atoms.length;
   for (const i of atoms) {
     const p = at(i);
-    map.set(i, e.addAtom(ELEMENTS[src.type[i]].sym, p[0] - cx, p[1] - cy, p[2] - cz, { thermal: false, charge: src.formal[i], V: src.val[i] }));
+    const n = 3 * map.size, w = q => 0.03 * Math.sin(12.9898 * (n + q) + 4.1414);
+    map.set(i, e.addAtom(ELEMENTS[src.type[i]].sym, p[0] - cx + w(0), p[1] - cy + w(1), p[2] - cz + w(2), { thermal: false, charge: src.formal[i], V: src.val[i] }));
   }
   e.touch(); e.refresh();
   for (let p = 0; p < src.nPairs; p++) {

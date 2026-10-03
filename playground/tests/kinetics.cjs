@@ -17,11 +17,11 @@ function scene(parts, T = 298) {
 }
 const near = (x, want, tol, what) => assert.ok(Math.abs(x - want) <= tol, `${what}: ${x.toFixed(1)} kJ/mol, expected ${want} ± ${tol}`);
 
-test('H + H₂ goes over the barrier the force field was fitted to', () => {
+test('H + H₂ goes over a barrier close to the real one, 40 kJ/mol', () => {
   const e = scene([['H2', [0, 0, 0]], ['H', [geo('H2')[1][1] + 2.6, 0, 0]]], 0);
   const r = K.scanPair(e, 2, 1);
   assert.ok(r.ok);
-  near(r.Ea, 45, 6, 'H + H2 barrier');
+  near(r.Ea, 40, 6, 'H + H2 barrier');
   assert.deepEqual(r.products, ['H2', 'H·']);
 });
 
@@ -158,7 +158,7 @@ test('What happens next in Cl· + ethene + methane: the addition, by far, and ne
   assert.ok(sv.events[0].share > 0.8, 'share ' + sv.events[0].share);
   for (const x of sv.events) assert.notEqual(x.reactants.map(f => f.replace('·', '')).sort().join(), x.products.map(f => f.replace('·', '')).sort().join());
   const abstraction = sv.events.find(x => x.label === 'Cl· + CH4 → CH3· + HCl');
-  assert.ok(abstraction && abstraction.share < 0.01);
+  assert.ok(abstraction && abstraction.share < 0.05);
   const nx = K.pickNext(sv, 0.5, 0);
   assert.equal(nx.pick, sv.events[0]);
   assert.ok(Math.abs(nx.wait - Math.LN2 / sv.total) / nx.wait < 1e-9);

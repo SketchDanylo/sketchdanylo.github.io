@@ -404,7 +404,7 @@ touched). Several routes are tried and the lowest barrier kept:
 
 Each route is scanned both ways, reactants to products and back, and the lower energy at each point
 is kept: pulling one way only lets a bond hang on past the point where it should give way and snap later,
-which put OH + CH₄ at 96 kJ/mol where the live chamber (and reality) says about 15. A route that ends with
+which put OH + CH₄ at 96 kJ/mol (now 24; reality about 15). A route that ends with
 an atom holding more than half a bond over its valence (a hydrogen stuck between two partners) is not
 counted as a product.
 
@@ -414,25 +414,42 @@ hard-sphere collision rate × 0.1 times the partner's number density in the cham
 half-life now, a range (±10 kJ/mol on the barrier, ×/÷10 on A), a table from 200 to 2500 K, the energy
 along the path, and any slower routes found on the way.
 
-`tests/benchmark.cjs` scans 23 textbook reactions and bonds and prints the scorecard (barriers rms
-11 kJ/mol). Selected rows:
+`tests/benchmark.cjs` scans 39 textbook reactions and bonds and prints the scorecard: barriers rms
+12.5 kJ/mol over 23 reactions, bonds rms 33 kJ/mol over 16 (14 without the formyl outlier). Selected rows:
 
 | Reaction | Forecast | Real |
 | --- | --- | --- |
-| H + H₂ → H₂ + H | 43 | 40 (fitted 45) |
-| H + CH₄ → H₂ + CH₃ | 46 | 50 |
-| OH + CH₄ → H₂O + CH₃ | 17 | 15 |
-| Cl + CH₄ → HCl + CH₃ | 31 | 11 |
-| Cl + H₂ → HCl + H | 37 | 19 |
+| H + H₂ → H₂ + H | 38 | 40 |
+| H + CH₄ → H₂ + CH₃ | 42 | 50 |
+| OH + CH₄ → H₂O + CH₃ | 24 | 15 |
+| OH + H₂ → H₂O + H | 36 | 15 |
+| H + HCl → H₂ + Cl | 31 | 15 |
+| Cl + CH₄ → HCl + CH₃ | 28 | 11 |
+| Cl + H₂ → HCl + H | 34 | 19 |
+| F + H₂ → HF + H | 3 | 4 |
+| H + C₂H₆ → H₂ + C₂H₅ | 12 | 38 |
 | Cl + C₂H₄ → C₂H₄Cl | 11 | ≈ 0 |
-| CH₃ + C₂H₄ → C₃H₇ | 9 | 31 |
+| CH₃ + C₂H₄ → C₃H₇ | 10 | 31 |
 | CH₄ → CH₃ + H | 439 | 439 |
 | C₂H₆ → C₂H₅ + H | 382 | 423 |
-| C₂H₃–H (vinyl) | 462 | 465 |
-| C₆H₅–H (phenyl) | 472 | 473 |
+| CH₃–Cl | 357 | 350 |
+| HCO–H (formaldehyde) | 493 | 369 |
+
+The errors fall into three families, which is what a fit has to target:
+- a hydrogen passing to or from oxygen or chlorine (OH + H₂, H + H₂O, H + HCl, Cl + H₂, Cl + CH₄)
+  is 15–23 kJ/mol too high: the half-made O···H···H and Cl···H···C crossings cost too much;
+- anything that makes an ethyl radical is too easy because ethyl's C–H is 41 kJ/mol too weak (H +
+  C₂H₆ 26 too low, CH₃ + C₂H₄ 21 too low);
+- the formyl radical HCO· gets none of the stabilisation that makes formaldehyde's C–H so weak in
+  reality: oxygen's valence of 2 caps the C–O bond at a double bond, where in HCO· it strengthens
+  toward a triple. Aldehyde chemistry needs this before it can be forecast.
 
 Where the forecast and reality disagree, it is the force field's barrier that is wrong, and the
-forecast shows it. Its H + H₂ rate at 1500 K, 1.3×10⁻¹² cm³/s, matches the measured 1.4×10⁻¹².
+forecast shows it. Its H + H₂ rate at 1500 K is 2.5×10⁻¹² cm³/s against a measured 1.4×10⁻¹².
+
+Every scan starts from a copy whose atoms are nudged by up to 0.03 Å. A perfectly symmetric start
+(three atoms on one line) used to stay symmetric through every relaxation: water formed by OH + H₂ in
+a line stayed linear, 136 kJ/mol above bent water, and the barrier read 69 instead of 36.
 
 **Skip the wait** (on the forecast card): the clock jumps by a waiting time drawn at random from the
 forecast rate, the molecules are placed at the first point clearly past the top of the barrier with a
@@ -465,8 +482,9 @@ reverse CH₃· + HCl → CH₄ + Cl· in between; 30 reactions and 323 µs of c
 It also produced CH₄Cl and CH₃Cl₂ complexes, which are the force field's over-coordination wells
 (above), not chemistry.
 
-In Cl· + ethene + methane at 298 K it gives the addition to the double bond 99.6% (half-life about
-14 ns) and methane's hydrogen 0.4%; taking ethene's own hydrogen needs 46 kJ/mol. (Before the σ-radical
+In Cl· + ethene + methane at 298 K it gives the addition to the double bond 98% and methane's
+hydrogen 1.8% (in reality about 99.9% and 0.1%: the model gives the addition a 10 kJ/mol barrier it
+does not have); taking ethene's own hydrogen needs 42 kJ/mol. (Before the σ-radical
 term, a vinyl C–H 50 kJ/mol too weak made that abstraction look downhill and it came out first.) in a 600 K mixture of H·, CH₃·, ethene and methane,
 H· + ethene 72%, CH₃· + H· 26%, CH₃· + ethene 1%. Two methanes at room temperature: nothing on any
 human timescale.

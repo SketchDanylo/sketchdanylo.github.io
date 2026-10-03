@@ -29,22 +29,29 @@ temperature. The forecast tool now shows where the force field is wrong:
 | | model | real |
 | --- | --- | --- |
 | ethane C–H | 382 | 423 |
-| Cl + CH₄ barrier | 31 | 11 |
-| Cl + H₂ barrier | 37 | 19 |
-| CH₃ + C₂H₄ barrier | 9 | 31 |
-| H + C₂H₄ barrier | 0 | 9 |
+| formaldehyde C–H (formyl radical) | 493 | 369 |
+| OH + H₂ barrier | 36 | 15 |
+| H + HCl barrier | 31 | 15 |
+| Cl + CH₄ barrier | 28 | 11 |
+| Cl + H₂ barrier | 34 | 19 |
+| H + C₂H₆ barrier | 12 | 38 |
+| CH₃ + C₂H₄ barrier | 10 | 31 |
+| Cl + C₂H₄ barrier | 11 | 0 |
 | O₃, NO bond energies | 32%, 12% low | |
 
 Fixed on the way: vinyl C–H (412 → 462, real 465), acetylene C–H (421 → 556, real 556) and phenyl C–H
 (351 → 472, real 473), by giving σ radicals and bent π bonds the cost they have in reality. The barrier
-scans themselves were also corrected (two-way scans): OH + CH₄ was 96, now 17 (real 15).
+scans themselves were also corrected: two-way scans (OH + CH₄ was 96, now 24, real 15) and a small
+nudge so a symmetric start cannot stay trapped on a line (OH + H₂ was 69, now 36, real 15).
 
 What to do:
-- `tests/benchmark.cjs` is the start of the benchmark: 23 reactions and bonds, about 25 s. Grow it to
-  40–60 (NIST kinetics database, standard compilations).
+- `tests/benchmark.cjs` is the benchmark: 39 reactions and bonds (barriers rms 12.5 kJ/mol), about a
+  minute. Grow it to 60 or more (NIST kinetics database, standard compilations).
 - Fit the force field against that table automatically, rather than tuning one reaction at a time.
-- What remains is mostly the thermochemistry fit itself (ethyl radical 33 kJ/mol too stable, so every
-  C–H next to another carbon is too weak) and hydrogen abstraction by heavier radicals (Cl, about +20).
+- The errors fall into three families: hydrogen passing to or from O or Cl is 15–23 kJ/mol too high
+  (the half-made crossings cost too much); every C–H next to another carbon is too weak (ethyl radical
+  too stable), which makes H + C₂H₆ and CH₃ + C₂H₄ too easy; and the formyl radical lacks the C–O
+  strengthening that makes aldehyde C–H weak (oxygen's valence caps C–O at a double bond).
 
 ### 2. The live simulation and the forecast must agree
 
