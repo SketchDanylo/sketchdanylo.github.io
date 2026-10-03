@@ -1398,6 +1398,15 @@ class Engine {
         for (let x = start[c]; x < start[c + 1]; x++) {
           const q = list[x]; if (q === p) continue;
           const k = pI[q] === c ? pJ[q] : pI[q]; if (k === n) continue;
+          if (M13[q] <= 0) continue;
+          const du = (mM[q] - mM[p]) / ANG_DM + ANG_DU;
+          if (du <= 0) continue;
+          let D = 1, dD = 0;
+          if (du < 1) { D = du * du * (3 - 2 * du); dD = 6 * du * (1 - du) / ANG_DM; }
+          const Gq = g[q] * D * M13[q];
+          if (Gq <= 0) continue;
+          const Om = 1 - (1 - Q[n]) * (1 - Q[c]);
+          if (Om <= 0) continue;
           angWindow(ux * AU[3 * x] + uy * AU[3 * x + 1] + uz * AU[3 * x + 2]); const H = AH, dH = AHD;
           if (H <= 0) continue;
           piGeo(pR[q], PAIR[type[pI[q]] * NT + type[pJ[q]]]);
@@ -1409,12 +1418,6 @@ class Engine {
           let q2 = -1;
           if (pF[p] !== 0 || this.pFp[p] !== 0) for (let y = cStart[n]; y < cStart[n + 1]; y++) { const t = cList[y]; if ((pI[t] === n ? pJ[t] : pI[t]) === k) { q2 = t; break; } }
           const mnk = q2 < 0 ? 1 : 1 - pF[p] * pF[q2];
-          const Om = 1 - (1 - Q[n]) * (1 - Q[c]);
-          const du = (mM[q] - mM[p]) / ANG_DM + ANG_DU;
-          let D = 1, dD = 0;
-          if (du <= 0) continue; else if (du < 1) { D = du * du * (3 - 2 * du); dD = 6 * du * (1 - du) / ANG_DM; }
-          const Gq = g[q] * D * M13[q];
-          if (Gq <= 0) continue;
           const w = Gq * S * H * mnk * xn * xc * xk * Om;
           if (w <= 0) continue;
           A[p] *= 1 - w;
