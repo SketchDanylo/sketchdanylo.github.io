@@ -96,12 +96,12 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261003-build53', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants) => skipToEvent(ev, wait, ids, what, reactants), pause: () => setPlaying(false) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261003-build54', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants) => skipToEvent(ev, wait, ids, what, reactants), pause: () => setPlaying(false) });
 function skipToEvent(ev, wait, sceneIds, what, reactants) {
   if (!ev) return;
   const idx = ev.atoms.map(k => eng.indexOfId(sceneIds[k]));
-  if (idx.some(i => i < 0)) { toast('Those atoms are gone · forecast again'); return; }
-  if (reactants && !ChemKinetics.stillThere(eng, ev, idx, reactants)) { toast('Those molecules have already changed · forecast again'); return; }
+  if (idx.some(i => i < 0)) { toast('Those atoms are gone · forecast again'); return false; }
+  if (reactants && !ChemKinetics.stillThere(eng, ev, idx, reactants)) { toast('Those molecules have already changed · forecast again'); return false; }
   pushUndo();
   ChemKinetics.applyEvent(eng, ev, idx);
   eng.skipped += wait;
@@ -109,6 +109,7 @@ function skipToEvent(ev, wait, sceneIds, what, reactants) {
   scheduleSave();
   toast('Skipped ' + ChemKinetics.humanTime(wait) + ' · ' + what);
   if (!time.playing) setPlaying(true);
+  return true;
 }
 const inspector = new AtomInspector({ engine: eng, pause: () => { if(consoleIsOpen())closeConsole();closePop();setPlaying(false); }, focus: () => canvas.focus(),
   screenOf: i => R.toScreen(rp[3 * i], rp[3 * i + 1]),

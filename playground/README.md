@@ -439,6 +439,14 @@ real flask would (kinetic Monte Carlo), and plays it in the live simulation; ask
 Reactions that only swap identical partners are left out of the list. If the molecules a forecast was
 made for have changed by the time you skip, it refuses and asks for a new forecast.
 
+**Keep going on its own** (a switch on that card) repeats this: skip to the next reaction, watch it for
+3 ps, search again, until nothing more can happen on a human timescale or the card is closed, with a log
+of what happened and when. One Cl· in a chamber of three CH₄ and three Cl₂ at 298 K ran the textbook chain
+by itself: Cl· + CH₄ → CH₃· + HCl, CH₃· + Cl₂ → CH₃Cl + Cl·, then CH₃Cl → CH₂Cl· → CH₂Cl₂, with the
+reverse CH₃· + HCl → CH₄ + Cl· in between; 30 reactions and 323 µs of chemistry in about six minutes.
+It also produced CH₄Cl and CH₃Cl₂ complexes, which are the force field's over-coordination wells
+(above), not chemistry.
+
 In Cl· + ethene + methane at 298 K it gives the addition to the double bond 98% (half-life about 14 ns),
 taking ethene's hydrogen 2% and methane's 0.05%; in a 600 K mixture of H·, CH₃·, ethene and methane,
 H· + ethene 72%, CH₃· + H· 26%, CH₃· + ethene 1%. Two methanes at room temperature: nothing on any
@@ -466,8 +474,7 @@ The forecast measures the model's energy surface; the live chamber moves on it. 
 ### What it does not do yet
 
 - The search takes 10–60 s for a handful of molecules and is capped at 24 candidates, so a crowded
-  chamber is only partly searched (the card says how many were left out). It does not run on by itself
-  from one reaction to the next yet.
+  chamber is only partly searched (the card says how many were left out).
 - Two closed-shell molecules reacting through their π systems (Diels–Alder, ene), and rearrangements
   inside one molecule, are not searched; the hourglass can still be pointed at them.
 - Solution chemistry: ions, proton transfer and solvent are not in the engine, so most textbook

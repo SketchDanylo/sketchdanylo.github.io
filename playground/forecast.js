@@ -99,6 +99,7 @@ class ForecastCard {
     if (!eng.N) return;
     if (eng.needRebuild || eng.needForces) eng.refresh();
     const key = ++this.req; this.ids = [];
+    if (!this.auto) this.log = [];
     this.actions.pause?.();
     const scene = eng.toJSON(), ids = Array.from(eng.ids.subarray(0, eng.N)), T = scene.T || 298;
     const { list, dropped } = Kn.candidates(eng);
@@ -106,9 +107,9 @@ class ForecastCard {
     const total = list.length + Math.min(Kn.REFINE, list.length);
     let done = 0;
     const bar = () => '<div class="fc-bar"><i style="width:' + (100 * done / total).toFixed(0) + '%"></i></div><p class="fc-note">Forecasting ' + list.length + ' possible reaction' + (list.length > 1 ? 's' : '') + ' in this chamber at ' + Math.round(T) + ' K, ' + this.pool().length + ' at a time. The simulation is paused until you choose.</p>';
-    this.show('What happens next?', bar());
+    this.show(this.auto ? 'Keeping going…' : 'What happens next?', bar() + this.logHtml());
     this.panel.style.left = Math.max(12, innerWidth - (this.panel.offsetWidth || 330) - 24) + 'px'; this.panel.style.top = '76px';
-    const job = (c, quick) => this.dispatch({ type: 'scan', key: 'sv' + key, scene, c, T, quick }).then(r => { done++; if (key === this.req) this.el('fcBody').innerHTML = bar(); return r && r.ok === false ? null : r; });
+    const job = (c, quick) => this.dispatch({ type: 'scan', key: 'sv' + key, scene, c, T, quick }).then(r => { done++; if (key === this.req) this.el('fcBody').innerHTML = bar() + this.logHtml(); return r && r.ok === false ? null : r; });
     const quick = await Promise.all(list.map(c => job(c, true)));
     if (key !== this.req) return;
     const order = quick.map((r, n) => ({ r, n })).filter(x => x.r).sort((a, b) => a.r.Ea - b.r.Ea).slice(0, Kn.REFINE);
@@ -117,18 +118,58 @@ class ForecastCard {
     order.forEach((x, m) => { if (refined[m]) quick[x.n] = refined[m]; });
     this.renderSurvey(Kn.combine(quick, T), ids, dropped);
   }
+  logHtml() {
+    if (!this.log || !this.log.length) return '';
+    const H = K().humanTime;
+    return '<p class="fc-sub">So far</p><ol class="fc-log">' + this.log.slice(-8).map(x => '<li><span class="m">+' + esc(H(x.wait)) + '</span> ' + esc(x.label) + '</li>').join('') + '</ol>';
+  }
+  go(sv, ids) {
+    const side = list => list.map(this.actions.pretty || (x => x)).join(' + ');
+    const nx = K().pickNext(sv);
+    if (!nx) return false;
+    const label = side(nx.pick.reactants) + ' → ' + side(nx.pick.products);
+    const ok = this.actions.skip?.(nx.pick.event, nx.wait, ids, label, nx.pick.reactants);
+    if (ok === false) return false;
+    (this.log = this.log || []).push({ wait: nx.wait, label });
+    return true;
+  }
+  showWatching() {
+    const n = this.log.length;
+    this.show('Keeping going · ' + n + ' reaction' + (n > 1 ? 's' : ''), '<p class="fc-note" id="fcWatch">Watching the reaction</p><label class="fc-auto"><input type="checkbox" id="fcAuto" checked> Keep going on its own</label>' + this.logHtml());
+    this.el('fcAuto').onchange = ev => { this.auto = ev.target.checked; if (!this.auto) clearInterval(this.timer); };
+    this.watchThenNext();
+  }
+  watchThenNext() {
+    const eng = this.actions.engine, t0 = eng.time, key = this.req, span = 3000;
+    clearInterval(this.timer);
+    this.timer = setInterval(() => {
+      if (!this.auto || key !== this.req) { clearInterval(this.timer); return; }
+      const left = Math.max(0, t0 + span - eng.time);
+      const el = this.el('fcWatch'); if (el) el.textContent = (left / 1000).toFixed(1) + ' ps of the reaction left to watch before the next search';
+      if (left <= 0) { clearInterval(this.timer); this.next(); }
+    }, 200);
+  }
   renderSurvey(sv, ids, dropped) {
     const H = K().humanTime, pretty = this.actions.pretty || (x => x), side = list => list.map(pretty).join(' + ');
     const wait = sv.total > 0 ? Math.LN2 / sv.total : Infinity, never = !isFinite(wait) || wait > 3.15e16;
+    if (this.auto && !never && sv.events.length) {
+      if (this.go(sv, ids)) { this.showWatching(); return; }
+      this.auto = false;
+    }
+    if (this.auto && never) this.auto = false;
     const rows = sv.events.slice(0, 6).map(x => '<tr><td>' + esc(side(x.reactants)) + ' → ' + esc(side(x.products)) + '</td><td>' + (x.share >= 0.001 ? (100 * x.share).toFixed(x.share > 0.1 ? 0 : 1) + '%' : '<0.1%') + '</td></tr>').join('');
     const body = `<div class="fc-big"><b>${never ? 'Nothing on any human timescale' : 'Next reaction in about ' + esc(H(wait))}</b><span>${never ? 'the fastest step found would take ' + esc(H(sv.events[0] ? sv.events[0].halfLife : Infinity)) : 'half-life of the whole chamber at ' + Math.round(sv.T) + ' K'}</span></div>
-      ${never || !sv.events.length ? '' : '<button class="fc-skip" id="fcNext">Skip to it · watch it happen</button><p class="fc-skipnote">Which reaction comes first, and when, is drawn at random from these rates, the way it would be in a real flask. Each reaction you skip to plays out in the live simulation.</p>'}
+      ${never || !sv.events.length ? '' : '<button class="fc-skip" id="fcNext">Skip to it · watch it happen</button><label class="fc-auto"><input type="checkbox" id="fcAuto"> Keep going on its own</label><p class="fc-skipnote">Which reaction comes first, and when, is drawn at random from these rates, the way it would be in a real flask. Each reaction you skip to plays out in the live simulation; kept going, it watches each for 3 ps and then looks for the next.</p>'}
+      ${this.logHtml()}
       <table class="fc-table fc-list"><thead><tr><th>Possible reaction</th><th>Chance next</th></tr></thead><tbody>${rows}</tbody></table>
       ${dropped ? '<p class="fc-note">' + dropped + ' more candidates were not checked.</p>' : ''}
       <details class="quantum-notes"><summary>What is searched</summary><p>A radical meeting any atom of another molecule, a π bond meeting the hydrogens of another molecule, and every distinct bond coming apart. Each is forecast as with the hourglass tool, counted as often as it occurs in the chamber, and its share is its rate over the total.</p><p>Not yet searched: two closed-shell molecules reacting with each other through their π systems (Diels–Alder, ene reactions), rearrangements inside one molecule, and anything ionic.</p></details>`;
     this.show('What happens next at ' + Math.round(sv.T) + ' K', body);
-    const b = this.el('fcNext');
-    if (b) b.onclick = () => { const nx = K().pickNext(sv); this.close(); if (nx) this.actions.skip?.(nx.pick.event, nx.wait, ids, side(nx.pick.reactants) + ' → ' + side(nx.pick.products), nx.pick.reactants); };
+    const b = this.el('fcNext'), auto = this.el('fcAuto');
+    if (b) b.onclick = () => {
+      if (auto && auto.checked) { this.auto = true; this.log = []; if (this.go(sv, ids)) this.showWatching(); return; }
+      this.close(); this.go(sv, ids);
+    };
   }
   profile(path, Ea) {
     if (!path || path.length < 2) return '';
@@ -146,7 +187,7 @@ class ForecastCard {
     p.style.left = x + 'px'; p.style.top = y + 'px';
   }
   close() {
-    this.req++; this.ids = [];
+    this.req++; this.ids = []; this.auto = false; clearInterval(this.timer);
     this.panel.classList.remove('open'); this.panel.inert = true;
     this.actions.focus?.();
   }

@@ -16,7 +16,8 @@ organic chemistry from, and loose enough to experiment in.
 - **Skipping.** The clock can jump by a waiting time drawn from that rate; the reaction then plays out
   live from just past its barrier.
 - **What happens next.** The chamber can be searched for every reaction it could undergo, ranked by
-  chance, and skipped to the next one, one event at a time (kinetic Monte Carlo).
+  chance, and skipped to the next one (kinetic Monte Carlo), once or over and over on its own. Radical
+  chlorination of methane runs as a chain this way: 30 steps, 323 µs of chemistry, six minutes.
 
 ## What still has to happen, most important first
 
@@ -75,7 +76,8 @@ Without this, the forecast and fast-forward will work well for radical and gas-p
 
 ### 4. A complete kinetics engine
 
-- Run on by itself: after each skipped reaction, survey again and keep going, with a timeline of events.
+- Running on by itself works one survey at a time (10–60 s each); reusing forecasts for situations it
+  has already seen would make long runs much faster.
 - Search reactions between two closed-shell molecules (Diels–Alder, ene, [2+2]) and rearrangements
   inside one molecule.
 - Replace the fixed prefactors with ones calculated from vibrational frequencies at the barrier and in
