@@ -68,7 +68,7 @@ function updateLab() {
   $('bathBtn').setAttribute('aria-pressed', eng.thermostat);
   $('physicsNotice').hidden = !eng.clamped;
   $('physicsNotice').textContent = eng.clamped ? eng.clamped + ' safety speed clamps · energy affected' : '';
-  const hint = placing ? 'Click to place · Q/E rotate · right-click for the hand' : armed ? armed + ' selected · click to place · right-click for the hand' : tool === 'heat' ? 'Drag to heat · Shift-drag to cool' : tool === 'spark' ? 'Click to ignite · a stable mixture needs a starter' : tool === 'cleave' ? 'Click a bond to split it' : tool === 'erase' ? 'Click an atom to erase · Alt: molecule' : viewTilted() ? 'Turning · release to face the chamber again' : '';
+  const hint = placing ? 'Click to place · Q/E rotate · right-click for the hand' : armed ? armed + ' selected · click to place · right-click for the hand' : tool === 'heat' ? 'Drag to heat · Shift-drag to cool' : tool === 'spark' ? 'Click to ignite · a stable mixture needs a starter' : tool === 'cleave' ? 'Click a bond to split it' : tool === 'forecast' ? (forecastCard.ids.length === 1 ? 'Now click the second atom' : 'Click two atoms · when would they react?') : tool === 'erase' ? 'Click an atom to erase · Alt: molecule' : viewTilted() ? 'Turning · release to face the chamber again' : '';
   const ctx = $('toolContext');
   if (ctx.textContent !== hint) {
     ctx.textContent = hint; ctx.classList.toggle('show',!!hint);
@@ -96,6 +96,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261003-build51', focus: () => canvas.focus() });
 const inspector = new AtomInspector({ engine: eng, pause: () => { if(consoleIsOpen())closeConsole();closePop();setPlaying(false); }, focus: () => canvas.focus(),
   screenOf: i => R.toScreen(rp[3 * i], rp[3 * i + 1]),
   remove: id => {
@@ -568,13 +569,15 @@ const TOOL_ICONS = {
   erase: '<svg viewBox="0 0 20 20"><path d="M8.2 16.5h8.3M3.9 12.3l7.4-7.6a1.6 1.6 0 012.3 0l2.2 2.2a1.6 1.6 0 010 2.3l-6.9 7.3H7.6z"/><path d="M7.4 8.8l4.3 4.3"/></svg>',
   heat: '<svg viewBox="0 0 20 20"><path d="M10 17.5c-3 0-5-2.1-5-4.8 0-3.3 3.2-4.5 3.2-8.2 2.9 1.4 4 3.6 3.6 6 1-.4 1.6-1.4 1.8-2.4 1.3 1.4 1.4 3 1.4 4.6 0 2.7-2 4.8-5 4.8z"/></svg>',
   spark: '<svg viewBox="0 0 20 20"><path d="M11.2 2.5L5 11h4l-.8 6.5L15 9h-4z"/><path d="M3.2 4.2l1.6 1.4M16.8 4.2l-1.6 1.4M2.6 14.8l1.9-.7M17.4 14.8l-1.9-.7"/></svg>',
-  cleave: '<svg viewBox="0 0 20 20"><circle cx="4.6" cy="15.4" r="2.3"/><circle cx="15.4" cy="4.6" r="2.3"/><path d="M6.4 13.6l2.2-2.2M11.4 8.6l2.2-2.2M7.4 6.8l5.8 6.4"/></svg>'
+  cleave: '<svg viewBox="0 0 20 20"><circle cx="4.6" cy="15.4" r="2.3"/><circle cx="15.4" cy="4.6" r="2.3"/><path d="M6.4 13.6l2.2-2.2M11.4 8.6l2.2-2.2M7.4 6.8l5.8 6.4"/></svg>',
+  forecast: '<svg viewBox="0 0 20 20"><path d="M5.5 2.8h9M5.5 17.2h9M6.5 2.8c0 4 3.5 5 3.5 7.2S6.5 13.2 6.5 17.2M13.5 2.8c0 4-3.5 5-3.5 7.2s3.5 3.2 3.5 7.2"/><path d="M8.2 15.6h3.6"/></svg>'
 };
 const TOOLS = [['grab', 'Grab & pan', 'Drag atoms (pulls while running, moves the molecule while paused). Drag empty space to pan. Shift-drag to select.'],
   ['erase', 'Erase', 'Click or drag over atoms to remove them. Alt removes whole molecules.'],
   ['heat', 'Heat brush', 'Drag to heat atoms under the brush; Shift or right-drag cools. Alt+scroll resizes.'],
   ['spark', 'Spark', 'Click to ignite. A stable mixture needs a starter, the same as it does on a bench: this breaks a bond where you click and lets the radicals begin the chain.'],
-  ['cleave', 'Break bond', 'Click a bond to split it into two radicals, the way light breaks one on a bench: it gets just enough energy to come apart, and what the two halves do next is chemistry.']];
+  ['cleave', 'Break bond', 'Click a bond to split it into two radicals, the way light breaks one on a bench: it gets just enough energy to come apart, and what the two halves do next is chemistry.'],
+  ['forecast', 'Forecast', 'Click two atoms to ask whether they react and how long it would take at this temperature: seconds, hours or never. Two bonded atoms ask when their bond breaks.']];
 let tool = 'grab', armed = null; // armed element symbol for placing
 const dockEls = [store.get('lastElement', 'H')].filter(s=>BY_SYM[s]);
 if(!dockEls.length)dockEls.push('H');
@@ -818,6 +821,7 @@ canvas.addEventListener('pointerdown', e => {
   }
   if (tool === 'spark') { ignite(wx, wy); gesture = { type: 'spark' }; return; }
   if (tool === 'cleave') { cleave(wx, wy); gesture = { type: 'cleave' }; return; }
+  if (tool === 'forecast') { if (hit >= 0) forecastCard.choose(hit); else forecastCard.close(); return; }
   if (tool === 'erase') { pushUndo(); gesture = { type: 'erase', alt: e.altKey }; eraseAt(wx, wy, e.altKey); return; }
   if (tool === 'heat') { brush.active = true; brush.cool = e.shiftKey; gesture = { type: 'brush' }; return; }
   const edge = boxEdgeAt(e.clientX, e.clientY);
@@ -1341,7 +1345,8 @@ act('tool.grab', 'Tools', 'Grab & pan', ['V'], () => setTool('grab'));
 act('tool.erase', 'Tools', 'Erase', ['X'], () => setTool('erase'));
 act('tool.heat', 'Tools', 'Heat brush', ['B'], () => setTool('heat'));
 act('tool.spark', 'Tools', 'Spark', ['G'], () => setTool('spark'));
-act('tool.cleave', 'Tools', 'Break bond', ['D'], () => setTool('cleave'));   // D: dissociate — C is carbon
+act('tool.cleave', 'Tools', 'Break bond', ['D'], () => setTool('cleave'));
+act('tool.forecast', 'Tools', 'Forecast a reaction', ['F'], () => setTool('forecast'));   // D: dissociate — C is carbon
 act('el.more', 'Tools', 'All elements…', ['E'], () => openElPop());
 for (const [sym, key] of [['H', 'H'], ['C', 'C'], ['N', 'N'], ['O', 'O'], ['F', 'F'], ['S', 'S'], ['P', 'P'], ['Cl', 'L'], ['Na', 'A'], ['Br', ''], ['I', ''], ['He', ''], ['Ar', '']])
   act('el.' + sym, 'Elements', BY_SYM[sym].name, key ? [key] : [], () => arm(armed === sym ? null : sym));
@@ -1447,6 +1452,7 @@ window.addEventListener('keydown', e => {
     if (cond) { closeSheet(); return; }
     if (armed) { arm(null); return; }
     if (selection.size) { selection.clear(); return; }
+    if (forecastCard.ids.length) { forecastCard.close(); return; }
     setTool('grab'); return;
   }
   if (e.key === 'Enter' && cond && !placing) { e.preventDefault(); beginPlacing(); return; }
@@ -1970,6 +1976,18 @@ setInterval(() => { if (time.playing) saveScene(); }, 5000);
 
 /* The inspector card rides with its atom: it is repositioned every frame, and the field draws
    the leader that says which atom it belongs to. */
+function forecastPick() {
+  if (!forecastCard.ids.length) return null;
+  const pick = forecastCard.picked();
+  if (forecastCard.isOpen && pick.length) {
+    const pts = pick.map(i => R.toScreen(rp[3 * i], rp[3 * i + 1]));
+    const sx = pts.reduce((a, p) => a + p[0], 0) / pts.length, sy = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+    let reach = 0; const frags = eng.fragments();
+    for (const i of pick) for (const a of frags.list[frags.comp[i]]) { const [x, y] = R.toScreen(rp[3 * a], rp[3 * a + 1]); reach = Math.max(reach, Math.abs(x - sx) + 12); }
+    forecastCard.place(sx, sy, reach);
+  }
+  return pick;
+}
 function inspectLeader() {
   const i = inspector.i;
   if (i < 0 || i >= eng.N) return null;
@@ -2045,7 +2063,7 @@ function frame(now) {
     hover: gesture ? -1 : hoverAtom, eraseHover: tool === 'erase' && !armed, selected: selection, pinned: eng.pinned.subarray(0, eng.N), ghost, flashes, now,
     tweezer: eng.tweezer, brush: tool === 'heat' && !armed && !placing ? brush : null,
     marquee: gesture && gesture.type === 'marquee' ? gesture : null,
-    inspect: inspectLeader()
+    inspect: inspectLeader(), forecast: forecastPick()
   });
   // UI text, ~10 Hz
   if (now - lastUI > 100) {

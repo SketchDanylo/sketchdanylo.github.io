@@ -457,6 +457,15 @@ class FieldRenderer {
       ctx.beginPath(); ctx.moveTo(mx - nx * c + (x2 - x1) / L * 2, my - ny * c + (y2 - y1) / L * 2); ctx.lineTo(mx + nx * c - (x2 - x1) / L * 2, my + ny * c - (y2 - y1) / L * 2); ctx.stroke();
       ctx.lineCap = 'butt';
     }
+    if (sc.forecast) {
+      const pick = sc.forecast.filter(i => i >= 0 && i < sc.N), pulse = 0.7 + 0.3 * Math.sin((sc.now || 0) / 220);
+      ctx.strokeStyle = 'rgba(190,160,255,' + (0.9 * pulse).toFixed(3) + ')'; ctx.lineWidth = 1.6;
+      for (const i of pick) { const [x, y] = this.toScreen(P[3 * i], P[3 * i + 1]); ctx.beginPath(); ctx.arc(x, y, Math.max(8, ELEMENTS[T[i]].rvdw * 0.55 * s), 0, Math.PI * 2); ctx.stroke(); }
+      if (pick.length === 2) {
+        const [x1, y1] = this.toScreen(P[3 * pick[0]], P[3 * pick[0] + 1]), [x2, y2] = this.toScreen(P[3 * pick[1]], P[3 * pick[1] + 1]);
+        ctx.setLineDash([5, 4]); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.setLineDash([]);
+      }
+    }
     if (sc.tweezer) {
       const tw = sc.tweezer, i = tw.i;
       if (i < sc.N) {

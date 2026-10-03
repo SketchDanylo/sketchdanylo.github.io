@@ -1117,6 +1117,20 @@ class Engine {
         }
       }
     }
+    this.Erestraint = 0;
+    if (this.restraints) for (const c of this.restraints) {
+      const terms = c.m === undefined ? [[c.i, c.j, 1]] : [[c.i, c.j, 1], [c.m, c.n, -1]];
+      let u = -c.r;
+      for (const [i, j, w] of terms) u += w * Math.hypot(pos[3 * j] - pos[3 * i], pos[3 * j + 1] - pos[3 * i + 1], pos[3 * j + 2] - pos[3 * i + 2]);
+      const e = 0.5 * c.k * u * u;
+      E += e; this.Erestraint += e;
+      for (const [i, j, w] of terms) {
+        const dx = pos[3 * j] - pos[3 * i], dy = pos[3 * j + 1] - pos[3 * i + 1], dz = pos[3 * j + 2] - pos[3 * i + 2];
+        const s = w * c.k * u / (Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-9);
+        F[3 * i] += s * dx; F[3 * i + 1] += s * dy; F[3 * i + 2] += s * dz;
+        F[3 * j] -= s * dx; F[3 * j + 1] -= s * dy; F[3 * j + 2] -= s * dz;
+      }
+    }
     this.Epot = E;
     return E;
   }
