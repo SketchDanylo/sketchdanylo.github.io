@@ -418,8 +418,8 @@ bulk ice in reality, so part of the gap is finite size. See
 
 `node playground/tests/overcoordination.cjs` pushes an H onto the back of CH₄. Real CH₅ does not exist.
 It used to be bound by about 118 kJ/mol, and five-coordinate carbon from CH₃ + CH₄ by about 84; both
-scans are now repulsive everywhere (deepest point +30 and +22 kJ/mol). Every barrier in the table above
-and every atomization energy is unchanged, and CH₂ still inserts into H₂.
+scans are now repulsive everywhere (deepest point about +36 and +23 kJ/mol). Every barrier in the table
+above and every atomization energy is unchanged, and CH₂ still inserts into H₂.
 
 The cause was a mismatch between two curves. A C–H stretched by 0.3 Å still collects about 81 % of its
 Morse attraction, but `satF` counts it as only 0.68 of a used valence. The stretched hydrogens then
@@ -427,14 +427,30 @@ looked open-shell and bonded to each other or to a newcomer side-on. The angular
 (force-field table) removes that side-on attraction instead of changing the saturation curve, so the
 fitted barriers are not touched. It costs about 30 % of step speed on hydrocarbons.
 
-Still open: in a 1200 K bath cyclohexene still loses an H within about 0.2–1.2 ps, where real
-cyclohexene lives for seconds. The energy the lagged bond multiplicity used to create is now paid for
-(Force field), so this is the potential itself. Two things make the escape too cheap. A C–H stretched to
-1.4 Å costs 35–45 kJ/mol in cyclohexene against 76 in methane and about 85 for a real C–H. And a
-leaving H finds a shallow pocket 2.0–2.3 Å out, often bridging two carbons, behind a bump of about
-30 kJ/mol on the way back, where H + radical recombination should have none. The relaxed scan also lets
+A leaving H could also draw partial attraction from two or three carbons at once, bridging them 2.0–2.3 Å
+out while using almost none of its own valence. Contacts down to a fifth of a bond (`ANG_G0` 0.12) now
+act as arms of the screen too, with two rules that keep ordinary chemistry intact: an arm screens only a
+contact no stronger than itself (`ANG_DM`, `ANG_DU`), so the nearer of two weak contacts wins instead of
+both cancelling, and a 1-3 contact held by a shared neighbour (an H on one carbon 2.1 Å from the next)
+is no arm at all. Cl· + ethene keeps an entrance barrier of about 10 kJ/mol (8.5 before).
+
+Hot hydrocarbons, 20 ps in a bath (`major` mixtures), before → after:
+
+| Mixture | Before | After | Real, on picoseconds |
+| --- | --- | --- | --- |
+| cyclohexene, 1200 K, alone | loses an H in 0.2–1.6 ps | intact 3 ps, 4 of 4 seeds | intact |
+| benzene + H₂, 700 K | 19 H·, fragments | no reaction | no reaction |
+| butadiene + ethylene, 900 K | atomised | no reaction | no reaction (Diels–Alder too slow) |
+| ethylene + 2 CH₃·, 450 K | 26 H·, fragments | C₆H₁₄ formed: two additions, then recombination | chain growth |
+| ethylene alone, 450 K | 24 H·, fragments | one C₄H₈ | no reaction |
+| benzene, 1500 K | all broken up | 2 of 4 intact | intact |
+| cyclohexene, 1500–3000 K | broken up | still loses an H within 0.2–0.6 ps | intact (ns–µs) |
+
+Still open: above about 1500 K hydrocarbons still shed H far too fast. A C–H stretched to 1.4 Å costs
+35–45 kJ/mol in cyclohexene against 76 in methane and about 85 for a real C–H, and the relaxed scan lets
 the allylic H walk to the other end of the allyl unit (a suprafacial [1,3] shift, forbidden in reality)
-for under 160 kJ/mol.
+for under 160 kJ/mol. Ethylene can also dimerise to C₄H₈ with no initiator, which a thermally forbidden
+[2+2] should not allow.
 
 What was tried, so it is not repeated:
 
