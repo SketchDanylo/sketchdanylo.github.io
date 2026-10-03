@@ -104,15 +104,19 @@ class ForecastCard {
     const scene = eng.toJSON(), ids = Array.from(eng.ids.subarray(0, eng.N)), T = scene.T || 298;
     const { list, dropped } = Kn.candidates(eng);
     if (!list.length) { this.show('Nothing here can react', '<p class="fc-note">No radical, no π bond and no bond to break was found.</p>'); return; }
-    const total = list.length + Math.min(Kn.REFINE, list.length);
+    const b = eng.box, V = (b.x1 - b.x0) * (b.y1 - b.y0) * (b.z1 - b.z0) * 1e-24;
+    const memo = this.memo || (this.memo = new Map()), mk = c => Math.round(T) + '|' + c.key;
+    const fresh = list.filter(c => !(memo.get(mk(c)) || {}).refined);
+    const total = Math.max(1, fresh.length + Math.min(Kn.REFINE, fresh.length));
     let done = 0;
-    const bar = () => '<div class="fc-bar"><i style="width:' + (100 * done / total).toFixed(0) + '%"></i></div><p class="fc-note">Forecasting ' + list.length + ' possible reaction' + (list.length > 1 ? 's' : '') + ' in this chamber at ' + Math.round(T) + ' K, ' + this.pool().length + ' at a time. The simulation is paused until you choose.</p>';
+    const bar = () => '<div class="fc-bar"><i style="width:' + (100 * done / total).toFixed(0) + '%"></i></div><p class="fc-note">Forecasting ' + list.length + ' possible reaction' + (list.length > 1 ? 's' : '') + ' in this chamber at ' + Math.round(T) + ' K' + (fresh.length < list.length ? ', ' + (list.length - fresh.length) + ' already known' : '') + ', ' + this.pool().length + ' at a time. The simulation is paused until you choose.</p>';
     this.show(this.auto ? 'Keeping going…' : 'What happens next?', bar() + this.logHtml());
     this.panel.style.left = Math.max(12, innerWidth - (this.panel.offsetWidth || 330) - 24) + 'px'; this.panel.style.top = '76px';
-    const job = (c, quick) => this.dispatch({ type: 'scan', key: 'sv' + key, scene, c, T, quick }).then(r => { done++; if (key === this.req) this.el('fcBody').innerHTML = bar() + this.logHtml(); return r && r.ok === false ? null : r; });
-    const quick = await Promise.all(list.map(c => job(c, true)));
+    this.lastScene = { scene, key, T };
+    const job = (c, quick) => this.dispatch({ type: 'scan', key: 'sv' + key, scene, c, T, quick }).then(r => { done++; if (key === this.req) this.el('fcBody').innerHTML = bar() + this.logHtml(); if (r && r.ok !== false) { r.cand = c; const m = memo.get(mk(c)); if (!m || !m.refined || r.refined) memo.set(mk(c), { ...r, event: null, cand: null }); return r; } return null; });
+    const quick = await Promise.all(list.map(c => { const m = memo.get(mk(c)); return m ? Promise.resolve(Kn.reuse(m, c, V)) : job(c, true); }));
     if (key !== this.req) return;
-    const order = quick.map((r, n) => ({ r, n })).filter(x => x.r).sort((a, b) => a.r.Ea - b.r.Ea).slice(0, Kn.REFINE);
+    const order = quick.map((r, n) => ({ r, n })).filter(x => x.r && !x.r.refined).sort((a, c) => a.r.Ea - c.r.Ea).slice(0, Kn.REFINE);
     const refined = await Promise.all(order.map(x => job(list[x.n], false)));
     if (key !== this.req) return;
     order.forEach((x, m) => { if (refined[m]) quick[x.n] = refined[m]; });
@@ -123,12 +127,21 @@ class ForecastCard {
     const H = K().humanTime;
     return '<p class="fc-sub">So far</p><ol class="fc-log">' + this.log.slice(-8).map(x => '<li><span class="m">+' + esc(H(x.wait)) + '</span> ' + esc(x.label) + '</li>').join('') + '</ol>';
   }
-  go(sv, ids) {
+  async go(sv, ids) {
     const side = list => list.map(this.actions.pretty || (x => x)).join(' + ');
     const nx = K().pickNext(sv);
     if (!nx) return false;
-    const label = side(nx.pick.reactants) + ' → ' + side(nx.pick.products);
-    const ok = this.actions.skip?.(nx.pick.event, nx.wait, ids, label, nx.pick.reactants);
+    let pick = nx.pick;
+    if (!pick.event && pick.cand && this.lastScene) {
+      const key = this.req, ls = this.lastScene;
+      this.show('Setting up the reaction…', '<div class="fc-busy"><i></i></div>' + this.logHtml());
+      const r = await this.dispatch({ type: 'scan', key: 'sv' + ls.key, scene: ls.scene, c: pick.cand, T: ls.T, quick: false });
+      if (key !== this.req) return false;
+      pick = r && r.ok !== false ? r : null;
+    }
+    if (!pick || !pick.event) return false;
+    const label = side(pick.reactants) + ' → ' + side(pick.products);
+    const ok = this.actions.skip?.(pick.event, nx.wait, ids, label, pick.reactants);
     if (ok === false) return false;
     (this.log = this.log || []).push({ wait: nx.wait, label });
     return true;
@@ -153,8 +166,8 @@ class ForecastCard {
     const H = K().humanTime, pretty = this.actions.pretty || (x => x), side = list => list.map(pretty).join(' + ');
     const wait = sv.total > 0 ? Math.LN2 / sv.total : Infinity, never = !isFinite(wait) || wait > 3.15e16;
     if (this.auto && !never && sv.events.length) {
-      if (this.go(sv, ids)) { this.showWatching(); return; }
-      this.auto = false;
+      this.go(sv, ids).then(ok => { if (ok) this.showWatching(); else { this.auto = false; this.renderSurvey(sv, ids, dropped); } });
+      return;
     }
     if (this.auto && never) this.auto = false;
     const rows = sv.events.slice(0, 6).map(x => '<tr><td>' + esc(side(x.reactants)) + ' → ' + esc(side(x.products)) + '</td><td>' + (x.share >= 0.001 ? (100 * x.share).toFixed(x.share > 0.1 ? 0 : 1) + '%' : '<0.1%') + '</td></tr>').join('');
@@ -167,8 +180,8 @@ class ForecastCard {
     this.show('What happens next at ' + Math.round(sv.T) + ' K', body);
     const b = this.el('fcNext'), auto = this.el('fcAuto');
     if (b) b.onclick = () => {
-      if (auto && auto.checked) { this.auto = true; this.log = []; if (this.go(sv, ids)) this.showWatching(); return; }
-      this.close(); this.go(sv, ids);
+      if (auto && auto.checked) { this.auto = true; this.log = []; this.go(sv, ids).then(ok => { if (ok) this.showWatching(); }); return; }
+      this.go(sv, ids).then(() => this.close());
     };
   }
   profile(path, Ea) {

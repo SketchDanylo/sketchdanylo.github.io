@@ -382,7 +382,7 @@ function scanCandidate(e, c, T, quick, cache) {
   const f = forecast(e, scan, { T, partnerPerCm3: 1 });
   if (!f.ok) return null;
   const rate = scan.bimolecular ? f.k * c.mult / chamberVolume(e) : f.k * c.mult;
-  return { label: scan.reactants.join(' + ') + ' → ' + scan.products.join(' + '), i: c.i, j: c.j, Ea: scan.Ea, dE: scan.dE, rate, reactants: scan.reactants, products: scan.products, event: scan.event, kind: scan.kind };
+  return { label: scan.reactants.join(' + ') + ' → ' + scan.products.join(' + '), i: c.i, j: c.j, Ea: scan.Ea, dE: scan.dE, rate, kRate: f.k, bimolecular: scan.bimolecular, refined: !quick, reactants: scan.reactants, products: scan.products, event: scan.event, kind: scan.kind };
 }
 
 const bare = list => list.map(f => f.replace(/·/g, '')).sort().join(' + ');
@@ -404,6 +404,10 @@ function combine(results, T) {
 }
 
 const REFINE = 3;
+
+function reuse(cached, c, V) {
+  return { ...cached, i: c.i, j: c.j, event: null, cand: c, rate: cached.bimolecular ? cached.kRate * c.mult / V : cached.kRate * c.mult };
+}
 
 function survey(scene, opts = {}) {
   const e = fromScene(scene), T = scene.T || 298, cache = new Map();
@@ -456,5 +460,5 @@ function applyEvent(eng, ev, idx) {
   eng.refresh();
 }
 
-return { scanPair, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, stillThere, candidates, scanCandidate, combine, survey, pickNext, REFINE, UNCERTAINTY };
+return { scanPair, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, stillThere, candidates, scanCandidate, combine, survey, pickNext, reuse, REFINE, UNCERTAINTY };
 });

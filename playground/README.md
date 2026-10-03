@@ -498,6 +498,12 @@ The forecast measures the model's energy surface; the live chamber moves on it. 
   its π bond, so that test alone does not prove it. A nudged-elastic-band search for a lower path
   fell apart (images flew to separated atoms through the force field's cutoffs) and was not kept.
 
+Repeating the search remembers every barrier it has measured, by reaction type and temperature,
+and only scans what is new; the reaction it skips to is scanned afresh for its geometry. Two artefacts
+the search has shown up, both force-field errors still to fix: C₂H₃· + H₂ → C₂H₅· (H₂ adding whole to
+a vinyl radical) comes out barrierless where the real reaction is an abstraction over about 40 kJ/mol,
+and a hot C₂H₅ formed by H· + ethene loses a hydrogen again within picoseconds in the live chamber.
+
 ### What it does not do yet
 
 - The search takes 10–60 s for a handful of molecules and is capped at 24 candidates, so a crowded
