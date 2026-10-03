@@ -438,6 +438,9 @@ forecast shows it. Its H + H₂ rate at 1500 K, 1.3×10⁻¹² cm³/s, matches t
 forecast rate, the molecules are placed at the first point clearly past the top of the barrier with a
 thermal push along the path, and the live simulation carries out the reaction itself. The skipped time
 is shown beside the simulated time, is part of saved scenes and undo, and Ctrl+Z puts everything back.
+The first 0.8 ps after a skip run at 0.5× (about 80 fs a second) with the reacting atoms ringed, so the
+bond-making itself can be watched, and the speed then returns to what it was (kept-going chains stay at
+full speed).
 Played this way, Cl· + ethene, CH₃· + ethene and H· + CH₄ complete in 9 of 9 browser trials and in
 at least 3 of 4 seeded runs each in the tests.
 

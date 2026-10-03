@@ -75,7 +75,7 @@ class ForecastCard {
     if (skip) skip.onclick = () => {
       const res = this.result, ids = this.sceneIds; this.close();
       const side = list => list.map(this.actions.pretty || (x => x)).join(' + ');
-      this.actions.skip?.(res.event, -Math.log(1 - Math.random()) * res.now.halfLife / Math.LN2, ids, side(res.reactants) + ' → ' + side(res.products), res.reactants);
+      this.actions.skip?.(res.event, -Math.log(1 - Math.random()) * res.now.halfLife / Math.LN2, ids, side(res.reactants) + ' → ' + side(res.products), res.reactants, true);
     };
   }
   pool() {
@@ -141,7 +141,7 @@ class ForecastCard {
     }
     if (!pick || !pick.event) return false;
     const label = side(pick.reactants) + ' → ' + side(pick.products);
-    const ok = this.actions.skip?.(pick.event, nx.wait, ids, label, pick.reactants);
+    const ok = this.actions.skip?.(pick.event, nx.wait, ids, label, pick.reactants, !this.auto);
     if (ok === false) return false;
     (this.log = this.log || []).push({ wait: nx.wait, label });
     return true;

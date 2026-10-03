@@ -96,8 +96,9 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261003-build57', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants) => skipToEvent(ev, wait, ids, what, reactants), pause: () => setPlaying(false) });
-function skipToEvent(ev, wait, sceneIds, what, reactants) {
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261003-build58', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow) => skipToEvent(ev, wait, ids, what, reactants, slow), pause: () => setPlaying(false) });
+let replay = null;
+function skipToEvent(ev, wait, sceneIds, what, reactants, slow) {
   if (!ev) return;
   const idx = ev.atoms.map(k => eng.indexOfId(sceneIds[k]));
   if (idx.some(i => i < 0)) { toast('Those atoms are gone · forecast again'); return false; }
@@ -107,7 +108,8 @@ function skipToEvent(ev, wait, sceneIds, what, reactants) {
   eng.skipped += wait;
   eng.refresh();
   scheduleSave();
-  toast('Skipped ' + ChemKinetics.humanTime(wait) + ' · ' + what);
+  if (slow) { replay = { until: eng.time + 800, speed: time.speed, ids: idx.map(i => eng.ids[i]) }; setSpeed(0.5); }
+  toast('Skipped ' + ChemKinetics.humanTime(wait) + ' · ' + what + (slow ? ' · slow motion while it happens' : ''));
   if (!time.playing) setPlaying(true);
   return true;
 }
@@ -2116,8 +2118,9 @@ function frame(now) {
     hover: gesture ? -1 : hoverAtom, eraseHover: tool === 'erase' && !armed, selected: selection, pinned: eng.pinned.subarray(0, eng.N), ghost, flashes, now,
     tweezer: eng.tweezer, brush: tool === 'heat' && !armed && !placing ? brush : null,
     marquee: gesture && gesture.type === 'marquee' ? gesture : null,
-    inspect: inspectLeader(), forecast: forecastPick()
+    inspect: inspectLeader(), forecast: replay ? replay.ids.map(id => eng.indexOfId(id)).filter(i => i >= 0) : forecastPick()
   });
+  if (replay && eng.time >= replay.until) { if (Math.abs(time.speed - 0.5) < 1e-9) setSpeed(replay.speed); replay = null; }
   // UI text, ~10 Hz
   if (now - lastUI > 100) {
     lastUI = now;
