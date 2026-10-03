@@ -55,7 +55,7 @@ const SUB_HOLD = 200;               // fs a finer sub-step count is kept before 
    over a few steps each just under the line — enough to stay bound with nothing to take the energy,
    which an isolated pair cannot do. A strict guard only became affordable once a redone step stayed
    finer instead of dropping straight back, because the dropping back was itself a source of drift. */
-const SUB_MAX = 64, SUB_ETOL = 1.5;
+const SUB_MAX = 64, SUB_ETOL = 1.5, PN_PAY = 0.001, PN_SETTLE = 50;
 const SOLID_W = 0.05;               // Å over which a solid face's force eases in
 const WALL_FOLD = 1.0;              // Å past a solid face before an atom is carried back rather than pushed
 const CORE_A = 800;                 // kJ/mol, strength of the nuclear hard core
@@ -571,7 +571,7 @@ class Engine {
     this.nPairs = 0; this.pairCap = 0;
     this.checkpoints = []; this.ckEvery = 64; this.ckBudget = opts.historyBytes || 48e6; this.recording = true;
     this.needRebuild = true;
-    this.clamped = 0; this.redone = 0;
+    this.clamped = 0; this.redone = 0; this.bondOrderDeficit = 0; this.bondOrderHeld = 0;
     this._alloc(64);
     this._allocPairs(1024);
   }
@@ -586,7 +586,7 @@ class Engine {
     const f64 = n => new Float64Array(n);
     const arrays = {
       pos: f64(3 * cap), vel: f64(3 * cap), frc: f64(3 * cap), prev: f64(3 * cap), built: f64(3 * cap),
-      mass: f64(cap), phi: f64(cap), Zs: f64(cap), openVal: f64(cap), Zw: f64(cap), Gb: f64(cap), kSh: f64(cap), kShP: f64(cap), qg: f64(cap), Gz: f64(cap), formal: f64(cap), q: f64(cap), Z: f64(cap), cos0: f64(cap), G: f64(cap), ljx: f64(cap), ljq: f64(cap), lje: f64(cap), ljeA: f64(cap),
+      mass: f64(cap), phi: f64(cap), Zs: f64(cap), openVal: f64(cap), Zw: f64(cap), Gb: f64(cap), kSh: f64(cap), kShP: f64(cap), qg: f64(cap), Gz: f64(cap), formal: f64(cap), q: f64(cap), Z: f64(cap), cos0: f64(cap), G: f64(cap), ljx: f64(cap), ljq: f64(cap), lje: f64(cap), ljeA: f64(cap), born: f64(cap),
       type: new Int16Array(cap), val: new Int8Array(cap), lp: new Int8Array(cap), pinned: new Uint8Array(cap),
       ids: new Uint32Array(cap), cStart: new Int32Array(cap + 1), cCount: new Int32Array(cap)
     };
@@ -595,13 +595,13 @@ class Engine {
   }
   _allocPairs(cap) {
     const f64 = n => new Float64Array(n);
-    const keep = this.pairCap ? { pI: this.pI, pJ: this.pJ, pN: this.pN, pF: this.pF, pSraw: this.pSraw, pB: this.pB } : null;
-    this.pI = new Int32Array(cap); this.pJ = new Int32Array(cap); this.pN = f64(cap);
+    const keep = this.pairCap ? { pI: this.pI, pJ: this.pJ, pN: this.pN, pNpaid: this.pNpaid, pF: this.pF, pSraw: this.pSraw, pB: this.pB } : null;
+    this.pI = new Int32Array(cap); this.pJ = new Int32Array(cap); this.pN = f64(cap); this.pNpaid = f64(cap);
     this.pR = f64(cap); this.pDx = f64(cap); this.pDy = f64(cap); this.pDz = f64(cap);
     this.pF = f64(cap); this.pFp = f64(cap); this.pS = f64(cap); this.pSp = f64(cap); this.pScr = f64(cap); this.pSraw = f64(cap); this.pSpRaw = f64(cap); this.pSig = f64(cap); this.pD = f64(cap); this.gAb = f64(cap); this.gBb = f64(cap);
     if (!this.tri) { this.tri = new Int32Array(4096); this.nTri = 0; } this.pB = f64(cap); this.gA = f64(cap); this.gB = f64(cap); this.gAs = f64(cap); this.gBs = f64(cap); this.gAbs = f64(cap); this.gBbs = f64(cap);
     this.cList = new Int32Array(2 * cap);
-    if (keep) for (const k of ['pI', 'pJ', 'pN', 'pF', 'pSraw', 'pB']) this[k].set(keep[k].subarray(0, this.nPairs));
+    if (keep) for (const k of ['pI', 'pJ', 'pN', 'pNpaid', 'pF', 'pSraw', 'pB']) this[k].set(keep[k].subarray(0, this.nPairs));
     this.pairCap = cap;
   }
 
@@ -638,7 +638,7 @@ class Engine {
       this.vel[i3] = s * this.gauss(); this.vel[i3 + 1] = s * this.gauss(); this.vel[i3 + 2] = s * this.gauss();
     } else { this.vel[i3] = this.vel[i3 + 1] = this.vel[i3 + 2] = 0; }
     this.frc[i3] = this.frc[i3 + 1] = this.frc[i3 + 2] = 0;
-    this.cos0[i] = -1 / 3; this.pinned[i] = 0; this.ids[i] = this.nextId++;
+    this.cos0[i] = -1 / 3; this.pinned[i] = 0; this.ids[i] = this.nextId++; this.born[i] = this.time;
     this.ljx[i] = el.ljX; this.lje[i] = Math.sqrt(el.ljD); this.ljeA[i] = Math.sqrt(el.ljDA);
     this.needRebuild = true; this.needForces = true;
     return i;
@@ -649,7 +649,7 @@ class Engine {
     const kill = new Uint8Array(this.N); for (const i of list) if (i >= 0 && i < this.N) kill[i] = 1;
     const map = new Int32Array(this.N);
     let w = 0;
-    const per1 = ['mass', 'formal', 'q', 'Z', 'cos0', 'type', 'val', 'lp', 'pinned', 'ids', 'ljx', 'lje'];
+    const per1 = ['mass', 'formal', 'q', 'Z', 'cos0', 'type', 'val', 'lp', 'pinned', 'ids', 'ljx', 'lje', 'born'];
     const per3 = ['pos', 'vel', 'frc', 'prev', 'built'];
     for (let i = 0; i < this.N; i++) {
       if (kill[i]) { map[i] = -1; continue; }
@@ -666,7 +666,7 @@ class Engine {
       const a = map[this.pI[p]], b = map[this.pJ[p]];
       if (a < 0 || b < 0) continue;
       this.pI[np] = a; this.pJ[np] = b;
-      this.pN[np] = this.pN[p]; this.pF[np] = this.pF[p]; this.pSraw[np] = this.pSraw[p]; this.pB[np] = this.pB[p];
+      this.pN[np] = this.pN[p]; this.pNpaid[np] = this.pNpaid[p]; this.pF[np] = this.pF[p]; this.pSraw[np] = this.pSraw[p]; this.pB[np] = this.pB[p];
       np++;
     }
     this.nPairs = np;
@@ -679,7 +679,7 @@ class Engine {
   setBondOrder(i, j, n) {
     this._checkRebuild();
     const a = Math.min(i, j), b = Math.max(i, j), p = this.pairMap.get(a * 1048576 + b);
-    if (p !== undefined) this.pN[p] = Math.max(1, Math.min(3, n));
+    if (p !== undefined) this.pN[p] = this.pNpaid[p] = Math.max(1, Math.min(3, n));
   }
   /* Smallest allowed valence that accommodates `bondSum` for an element with a formal charge. */
   static valenceForBonds(sym, charge, bondSum) {
@@ -698,10 +698,10 @@ class Engine {
        Leaving those behind let a rebuild — or an erase — hand the inventory, the feed and the
        renderer one pair's strength under another pair's name. */
     const keep = this._keepMap || (this._keepMap = new Map()); keep.clear();
-    const kept = this._kept && this._kept.length >= 4 * this.nPairs ? this._kept : (this._kept = new Float64Array(4 * this.pairCap + 64));
+    const kept = this._kept && this._kept.length >= 5 * this.nPairs ? this._kept : (this._kept = new Float64Array(5 * this.pairCap + 64));
     for (let p = 0; p < this.nPairs; p++) {
-      keep.set(this._key(this.pI[p], this.pJ[p]), 4 * p);
-      kept[4 * p] = this.pN[p]; kept[4 * p + 1] = this.pF[p]; kept[4 * p + 2] = this.pSraw[p]; kept[4 * p + 3] = this.pB[p];
+      keep.set(this._key(this.pI[p], this.pJ[p]), 5 * p);
+      kept[5 * p] = this.pN[p]; kept[5 * p + 1] = this.pF[p]; kept[5 * p + 2] = this.pSraw[p]; kept[5 * p + 3] = this.pB[p]; kept[5 * p + 4] = this.pNpaid[p];
     }
     let minx = Infinity, miny = Infinity, minz = Infinity, maxx = -Infinity, maxy = -Infinity, maxz = -Infinity;
     for (let i = 0; i < N; i++) {
@@ -738,8 +738,8 @@ class Engine {
               if (np >= this.pairCap) { this.nPairs = np; this._allocPairs(this.pairCap * 2); }
               this.pI[np] = i; this.pJ[np] = j;
               const k = keep.get(this._key(i, j));
-              if (k === undefined) { this.pN[np] = 1; this.pF[np] = this.pSraw[np] = this.pB[np] = 0; }
-              else { this.pN[np] = kept[k]; this.pF[np] = kept[k + 1]; this.pSraw[np] = kept[k + 2]; this.pB[np] = kept[k + 3]; }
+              if (k === undefined) { this.pN[np] = this.pNpaid[np] = 1; this.pF[np] = this.pSraw[np] = this.pB[np] = 0; }
+              else { this.pN[np] = kept[k]; this.pF[np] = kept[k + 1]; this.pSraw[np] = kept[k + 2]; this.pB[np] = kept[k + 3]; this.pNpaid[np] = kept[k + 4]; }
               np++;
             }
           }
@@ -1198,6 +1198,7 @@ class Engine {
       oA.set(nA.subarray(0, P)); oB.set(nB.subarray(0, P));
     }
     const rate = -Math.expm1(Math.log(0.92) * dt); // identical decay over any subdivision
+    let moved = false;
     for (let p = 0; p < this.nPairs; p++) {
       const f = sig[p];
       let target = 1;
@@ -1208,8 +1209,53 @@ class Engine {
         // three-electron O–O bond (HO₂·, RO₂·): one oxygen keeps an unpaired valence, the other does not
         if (pp.oo) target = Math.min(pp.maxOrder, target + TUNE.oo3e * f * Math.min(1, Math.abs(spare[i] - spare[j])));
       }
-      if (pN[p] !== target) { const d = target - pN[p]; pN[p] = Math.abs(d) < 1e-4 ? target : pN[p] + d * rate; }
+      if (pN[p] !== target) { const d = target - pN[p]; pN[p] = Math.abs(d) < 1e-4 ? target : pN[p] + d * rate; moved = true; }
     }
+    this._pNmoved = moved;
+    if (moved && !this._integrating) this.pNpaid.set(pN.subarray(0, this.nPairs));
+  }
+  _bondOrderWork() {
+    const P = this.nPairs, pN = this.pN, Enew = this.Epot;
+    const nw = this._pNnew && this._pNnew.length >= P ? this._pNnew : (this._pNnew = new Float64Array(this.pairCap));
+    nw.set(pN.subarray(0, P));
+    pN.set(this.pNpaid.subarray(0, P));
+    const Eold = this.computeForces();
+    pN.set(nw.subarray(0, P));
+    this.computeForces();
+    return Enew - Eold;
+  }
+  _bondOrderGroup(wide) {
+    const N = this.N, P = this.nPairs, pN = this.pN, old = this.pNpaid, pI = this.pI, pJ = this.pJ;
+    const m = this._payMask && this._payMask.length >= N ? this._payMask : (this._payMask = new Uint8Array(this.cap));
+    m.fill(0, 0, N);
+    for (let p = 0; p < P; p++) if (pN[p] !== old[p]) { m[pI[p]] = 1; m[pJ[p]] = 1; }
+    if (wide) for (let p = 0; p < P; p++) if (this.pF[p] > 0 && (m[pI[p]] === 1 || m[pJ[p]] === 1)) { if (!m[pI[p]]) m[pI[p]] = 2; if (!m[pJ[p]]) m[pJ[p]] = 2; }
+    const vel = this.vel, mass = this.mass;
+    let M = 0, px = 0, py = 0, pz = 0;
+    for (let i = 0; i < N; i++) {
+      if (!m[i] || this.pinned[i]) continue;
+      M += mass[i]; px += mass[i] * vel[3 * i]; py += mass[i] * vel[3 * i + 1]; pz += mass[i] * vel[3 * i + 2];
+    }
+    const g = this._payG || (this._payG = {});
+    g.cx = M > 0 ? px / M : 0; g.cy = M > 0 ? py / M : 0; g.cz = M > 0 ? pz / M : 0;
+    let K = 0;
+    for (let i = 0; i < N; i++) {
+      if (!m[i] || this.pinned[i]) continue;
+      K += mass[i] * ((vel[3 * i] - g.cx) ** 2 + (vel[3 * i + 1] - g.cy) ** 2 + (vel[3 * i + 2] - g.cz) ** 2);
+    }
+    g.K = 0.5 * KEU * K;
+    return g;
+  }
+  _payBondOrderWork(dE) {
+    if (dE === 0) return;
+    let g = this._bondOrderGroup(false);
+    if (g.K < dE) g = this._bondOrderGroup(true);
+    const left = Math.max(0, g.K - dE), s = g.K > 0 ? Math.sqrt(left / g.K) : 1, m = this._payMask, vel = this.vel;
+    for (let i = 0; i < this.N; i++) {
+      if (!m[i] || this.pinned[i]) continue;
+      vel[3 * i] = g.cx + s * (vel[3 * i] - g.cx); vel[3 * i + 1] = g.cy + s * (vel[3 * i + 1] - g.cy); vel[3 * i + 2] = g.cz + s * (vel[3 * i + 2] - g.cz);
+    }
+    this.bondOrderDeficit += dE - (g.K - left);
   }
   _angles() {
     const N = this.N, pos = this.pos, F = this.frc, Z = this.Z, cStart = this.cStart, cList = this.cList, pI = this.pI, pJ = this.pJ, pF = this.pF, pFp = this.pFp, type = this.type, cos0 = this.cos0, Gz = this.Gz;
@@ -1282,7 +1328,7 @@ class Engine {
     if (t <= 0) { GX = 1; GXD = 0; } else if (t >= 1) { GX = 0; GXD = 0; } else { GX = 1 - t * t * (3 - 2 * t); GXD = -6 * t * (1 - t) / (ANG_O1 - ANG_O0); }
   }
   _angScreen() {
-    const P = this.nPairs, N = this.N, pI = this.pI, pJ = this.pJ, pR = this.pR, pF = this.pF, pN = this.pN, type = this.type, Zs = this.Zs, val = this.val, pos = this.pos;
+    const P = this.nPairs, N = this.N, pI = this.pI, pJ = this.pJ, pR = this.pR, pF = this.pF, pN = this.pN, type = this.type, Zs = this.Zs, val = this.val, pos = this.pos, pDx = this.pDx, pDy = this.pDy, pDz = this.pDz;
     const grow = (k, n, T) => (this[k] && this[k].length >= n ? this[k] : (this[k] = new T(Math.max(n, 64))));
     const A = grow('_angA', P, Float64Array), g = grow('_angG', P, Float64Array), gp = grow('_angGp', P, Float64Array), lam = grow('_angLam', P, Float64Array);
     const Zm = grow('_angZm', N, Float64Array), R = grow('_angR', N, Float64Array), dR = grow('_angDR', N, Float64Array), Q = grow('_angQ', N, Float64Array), dQ = grow('_angDQ', N, Float64Array), start = grow('_angStart', N + 1, Int32Array), fill = grow('_angFill', N + 1, Int32Array);
@@ -1312,6 +1358,11 @@ class Engine {
     const list = grow('_angList', arms, Int32Array);
     fill.set(start.subarray(0, N + 1));
     for (let p = 0; p < P; p++) if (g[p] > 0) { list[fill[pI[p]]++] = p; list[fill[pJ[p]]++] = p; }
+    const AU = grow('_angAU', 3 * arms, Float64Array), cStart = this.cStart, cList = this.cList;
+    for (let c = 0; c < N; c++) for (let x = start[c]; x < start[c + 1]; x++) {
+      const q = list[x], k = pI[q] === c ? pJ[q] : pI[q], ir = 1 / (pR[q] || 1e-6);
+      AU[3 * x] = (pos[3 * k] - pos[3 * c]) * ir; AU[3 * x + 1] = (pos[3 * k + 1] - pos[3 * c + 1]) * ir; AU[3 * x + 2] = (pos[3 * k + 2] - pos[3 * c + 2]) * ir;
+    }
     let tri = this._angTri || (this._angTri = new Int32Array(384)), tf = this._angTf || (this._angTf = new Float64Array(64 * 14)), nt = 0;
     for (let p = 0; p < P; p++) {
       const r = pR[p]; if (r < 0) continue;
@@ -1322,12 +1373,11 @@ class Engine {
       if (Q[i0] === 0 && Q[j0] === 0) continue;
       for (let side = 0; side < 2; side++) {
         const c = side ? j0 : i0, n = side ? i0 : j0;
-        const ux = pos[3 * n] - pos[3 * c], uy = pos[3 * n + 1] - pos[3 * c + 1], uz = pos[3 * n + 2] - pos[3 * c + 2], ru = Math.sqrt(ux * ux + uy * uy + uz * uz) || 1e-6;
+        const iu = (side ? -1 : 1) / (r || 1e-6), ux = pDx[p] * iu, uy = pDy[p] * iu, uz = pDz[p] * iu;
         for (let x = start[c]; x < start[c + 1]; x++) {
           const q = list[x]; if (q === p) continue;
           const k = pI[q] === c ? pJ[q] : pI[q]; if (k === n) continue;
-          const vx = pos[3 * k] - pos[3 * c], vy = pos[3 * k + 1] - pos[3 * c + 1], vz = pos[3 * k + 2] - pos[3 * c + 2], rv = Math.sqrt(vx * vx + vy * vy + vz * vz) || 1e-6;
-          angWindow((ux * vx + uy * vy + uz * vz) / (ru * rv)); const H = AH, dH = AHD;
+          angWindow(ux * AU[3 * x] + uy * AU[3 * x + 1] + uz * AU[3 * x + 2]); const H = AH, dH = AHD;
           if (H <= 0) continue;
           piGeo(pR[q], PAIR[type[pI[q]] * NT + type[pJ[q]]]);
           const sq = 1 - PG * PI_REF, dsq = -PGD * PI_REF, Y = 1 - sq * (1 - R[c]), S = 1 - R[n] * Y;
@@ -1335,14 +1385,16 @@ class Engine {
           this._angGate(n, c, k); const xn = GX, dxn = GXD; if (xn === 0) continue;
           this._angGate(c, n, k); const xc = GX, dxc = GXD; if (xc === 0) continue;
           this._angGate(k, c, n); const xk = GX, dxk = GXD; if (xk === 0) continue;
-          const q2 = pF[p] === 0 && this.pFp[p] === 0 ? undefined : this.pairMap.get(n < k ? n * 1048576 + k : k * 1048576 + n), mnk = q2 === undefined ? 1 : 1 - pF[p] * pF[q2];
+          let q2 = -1;
+          if (pF[p] !== 0 || this.pFp[p] !== 0) for (let y = cStart[n]; y < cStart[n + 1]; y++) { const t = cList[y]; if ((pI[t] === n ? pJ[t] : pI[t]) === k) { q2 = t; break; } }
+          const mnk = q2 < 0 ? 1 : 1 - pF[p] * pF[q2];
           const Om = 1 - (1 - Q[n]) * (1 - Q[c]);
           const w = g[q] * S * H * mnk * xn * xc * xk * Om;
           if (w <= 0) continue;
           A[p] *= 1 - w;
           if (6 * nt + 6 > tri.length) { const t2 = new Int32Array(tri.length * 2); t2.set(tri); tri = this._angTri = t2; }
           if (14 * nt + 14 > tf.length) { const t2 = new Float64Array(tf.length * 2); t2.set(tf); tf = this._angTf = t2; }
-          tri[6 * nt] = p; tri[6 * nt + 1] = q; tri[6 * nt + 2] = q2 === undefined ? -1 : q2; tri[6 * nt + 3] = c; tri[6 * nt + 4] = n; tri[6 * nt + 5] = k;
+          tri[6 * nt] = p; tri[6 * nt + 1] = q; tri[6 * nt + 2] = q2; tri[6 * nt + 3] = c; tri[6 * nt + 4] = n; tri[6 * nt + 5] = k;
           const o = 14 * nt;
           tf[o] = H; tf[o + 1] = dH; tf[o + 2] = S; tf[o + 3] = Y; tf[o + 4] = R[n] * (1 - R[c]) * dsq; tf[o + 5] = sq; tf[o + 6] = xn; tf[o + 7] = dxn;
           tf[o + 8] = xc; tf[o + 9] = dxc; tf[o + 10] = xk; tf[o + 11] = dxk; tf[o + 12] = mnk * Om; tf[o + 13] = w;
@@ -2187,6 +2239,10 @@ class Engine {
     if (this.pressureControl && this.stepCount % this.baroEvery === 0) this._barostat();
   }
   _integrate(nsub, forceRebuild) {
+    this._integrating = true;
+    try { this._integrateSteps(nsub, forceRebuild); } finally { this._integrating = false; }
+  }
+  _integrateSteps(nsub, forceRebuild) {
     const N = this.N, pos = this.pos, vel = this.vel, F = this.frc, h = this.dt / nsub;
     this.servoWork = 0;
     for (let sub = 0; sub < nsub; sub++) {
@@ -2202,18 +2258,28 @@ class Engine {
       if (sub === 0 && forceRebuild) this.needRebuild = true;
       this._checkRebuild();
       this.computeForces(h);
+      let dE = 0, pay = false;
+      if (this._pNmoved) {
+        const P = this.nPairs, pN = this.pN, paid = this.pNpaid, born = this.born, t = this.time - PN_SETTLE;
+        for (let p = 0; p < P; p++) if (Math.abs(pN[p] - paid[p]) > PN_PAY) { if (born[this.pI[p]] > t || born[this.pJ[p]] > t) paid[p] = pN[p]; else pay = true; }
+        if (pay) {
+          dE = this._bondOrderWork();
+          if (dE > 0 && this._bondOrderGroup(true).K < 1.5 * dE) { pN.set(paid.subarray(0, P)); this.computeForces(); dE = 0; pay = false; this.bondOrderHeld++; }
+        }
+      }
       for (let i = 0; i < N; i++) {
         if (this.pinned[i]) continue;
         const hk = 0.5 * h * ACC / this.mass[i];
         for (let d = 3 * i; d < 3 * i + 3; d++) vel[d] += hk * F[d];
       }
+      if (pay) { this._payBondOrderWork(dE); this.pNpaid.set(this.pN.subarray(0, this.nPairs)); }
     }
   }
   _copy(dst, src, n) { if (!dst || dst.length < n) dst = new Float64Array(Math.max(n, 64)); dst.set(src.subarray(0, n)); return dst; }
   _save() { // lightweight state for redoing one step
     const n3 = 3 * this.N, P = this.nPairs, sv = this._sv || (this._sv = {});
     sv.pos = this._copy(sv.pos, this.pos, n3); sv.vel = this._copy(sv.vel, this.vel, n3); sv.frc = this._copy(sv.frc, this.frc, n3); sv.built = this._copy(sv.built, this.built, n3);
-    sv.pN = this._copy(sv.pN, this.pN, P);
+    sv.pN = this._copy(sv.pN, this.pN, P); sv.pNpaid = this._copy(sv.pNpaid, this.pNpaid, P);
     if (!sv.pI || sv.pI.length < P) { sv.pI = new Int32Array(Math.max(P, 64)); sv.pJ = new Int32Array(Math.max(P, 64)); }
     sv.pI.set(this.pI.subarray(0, P)); sv.pJ.set(this.pJ.subarray(0, P));
     sv.voidHeat = this.voidHeat;
@@ -2226,7 +2292,7 @@ class Engine {
     const sv = this._sv, n3 = 3 * this.N, P = sv.P;
     this.pos.set(sv.pos.subarray(0, n3)); this.vel.set(sv.vel.subarray(0, n3)); this.frc.set(sv.frc.subarray(0, n3)); this.built.set(sv.built.subarray(0, n3));
     if (P > this.pairCap) this._allocPairs(P);
-    this.pI.set(sv.pI.subarray(0, P)); this.pJ.set(sv.pJ.subarray(0, P)); this.pN.set(sv.pN.subarray(0, P)); this.nPairs = P;
+    this.pI.set(sv.pI.subarray(0, P)); this.pJ.set(sv.pJ.subarray(0, P)); this.pN.set(sv.pN.subarray(0, P)); this.pNpaid.set(sv.pNpaid.subarray(0, P)); this.nPairs = P;
     this.voidHeat = sv.voidHeat;
     this.pairMap = sv.map; this.Epot = sv.Epot; this.needRebuild = sv.needRebuild;
     this._servoActive = sv.servoActive;
@@ -2578,11 +2644,11 @@ class Engine {
       heatToSample: this.heatToSample, heaterWork: this.heaterWork,
       nextSub: this.nextSub || 1, subHold: this.subHold || 0, subPeak: this.subPeak || 1, lastSub: this.lastSub || 1, Epot: this.Epot, Ewall: this.Ewall,
       wallForce: this.wallForce, wallArea: this.wallArea, pressureBar: this.pressureBar, pressureEMA: this.pressureEMA,
-      needForces: this.needForces, needRebuild: this.needRebuild, redone: this.redone, clamped: this.clamped,
-      built: this.built.slice(0, n3), pI: this.pI.slice(0, this.nPairs), pJ: this.pJ.slice(0, this.nPairs), pN: this.pN.slice(0, this.nPairs),
+      needForces: this.needForces, needRebuild: this.needRebuild, redone: this.redone, clamped: this.clamped, bondOrderDeficit: this.bondOrderDeficit, bondOrderHeld: this.bondOrderHeld,
+      built: this.built.slice(0, n3), pI: this.pI.slice(0, this.nPairs), pJ: this.pJ.slice(0, this.nPairs), pN: this.pN.slice(0, this.nPairs), pNpaid: this.pNpaid.slice(0, this.nPairs),
       pos: this.pos.slice(0, n3), vel: this.vel.slice(0, n3), frc: this.frc.slice(0, n3),
       type: this.type.slice(0, N), formal: this.formal.slice(0, N), val: this.val.slice(0, N), lp: this.lp.slice(0, N),
-      pinned: this.pinned.slice(0, N), ids: this.ids.slice(0, N), cos0: this.cos0.slice(0, N), bo: Float64Array.from(bo)
+      pinned: this.pinned.slice(0, N), ids: this.ids.slice(0, N), cos0: this.cos0.slice(0, N), born: this.born.slice(0, N), bo: Float64Array.from(bo)
     };
   }
   restore(s) {
@@ -2590,27 +2656,27 @@ class Engine {
     this.N = s.N; this.time = s.time; this.stepCount = s.stepCount; this.rngState = s.rng; this.nextId = s.nextId;
     if (s.box) this.box = { ...s.box };
     this.sphere = s.sphere ? { ...s.sphere } : null;
-    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'kelvinWork', 'sparkHold', 'wallMeasured', 'wallContact', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidVelocity', 'voidTau', 'voidSkin', 'voidHeat', 'voidForce', 'servoWork', 'servoWorkTotal', 'pressureControl', 'pressureTarget', 'pressureTau', 'heatToSample', 'heaterWork', 'nextSub', 'subHold', 'subPeak', 'lastSub', 'redone', 'clamped']) if (s[key] !== undefined) this[key] = s[key];
+    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'kelvinWork', 'sparkHold', 'wallMeasured', 'wallContact', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidVelocity', 'voidTau', 'voidSkin', 'voidHeat', 'voidForce', 'servoWork', 'servoWorkTotal', 'pressureControl', 'pressureTarget', 'pressureTau', 'heatToSample', 'heaterWork', 'nextSub', 'subHold', 'subPeak', 'lastSub', 'redone', 'clamped', 'bondOrderDeficit', 'bondOrderHeld']) if (s[key] !== undefined) this[key] = s[key];
     this.tweezer = null;
     this.pos.set(s.pos); this.vel.set(s.vel); this.frc.set(s.frc); this.prev.set(s.pos);
-    this.type.set(s.type); this.formal.set(s.formal); this.val.set(s.val); this.lp.set(s.lp); this.pinned.set(s.pinned); this.ids.set(s.ids); this.cos0.set(s.cos0);
+    this.type.set(s.type); this.formal.set(s.formal); this.val.set(s.val); this.lp.set(s.lp); this.pinned.set(s.pinned); this.ids.set(s.ids); this.cos0.set(s.cos0); if (s.born) this.born.set(s.born); else this.born.fill(-Infinity, 0, this.N);
     for (let i = 0; i < this.N; i++) { const el = ELEMENTS[this.type[i]]; this.mass[i] = el.mass; this.ljx[i] = el.ljX; this.lje[i] = Math.sqrt(el.ljD); this.ljeA[i] = Math.sqrt(el.ljDA); }
     // rebuild pair list with the saved bond orders
     this.nPairs = 0;
     this._rebuild();
     const bo = new Map(); for (let k = 0; k < s.bo.length; k += 2) bo.set(s.bo[k], s.bo[k + 1]);
-    for (let p = 0; p < this.nPairs; p++) { const v = bo.get(this._key(this.pI[p], this.pJ[p])); this.pN[p] = v === undefined ? 1 : v; }
+    for (let p = 0; p < this.nPairs; p++) { const v = bo.get(this._key(this.pI[p], this.pJ[p])); this.pN[p] = this.pNpaid[p] = v === undefined ? 1 : v; }
     this.needRebuild = true; this.needForces = false;
     // recompute derived per-pair data (Z, q, b) for display without touching forces
     const f = this.frc.slice(0, 3 * this.N), pn = this.pN.slice(0, this.nPairs), c0 = this.cos0.slice(0, this.N);
     if (s.pI) {
       if (s.pI.length > this.pairCap) this._allocPairs(s.pI.length);
-      this.nPairs = s.pI.length; this.pI.set(s.pI); this.pJ.set(s.pJ); this.pN.set(s.pN); this.built.set(s.built);
+      this.nPairs = s.pI.length; this.pI.set(s.pI); this.pJ.set(s.pJ); this.pN.set(s.pN); this.pNpaid.set(s.pNpaid || s.pN); this.built.set(s.built);
       this.pairMap = new Map();
       for (let p = 0; p < this.nPairs; p++) this.pairMap.set(this.pI[p] * 1048576 + this.pJ[p], p);
     }
     this.computeForces(); this.frc.set(f); this.cos0.set(c0);
-    if (!s.pI) this.pN.set(pn.subarray(0, Math.min(pn.length, this.nPairs)));
+    if (!s.pI) { this.pN.set(pn.subarray(0, Math.min(pn.length, this.nPairs))); this.pNpaid.set(pn.subarray(0, Math.min(pn.length, this.nPairs))); }
     for (const key of ['Epot', 'Ewall', 'wallForce', 'wallArea', 'pressureBar', 'pressureEMA']) if (s[key] !== undefined) this[key] = s[key];
     this.needRebuild = s.needRebuild ?? true; this.needForces = s.needForces ?? false;
   }

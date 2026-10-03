@@ -249,6 +249,19 @@ Every force is the exact gradient of the energy, including the many-body saturat
 VSEPR terms; `physics-check.cjs` verifies this numerically (errors ≈1e-6 kJ/mol/Å). The only lagged
 quantity is the bond multiplicity n, which relaxes over about 12 fs.
 
+Because n relaxes on its own clock, it changes the energy without any force doing work, and finer
+sub-steps cannot remove that. The engine pays for it instead: once any n has moved 0.001 from the value
+last paid for, the energy change at fixed positions is taken from (or given to) the kinetic energy of the
+atoms whose bonds changed, about their own centre of mass, so momentum is untouched. If they and their
+bonded neighbours cannot afford it, n holds where it was until they can. An atom placed less than
+50 fs ago settles its bonds unpaid, because a dropped, drawn or reloaded molecule starts from single bonds
+and its π bonds forming is not a reaction; changes made by `minimize` are not paid either.
+
+Before this, an isolated cyclohexene at 1200 K gained 1000–1400 kJ/mol in 2 ps and tore itself apart,
+and benzene at 1500 K gained 300–1000 kJ/mol on the seeds where it broke up. Now an intact molecule holds
+its energy to about 5 kJ/mol, and one that breaks up stays within about 40. No bookkeeping is needed while
+n is still, so a scene at room temperature runs at the same speed.
+
 ## Validation
 
 `node playground/tests/physics-check.cjs` — structure, energy conservation, determinism:
@@ -363,7 +376,7 @@ Press `?` for every shortcut. Click a key to rebind it; conflicts move automatic
 
 Run `node playground/tests/regression.cjs` for force-query invariance, charge conservation, variable-radius force gradients, hot rewind across checkpoints, pinned atoms, failure handling, and malformed imports.
 
-Bond multiplicity relaxes as an internal heuristic variable. Fixed-state force gradient checks do not prove total energy conservation during reactions. The heat bath exchanges energy; the engine also counts safety velocity clamps in extreme collisions. Neither behavior should be mistaken for isolated, rigorously conservative dynamics. The UI reports those clamps when they occur.
+Bond multiplicity relaxes as an internal heuristic variable; the energy its relaxation would create or destroy is settled against the kinetic energy of the atoms involved (see Force field). The heat bath exchanges energy; the engine also counts safety velocity clamps in extreme collisions. Neither behavior should be mistaken for isolated, rigorously conservative dynamics. The UI reports those clamps when they occur.
 
 The camera is orthographic: depth changes shading, not apparent atomic radii, and turning the view changes nothing physical. Chamber contours are summed Gaussians, not electron-density calculations; the inspector's cloud is a real Hartree–Fock calculation and the only quantum result in the app. Playback speed is a nonlinear UI setting, not a multiplier of physical real time. With any void wall enabled, energy is deliberately removed and tallied; the chamber is then an open system by design.
 
@@ -414,10 +427,14 @@ looked open-shell and bonded to each other or to a newcomer side-on. The angular
 (force-field table) removes that side-on attraction instead of changing the saturation curve, so the
 fitted barriers are not touched. It costs about 30 % of step speed on hydrocarbons.
 
-Still open: cyclohexene at 1200 K now survives 0.35–0.95 ps instead of 0.17–0.29, but real cyclohexene
-lives for seconds at that temperature. The remaining break-ups lose an H with no atom over its valence,
-and some follow a sudden jump of 100–250 kJ/mol in total energy within 50 fs, which the bath cannot
-supply. That points at the lagged bond multiplicity n creating energy during fast bond changes.
+Still open: in a 1200 K bath cyclohexene still loses an H within about 0.2–1.2 ps, where real
+cyclohexene lives for seconds. The energy the lagged bond multiplicity used to create is now paid for
+(Force field), so this is the potential itself. Two things make the escape too cheap. A C–H stretched to
+1.4 Å costs 35–45 kJ/mol in cyclohexene against 76 in methane and about 85 for a real C–H. And a
+leaving H finds a shallow pocket 2.0–2.3 Å out, often bridging two carbons, behind a bump of about
+30 kJ/mol on the way back, where H + radical recombination should have none. The relaxed scan also lets
+the allylic H walk to the other end of the allyl unit (a suprafacial [1,3] shift, forbidden in reality)
+for under 160 kJ/mol.
 
 What was tried, so it is not repeated:
 
