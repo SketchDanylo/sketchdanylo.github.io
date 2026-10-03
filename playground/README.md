@@ -113,6 +113,12 @@ bonded partners outside it kept moving, which stretches the bond and drags the m
 that appeared to shove things for no reason. A molecule resting near a wall now behaves exactly
 as it does in a reflecting chamber.
 
+The stop happens at the end of a sub-step, after the integrator has finished with the atom, and the
+atom is not moved: the face's own spring holds it, and gives back exactly what it stored. Stopping it
+halfway through the step, or putting it back on the face, did work nobody recorded. A CH₄ thrown into
+the wall at 3 km/s lost or gained 20–40 kJ/mol that `voidHeat` never saw; it now balances to 0.4. Only
+an atom more than `WALL_FOLD` outside (left there by an edit or a resize) is still carried back.
+
 **The wall is measured, not set.** `wallMeasured` is the kinetic temperature of the fluid lying
 within `wallSkin` of a face — the wall is whatever the sample against it is, and a heater only
 sets what it *aims* for. With a temperature void the heater stands down entirely, because it
@@ -237,6 +243,7 @@ A custom, experimental bond-order model inspired by reactive force-field ideas. 
 | Screening | Two atoms bonded to a common neighbour do not compete for each other's valence, unless they are bonded themselves | — |
 | Bond order | Spare valence shared between neighbours → C=C, C≡C, O=O, N≡N, CO₂, aromatic 1.5. Each atom first offers its spare valence in proportion to what its partners can take, then re-divides it `pairIter` times toward partners that offer back (a damped Sinkhorn pairing), so a partner with nowhere else to go wins: butadiene alternates 1.84 / 1.16 (1.351 / 1.498 Å, exp. 1.338 / 1.467) and comes out 9.7 kJ/mol more stable s-trans, while symmetric systems — benzene, allyl, CO₂ — are a fixed point and stay exactly as they were. It follows the same long-ranged, screened bond order the saturation uses, so a partner weakens a π bond *while* its own bond forms; a partner claims valence only insofar as it can bond at all, so a radical frees the π bond and a saturated molecule drifting past does not | Radical addition to alkenes |
 | Angular saturation | A saturated centre cannot take a partner side-on to one of its σ bonds: the Morse attraction of a newcomer n at centre c is screened by each arm c–k it approaches at less than ≈ 70°, weighted by how σ-like that arm is (geometric π measure), and the screen lifts for a radical newcomer, for ring partners, for a carbene (≥ 1.2 free valence counted with long-reach bonds) at any corner of the triangle, for metals and ionic pairs, and when neither c nor n has any free valence. Contacts from behind an arm (≥ 160°) are untouched, so collinear transfer barriers do not change | CH₅ and five-coordinate carbon wells removed; every barrier and atomization energy unchanged |
+| π capacity | Spare valence goes into π bonds only as far as the atom has p orbitals left for them: one for a C, N or O with three σ partners or with two at a bent angle, two when the two σ partners are linear (smoothly between 143° and 162°) or when there is only one. The rest stays a σ radical. A phenyl radical used to pour its in-plane electron into the ring's π bonds and come out 120 kJ/mol too stable | Benzene C–H 389 kJ/mol (was 351, exp. 473) |
 | π blocking | A π bond blocks an incoming partner at 0.85 of a σ bond, being weaker and more polarizable. O₂'s π counts 0.78 (triplet O₂ is a diradical) and an O–O bond with one unpaired oxygen gains 0.45 order (the three-electron bond of HO₂·) | Cl + ethene; O₂ and HO₂ chemistry |
 | Angles | VSEPR, θ₀ a smooth function of the continuous steric number | 109.5°, 107°, 104.5°, 120°, 180° |
 | π torsion | Across a bond of order n > 1: `(n − 1)²·(De₂ − De₁)·⟨sin²φ·sin²θ₁·sin²θ₂⟩ / 0.5625`, averaged over the substituent pairs and switched with every bond involved. It fades out as either end gains a third substituent (2 → 2.5), since that centre is turning sp³. Twisting breaks the π bond, so the barrier is the π-bond energy itself; the angle factors keep it smooth through linear geometries | Ethene 90° twist: 248 kJ/mol unrelaxed (exp. ≈ 272) |
@@ -253,7 +260,10 @@ Because n relaxes on its own clock, it changes the energy without any force doin
 sub-steps cannot remove that. The engine pays for it instead: once any n has moved 0.001 from the value
 last paid for, the energy change at fixed positions is taken from (or given to) the kinetic energy of the
 atoms whose bonds changed, about their own centre of mass, so momentum is untouched. If they and their
-bonded neighbours cannot afford it, n holds where it was until they can. An atom placed less than
+bonded neighbours cannot afford it, n holds where it was until they can, unless the pointer is
+dragging something: then the hand pays, and the cost goes into `servoWork` like any other work it
+does. Without that, Cl· dragged onto cold ethene stalled at 3 Å, because the π bond starts to give
+way about 14 kJ/mol before the new C–Cl bond pays it back. An atom placed less than
 50 fs ago settles its bonds unpaid, because a dropped, drawn or reloaded molecule starts from single bonds
 and its π bonds forming is not a reaction; changes made by `minimize` are not paid either.
 

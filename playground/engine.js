@@ -55,6 +55,7 @@ const SUB_HOLD = 200;               // fs a finer sub-step count is kept before 
    over a few steps each just under the line — enough to stay bound with nothing to take the energy,
    which an isolated pair cannot do. A strict guard only became affordable once a redone step stayed
    finer instead of dropping straight back, because the dropping back was itself a source of drift. */
+const PI_LIN0 = 0.8, PI_LIN1 = 0.95;
 const SUB_MAX = 64, SUB_ETOL = 1.5, PN_PAY = 0.001, PN_SETTLE = 50;
 const SOLID_W = 0.05;               // Å over which a solid face's force eases in
 const WALL_FOLD = 1.0;              // Å past a solid face before an atom is carried back rather than pushed
@@ -1175,6 +1176,28 @@ class Engine {
       for (let c = cStart[i]; c < cStart[i + 1]; c++) { const p = cList[c], k = pI[p] === i ? pJ[p] : pI[p]; s += sig[p] * Math.min(2, capOf(k, sig[p], pN[p])); }
       D[i] = s;
     }
+    const spi = this._spi && this._spi.length >= N ? this._spi : (this._spi = new Float64Array(this.cap)), pos = this.pos;
+    for (let i = 0; i < N; i++) {
+      spi[i] = spare[i];
+      const z = ELEMENTS[type[i]].Z;
+      if (z < 6 || z > 8 || spare[i] <= 0) continue;
+      let n = 0, b1 = -1, b2 = -1, s1 = 0, s2 = 0;
+      for (let c = cStart[i]; c < cStart[i + 1]; c++) {
+        const p = cList[c], v = sig[p]; n += v;
+        if (v > s1) { s2 = s1; b2 = b1; s1 = v; b1 = p; } else if (v > s2) { s2 = v; b2 = p; }
+      }
+      let L = 0;
+      if (b2 >= 0) {
+        const a = pI[b1] === i ? pJ[b1] : pI[b1], b = pI[b2] === i ? pJ[b2] : pI[b2];
+        const ax = pos[3 * a] - pos[3 * i], ay = pos[3 * a + 1] - pos[3 * i + 1], az = pos[3 * a + 2] - pos[3 * i + 2];
+        const bx = pos[3 * b] - pos[3 * i], by = pos[3 * b + 1] - pos[3 * i + 1], bz = pos[3 * b + 2] - pos[3 * i + 2];
+        const cs = (ax * bx + ay * by + az * bz) / (Math.sqrt((ax * ax + ay * ay + az * az) * (bx * bx + by * by + bz * bz)) || 1);
+        const t = Math.min(1, Math.max(0, (-cs - PI_LIN0) / (PI_LIN1 - PI_LIN0)));
+        L = t * t * (3 - 2 * t);
+      }
+      const cap = n <= 1 ? 2 : n <= 2 ? 2 - (n - 1) * (1 - L) : n <= 3 ? (1 + L) * (3 - n) + (n - 2) : Math.max(0, 4 - n);
+      spi[i] = Math.min(spare[i], cap);
+    }
     const P = this.nPairs;
     const grow = a => a && a.length >= P ? a : new Float64Array(Math.max(P, 64));
     const wA = this._wA = grow(this._wA), wB = this._wB = grow(this._wB), oA = this._oA = grow(this._oA), oB = this._oB = grow(this._oB), nA = this._nA = grow(this._nA), nB = this._nB = grow(this._nB);
@@ -1183,7 +1206,7 @@ class Engine {
       if (f <= 0) { wA[p] = wB[p] = oA[p] = oB[p] = 0; continue; }
       const i = pI[p], j = pJ[p];
       wA[p] = f * Math.min(2, capOf(j, f, pN[p])); wB[p] = f * Math.min(2, capOf(i, f, pN[p]));
-      oA[p] = D[i] > 1e-9 ? spare[i] * wA[p] / D[i] : 0; oB[p] = D[j] > 1e-9 ? spare[j] * wB[p] / D[j] : 0;
+      oA[p] = D[i] > 1e-9 ? spi[i] * wA[p] / D[i] : 0; oB[p] = D[j] > 1e-9 ? spi[j] * wB[p] / D[j] : 0;
     }
     const pF = this.pF;
     for (let it = 0; it < TUNE.pairIter; it++) {
@@ -1192,8 +1215,8 @@ class Engine {
       for (let p = 0; p < P; p++) {
         if (pF[p] <= 0) { nA[p] = oA[p]; nB[p] = oB[p]; continue; }
         const i = pI[p], j = pJ[p];
-        nA[p] = D[i] > 1e-12 ? spare[i] * wA[p] * (TUNE.pairEps + oB[p]) / D[i] : 0;
-        nB[p] = D[j] > 1e-12 ? spare[j] * wB[p] * (TUNE.pairEps + oA[p]) / D[j] : 0;
+        nA[p] = D[i] > 1e-12 ? spi[i] * wA[p] * (TUNE.pairEps + oB[p]) / D[i] : 0;
+        nB[p] = D[j] > 1e-12 ? spi[j] * wB[p] * (TUNE.pairEps + oA[p]) / D[j] : 0;
       }
       oA.set(nA.subarray(0, P)); oB.set(nB.subarray(0, P));
     }
@@ -1255,7 +1278,7 @@ class Engine {
       if (!m[i] || this.pinned[i]) continue;
       vel[3 * i] = g.cx + s * (vel[3 * i] - g.cx); vel[3 * i + 1] = g.cy + s * (vel[3 * i + 1] - g.cy); vel[3 * i + 2] = g.cz + s * (vel[3 * i + 2] - g.cz);
     }
-    this.bondOrderDeficit += dE - (g.K - left);
+    if (this._servoActive) this.servoWork += dE - (g.K - left); else this.bondOrderDeficit += dE - (g.K - left);
   }
   _angles() {
     const N = this.N, pos = this.pos, F = this.frc, Z = this.Z, cStart = this.cStart, cList = this.cList, pI = this.pI, pJ = this.pJ, pF = this.pF, pFp = this.pFp, type = this.type, cos0 = this.cos0, Gz = this.Gz;
@@ -1909,23 +1932,13 @@ class Engine {
     }
     if (!any) return;
     const report = !this.voidPressure;
-    if (this.voidVelocity) {          // the velocity void: whatever touches the wall stops there
+    if (this.voidVelocity) {          // contact itself is stopped at the end of the sub-step, in _voidContact
       for (let i = 0; i < N; i++) {
         if (this.pinned[i]) continue;
         const k = 3 * i;
-        let touched = false;
         for (let d = 0; d < 3; d++) {
           const j = k + d;
-          if (pos[j] < lo[d] || pos[j] > hi[d]) {
-            touched = true;
-            pos[j] = clampNum(pos[j], lo[d], hi[d]);
-            if (report) this._wallImpulse += this.mass[i] * Math.abs(vel[j]) * KEU;  // absorbed: m*v
-          }
-        }
-        if (touched) for (let d = 0; d < 3; d++) {
-          const j = k + d;
-          this.voidHeat += 0.5 * KEU * this.mass[i] * vel[j] * vel[j];
-          vel[j] = 0;
+          if (pos[j] < lo[d] - WALL_FOLD || pos[j] > hi[d] + WALL_FOLD) pos[j] = clampNum(pos[j], lo[d], hi[d]);
         }
       }
       return;
@@ -2043,6 +2056,26 @@ class Engine {
      still approaching one is untouched, and an atom held at the wall is never clamped against its
      own bonded neighbours. Pressure is not handled here: voiding a pressure reading must not
      change how anything moves. */
+  _voidContact() {
+    if (this.sphere || !this.voidVelocity || this.boundsMode !== 'solid') return;
+    const N = this.N, pos = this.pos, vel = this.vel, b = this.box, report = !this.voidPressure;
+    const lo = this._wLo || (this._wLo = [0, 0, 0]), hi = this._wHi || (this._wHi = [0, 0, 0]);
+    lo[0] = b.x0; lo[1] = b.y0; lo[2] = b.z0; hi[0] = b.x1; hi[1] = b.y1; hi[2] = b.z1;
+    for (let i = 0; i < N; i++) {
+      if (this.pinned[i]) continue;
+      const k = 3 * i;
+      let touched = false;
+      for (let d = 0; d < 3; d++) {
+        const j = k + d;
+        if (pos[j] < lo[d] || pos[j] > hi[d]) { touched = true; if (report) this._wallImpulse += this.mass[i] * Math.abs(vel[j]) * KEU; }
+      }
+      if (touched) for (let d = 0; d < 3; d++) {
+        const j = k + d;
+        this.voidHeat += 0.5 * KEU * this.mass[i] * vel[j] * vel[j];
+        vel[j] = 0;
+      }
+    }
+  }
   _voidWalls() {
     if (this.sphere || !this.voidVelocity) return;
     const b = this.box, lo = [b.x0, b.y0, b.z0], hi = [b.x1, b.y1, b.z1];
@@ -2310,7 +2343,7 @@ class Engine {
         for (let p = 0; p < P; p++) if (Math.abs(pN[p] - paid[p]) > PN_PAY) { if (born[this.pI[p]] > t || born[this.pJ[p]] > t) paid[p] = pN[p]; else pay = true; }
         if (pay) {
           dE = this._bondOrderWork();
-          if (dE > 0 && this._bondOrderGroup(true).K < 1.5 * dE) { pN.set(paid.subarray(0, P)); this.computeForces(); dE = 0; pay = false; this.bondOrderHeld++; }
+          if (dE > 0 && !this._servoActive && this._bondOrderGroup(true).K < 1.5 * dE) { pN.set(paid.subarray(0, P)); this.computeForces(); dE = 0; pay = false; this.bondOrderHeld++; }
         }
       }
       for (let i = 0; i < N; i++) {
@@ -2319,6 +2352,7 @@ class Engine {
         for (let d = 3 * i; d < 3 * i + 3; d++) vel[d] += hk * F[d];
       }
       if (pay) { this._payBondOrderWork(dE); this.pNpaid.set(this.pN.subarray(0, this.nPairs)); }
+      this._voidContact();
     }
   }
   _copy(dst, src, n) { if (!dst || dst.length < n) dst = new Float64Array(Math.max(n, 64)); dst.set(src.subarray(0, n)); return dst; }
