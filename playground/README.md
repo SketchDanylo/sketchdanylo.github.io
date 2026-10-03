@@ -258,10 +258,16 @@ VSEPR terms; `physics-check.cjs` verifies this numerically (errors ≈1e-6 kJ/mo
 quantity is the bond multiplicity n, which relaxes over about 12 fs.
 
 Because n relaxes on its own clock, it changes the energy without any force doing work, and finer
-sub-steps cannot remove that. The engine pays for it instead: once any n has moved 0.001 from the value
-last paid for (checked every sub-step at the usual two per step, and twice per step in a scene hot enough to
-need many: a 300-atom gas at 6000 K at 64 sub-steps spent 58 % of its time on this before), the energy change at fixed positions is taken from (or given to) the kinetic energy of the
-atoms whose bonds changed, about their own centre of mass, so momentum is untouched. If they and their
+sub-steps cannot remove that. The engine pays for it instead. n is held fixed through every sub-step
+of a step, so each sub-step integrates one energy surface, and relaxes once at the end of the step;
+a pair moves only when that would shift it more than 0.001 from the value last paid for, so a calm
+scene almost never pays. When n does move, the energy change at those final positions is taken from (or
+given to) the kinetic energy of the atoms whose bonds changed, about their own centre of mass, so
+momentum is untouched, and the step's last half-kick uses the forces of the n it was integrated with.
+Relaxing n inside every sub-step instead, with sub-threshold moves left unpaid until they added up,
+let n change at one geometry and be paid for at another: a lone ethane at about 1200 K, insulated,
+gained 12–14 kJ/mol in 10 ps that way (now within 2.5), and the gain shrank with the sub-step rather
+than vanishing, which is how it was found. If they and their
 bonded neighbours cannot afford it, n holds where it was until they can, unless the pointer is
 dragging something: then the hand pays, and the cost goes into `servoWork` like any other work it
 does. Without that, Cl· dragged onto cold ethene stalled at 3 Å, because the π bond starts to give

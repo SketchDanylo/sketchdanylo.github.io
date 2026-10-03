@@ -1214,7 +1214,11 @@ class Engine {
         // three-electron O–O bond (HO₂·, RO₂·): one oxygen keeps an unpaired valence, the other does not
         if (pp.oo) target = Math.min(pp.maxOrder, target + TUNE.oo3e * f * Math.min(1, Math.abs(spare[i] - spare[j])));
       }
-      if (pN[p] !== target) { const d = target - pN[p]; pN[p] = Math.abs(d) < 1e-4 ? target : pN[p] + d * rate; moved = true; }
+      if (pN[p] !== target) {
+        const d = target - pN[p], n = Math.abs(d) < 1e-4 ? target : pN[p] + d * rate;
+        if (this._integrating && Math.abs(n - this.pNpaid[p]) <= PN_PAY) continue;
+        pN[p] = n; moved = true;
+      }
     }
     this._pNmoved = moved;
     if (moved && !this._integrating) this.pNpaid.set(pN.subarray(0, this.nPairs));
@@ -1225,6 +1229,7 @@ class Engine {
     nw.set(pN.subarray(0, P));
     pN.set(this.pNpaid.subarray(0, P));
     const Eold = this.computeForces();
+    this._Fpaid = this._copy(this._Fpaid, this.frc, 3 * this.N);
     pN.set(nw.subarray(0, P));
     this.computeForces();
     return Enew - Eold;
@@ -2324,12 +2329,10 @@ class Engine {
     try { this._integrateSteps(nsub, forceRebuild); } finally { this._integrating = false; }
   }
   _integrateSteps(nsub, forceRebuild) {
-    const N = this.N, pos = this.pos, vel = this.vel, F = this.frc, h = this.dt / nsub;
+    const N = this.N, pos = this.pos, vel = this.vel, h = this.dt / nsub;
     this.servoWork = 0;
-    const payEvery = Math.max(1, Math.floor(nsub / 2));
-    let movedSince = false;
     for (let sub = 0; sub < nsub; sub++) {
-      const tf = this._servoActive ? this._twF : null;   // the servo force this sub-step starts with
+      const tf = this._servoActive ? this._twF : null, F = this.frc;
       let W = 0;
       for (let i = 0; i < N; i++) {
         if (this.pinned[i]) { vel[3 * i] = vel[3 * i + 1] = vel[3 * i + 2] = 0; continue; }
@@ -2340,22 +2343,22 @@ class Engine {
       this._reflectWalls();
       if (sub === 0 && forceRebuild) this.needRebuild = true;
       this._checkRebuild();
-      this.computeForces(h);
-      let dE = 0, pay = false;
-      movedSince = movedSince || this._pNmoved;
-      if (movedSince && ((sub + 1) % payEvery === 0 || sub === nsub - 1)) {
-        movedSince = false;
+      const last = sub === nsub - 1;
+      this.computeForces(last ? this.dt : 0);
+      let dE = 0, pay = false, Fk = this.frc;
+      if (last && this._pNmoved) {
         const P = this.nPairs, pN = this.pN, paid = this.pNpaid, born = this.born, t = this.time - PN_SETTLE;
-        for (let p = 0; p < P; p++) if (Math.abs(pN[p] - paid[p]) > PN_PAY) { if (born[this.pI[p]] > t || born[this.pJ[p]] > t) paid[p] = pN[p]; else pay = true; }
+        for (let p = 0; p < P; p++) if (pN[p] !== paid[p]) { if (born[this.pI[p]] > t || born[this.pJ[p]] > t) paid[p] = pN[p]; else pay = true; }
         if (pay) {
           dE = this._bondOrderWork();
           if (dE > 0 && !this._servoActive && this._bondOrderGroup(true).K < 1.5 * dE) { pN.set(paid.subarray(0, P)); this.computeForces(); dE = 0; pay = false; this.bondOrderHeld++; }
+          else Fk = this._Fpaid;
         }
       }
       for (let i = 0; i < N; i++) {
         if (this.pinned[i]) continue;
         const hk = 0.5 * h * ACC / this.mass[i];
-        for (let d = 3 * i; d < 3 * i + 3; d++) vel[d] += hk * F[d];
+        for (let d = 3 * i; d < 3 * i + 3; d++) vel[d] += hk * Fk[d];
       }
       if (pay) { this._payBondOrderWork(dE); this.pNpaid.set(this.pN.subarray(0, this.nPairs)); }
       this._voidContact();
