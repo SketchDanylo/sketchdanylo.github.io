@@ -347,11 +347,11 @@ function candidates(src, cap = 24) {
     seen.set(key, c); out.push(c);
   };
   const L = frag.list;
-  for (let A = 0; A < L.length; A++) for (let B = 0; B < L.length; B++) {
+  for (const first of [true, false]) for (let A = 0; A < L.length; A++) for (let B = 0; B < L.length; B++) {
     if (A === B) continue;
     for (const r of L[A]) {
       const radical = free[r] > 0.5, pib = pi.has(r);
-      if (!radical && !pib) continue;
+      if (radical !== first || (!radical && !pib)) continue;
       for (const t of L[B]) {
         const pp = pairParams(src, r, t);
         if (!pp || !pp.bond) continue;
@@ -440,6 +440,23 @@ function stillThere(eng, ev, idx, reactants) {
   return bare([...comps].map(c => eng.formulaOf(f.list[c]))) === bare(reactants);
 }
 
+function verifyEvent(scene, ev, products, T, seeds = 3, fs = 400) {
+  let ok = 0;
+  for (let s = 1; s <= seeds; s++) {
+    const e = fromScene(scene);
+    e.T = T; e.thermostat = true; e.thermostatMode = 'kelvin'; e.rngState = s * 7919 + 13;
+    applyEvent(e, ev, ev.atoms);
+    const cool = [80, 160, 300];
+    for (let k = 0; k < fs; k++) {
+      e.step();
+      if (cool.length && k + 1 >= cool[0]) { cool.shift(); const f0 = e.fragments(), cs = new Set(ev.atoms.map(i => f0.comp[i])); e.thermalize(T, [...cs].flatMap(c => f0.list[c])); }
+    }
+    const f = e.fragments(), comps = new Set(ev.atoms.map(i => f.comp[i]));
+    if (bare([...comps].map(c => e.formulaOf(f.list[c]))) === bare(products)) ok++;
+  }
+  return ok;
+}
+
 function applyEvent(eng, ev, idx) {
   const anchor = new Set(ev.anchor);
   let cx = 0, cy = 0, cz = 0, ix = 0, iy = 0, iz = 0, n = 0;
@@ -467,5 +484,5 @@ function applyEvent(eng, ev, idx) {
   eng.refresh();
 }
 
-return { scanPair, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, stillThere, candidates, scanCandidate, combine, survey, pickNext, reuse, REFINE, UNCERTAINTY };
+return { scanPair, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, verifyEvent, stillThere, candidates, scanCandidate, combine, survey, pickNext, reuse, REFINE, UNCERTAINTY };
 });

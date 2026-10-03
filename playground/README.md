@@ -508,7 +508,17 @@ Repeating the search remembers every barrier it has measured, by reaction type a
 and only scans what is new; the reaction it skips to is scanned afresh for its geometry. Two artefacts
 the search has shown up, both force-field errors still to fix: C₂H₃· + H₂ → C₂H₅· (H₂ adding whole to
 a vinyl radical) comes out barrierless where the real reaction is an abstraction over about 40 kJ/mol,
-and a hot C₂H₅ formed by H· + ethene loses a hydrogen again within picoseconds in the live chamber.
+and a hot C₂H₅ formed by H· + ethene lost its hydrogen again within picoseconds in the live chamber.
+That second one is now handled the way a real gas handles it: a freshly formed molecule carries its
+whole reaction energy, and in a real flask collisions with the surrounding gas take it away within
+nanoseconds, while the chamber holds too few molecules to do that. The product is therefore brought
+back to the chamber's temperature at 80, 160, 300 and 600 fs after the skip, standing in for those
+collisions. Before a skip is played, the chosen event is also tried on a copy three times (400 fs each);
+if fewer than two of those end in the forecast products, the next most likely reaction is drawn instead.
+
+The search used to scan ethene's carbon reaching for the H atom rather than the H atom reaching for
+ethene, which gave a poorer starting geometry: H· + ethene then completed in 6 of 10 runs. Radicals
+are now always the ones that attack, and it completes in 6 of 6 seeded runs and 5 of 5 browser trials.
 
 ### What it does not do yet
 

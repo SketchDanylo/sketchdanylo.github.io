@@ -129,23 +129,34 @@ class ForecastCard {
   }
   async go(sv, ids) {
     const side = list => list.map(this.actions.pretty || (x => x)).join(' + ');
-    const nx = K().pickNext(sv);
-    if (!nx) return false;
-    let pick = nx.pick;
-    if (!pick.event && pick.cand && this.lastScene) {
-      const key = this.req, ls = this.lastScene;
+    const ls = this.lastScene, key = this.req;
+    const same = (x, want) => x.products.map(f => f.replace(/·/g, '')).sort().join() === want.products.map(f => f.replace(/·/g, '')).sort().join();
+    let events = sv.events.slice(), tries = 0;
+    while (events.length && tries++ < 4) {
+      const total = events.reduce((a, x) => a + x.rate, 0);
+      const nx = K().pickNext({ ...sv, events: events.map(x => ({ ...x, share: x.rate / total })), total });
+      if (!nx) return false;
+      let pick = nx.pick;
       this.show('Setting up the reaction…', '<div class="fc-busy"><i></i></div>' + this.logHtml());
-      const r = await this.dispatch({ type: 'scan', key: 'sv' + ls.key, scene: ls.scene, c: pick.cand, T: ls.T, quick: false });
-      if (key !== this.req) return false;
-      const same = x => x.products.map(f => f.replace(/·/g, '')).sort().join() === pick.products.map(f => f.replace(/·/g, '')).sort().join();
-      pick = r && r.ok !== false ? [r, ...(r.also || [])].find(same) || null : null;
+      if (pick.cand && ls) {
+        const r = await this.dispatch({ type: 'scan', key: 'sv' + ls.key, scene: ls.scene, c: pick.cand, T: ls.T, quick: false });
+        if (key !== this.req) return false;
+        pick = r && r.ok !== false ? [r, ...(r.also || [])].find(x => same(x, pick)) || null : null;
+      }
+      let good = !!(pick && pick.event);
+      if (good && ls) {
+        const n = await this.dispatch({ type: 'verify', scene: ls.scene, event: pick.event, products: pick.products, T: ls.T });
+        if (key !== this.req) return false;
+        good = n >= 2;
+      }
+      if (!good) { events = events.filter(x => x !== nx.pick); continue; }
+      const label = side(pick.reactants) + ' → ' + side(pick.products);
+      const ok = this.actions.skip?.(pick.event, nx.wait, ids, label, pick.reactants, !this.auto);
+      if (ok === false) return false;
+      (this.log = this.log || []).push({ wait: nx.wait, label });
+      return true;
     }
-    if (!pick || !pick.event) return false;
-    const label = side(pick.reactants) + ' → ' + side(pick.products);
-    const ok = this.actions.skip?.(pick.event, nx.wait, ids, label, pick.reactants, !this.auto);
-    if (ok === false) return false;
-    (this.log = this.log || []).push({ wait: nx.wait, label });
-    return true;
+    return false;
   }
   showWatching() {
     const n = this.log.length;

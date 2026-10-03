@@ -96,8 +96,8 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261003-build60', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow) => skipToEvent(ev, wait, ids, what, reactants, slow), pause: () => setPlaying(false) });
-let replay = null;
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261003-build61', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow) => skipToEvent(ev, wait, ids, what, reactants, slow), pause: () => setPlaying(false) });
+let replay = null, cooling = [];
 function skipToEvent(ev, wait, sceneIds, what, reactants, slow) {
   if (!ev) return;
   const idx = ev.atoms.map(k => eng.indexOfId(sceneIds[k]));
@@ -109,6 +109,7 @@ function skipToEvent(ev, wait, sceneIds, what, reactants, slow) {
   eng.refresh();
   scheduleSave();
   if (slow) { replay = { until: eng.time + 800, speed: time.speed, ids: idx.map(i => eng.ids[i]) }; setSpeed(0.5); }
+  cooling = [80, 160, 300, 600].map(dt => ({ at: eng.time + dt, ids: idx.map(i => eng.ids[i]) }));
   toast('Skipped ' + ChemKinetics.humanTime(wait) + ' · ' + what + (slow ? ' · slow motion while it happens' : ''));
   if (!time.playing) setPlaying(true);
   return true;
@@ -2122,6 +2123,11 @@ function frame(now) {
     inspect: inspectLeader(), forecast: replay ? replay.ids.map(id => eng.indexOfId(id)).filter(i => i >= 0) : forecastPick()
   });
   if (replay && eng.time >= replay.until) { if (Math.abs(time.speed - 0.5) < 1e-9) setSpeed(replay.speed); replay = null; }
+  while (cooling.length && eng.time >= cooling[0].at) {
+    const c = cooling.shift(), f = eng.fragments(), comps = new Set(c.ids.map(id => eng.indexOfId(id)).filter(i => i >= 0).map(i => f.comp[i]));
+    const atoms = [...comps].flatMap(k => f.list[k]);
+    if (atoms.length && eng.T > 0) eng.thermalize(eng.T, atoms);
+  }
   // UI text, ~10 Hz
   if (now - lastUI > 100) {
     lastUI = now;
