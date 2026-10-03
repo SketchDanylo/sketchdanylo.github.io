@@ -39,7 +39,7 @@ const Q_MAX = 1.1;                  // saturation of bond-polarisation charge (e
 //   wpiOO = the same for O=O, lower still (triplet O₂ is a diradical);
 //   oo3e = extra O–O bond order when only one oxygen is unpaired (three-electron bond, HO₂·);
 //   mu   = strength weighting of excess valence (Evans–Polanyi: exothermic transfers get lower barriers).
-const TUNE = { kappa: 0.38, c1: 0.6, c4: 10.82, k: 6, kb: 1.3, yoff: 3.0, wpi: 0.85, wpiOO: 0.78, oo3e: 0.45, mu: 0.5, kbo: 0.4, tsStab: 0, pauliOpen: 0, share: 0.5, insert: 1, vstate: 1, cap: 0.10, gel: 1, pairIter: 6, pairEps: 0.02 };
+const TUNE = { kappa: 0.38, c1: 0.6, c4: 10.82, k: 6, kb: 1.3, yoff: 3.0, wpi: 0.85, wpiOO: 0.78, oo3e: 0.45, mu: 0.5, kbo: 0.4, tsStab: 0, pauliOpen: 0, share: 0.5, insert: 1, vstate: 1, cap: 0.10, gel: 1, pairIter: 6, pairEps: 0.02, ring3: 0.94 };
 const RAMP_W = 0.15;
 const Y_ON = 3.6, Y_OFF = 5.6;      // Morse taper window (in units of a·(r − re))
 const COORD_R1 = 1.22, COORD_R2 = 1.50; // structural coordination switch (× single-bond length)
@@ -1297,17 +1297,25 @@ class Engine {
           const rv = Math.sqrt(vx * vx + vy * vy + vz * vz) || 1e-6;
           const fk = pF[pb], fpk = pFp[pb];
           const w = fj * fk;
+          let qjk = -1;
+          if (TUNE.ring3 > 0) for (let y = cStart[j]; y < cStart[j + 1]; y++) { const t = cList[y]; if ((pI[t] === j ? pJ[t] : pI[t]) === k) { qjk = t; break; } }
+          const rel = qjk < 0 ? 1 : 1 - TUNE.ring3 * pF[qjk], wa = w * rel;
           let c = (ux * vx + uy * vy + uz * vz) / (ru * rv);
           if (c > 1) c = 1; else if (c < -1) c = -1;
           const d = c - c0v, eu = Kc * d * d + Kl * ell * (1 + c), dEdc = 2 * Kc * d + Kl * ell;
-          E += w * eu;
-          dEdc0sum += w * (-2 * Kc * d + Kl * dell * (1 + c));
-          const g = w * dEdc, iuv = 1 / (ru * rv);
+          E += wa * eu;
+          dEdc0sum += wa * (-2 * Kc * d + Kl * dell * (1 + c));
+          if (qjk >= 0 && pFp[qjk] !== 0) {
+            const dEdr = -w * eu * TUNE.ring3 * pFp[qjk], rjk = this.pR[qjk], sc = dEdr / rjk;
+            const fx = sc * (pos[3 * k] - pos[3 * j]), fy = sc * (pos[3 * k + 1] - pos[3 * j + 1]), fz = sc * (pos[3 * k + 2] - pos[3 * j + 2]);
+            F[3 * j] += fx; F[3 * j + 1] += fy; F[3 * j + 2] += fz; F[3 * k] -= fx; F[3 * k + 1] -= fy; F[3 * k + 2] -= fz;
+          }
+          const g = wa * dEdc, iuv = 1 / (ru * rv);
           // dc/du, dc/dv
           let Fjx = -g * (vx * iuv - c * ux / (ru * ru)), Fjy = -g * (vy * iuv - c * uy / (ru * ru)), Fjz = -g * (vz * iuv - c * uz / (ru * ru));
           let Fkx = -g * (ux * iuv - c * vx / (rv * rv)), Fky = -g * (uy * iuv - c * vy / (rv * rv)), Fkz = -g * (uz * iuv - c * vz / (rv * rv));
           // weight derivatives
-          const sj = -eu * fpj * fk / ru, sk = -eu * fj * fpk / rv;
+          const sj = -eu * fpj * fk * rel / ru, sk = -eu * fj * fpk * rel / rv;
           Fjx += sj * ux; Fjy += sj * uy; Fjz += sj * uz;
           Fkx += sk * vx; Fky += sk * vy; Fkz += sk * vz;
           F[3 * j] += Fjx; F[3 * j + 1] += Fjy; F[3 * j + 2] += Fjz;
