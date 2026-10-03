@@ -259,7 +259,8 @@ quantity is the bond multiplicity n, which relaxes over about 12 fs.
 
 Because n relaxes on its own clock, it changes the energy without any force doing work, and finer
 sub-steps cannot remove that. The engine pays for it instead: once any n has moved 0.001 from the value
-last paid for, the energy change at fixed positions is taken from (or given to) the kinetic energy of the
+last paid for (checked every sub-step at the usual two per step, and twice per step in a scene hot enough to
+need many: a 300-atom gas at 6000 K at 64 sub-steps spent 58 % of its time on this before), the energy change at fixed positions is taken from (or given to) the kinetic energy of the
 atoms whose bonds changed, about their own centre of mass, so momentum is untouched. If they and their
 bonded neighbours cannot afford it, n holds where it was until they can, unless the pointer is
 dragging something: then the hand pays, and the cost goes into `servoWork` like any other work it

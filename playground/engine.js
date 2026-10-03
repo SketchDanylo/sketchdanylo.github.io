@@ -2326,6 +2326,8 @@ class Engine {
   _integrateSteps(nsub, forceRebuild) {
     const N = this.N, pos = this.pos, vel = this.vel, F = this.frc, h = this.dt / nsub;
     this.servoWork = 0;
+    const payEvery = Math.max(1, Math.floor(nsub / 2));
+    let movedSince = false;
     for (let sub = 0; sub < nsub; sub++) {
       const tf = this._servoActive ? this._twF : null;   // the servo force this sub-step starts with
       let W = 0;
@@ -2340,7 +2342,9 @@ class Engine {
       this._checkRebuild();
       this.computeForces(h);
       let dE = 0, pay = false;
-      if (this._pNmoved) {
+      movedSince = movedSince || this._pNmoved;
+      if (movedSince && ((sub + 1) % payEvery === 0 || sub === nsub - 1)) {
+        movedSince = false;
         const P = this.nPairs, pN = this.pN, paid = this.pNpaid, born = this.born, t = this.time - PN_SETTLE;
         for (let p = 0; p < P; p++) if (Math.abs(pN[p] - paid[p]) > PN_PAY) { if (born[this.pI[p]] > t || born[this.pJ[p]] > t) paid[p] = pN[p]; else pay = true; }
         if (pay) {
