@@ -245,6 +245,7 @@ A custom, experimental bond-order model inspired by reactive force-field ideas. 
 | Angular saturation | A saturated centre cannot take a partner side-on to one of its σ bonds: the Morse attraction of a newcomer n at centre c is screened by each arm c–k it approaches at less than ≈ 70°, weighted by how σ-like that arm is (geometric π measure), and the screen lifts for a radical newcomer, for ring partners, for a carbene (≥ 1.2 free valence counted with long-reach bonds) at any corner of the triangle, for metals and ionic pairs, and when neither c nor n has any free valence. Contacts from behind an arm (≥ 160°) are untouched, so collinear transfer barriers do not change | CH₅ and five-coordinate carbon wells removed; every barrier and atomization energy unchanged |
 | π blocking | A π bond blocks an incoming partner at 0.85 of a σ bond, being weaker and more polarizable. O₂'s π counts 0.78 (triplet O₂ is a diradical) and an O–O bond with one unpaired oxygen gains 0.45 order (the three-electron bond of HO₂·) | Cl + ethene; O₂ and HO₂ chemistry |
 | Angles | VSEPR, θ₀ a smooth function of the continuous steric number | 109.5°, 107°, 104.5°, 120°, 180° |
+| σ over-coordination | Every attracting contact of a carbon, nitrogen or oxygen is counted as a σ partner by how much Morse attraction it still gives (weak contacts down to a fifth of a bond, 1-3 neighbours excluded, π order not counted). Holding more than valence + 0.3 costs 200·excess² kJ/mol. Stretched bonds count as little used valence, so a hot carbon could otherwise hold five bonds' worth of attraction | Equilibrium molecules and every fitted barrier unchanged; five-coordinate carbon probe +162 kJ/mol |
 | Three-membered rings | An angle whose two outer atoms are themselves bonded bends at 6 % of the usual cost (`ring3` 0.94, switched by that bond): cyclopropane's bonds bow outward, so its 60° angles do not cost what bending tetrahedral carbon to 60° would. Without it cyclopropane was 611 kJ/mol underbound | Cyclopropane atomization 3403 kJ/mol (exp. 3401); C₄–C₆ rings, not fitted, within 3 % (cyclobutane +2.3 %) |
 | π torsion | Across a bond of order n > 1: `(n − 1)²·(De₂ − De₁)·⟨sin²φ·sin²θ₁·sin²θ₂⟩ / 0.5625`, averaged over the substituent pairs and switched with every bond involved. It fades out as either end gains a third substituent (2 → 2.5), since that centre is turning sp³. Twisting breaks the π bond, so the barrier is the π-bond energy itself; the angle factors keep it smooth through linear geometries | Ethene 90° twist: 248 kJ/mol unrelaxed (exp. ≈ 272) |
 | Non-bonded | Shielded Lennard-Jones (UFF); its Pauli wall fades where the Morse term already repels, and between atoms that can still bond. Shifted-force Coulomb between saturating bond-polarisation charges | UFF, Pauling electronegativity |
@@ -488,8 +489,11 @@ What was tried, so it is not repeated:
 - Screening weak (below 0.12 of a bond) attractions harder (`ANG_B0` 0.04) stiffens a stretched C–H to
   the methane value, but makes Cl· + ethene's entrance barrier 13 kJ/mol and hot mixtures no better.
 
-Still open, measured with impossible-fragment scans of hot mixtures (5 ps, 22 Å box): CH₄ + O₂ at 3500 K
-briefly shows a carbon with about five bonds' worth of attraction (a double bond, a C–C stretched to
-1.9 Å and three C–H at 1.45 Å, which `satF` counts as only 3.3 used valence), and ethane at 2500 K sheds
-most of its hydrogen within 5 ps. H₂ + O₂, N₂ + H₂, NH₃, H₂O, CO₂ + H₂ and CH₂O at 2500–3000 K stay
+Impossible-fragment scans of hot mixtures (5 ps, 22 Å box) found a carbon in CH₄ + O₂ at 3500 K holding
+about five bonds' worth of attraction (a double bond, a C–C stretched to 1.9 Å and three C–H at 1.45 Å,
+which `satF` counts as only 3.3 used valence) and fragments such as C₂H₇. The σ over-coordination term
+(force-field table) now keeps carbon near four: the worst carbon in CH₄ + O₂, C₂H₄ + O₂ and C₆H₆ + O₂ is
+4.1–4.2. Still open: in CH₄ + O₂ at 3500 K the excess moves to hydrogen (an H holding 2.3 bonds' worth,
+fragments such as H₄O), which the term does not cover, because a hydrogen half-way through a transfer
+legitimately holds two partners; and ethane at 2500 K still sheds most of its hydrogen within 5 ps. H₂ + O₂, N₂ + H₂, NH₃, H₂O, CO₂ + H₂ and CH₂O at 2500–3000 K stay
 clean.
