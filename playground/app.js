@@ -40,6 +40,11 @@ function resampleMotion() {
   pushUndo(); eng.thermalize(eng.T); edited();
   toast('Fresh thermal velocities at ' + fmtT(eng.T) + ' K · press play to run');
 }
+function stopMotion() {
+  if (!eng.N) return toast('Nothing to stop');
+  pushUndo(); eng.vel.fill(0); edited();
+  toast(eng.thermostat ? 'All velocities set to zero · the thermostat will warm the sample again; Z stops it for good' : 'All velocities set to zero · Ctrl+Z brings the motion back');
+}
 function safeStep(engine) {
   try { engine.step(); return true; }
   catch (error) {
@@ -1363,7 +1368,7 @@ act('edit.delete', 'Edit', 'Delete selection', ['Delete', 'Backspace'], deleteSe
 act('edit.all', 'Edit', 'Select all', ['Ctrl+A'], () => { for (let i = 0; i < eng.N; i++) selection.add(i); });
 act('edit.pin', 'Edit', 'Pin / unpin selection', ['K'], pinSelection);
 act('edit.clear', 'Edit', 'Clear the field', ['Shift+Delete'], () => { if (!eng.N) return; pushUndo(); eng.clear(); selection.clear(); edited(); toast('Field cleared — Ctrl+Z brings it back'); });
-act('edit.stopMotion', 'Edit', 'Stop all motion now', [], () => { eng.vel.fill(0); eng.checkpoints.length = 0; toast('All velocities set to zero'); });
+act('edit.stopMotion', 'Edit', 'Stop all motion now', [], stopMotion);
 act('ui.molecules', 'Panels', 'Molecules', ['M'], toggleTray);
 act('ui.keys', 'Panels', 'Shortcuts', ['?'], () => openConsole('keys'));
 act('ui.console', 'Panels', 'Settings', ['Shift+M'], () => toggleConsole());
