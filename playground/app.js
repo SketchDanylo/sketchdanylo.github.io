@@ -96,7 +96,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261003-build58', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow) => skipToEvent(ev, wait, ids, what, reactants, slow), pause: () => setPlaying(false) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261003-build59', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow) => skipToEvent(ev, wait, ids, what, reactants, slow), pause: () => setPlaying(false) });
 let replay = null;
 function skipToEvent(ev, wait, sceneIds, what, reactants, slow) {
   if (!ev) return;
@@ -680,6 +680,7 @@ const EXP_MOLS = {"CH4":[["C",0,0,0],["H",0.627,0.627,0.627],["H",-0.627,-0.627,
 const EXPERIMENTS = [
   { name: 'Radical chlorination of methane', T: 298.15, mix: [['CH4', 3], ['Cl2', 3], ['Cl', 1]], look: 'One chlorine atom starts a chain. Cl· takes a hydrogen from methane as HCl; the methyl radical takes a chlorine from Cl₂ and sets the next Cl· free. Keep going and CH₂Cl₂ appears as well.' },
   { name: 'Chlorine adds across ethene', T: 298.15, mix: [['C2H4', 2, [[0, 1, 2]]], ['Cl2', 2], ['Cl', 1]], look: 'Cl· adds to the double bond, and the radical it leaves takes a chlorine from Cl₂: 1,2-dichloroethane, made by a chain.' },
+  { name: 'Radical polymerisation of ethene', T: 350, mix: [['C2H4', 5, [[0, 1, 2]]], ['CH3', 1]], look: 'A methyl radical opens one double bond; the radical it becomes opens the next, and the chain grows: C₃H₇·, C₅H₁₁·, … the start of polyethylene. In this model the first step comes about 20 kJ/mol too easily.' },
   { name: 'Methyl radicals meet', T: 298.15, mix: [['CH3', 4]], look: 'Two radicals with nothing in the way pair up into ethane in picoseconds, without any barrier.' },
   { name: 'Hydroxyl radicals and methane', T: 298.15, mix: [['CH4', 3], ['OH', 2]], look: 'OH· is what cleans methane out of the air, but slowly: here the two OH· find each other first (H₂O + O·, or H₂O₂). Remove one OH to watch the slow attack on methane.' }
 ];

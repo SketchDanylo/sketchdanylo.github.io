@@ -83,7 +83,11 @@ Without this, the forecast and fast-forward will work well for radical and gas-p
   inside one molecule.
 - Replace the fixed prefactors with ones calculated from vibrational frequencies at the barrier and in
   the reactants (harmonic transition-state theory).
-- Pressure fall-off for unimolecular steps, tunnelling and zero-point energy for hydrogen transfers.
+- Pressure fall-off for unimolecular and association steps (needed before hydrogen combustion can be
+  forecast: H· + O₂ → HO₂ only wins at high pressure), tunnelling and zero-point energy for hydrogen
+  transfers, and every route per pair of atoms in the search rather than only the lowest.
+- A penalty for concerted additions that orbital symmetry forbids (H₂ adding whole to a radical comes
+  out barrierless today).
 - Large chambers: forecast once per distinct situation and reuse it, instead of rescanning every copy.
 
 ### 5. The teaching layer

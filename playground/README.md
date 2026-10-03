@@ -471,7 +471,8 @@ human timescale.
 
 **Experiments** (a third tab in the add-atoms library): ready-made textbook chambers: radical
 chlorination of methane, chlorine adding across ethene (C₂H₄Cl· + Cl₂ → C₂H₄Cl₂ + Cl· follows within
-picoseconds, the chain making 1,2-dichloroethane), methyl radicals recombining, and hydroxyl radicals with
+picoseconds, the chain making 1,2-dichloroethane), radical polymerisation of ethene (CH₃· → C₃H₇· →
+C₅H₁₁· on its own), methyl radicals recombining, and hydroxyl radicals with
 methane (where, as in the real gas, the two OH· meet each other long before either attacks methane).
 Loading one is undoable; pressing `J` then shows what happens next.
 
@@ -515,7 +516,12 @@ and a hot C₂H₅ formed by H· + ethene loses a hydrogen again within picoseco
   inside one molecule, are not searched; the hourglass can still be pointed at them.
 - Solution chemistry: ions, proton transfer and solvent are not in the engine, so most textbook
   organic mechanisms (SN1/SN2, E1/E2, acid catalysis) cannot be forecast or watched yet.
-- Pressure-dependent unimolecular rates (fall-off), tunnelling and zero-point energy are left out.
+- Pressure-dependent rates (fall-off), tunnelling and zero-point energy are left out. Fall-off is what
+  keeps hydrogen combustion from being forecast yet: H· + O₂ → HO₂ wins on barrier, but at high
+  temperature HO₂ needs a third molecule to carry away its energy, and without that H· + O₂ → OH· + O·
+  (the branching step) should win. The search also keeps only the lowest route for each pair of atoms.
+- Concerted four-centre additions that orbital symmetry forbids (H₂ adding whole to a radical or a
+  double bond) can come out barrierless: a bond-order force field has no orbital phases to forbid them.
 
 ## Temperature readings
 
