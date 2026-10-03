@@ -240,7 +240,7 @@ function scanPair(src, i, j, opts = {}) {
     reactants: reactants.flatMap(x => x.formula), products: best.products, path: best.path, ts: best.ts, tsDistance: best.tsDistance,
     channel: { type: best.channel.type, k: best.channel.k }, bimolecular: ci !== cj, T: opts.T,
     event: { atoms, pos: best.event.pos, push: best.event.push, bo: best.event.bo, anchor: ci !== cj ? frag.list[frag.comp[best.event.at]] : atoms },
-    alternatives: distinct(ok.slice(1), best).map(r => ({ channel: { type: r.channel.type, k: r.channel.k }, Ea: r.Ea, dE: r.dE, products: r.products }))
+    alternatives: distinct(ok.slice(1), best).map(r => ({ channel: { type: r.channel.type, k: r.channel.k }, Ea: r.Ea, dE: r.dE, products: r.products, barrierAtEnd: r.barrierAtEnd, event: { atoms, pos: r.event.pos, push: r.event.push, bo: r.event.bo, anchor: ci !== cj ? frag.list[frag.comp[r.event.at]] : atoms } }))
   };
 }
 
@@ -381,15 +381,21 @@ function scanCandidate(e, c, T, quick, cache) {
   if (!scan.ok) return null;
   const f = forecast(e, scan, { T, partnerPerCm3: 1 });
   if (!f.ok) return null;
-  const rate = scan.bimolecular ? f.k * c.mult / chamberVolume(e) : f.k * c.mult;
-  return { label: scan.reactants.join(' + ') + ' → ' + scan.products.join(' + '), i: c.i, j: c.j, Ea: scan.Ea, dE: scan.dE, rate, kRate: f.k, bimolecular: scan.bimolecular, refined: !quick, reactants: scan.reactants, products: scan.products, event: scan.event, kind: scan.kind };
+  const V = chamberVolume(e), one = (s, kRate) => ({ label: scan.reactants.join(' + ') + ' → ' + s.products.join(' + '), i: c.i, j: c.j, Ea: s.Ea, dE: s.dE, rate: scan.bimolecular ? kRate * c.mult / V : kRate * c.mult, kRate, bimolecular: scan.bimolecular, refined: !quick, reactants: scan.reactants, products: s.products, event: s.event, kind: scan.kind });
+  const main = one(scan, f.k);
+  main.also = (scan.alternatives || []).filter(a => !(bare(a.products) === bare(scan.reactants))).map(a => {
+    const g = forecast(e, { ok: true, Ea: a.Ea, kind: a.channel.type === 'break' ? 'break' : scan.kind, barrierAtEnd: a.barrierAtEnd, bimolecular: scan.bimolecular, i: scan.i, j: scan.j }, { T, partnerPerCm3: 1 });
+    return g.ok ? one(a, g.k) : null;
+  }).filter(Boolean);
+  return main;
 }
 
 const bare = list => list.map(f => f.replace(/·/g, '')).sort().join(' + ');
 
 function combine(results, T) {
-  const events = [], seen = new Map();
-  for (const r of results) {
+  const events = [], seen = new Map(), flat = [];
+  for (const r of results) if (r) { flat.push(r); for (const a of r.also || []) flat.push({ ...a, cand: r.cand, alt: true }); }
+  for (const r of flat) {
     if (!r) continue;
     if (bare(r.reactants) === bare(r.products)) continue;
     const key = bare(r.reactants) + ' → ' + bare(r.products);
@@ -406,7 +412,8 @@ function combine(results, T) {
 const REFINE = 3;
 
 function reuse(cached, c, V) {
-  return { ...cached, i: c.i, j: c.j, event: null, cand: c, rate: cached.bimolecular ? cached.kRate * c.mult / V : cached.kRate * c.mult };
+  const one = x => ({ ...x, i: c.i, j: c.j, event: null, cand: c, rate: x.bimolecular ? x.kRate * c.mult / V : x.kRate * c.mult });
+  return { ...one(cached), also: (cached.also || []).map(one) };
 }
 
 function survey(scene, opts = {}) {

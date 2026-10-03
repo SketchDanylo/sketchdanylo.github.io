@@ -452,6 +452,8 @@ for the three lowest barriers, and counted as often as it occurs (methane's four
 times the rate). The card lists the reactions with each one's chance of coming first and the half-life
 of the chamber as a whole. Skipping draws which reaction comes first and when from those rates, as a
 real flask would (kinetic Monte Carlo), and plays it in the live simulation; ask again for the one after.
+Every distinct outcome a scan finds counts with its own rate, not only the lowest: Cl· + ethene lists
+addition, abstraction and substitution, and CH₃· + C₂H₃· both recombination and disproportionation.
 Reactions that only swap identical partners are left out of the list. If the molecules a forecast was
 made for have changed by the time you skip, it refuses and asks for a new forecast.
 
@@ -519,7 +521,7 @@ and a hot C₂H₅ formed by H· + ethene loses a hydrogen again within picoseco
 - Pressure-dependent rates (fall-off), tunnelling and zero-point energy are left out. Fall-off is what
   keeps hydrogen combustion from being forecast yet: H· + O₂ → HO₂ wins on barrier, but at high
   temperature HO₂ needs a third molecule to carry away its energy, and without that H· + O₂ → OH· + O·
-  (the branching step) should win. The search also keeps only the lowest route for each pair of atoms.
+  (the branching step, which the search does list, at 7% at 1500 K) should win.
 - Concerted four-centre additions that orbital symmetry forbids (H₂ adding whole to a radical or a
   double bond) can come out barrierless: a bond-order force field has no orbital phases to forbid them.
 
@@ -642,6 +644,9 @@ What was tried, so it is not repeated:
   ran straight into it. Without the cap the same geometry relaxes to C₆ + 3 H₂. What works instead is
   to leave the bond orders alone and charge for the second π bond on a bent carbon (Bent π, force-field
   table): phenyl C–H 472, and hot benzene no longer finds those states.
+- Softening the Pauli wall between open-shell partners (`pauliOpen` 0.3 / 0.6) lowers Cl + CH₄ from 31
+  to 27 / 23 kJ/mol, but lowers every other radical barrier with it (H + CH₄ 40 / 36, CH₃ + ethene 1 / 0)
+  and worsens the bond energies; the remaining Cl excess is not a general radical effect.
 - Screening weak (below 0.12 of a bond) attractions harder (`ANG_B0` 0.04) stiffens a stretched C–H to
   the methane value, but makes Cl· + ethene's entrance barrier 13 kJ/mol and hot mixtures no better.
 

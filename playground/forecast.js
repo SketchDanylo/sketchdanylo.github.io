@@ -113,7 +113,7 @@ class ForecastCard {
     this.show(this.auto ? 'Keeping going…' : 'What happens next?', bar() + this.logHtml());
     this.panel.style.left = Math.max(12, innerWidth - (this.panel.offsetWidth || 330) - 24) + 'px'; this.panel.style.top = '76px';
     this.lastScene = { scene, key, T };
-    const job = (c, quick) => this.dispatch({ type: 'scan', key: 'sv' + key, scene, c, T, quick }).then(r => { done++; if (key === this.req) this.el('fcBody').innerHTML = bar() + this.logHtml(); if (r && r.ok !== false) { r.cand = c; const m = memo.get(mk(c)); if (!m || !m.refined || r.refined) memo.set(mk(c), { ...r, event: null, cand: null }); return r; } return null; });
+    const job = (c, quick) => this.dispatch({ type: 'scan', key: 'sv' + key, scene, c, T, quick }).then(r => { done++; if (key === this.req) this.el('fcBody').innerHTML = bar() + this.logHtml(); if (r && r.ok !== false) { r.cand = c; const m = memo.get(mk(c)); if (!m || !m.refined || r.refined) memo.set(mk(c), { ...r, event: null, cand: null, also: (r.also || []).map(a => ({ ...a, event: null })) }); return r; } return null; });
     const quick = await Promise.all(list.map(c => { const m = memo.get(mk(c)); return m ? Promise.resolve(Kn.reuse(m, c, V)) : job(c, true); }));
     if (key !== this.req) return;
     const order = quick.map((r, n) => ({ r, n })).filter(x => x.r && !x.r.refined).sort((a, c) => a.r.Ea - c.r.Ea).slice(0, Kn.REFINE);
@@ -137,7 +137,8 @@ class ForecastCard {
       this.show('Setting up the reaction…', '<div class="fc-busy"><i></i></div>' + this.logHtml());
       const r = await this.dispatch({ type: 'scan', key: 'sv' + ls.key, scene: ls.scene, c: pick.cand, T: ls.T, quick: false });
       if (key !== this.req) return false;
-      pick = r && r.ok !== false ? r : null;
+      const same = x => x.products.map(f => f.replace(/·/g, '')).sort().join() === pick.products.map(f => f.replace(/·/g, '')).sort().join();
+      pick = r && r.ok !== false ? [r, ...(r.also || [])].find(same) || null : null;
     }
     if (!pick || !pick.event) return false;
     const label = side(pick.reactants) + ' → ' + side(pick.products);

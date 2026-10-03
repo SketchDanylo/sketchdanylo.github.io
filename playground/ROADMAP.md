@@ -85,7 +85,7 @@ Without this, the forecast and fast-forward will work well for radical and gas-p
   the reactants (harmonic transition-state theory).
 - Pressure fall-off for unimolecular and association steps (needed before hydrogen combustion can be
   forecast: H· + O₂ → HO₂ only wins at high pressure), tunnelling and zero-point energy for hydrogen
-  transfers, and every route per pair of atoms in the search rather than only the lowest.
+  transfers.
 - A penalty for concerted additions that orbital symmetry forbids (H₂ adding whole to a radical comes
   out barrierless today).
 - Large chambers: forecast once per distinct situation and reuse it, instead of rescanning every copy.
