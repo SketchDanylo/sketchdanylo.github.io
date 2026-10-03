@@ -55,7 +55,6 @@ const SUB_HOLD = 200;               // fs a finer sub-step count is kept before 
    over a few steps each just under the line — enough to stay bound with nothing to take the energy,
    which an isolated pair cannot do. A strict guard only became affordable once a redone step stayed
    finer instead of dropping straight back, because the dropping back was itself a source of drift. */
-const PI_LIN0 = 0.8, PI_LIN1 = 0.95;
 const SUB_MAX = 64, SUB_ETOL = 1.5, PN_PAY = 0.001, PN_SETTLE = 50;
 const SOLID_W = 0.05;               // Å over which a solid face's force eases in
 const WALL_FOLD = 1.0;              // Å past a solid face before an atom is carried back rather than pushed
@@ -1176,28 +1175,6 @@ class Engine {
       for (let c = cStart[i]; c < cStart[i + 1]; c++) { const p = cList[c], k = pI[p] === i ? pJ[p] : pI[p]; s += sig[p] * Math.min(2, capOf(k, sig[p], pN[p])); }
       D[i] = s;
     }
-    const spi = this._spi && this._spi.length >= N ? this._spi : (this._spi = new Float64Array(this.cap)), pos = this.pos;
-    for (let i = 0; i < N; i++) {
-      spi[i] = spare[i];
-      const z = ELEMENTS[type[i]].Z;
-      if (z < 6 || z > 8 || spare[i] <= 0) continue;
-      let n = 0, b1 = -1, b2 = -1, s1 = 0, s2 = 0;
-      for (let c = cStart[i]; c < cStart[i + 1]; c++) {
-        const p = cList[c], v = sig[p]; n += v;
-        if (v > s1) { s2 = s1; b2 = b1; s1 = v; b1 = p; } else if (v > s2) { s2 = v; b2 = p; }
-      }
-      let L = 0;
-      if (b2 >= 0) {
-        const a = pI[b1] === i ? pJ[b1] : pI[b1], b = pI[b2] === i ? pJ[b2] : pI[b2];
-        const ax = pos[3 * a] - pos[3 * i], ay = pos[3 * a + 1] - pos[3 * i + 1], az = pos[3 * a + 2] - pos[3 * i + 2];
-        const bx = pos[3 * b] - pos[3 * i], by = pos[3 * b + 1] - pos[3 * i + 1], bz = pos[3 * b + 2] - pos[3 * i + 2];
-        const cs = (ax * bx + ay * by + az * bz) / (Math.sqrt((ax * ax + ay * ay + az * az) * (bx * bx + by * by + bz * bz)) || 1);
-        const t = Math.min(1, Math.max(0, (-cs - PI_LIN0) / (PI_LIN1 - PI_LIN0)));
-        L = t * t * (3 - 2 * t);
-      }
-      const cap = n <= 1 ? 2 : n <= 2 ? 2 - (n - 1) * (1 - L) : n <= 3 ? (1 + L) * (3 - n) + (n - 2) : Math.max(0, 4 - n);
-      spi[i] = Math.min(spare[i], cap);
-    }
     const P = this.nPairs;
     const grow = a => a && a.length >= P ? a : new Float64Array(Math.max(P, 64));
     const wA = this._wA = grow(this._wA), wB = this._wB = grow(this._wB), oA = this._oA = grow(this._oA), oB = this._oB = grow(this._oB), nA = this._nA = grow(this._nA), nB = this._nB = grow(this._nB);
@@ -1206,7 +1183,7 @@ class Engine {
       if (f <= 0) { wA[p] = wB[p] = oA[p] = oB[p] = 0; continue; }
       const i = pI[p], j = pJ[p];
       wA[p] = f * Math.min(2, capOf(j, f, pN[p])); wB[p] = f * Math.min(2, capOf(i, f, pN[p]));
-      oA[p] = D[i] > 1e-9 ? spi[i] * wA[p] / D[i] : 0; oB[p] = D[j] > 1e-9 ? spi[j] * wB[p] / D[j] : 0;
+      oA[p] = D[i] > 1e-9 ? spare[i] * wA[p] / D[i] : 0; oB[p] = D[j] > 1e-9 ? spare[j] * wB[p] / D[j] : 0;
     }
     const pF = this.pF;
     for (let it = 0; it < TUNE.pairIter; it++) {
@@ -1215,8 +1192,8 @@ class Engine {
       for (let p = 0; p < P; p++) {
         if (pF[p] <= 0) { nA[p] = oA[p]; nB[p] = oB[p]; continue; }
         const i = pI[p], j = pJ[p];
-        nA[p] = D[i] > 1e-12 ? spi[i] * wA[p] * (TUNE.pairEps + oB[p]) / D[i] : 0;
-        nB[p] = D[j] > 1e-12 ? spi[j] * wB[p] * (TUNE.pairEps + oA[p]) / D[j] : 0;
+        nA[p] = D[i] > 1e-12 ? spare[i] * wA[p] * (TUNE.pairEps + oB[p]) / D[i] : 0;
+        nB[p] = D[j] > 1e-12 ? spare[j] * wB[p] * (TUNE.pairEps + oA[p]) / D[j] : 0;
       }
       oA.set(nA.subarray(0, P)); oB.set(nB.subarray(0, P));
     }

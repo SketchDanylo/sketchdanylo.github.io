@@ -75,7 +75,7 @@ test('A radical dragged onto a cold double bond adds to it, the hand paying for 
   const L0 = ledger(e); let worst = 0;
   e.tweezer = { i: cl, x: e.pos[3 * cl], y: e.pos[3 * cl + 1] };
   for (let s = 0; s < 2500 / e.dt; s++) {
-    e.tweezer.x = e.pos[3 * cl] + (e.pos[0] - e.pos[3 * cl]) * .02;
+    e.tweezer.x = e.pos[3 * cl] + (15 - e.pos[3 * cl]) * .02;
     e.tweezer.y = e.pos[3 * cl + 1] + (12 - e.pos[3 * cl + 1]) * .02;
     e.step(); worst = Math.max(worst, Math.abs(ledger(e) - L0));
   }
