@@ -96,7 +96,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261003-build55', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants) => skipToEvent(ev, wait, ids, what, reactants), pause: () => setPlaying(false) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261003-build56', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants) => skipToEvent(ev, wait, ids, what, reactants), pause: () => setPlaying(false) });
 function skipToEvent(ev, wait, sceneIds, what, reactants) {
   if (!ev) return;
   const idx = ev.atoms.map(k => eng.indexOfId(sceneIds[k]));
@@ -640,13 +640,13 @@ function ptPos(z) {
   return [5, z - 36];
 }
 let libraryTab = 'atoms';
+const LIBRARY_TABS = [['atoms', 'atomsTab', 'atomsPanel'], ['molecules', 'trayPill', 'tray'], ['experiments', 'expTab', 'expPanel']];
 function selectLibrary(tab) {
   const changed=libraryTab!==tab; libraryTab=tab;
-  const molecules=tab==='molecules';
-  const render=()=>{$('atomsPanel').hidden=molecules; $('tray').hidden=!molecules;};
+  if (tab === 'experiments') renderExperiments();
+  const render=()=>{ for (const [t, , panel] of LIBRARY_TABS) $(panel).hidden = t !== tab; };
   if(changed && openPop?.pop===$('elPop'))crossfadeSurface($('elPop').querySelector('.library-content'),render,$('elPop'));else render();
-  $('atomsTab').setAttribute('aria-selected',!molecules); $('atomsTab').tabIndex=molecules?-1:0;
-  $('trayPill').setAttribute('aria-selected',molecules); $('trayPill').tabIndex=molecules?0:-1;
+  for (const [t, btn] of LIBRARY_TABS) { $(btn).setAttribute('aria-selected', t === tab); $(btn).tabIndex = t === tab ? 0 : -1; }
 }
 function openElPop(tab='atoms') {
   const pop=$('elPop');
@@ -665,12 +665,49 @@ function openElPop(tab='atoms') {
 $('moreEl').onclick=()=>openPop?.pop===$('elPop')?closePop():openElPop(libraryTab);
 $('moreEl').oncontextmenu=e=>{e.preventDefault();openElPop('molecules');};
 $('atomsTab').onclick=()=>selectLibrary('atoms');
-for(const id of ['atomsTab','trayPill'])$(id).addEventListener('keydown',e=>{
+$('expTab').onclick=()=>selectLibrary('experiments');
+for(const [, id] of LIBRARY_TABS)$(id).addEventListener('keydown',e=>{
   if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
   e.preventDefault();e.stopPropagation();
-  selectLibrary(e.key==='Home'?'atoms':e.key==='End'?'molecules':libraryTab==='atoms'?'molecules':'atoms');
-  $(libraryTab==='atoms'?'atomsTab':'trayPill').focus();
+  const n = LIBRARY_TABS.length, at = LIBRARY_TABS.findIndex(t => t[0] === libraryTab);
+  const next = e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : (at + (e.key === 'ArrowRight' ? 1 : n - 1)) % n;
+  selectLibrary(LIBRARY_TABS[next][0]);
+  $(LIBRARY_TABS[next][1]).focus();
 });
+const EXP_MOLS = {"CH4":[["C",0,0,0],["H",0.627,0.627,0.627],["H",-0.627,-0.627,0.627],["H",-0.627,0.627,-0.627],["H",0.627,-0.627,-0.627]],"Cl2":[["Cl",0,0,0],["Cl",1.99,0,0]],"Cl":[["Cl",0,0,0]],"C2H4":[["C",-0.001,0,0],["C",1.341,0,0],["H",-0.551,0.941,0],["H",-0.551,-0.941,0],["H",1.891,0.941,0],["H",1.891,-0.941,0]],"CH3":[["C",-0.001,-0.001,-0.022],["H",1.087,0,0.016],["H",-0.543,0.941,0.016],["H",-0.543,-0.94,0.066]],"OH":[["O",0.002,0,0],["H",0.962,0,0]]};
+const EXPERIMENTS = [
+  { name: 'Radical chlorination of methane', T: 298.15, mix: [['CH4', 3], ['Cl2', 3], ['Cl', 1]], look: 'One chlorine atom starts a chain. Cl· takes a hydrogen from methane as HCl; the methyl radical takes a chlorine from Cl₂ and sets the next Cl· free. Keep going and CH₂Cl₂ appears as well.' },
+  { name: 'Chlorine adds across ethene', T: 298.15, mix: [['C2H4', 2, [[0, 1, 2]]], ['Cl2', 2], ['Cl', 1]], look: 'Cl· adds to the double bond, and the radical it leaves takes a chlorine from Cl₂: 1,2-dichloroethane, made by a chain.' },
+  { name: 'Methyl radicals meet', T: 298.15, mix: [['CH3', 4]], look: 'Two radicals with nothing in the way pair up into ethane in picoseconds, without any barrier.' },
+  { name: 'Hydroxyl radicals and methane', T: 298.15, mix: [['CH4', 3], ['OH', 2]], look: 'OH· is what cleans methane out of the air, but slowly: here the two OH· find each other first (H₂O + O·, or H₂O₂). Remove one OH to watch the slow attack on methane.' }
+];
+function renderExperiments() {
+  const list = $('expList');
+  if (list.childElementCount) return;
+  list.innerHTML = '<p class="exp-head">Textbook chemistry, set up and ready. After loading, press <kbd>J</kbd> or the double arrow to see what happens next.</p>' +
+    EXPERIMENTS.map((x, k) => '<button class="exp" data-k="' + k + '"><span class="nm">' + esc(x.name) + '</span><span class="fm">' + x.mix.map(([m, n]) => (n > 1 ? n + ' ' : '') + pretty(m)).join(' + ') + ' · ' + Math.round(x.T) + ' K</span><span class="lk">' + esc(x.look) + '</span></button>').join('');
+  list.querySelectorAll('.exp').forEach(b => b.onclick = () => runExperiment(EXPERIMENTS[+b.dataset.k]));
+}
+function runExperiment(x) {
+  pushUndo(); closePop(); forecastCard.close(); setPlaying(false);
+  eng.clear(); eng.skipped = 0;
+  const W = 30, H = 30, D = 12;
+  eng.box = { x0: 0, x1: W, y0: 0, y1: H, z0: -D / 2, z1: D / 2 };
+  setT(x.T, true);
+  const centers = [];
+  for (const [m, n, orders] of x.mix) for (let k = 0; k < n; k++) {
+    let c, tries = 0;
+    do { c = [4 + Math.random() * (W - 8), 4 + Math.random() * (H - 8)]; } while (centers.some(d => Math.hypot(d[0] - c[0], d[1] - c[1]) < 6.5) && ++tries < 500);
+    centers.push(c);
+    const a = Math.random() * Math.PI * 2, b = Math.random() * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a), cb = Math.cos(b), sb = Math.sin(b), base = eng.N;
+    for (const [sym, px, py, pz] of EXP_MOLS[m]) { const x1 = px * ca - py * sa, y1 = px * sa + py * ca, y2 = y1 * cb - pz * sb, z2 = y1 * sb + pz * cb; eng.addAtom(sym, c[0] + x1, c[1] + y2, z2, { thermal: false }); }
+    eng.touch(); eng.refresh();
+    for (const [i, j, o] of orders || []) eng.setBondOrder(base + i, base + j, o);
+  }
+  eng.touch(); eng.refresh(); eng.minimize(300, 1); eng.thermalize(eng.T);
+  edited(); fitBox(true);
+  toast(x.name + ' · press J to see what happens next');
+}
 
 /* tooltips */
 const tip = $('tip'); let tipTimer = 0;

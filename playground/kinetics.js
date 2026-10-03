@@ -64,16 +64,19 @@ function bonded(src, i, j) {
 function runChannel(src, atoms, i, j, E0, ch, opts) {
   const { e, map } = isolate(src, atoms, ch.place, opts.T);
   const a = map.get(i), b = map.get(j), k = ch.k === undefined ? undefined : map.get(ch.k);
+  const ka = ch.ka === undefined ? undefined : map.get(ch.ka);
   const pp = pairParams(src, i, j);
-  const coord = () => k === undefined ? dist(e, a, b) : dist(e, a, b) - dist(e, b, k);
+  const terms = ch.type === 'swap' ? [[a, b, 1], [a, ka, -0.5], [b, k, -0.5]] : k === undefined ? [[a, b, 1]] : [[a, b, 1], [b, k, -1]];
+  const coord = () => terms.reduce((s, [x, y, w]) => s + w * dist(e, x, y), 0);
   const c0 = coord();
   let c1;
   if (ch.type === 'break') c1 = c0 + BREAK_REACH;
   else if (ch.type === 'form') c1 = pp.re[1];
+  else if (ch.type === 'swap') c1 = pp.re[1] - 0.5 * (pairParams(src, i, ch.ka).re[1] + pairParams(src, j, ch.k).re[1] + 2 * BREAK_REACH);
   else c1 = pp.re[1] - (pairParams(src, j, ch.k).re[1] + BREAK_REACH);
   const steps = opts.steps || Math.max(14, Math.ceil(Math.abs(c1 - c0) / 0.08));
   const iters = opts.iters || 800, path = [];
-  const restrain = r => { e.restraints = [k === undefined ? { i: a, j: b, r, k: RESTRAINT_K } : { i: a, j: b, m: b, n: k, r, k: RESTRAINT_K }]; };
+  const restrain = r => { e.restraints = [{ terms, r, k: RESTRAINT_K }]; };
   const point = s => {
     restrain(c0 + (c1 - c0) * s / steps);
     const E = settle(e, iters);
@@ -89,8 +92,16 @@ function runChannel(src, atoms, i, j, E0, ch, opts) {
   } else {
     e.restraints = null; Eend = settle(e, 3000) - E0;
     const sane = freeValence(e).every(x => x > -0.5);
-    done = sane && bondedIn(e, a, b) && (k === undefined || !bondedIn(e, b, k));
+    done = sane && bondedIn(e, a, b) && (k === undefined || !bondedIn(e, b, k)) && (ka === undefined || !bondedIn(e, a, ka));
     products = fragmentFormulas(e); endPos = e.pos.slice(0, 3 * e.N);
+    if (done) {
+      const parts = e.fragments().list;
+      if (parts.length > 1) {
+        const apart = parts.reduce((sum, g) => sum + relaxedEnergyOf(e, g, opts.T).E, 0) - E0;
+        if (Eend < apart - 60) done = false;
+        else Eend = apart;
+      }
+    }
     if (done && !opts.oneWay) for (let s = steps; s >= 0; s--) { const q = point(s); if (q.E < path[s].E) path[s] = q; }
   }
   e.restraints = null;
@@ -189,11 +200,15 @@ function scanPair(src, i, j, opts = {}) {
     return opts.cache.get(key);
   };
   const reactants = ci === cj ? [relaxed(frag.list[ci])] : [relaxed(frag.list[ci]), relaxed(frag.list[cj])];
+  const free = freeValence(src);
   const E0 = reactants.reduce((s, x) => s + x.E, 0);
   const channels = [];
-  const attacker = x => frag.list[frag.comp[x]], free = freeValence(src);
-  if (kind === 'break' || kind === 'close') channels.push({ type: kind === 'break' ? 'break' : 'form' });
-  else {
+  const attacker = x => frag.list[frag.comp[x]];
+  if (kind === 'break') channels.push({ type: 'break' });
+  else if (kind === 'close') {
+    channels.push({ type: 'form' });
+    if (free[i] <= 0.5 && free[j] <= 0.5) for (const ka of neighbours(src, i)) for (const kb of neighbours(src, j)) if (ka !== j && kb !== i) channels.push({ type: 'swap', from: i, at: j, ka, k: kb });
+  } else {
     for (const [x, y] of [[i, j], [j, i]]) {
       const user = unit(sub(P3(src, x), P3(src, y)));
       for (const d of directions([user, ...faces(src, y)])) channels.push({ type: 'form', from: x, at: y, place: pose(src, attacker(x), x, y, d) });

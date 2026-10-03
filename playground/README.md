@@ -466,6 +466,18 @@ term, a vinyl C–H 50 kJ/mol too weak made that abstraction look downhill and i
 H· + ethene 72%, CH₃· + H· 26%, CH₃· + ethene 1%. Two methanes at room temperature: nothing on any
 human timescale.
 
+**Experiments** (a third tab in the add-atoms library): ready-made textbook chambers: radical
+chlorination of methane, chlorine adding across ethene (C₂H₄Cl· + Cl₂ → C₂H₄Cl₂ + Cl· follows within
+picoseconds, the chain making 1,2-dichloroethane), methyl radicals recombining, and hydroxyl radicals with
+methane (where, as in the real gas, the two OH· meet each other long before either attacks methane).
+Loading one is undoable; pressing `J` then shows what happens next.
+
+The search also knows two-bond swaps: two atoms of one molecule joining while each lets go of a
+partner, such as H₂ leaving ethane (1,2-elimination, 400 kJ/mol; 1,1 to a carbene, 403). A route whose
+products, relaxed apart, would sit more than 60 kJ/mol above where the scan left them is a bound
+complex on its way somewhere else (a CH₂ half inserted into methane is ethane in the making), not those
+products, and is not counted.
+
 ### How far the forecast and the live simulation agree
 
 The forecast measures the model's energy surface; the live chamber moves on it. Checked against each other:
@@ -478,8 +490,9 @@ The forecast measures the model's energy surface; the live chamber moves on it. 
   estimate, so the live chamber exchanges about 40 times faster than both the forecast and the real
   reaction. The model's H captures H₂ from roughly twice the real distance.
 - **Ethane above about 2200 K**: the live chamber eliminates H₂ within picoseconds; the forecast's
-  barriers for that (408–435 kJ/mol, 1,2-elimination) say microseconds or longer. The cause is not yet
-  found. It is not the thermostat (the statistics match equipartition at 800–2000 K, and under CSVR it
+  barrier for that (1,2-elimination 400 kJ/mol, measured with two-way four-centre scans) says
+  microseconds or longer. The cause is not yet found. A C–C bond order above 1 in ethane is not a cheap
+  shortcut either: at ethane's own geometry it costs 64 kJ/mol at 1.2 and 425 at 1.5. It is not the thermostat (the statistics match equipartition at 800–2000 K, and under CSVR it
   still happens within picoseconds: 4 of 6 runs in 20 ps) and not energy accounting (insulated runs hold to 2 kJ/mol). The bond orders are implicated —
   with them frozen ethane survives 20 ps at 2500 K — but freezing them also stops ethylene from forming
   its π bond, so that test alone does not prove it. A nudged-elastic-band search for a lower path

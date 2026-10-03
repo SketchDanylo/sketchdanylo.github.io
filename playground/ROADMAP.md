@@ -90,8 +90,9 @@ Without this, the forecast and fast-forward will work well for radical and gas-p
 
 - Curved-arrow mechanisms drawn from the bond orders that changed during a reaction.
 - Energy diagrams for a whole sequence of steps, not only one.
-- Ready-made textbook scenarios (radical chlorination of methane, combustion of hydrogen, radical
-  polymerisation of ethene; later SN2 and E2 once item 3 exists), each with what to look for.
+- Ready-made textbook scenarios: four radical ones exist (Experiments tab: chlorination of methane,
+  chlorine and ethene, methyl recombination, hydroxyl and methane). Next: combustion of hydrogen,
+  radical polymerisation of ethene; SN2 and E2 once item 3 exists.
 
 ## Suggested order
 

@@ -1124,7 +1124,7 @@ class Engine {
     }
     this.Erestraint = 0;
     if (this.restraints) for (const c of this.restraints) {
-      const terms = c.m === undefined ? [[c.i, c.j, 1]] : [[c.i, c.j, 1], [c.m, c.n, -1]];
+      const terms = c.terms || (c.m === undefined ? [[c.i, c.j, 1]] : [[c.i, c.j, 1], [c.m, c.n, -1]]);
       let u = -c.r;
       for (const [i, j, w] of terms) u += w * Math.hypot(pos[3 * j] - pos[3 * i], pos[3 * j + 1] - pos[3 * i + 1], pos[3 * j + 2] - pos[3 * i + 2]);
       const e = 0.5 * c.k * u * u;

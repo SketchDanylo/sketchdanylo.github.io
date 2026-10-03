@@ -47,6 +47,14 @@ test('Breaking bonds costs their dissociation energies', () => {
   near(r.Ea, 728, 20, 'H2C=CH2'); assert.deepEqual(r.products, ['CH2·', 'CH2·']);
 });
 
+test('Two hydrogens of one molecule leave together as H₂, both C–H bonds breaking as H–H forms', () => {
+  const e = scene([['C2H6', [0, 0, 0]]], 0);
+  const r = K.scanPair(e, 2, 6);
+  assert.ok(r.ok, r.reason); assert.equal(r.channel.type, 'swap');
+  assert.deepEqual(r.products, ['C2H4', 'H2']);
+  near(r.Ea, 400, 30, 'ethane 1,2-elimination');
+});
+
 test('Asking about two atoms that cannot bond says so instead of inventing a time', () => {
   const e = new Engine({ width: 30, height: 30, depth: 30, T: 298, thermostat: false });
   e.addAtom('Ar', 10, 15, 0, { thermal: false }); e.addAtom('Ar', 14, 15, 0, { thermal: false }); e.touch(); e.refresh();

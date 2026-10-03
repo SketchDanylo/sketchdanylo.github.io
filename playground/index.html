@@ -9,8 +9,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Hanken+Grotesk:wght@400;500;600&family=Martian+Mono:wdth,wght@87.5,300;87.5,400;100,500;100,600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20261003-build55">
-<link rel="stylesheet" href="royal.css?v=20261003-build55">
+<link rel="stylesheet" href="style.css?v=20261003-build56">
+<link rel="stylesheet" href="royal.css?v=20261003-build56">
 </head>
 <body>
 <canvas id="field" aria-label="Simulation field with schematic atomic contours. Choose an element, then click to place; right-click an atom for calculated orbitals. Drag empty space to pan; scroll to zoom."></canvas>
@@ -139,6 +139,7 @@
   <div class="library-tabs" role="tablist" aria-label="Materials">
     <button id="atomsTab" role="tab" aria-selected="true" aria-controls="atomsPanel">Atoms</button>
     <button id="trayPill" role="tab" aria-selected="false" aria-controls="tray" tabindex="-1">Molecules <b id="trayCount">0</b></button>
+    <button id="expTab" role="tab" aria-selected="false" aria-controls="expPanel" tabindex="-1">Experiments</button>
   </div>
   <div class="library-content">
     <div id="atomsPanel" role="tabpanel" aria-labelledby="atomsTab"><div class="grid" id="periodicGrid"></div></div>
@@ -149,6 +150,7 @@
     </div>
     <div class="tray-list" id="trayList"></div>
   </div></section>
+    <section id="expPanel" role="tabpanel" aria-labelledby="expTab" hidden><div class="exp-list" id="expList"></div></section>
   </div>
 </div>
 <div class="tip" id="tip"></div>
@@ -181,12 +183,12 @@
 
 <div class="toasts" id="toasts"></div>
 
-<script src="engine.js?v=20261003-build55"></script>
-<script src="protocol.js?v=20261003-build55"></script>
-<script src="render.js?v=20261003-build55"></script>
-<script src="inspector.js?v=20261003-build55"></script>
-<script src="kinetics.js?v=20261003-build55"></script>
-<script src="forecast.js?v=20261003-build55"></script>
-<script src="app.js?v=20261003-build55"></script>
+<script src="engine.js?v=20261003-build56"></script>
+<script src="protocol.js?v=20261003-build56"></script>
+<script src="render.js?v=20261003-build56"></script>
+<script src="inspector.js?v=20261003-build56"></script>
+<script src="kinetics.js?v=20261003-build56"></script>
+<script src="forecast.js?v=20261003-build56"></script>
+<script src="app.js?v=20261003-build56"></script>
 </body>
 </html>
