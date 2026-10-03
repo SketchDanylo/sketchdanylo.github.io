@@ -116,6 +116,7 @@ const NT = ELEMENTS.length;
 const CHI = Float64Array.from(ELEMENTS, e => e.chi);
 // chalcogens and halogens: with one of these in the formula, hydrogen is written first
 const TORS_NORM = 0.5625, TORS_W = 0.5;
+const ANG_G0 = 0.35, ANG_G1 = 0.65, ANG_C0 = 0.05, ANG_C1 = 0.35, ANG_C2 = 0.87, ANG_C3 = 0.95, ANG_O0 = 1.2, ANG_O1 = 1.8, ANG_R0 = 0.2, ANG_R1 = 0.8, ANG_Q0 = 0.02, ANG_Q1 = 0.3, ANG_B0 = 0.12, ANG_DCHI = 2.0, ANG_METAL = 1.4;
 const INS_MAX = 0.6;                 // how much of a sigma bond's competition a carbene can take over
 const INS_ON = 0.8, INS_OFF = 1.8;   // Å past the bond length: fully engaged, and first felt
 const INS_T1 = 0.8, INS_T2 = 1.15;   // an end's new bond + old bond order: lends fully, lends nothing
@@ -232,6 +233,26 @@ function smoothSwitch(x, x1, x2) { // 1 → 0 between x1 and x2
    when stretched, exactly zero BO_OFF Å past it. Longer-ranged than the structural switch so a
    partner that is half-way into a bond already competes for valence. Output in SF, SFD. */
 let SF = 0, SFD = 0;
+let PG = 0, PGD = 0;
+const PI_REACH = 1.3, PI_REF = (() => { const t = 1 / PI_REACH; return t * t * t * (10 + t * (6 * t - 15)); })();
+function piGeo(r, pp) {
+  if (pp.maxOrder < 2) { PG = 0; PGD = 0; return; }
+  const w = PI_REACH * (pp.re[1] - pp.re[2]), t = (pp.re[1] - r) / w;
+  if (t <= 0) { PG = 0; PGD = 0; return; }
+  if (t >= 1) { PG = 1 / PI_REF; PGD = 0; return; }
+  PG = t * t * t * (10 + t * (6 * t - 15)) / PI_REF; PGD = -30 * t * t * (1 - t) * (1 - t) / (w * PI_REF);
+}
+let AH = 0, AHD = 0, GX = 0, GXD = 0;
+function angWindow(c) {
+  let r = 0, dr = 0, f = 1, df = 0;
+  const t = (c - ANG_C0) / (ANG_C1 - ANG_C0);
+  if (t <= 0) { AH = 0; AHD = 0; return; }
+  if (t >= 1) r = 1; else { r = t * t * (3 - 2 * t); dr = 6 * t * (1 - t) / (ANG_C1 - ANG_C0); }
+  const u = (c - ANG_C2) / (ANG_C3 - ANG_C2);
+  if (u >= 1) { AH = 0; AHD = 0; return; }
+  if (u > 0) { f = 1 - u * u * (3 - 2 * u); df = -6 * u * (1 - u) / (ANG_C3 - ANG_C2); }
+  AH = r * f; AHD = dr * f + r * df;
+}
 function satF(r, pp) {
   const d = r - pp.s1;
   const cap = TUNE.cap;
@@ -909,6 +930,7 @@ class Engine {
     }
 
     // Pass C — pair energies
+    const angA = this._angScreen(), angLam = this._angLam;
     const pB = this.pB, gA = this.gA, gB = this.gB, gAs = this.gAs, gBs = this.gBs, gAb = this.gAb, gBb = this.gBb, pN = this.pN, G = this.G, lje = this.lje, ljeA = this.ljeA;
     const gc = 1 / Math.sqrt(rc * rc + COUL_D2), dgc = -rc * gc * gc * gc;
     gA.fill(0, 0, P); gB.fill(0, 0, P); gAs.fill(0, 0, P); gBs.fill(0, 0, P);
@@ -954,9 +976,12 @@ class Engine {
         if (y < Y_OFF) {
           smoothSwitch(y, Y_ON, Y_OFF);
           const ey = Math.exp(-y), VR = De * ey * ey, VA = 2 * De * ey;
-          e += SW * (VR - b * VA);
-          dEdr += SWD * a * (VR - b * VA) + SW * (-2 * a * VR + b * a * VA);
-          lam -= SW * VA;
+          const sA = angA[p], ub = b / ANG_B0, hb = 1 / (1 + ub * ub), keep = sA + (1 - sA) * hb;
+          const bE = b * keep, dkeep = (1 - sA) * (-2 * ub * hb * hb / ANG_B0);
+          e += SW * (VR - bE * VA);
+          dEdr += SWD * a * (VR - bE * VA) + SW * (-2 * a * VR + bE * a * VA);
+          lam -= SW * VA * (keep + b * dkeep);
+          angLam[p] = -SW * VA * b * (1 - hb);
         }
       }
       pB[p] = b;
@@ -1009,6 +1034,7 @@ class Engine {
     E += this._angles();
     E += this._torsions();
     // Pass S — forces from the screening factor
+    this._angScreenForces();
     this._screenForces();
     this._insertionForces();
     // Pass D — many-body forces from the coordination dependence of b
@@ -1247,6 +1273,148 @@ class Engine {
       if (dEdx !== 0) this.G[i] -= dEdx;
     }
     return E;
+  }
+  _angGate(a, x, y) {
+    const g = this._angG, pN = this.pN, pI = this.pI, pJ = this.pJ, start = this._angStart, list = this._angList;
+    let v = this.val[a] - this._angZm[a];
+    for (let t = start[a]; t < start[a + 1]; t++) { const pp = list[t], o = pI[pp] === a ? pJ[pp] : pI[pp]; if (o === x || o === y) v += g[pp] * pN[pp]; }
+    const t = (v - ANG_O0) / (ANG_O1 - ANG_O0);
+    if (t <= 0) { GX = 1; GXD = 0; } else if (t >= 1) { GX = 0; GXD = 0; } else { GX = 1 - t * t * (3 - 2 * t); GXD = -6 * t * (1 - t) / (ANG_O1 - ANG_O0); }
+  }
+  _angScreen() {
+    const P = this.nPairs, N = this.N, pI = this.pI, pJ = this.pJ, pR = this.pR, pF = this.pF, pN = this.pN, type = this.type, Zs = this.Zs, val = this.val, pos = this.pos;
+    const grow = (k, n, T) => (this[k] && this[k].length >= n ? this[k] : (this[k] = new T(Math.max(n, 64))));
+    const A = grow('_angA', P, Float64Array), g = grow('_angG', P, Float64Array), gp = grow('_angGp', P, Float64Array), lam = grow('_angLam', P, Float64Array);
+    const Zm = grow('_angZm', N, Float64Array), R = grow('_angR', N, Float64Array), dR = grow('_angDR', N, Float64Array), Q = grow('_angQ', N, Float64Array), dQ = grow('_angDQ', N, Float64Array), start = grow('_angStart', N + 1, Int32Array), fill = grow('_angFill', N + 1, Int32Array);
+    A.fill(1, 0, P); lam.fill(0, 0, P); start.fill(0, 0, N + 1); Zm.fill(0, 0, N);
+    for (let i = 0; i < N; i++) {
+      const v = (val[i] - Zs[i] - ANG_R0) / (ANG_R1 - ANG_R0);
+      if (v <= 0) { R[i] = 0; dR[i] = 0; } else if (v >= 1) { R[i] = 1; dR[i] = 0; } else { R[i] = v * v * (3 - 2 * v); dR[i] = -6 * v * (1 - v) / (ANG_R1 - ANG_R0); }
+      const w = (val[i] - Zs[i] - ANG_Q0) / (ANG_Q1 - ANG_Q0);
+      if (w <= 0) { Q[i] = 0; dQ[i] = 0; } else if (w >= 1) { Q[i] = 1; dQ[i] = 0; } else { Q[i] = w * w * (3 - 2 * w); dQ[i] = -6 * w * (1 - w) / (ANG_Q1 - ANG_Q0); }
+    }
+    let arms = 0;
+    for (let p = 0; p < P; p++) {
+      g[p] = 0; gp[p] = 0;
+      const r = pR[p]; if (r < 0) continue;
+      const ti = type[pI[p]], tj = type[pJ[p]], pp = PAIR[ti * NT + tj];
+      if (!pp.bond || Math.abs(CHI[ti] - CHI[tj]) >= ANG_DCHI || Math.min(CHI[ti], CHI[tj]) < ANG_METAL) continue;
+      const a = pp.a[1], y = a * (r - pp.re[1]);
+      let m = 1, dm = 0;
+      if (y > 0) { const ey = Math.exp(-y); m = 2 * ey - ey * ey; dm = a * (2 * ey * ey - 2 * ey); }
+      const t = (m - ANG_G0) / (ANG_G1 - ANG_G0);
+      if (t <= 0) continue;
+      if (t >= 1) g[p] = 1; else { g[p] = t * t * (3 - 2 * t); gp[p] = 6 * t * (1 - t) * dm / (ANG_G1 - ANG_G0); }
+      start[pI[p] + 1]++; start[pJ[p] + 1]++; arms += 2;
+      const z = g[p] * pN[p]; Zm[pI[p]] += z; Zm[pJ[p]] += z;
+    }
+    for (let i = 0; i < N; i++) start[i + 1] += start[i];
+    const list = grow('_angList', arms, Int32Array);
+    fill.set(start.subarray(0, N + 1));
+    for (let p = 0; p < P; p++) if (g[p] > 0) { list[fill[pI[p]]++] = p; list[fill[pJ[p]]++] = p; }
+    let tri = this._angTri || (this._angTri = new Int32Array(384)), tf = this._angTf || (this._angTf = new Float64Array(64 * 14)), nt = 0;
+    for (let p = 0; p < P; p++) {
+      const r = pR[p]; if (r < 0) continue;
+      const i0 = pI[p], j0 = pJ[p];
+      if (start[i0 + 1] - start[i0] + start[j0 + 1] - start[j0] === 0) continue;
+      const ti = type[i0], tj = type[j0], pp = PAIR[ti * NT + tj];
+      if (!pp.bond || Math.abs(CHI[ti] - CHI[tj]) >= ANG_DCHI || Math.min(CHI[ti], CHI[tj]) < ANG_METAL || pp.a[1] * (r - pp.re[1]) >= Y_OFF) continue;
+      if (Q[i0] === 0 && Q[j0] === 0) continue;
+      for (let side = 0; side < 2; side++) {
+        const c = side ? j0 : i0, n = side ? i0 : j0;
+        const ux = pos[3 * n] - pos[3 * c], uy = pos[3 * n + 1] - pos[3 * c + 1], uz = pos[3 * n + 2] - pos[3 * c + 2], ru = Math.sqrt(ux * ux + uy * uy + uz * uz) || 1e-6;
+        for (let x = start[c]; x < start[c + 1]; x++) {
+          const q = list[x]; if (q === p) continue;
+          const k = pI[q] === c ? pJ[q] : pI[q]; if (k === n) continue;
+          const vx = pos[3 * k] - pos[3 * c], vy = pos[3 * k + 1] - pos[3 * c + 1], vz = pos[3 * k + 2] - pos[3 * c + 2], rv = Math.sqrt(vx * vx + vy * vy + vz * vz) || 1e-6;
+          angWindow((ux * vx + uy * vy + uz * vz) / (ru * rv)); const H = AH, dH = AHD;
+          if (H <= 0) continue;
+          piGeo(pR[q], PAIR[type[pI[q]] * NT + type[pJ[q]]]);
+          const sq = 1 - PG * PI_REF, dsq = -PGD * PI_REF, Y = 1 - sq * (1 - R[c]), S = 1 - R[n] * Y;
+          if (S <= 0) continue;
+          this._angGate(n, c, k); const xn = GX, dxn = GXD; if (xn === 0) continue;
+          this._angGate(c, n, k); const xc = GX, dxc = GXD; if (xc === 0) continue;
+          this._angGate(k, c, n); const xk = GX, dxk = GXD; if (xk === 0) continue;
+          const q2 = pF[p] === 0 && this.pFp[p] === 0 ? undefined : this.pairMap.get(n < k ? n * 1048576 + k : k * 1048576 + n), mnk = q2 === undefined ? 1 : 1 - pF[p] * pF[q2];
+          const Om = 1 - (1 - Q[n]) * (1 - Q[c]);
+          const w = g[q] * S * H * mnk * xn * xc * xk * Om;
+          if (w <= 0) continue;
+          A[p] *= 1 - w;
+          if (6 * nt + 6 > tri.length) { const t2 = new Int32Array(tri.length * 2); t2.set(tri); tri = this._angTri = t2; }
+          if (14 * nt + 14 > tf.length) { const t2 = new Float64Array(tf.length * 2); t2.set(tf); tf = this._angTf = t2; }
+          tri[6 * nt] = p; tri[6 * nt + 1] = q; tri[6 * nt + 2] = q2 === undefined ? -1 : q2; tri[6 * nt + 3] = c; tri[6 * nt + 4] = n; tri[6 * nt + 5] = k;
+          const o = 14 * nt;
+          tf[o] = H; tf[o + 1] = dH; tf[o + 2] = S; tf[o + 3] = Y; tf[o + 4] = R[n] * (1 - R[c]) * dsq; tf[o + 5] = sq; tf[o + 6] = xn; tf[o + 7] = dxn;
+          tf[o + 8] = xc; tf[o + 9] = dxc; tf[o + 10] = xk; tf[o + 11] = dxk; tf[o + 12] = mnk * Om; tf[o + 13] = w;
+          nt++;
+        }
+      }
+    }
+    this._angNt = nt;
+    return A;
+  }
+  _angTerms(u) {
+    const tri = this._angTri, tf = this._angTf, o = 14 * u, T = this._angT || (this._angT = {});
+    T.p = tri[6 * u]; T.q = tri[6 * u + 1]; T.q2 = tri[6 * u + 2]; T.c = tri[6 * u + 3]; T.n = tri[6 * u + 4]; T.k = tri[6 * u + 5];
+    T.H = tf[o]; T.dH = tf[o + 1]; T.S = tf[o + 2]; T.Y = tf[o + 3]; T.dSdr = tf[o + 4]; T.sq = tf[o + 5]; T.xn = tf[o + 6]; T.dxn = tf[o + 7];
+    T.xc = tf[o + 8]; T.dxc = tf[o + 9]; T.xk = tf[o + 10]; T.dxk = tf[o + 11]; T.m = tf[o + 12]; T.w = tf[o + 13];
+    return T;
+  }
+  _angScreenForces() {
+    const nt = this._angNt, tri = this._angTri, tf = this._angTf, A = this._angA, g = this._angG, gp = this._angGp, lam = this._angLam, R = this._angR, dR = this._angDR;
+    const pI = this.pI, pJ = this.pJ, pF = this.pF, pFp = this.pFp, pN = this.pN, pR = this.pR, pDx = this.pDx, pDy = this.pDy, pDz = this.pDz, F = this.frc, G = this.G, pos = this.pos;
+    const start = this._angStart, list = this._angList, P = this.nPairs;
+    if (!this._angProd || this._angProd.length < P) { this._angProd = new Float64Array(Math.max(P, 64)); this._angZero = new Int32Array(Math.max(P, 64)); }
+    const prod = this._angProd, zero = this._angZero;
+    for (let u = 0; u < nt; u++) { const p = tri[6 * u]; prod[p] = 1; zero[p] = 0; }
+    for (let u = 0; u < nt; u++) { const p = tri[6 * u], one = 1 - tf[14 * u + 13]; if (one > 1e-9) prod[p] *= one; else zero[p]++; }
+    const push = (p, dEdr) => {
+      const s = dEdr / pR[p], a = pI[p], b = pJ[p], fx = s * pDx[p], fy = s * pDy[p], fz = s * pDz[p];
+      F[3 * a] += fx; F[3 * a + 1] += fy; F[3 * a + 2] += fz;
+      F[3 * b] -= fx; F[3 * b + 1] -= fy; F[3 * b + 2] -= fz;
+    };
+    const gateForce = (a, x, y, dEdv) => {
+      for (let t = start[a]; t < start[a + 1]; t++) {
+        const pp = list[t], o = pI[pp] === a ? pJ[pp] : pI[pp];
+        if (o === x || o === y || gp[pp] === 0) continue;
+        push(pp, -dEdv * pN[pp] * gp[pp]);
+      }
+    };
+    for (let u = 0; u < nt; u++) {
+      const p = tri[6 * u], L = lam[p]; if (L === 0) continue;
+      const q = tri[6 * u + 1], q2 = tri[6 * u + 2], c = tri[6 * u + 3], n = tri[6 * u + 4], k = tri[6 * u + 5], o = 14 * u;
+      const H = tf[o], dH = tf[o + 1], S = tf[o + 2], Y = tf[o + 3], dSdr = tf[o + 4], sq = tf[o + 5], xn0 = tf[o + 6], dxn = tf[o + 7];
+      const xc = tf[o + 8], dxc = tf[o + 9], xk = tf[o + 10], dxk = tf[o + 11], m = tf[o + 12], w = tf[o + 13], one = 1 - w;
+      let others;
+      if (one > 1e-9) others = A[p] / one;
+      else others = zero[p] > 1 ? 0 : prod[p];
+      const B = -L * others, gq = g[q], xn = xn0 * xk;
+      if (gp[q] !== 0 || dSdr !== 0) push(q, B * H * m * xn * xc * (gp[q] * S + gq * dSdr));
+      const Qn = this._angQ[n], Qc = this._angQ[c], Om = 1 - (1 - Qn) * (1 - Qc), mr = Om > 0 ? m / Om : 0;
+      if (q2 >= 0) {
+        if (pFp[q2] !== 0) push(q2, -B * gq * H * S * xn * xc * Om * pF[p] * pFp[q2]);
+        if (pFp[p] !== 0) push(p, -B * gq * H * S * xn * xc * Om * pFp[p] * pF[q2]);
+      }
+      const core = B * gq * H * m * xn * xc;
+      const om = B * gq * H * mr * S * xn * xc, dQn = this._angDQ[n], dQc = this._angDQ[c];
+      if (dQn !== 0) G[n] += om * (1 - Qc) * dQn;
+      if (dQc !== 0) G[c] += om * (1 - Qn) * dQc;
+      if (dR[n] !== 0) G[n] += core * (-Y * dR[n]);
+      if (dR[c] !== 0) G[c] += core * (-R[n] * sq * dR[c]);
+      if (dxn !== 0) gateForce(n, c, k, B * gq * H * m * S * xc * xk * dxn);
+      if (dxc !== 0) gateForce(c, n, k, B * gq * H * m * S * xn * dxc);
+      if (dxk !== 0) gateForce(k, c, n, B * gq * H * m * S * xn0 * xc * dxk);
+      if (dH !== 0) {
+        const ux = pos[3 * n] - pos[3 * c], uy = pos[3 * n + 1] - pos[3 * c + 1], uz = pos[3 * n + 2] - pos[3 * c + 2], ru = Math.sqrt(ux * ux + uy * uy + uz * uz) || 1e-6;
+        const vx = pos[3 * k] - pos[3 * c], vy = pos[3 * k + 1] - pos[3 * c + 1], vz = pos[3 * k + 2] - pos[3 * c + 2], rv = Math.sqrt(vx * vx + vy * vy + vz * vz) || 1e-6;
+        const cs = (ux * vx + uy * vy + uz * vz) / (ru * rv), dEdc = B * gq * dH * m * S * xn * xc, iuv = 1 / (ru * rv);
+        const fnx = -dEdc * (vx * iuv - cs * ux / (ru * ru)), fny = -dEdc * (vy * iuv - cs * uy / (ru * ru)), fnz = -dEdc * (vz * iuv - cs * uz / (ru * ru));
+        const fkx = -dEdc * (ux * iuv - cs * vx / (rv * rv)), fky = -dEdc * (uy * iuv - cs * vy / (rv * rv)), fkz = -dEdc * (uz * iuv - cs * vz / (rv * rv));
+        F[3 * n] += fnx; F[3 * n + 1] += fny; F[3 * n + 2] += fnz;
+        F[3 * k] += fkx; F[3 * k + 1] += fky; F[3 * k + 2] += fkz;
+        F[3 * c] -= fnx + fkx; F[3 * c + 1] -= fny + fky; F[3 * c + 2] -= fnz + fkz;
+      }
+    }
   }
   _torsions() {
     const pos = this.pos, F = this.frc, cStart = this.cStart, cList = this.cList, pI = this.pI, pJ = this.pJ, pF = this.pF, pFp = this.pFp, pN = this.pN, type = this.type;
@@ -1522,6 +1690,14 @@ class Engine {
   _screenForces() {
     const tri = this.tri, pS = this.pSraw, pN = this.pN, scr = this.pScr, G = this.G, gA = this.gA, gB = this.gB;
     const pI = this.pI, pJ = this.pJ, pF = this.pF, pFp = this.pFp, pR = this.pR, pDx = this.pDx, pDy = this.pDy, pDz = this.pDz, F = this.frc;
+    const P = this.nPairs;
+    if (!this._scrProd || this._scrProd.length < P) { this._scrProd = new Float64Array(Math.max(P, 64)); this._scrZero = new Int32Array(Math.max(P, 64)); }
+    const prod = this._scrProd, zero = this._scrZero;
+    prod.fill(1, 0, P); zero.fill(0, 0, P);
+    for (let t = 0; t < this.nTri; t++) {
+      const q = tri[4 * t], one = 1 - pF[tri[4 * t + 1]] * pF[tri[4 * t + 2]] * (1 - pF[q]);
+      if (one > 1e-9) prod[q] *= one; else zero[q]++;
+    }
     for (let t = 0; t < this.nTri; t++) {
       const q = tri[4 * t], pa = tri[4 * t + 1], pb = tri[4 * t + 2];
       const j = pI[q], k = pJ[q];
@@ -1533,7 +1709,7 @@ class Engine {
       const m = 1 - pF[q], w = pF[pa] * pF[pb] * m, one = 1 - w;
       let others; // Π over the other shared neighbours
       if (one > 1e-9) others = scr[q] / one;
-      else { others = 1; for (let u = 0; u < this.nTri; u++) if (u !== t && tri[4 * u] === q) others *= 1 - pF[tri[4 * u + 1]] * pF[tri[4 * u + 2]] * m; }
+      else others = zero[q] > 1 ? 0 : prod[q];
       const dEdw = -dEdS * others;
       // w = f(r_a)·f(r_b)·(1 − f(r_jk)): push along each arm of the triple and along j–k
       for (let arm = 0; arm < 3; arm++) {

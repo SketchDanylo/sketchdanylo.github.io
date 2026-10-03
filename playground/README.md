@@ -236,6 +236,7 @@ A custom, experimental bond-order model inspired by reactive force-field ideas. 
 | Evans–Polanyi | Excess valence is weighted by `√(De_competing / De_new)`, so a stronger incoming bond displaces a weaker one more easily. An atom at its normal valence is unaffected | Fitted to F + H₂ and H + Cl₂ |
 | Screening | Two atoms bonded to a common neighbour do not compete for each other's valence, unless they are bonded themselves | — |
 | Bond order | Spare valence shared between neighbours → C=C, C≡C, O=O, N≡N, CO₂, aromatic 1.5. Each atom first offers its spare valence in proportion to what its partners can take, then re-divides it `pairIter` times toward partners that offer back (a damped Sinkhorn pairing), so a partner with nowhere else to go wins: butadiene alternates 1.84 / 1.16 (1.351 / 1.498 Å, exp. 1.338 / 1.467) and comes out 9.7 kJ/mol more stable s-trans, while symmetric systems — benzene, allyl, CO₂ — are a fixed point and stay exactly as they were. It follows the same long-ranged, screened bond order the saturation uses, so a partner weakens a π bond *while* its own bond forms; a partner claims valence only insofar as it can bond at all, so a radical frees the π bond and a saturated molecule drifting past does not | Radical addition to alkenes |
+| Angular saturation | A saturated centre cannot take a partner side-on to one of its σ bonds: the Morse attraction of a newcomer n at centre c is screened by each arm c–k it approaches at less than ≈ 70°, weighted by how σ-like that arm is (geometric π measure), and the screen lifts for a radical newcomer, for ring partners, for a carbene (≥ 1.2 free valence counted with long-reach bonds) at any corner of the triangle, for metals and ionic pairs, and when neither c nor n has any free valence. Contacts from behind an arm (≥ 160°) are untouched, so collinear transfer barriers do not change | CH₅ and five-coordinate carbon wells removed; every barrier and atomization energy unchanged |
 | π blocking | A π bond blocks an incoming partner at 0.85 of a σ bond, being weaker and more polarizable. O₂'s π counts 0.78 (triplet O₂ is a diradical) and an O–O bond with one unpaired oxygen gains 0.45 order (the three-electron bond of HO₂·) | Cl + ethene; O₂ and HO₂ chemistry |
 | Angles | VSEPR, θ₀ a smooth function of the continuous steric number | 109.5°, 107°, 104.5°, 120°, 180° |
 | π torsion | Across a bond of order n > 1: `(n − 1)²·(De₂ − De₁)·⟨sin²φ·sin²θ₁·sin²θ₂⟩ / 0.5625`, averaged over the substituent pairs and switched with every bond involved. It fades out as either end gains a third substituent (2 → 2.5), since that centre is turning sp³. Twisting breaks the π bond, so the barrier is the π-bond energy itself; the angle factors keep it smooth through linear geometries | Ethene 90° twist: 248 kJ/mol unrelaxed (exp. ≈ 272) |
@@ -400,31 +401,33 @@ tetrahedral network that makes ice is never strongly preferred. Water models tha
 bulk ice in reality, so part of the gap is finite size. See
 [water models including TIP4P/Ice](https://docs.lammps.org/stable/Howto_tip4p.html).
 
-### Over-coordination — open
+### Over-coordination — mostly fixed
 
-`node playground/tests/overcoordination.cjs` pushes an H onto the back of CH₄. Real CH₅ does not exist,
-but here it is bound by about 118 kJ/mol behind a 205 kJ/mol hump, and five-coordinate carbon from
-CH₃ + CH₄ by about 84. Hot hydrocarbons find these wells: cyclohexene at 1200 K tears open within
-0.1–0.5 ps instead of surviving.
+`node playground/tests/overcoordination.cjs` pushes an H onto the back of CH₄. Real CH₅ does not exist.
+It used to be bound by about 118 kJ/mol, and five-coordinate carbon from CH₃ + CH₄ by about 84; both
+scans are now repulsive everywhere (deepest point +30 and +22 kJ/mol). Every barrier in the table above
+and every atomization energy is unchanged, and CH₂ still inserts into H₂.
 
-The cause is a mismatch between two curves. A C–H stretched by 0.3 Å still collects about 81 % of its
-Morse attraction, but `satF` counts it as only 0.68 of a used valence. The stretched hydrogens then look
-open-shell, and they bond to each other: in the CH₅ well the H–H Morse terms alone gain 171 kJ/mol.
+The cause was a mismatch between two curves. A C–H stretched by 0.3 Å still collects about 81 % of its
+Morse attraction, but `satF` counts it as only 0.68 of a used valence. The stretched hydrogens then
+looked open-shell and bonded to each other or to a newcomer side-on. The angular saturation term
+(force-field table) removes that side-on attraction instead of changing the saturation curve, so the
+fitted barriers are not touched. It costs about 30 % of step speed on hydrocarbons.
+
+Still open: cyclohexene at 1200 K now survives 0.35–0.95 ps instead of 0.17–0.29, but real cyclohexene
+lives for seconds at that temperature. The remaining break-ups lose an H with no atom over its valence,
+and some follow a sudden jump of 100–250 kJ/mol in total energy within 50 fs, which the bath cannot
+supply. That points at the lagged bond multiplicity n creating energy during fast bond changes.
 
 What was tried, so it is not repeated:
 
 - `kb = 1.0` (valence use decays like the attraction) closes both wells but roughly doubles every
   transfer barrier, because `c1`, `c4` and `kb` were fitted together.
-- A joint refit of `kb`, `c1`, `c4`, `cap`, `mu`, `kbo`, `k` and `oo3e` against the nine barriers,
-  seven atomization energies, the methane dimer and both wells reaches CH₅ +208 and keeps hot
-  cyclohexene intact for 5–10 ps. But every fit that does so needs `c1` ≈ 0.14, which makes a small
-  excess on hydrogen almost free: CH₂ + H₂ then stalls as a CH₂·H₂ complex (`insertion.cjs` fails) and
-  H₂ dissociates among noble gases at 3000 K (`conditions.cjs` fails). With `c1` held at 0.6, closing
-  the wells needs `cap` ≥ 0.19, and the barriers rise past 75 kJ/mol.
-- Screening the Morse attraction between atoms that share a bonded neighbour removes the H–H part,
-  but the minimiser finds the next well (an H capping three stretched hydrogens), and hot cyclohexene
-  still tears within 0.5 ps.
-
-A fix probably needs valence use to follow the attraction a bond still provides, with the barriers
-recovered by a term that acts only on shared, three-centre geometries, not by flattening the
-saturation curve.
+- A joint refit of `kb`, `c1`, `c4`, `cap`, `mu`, `kbo`, `k` and `oo3e` needs `c1` ≈ 0.14, which makes a
+  small excess on hydrogen almost free: CH₂ + H₂ then stalls as a CH₂·H₂ complex and H₂ dissociates
+  among noble gases at 3000 K. With `c1` held at 0.6, closing the wells needs `cap` ≥ 0.19, and the
+  barriers rise past 75 kJ/mol.
+- Screening every 1-3 Morse attraction removes the H–H part, but the minimiser finds the next well
+  (an H capping three stretched hydrogens).
+- Gating the screen on the newcomer's free valence alone blocks CH₂ insertion; it has to be gated at all
+  three corners, counting free valence with long-reach bonds so a stretched C–H cannot fake a carbene.

@@ -1,9 +1,8 @@
 /* Diagnostic, not a validation pass: how far the model lets an atom take more partners than its
  * valence. Real CH5 and five-coordinate carbon do not exist; both scans should rise steeply.
  *   node playground/tests/overcoordination.cjs
- * Known issue: both currently fall into a bound well. Stretched bonds count as less used valence
- * (satF) than the Morse attraction they still provide, so the neighbours of a stretched centre look
- * open-shell and bond to one another. Hot hydrocarbons reach these wells within a picosecond. */
+ * Both used to fall into a bound well, because stretched bonds counted as less used valence than the
+ * attraction they still gave; the angular saturation term now keeps both repulsive. */
 const { Engine } = require('../engine.js');
 const { geo } = require('./reactions.cjs');
 const q = { thermal: false };
