@@ -34,10 +34,11 @@ class ForecastCard {
     const eng = this.actions.engine, [i, j] = this.picked();
     if (i === undefined || j === undefined) { this.close(); return; }
     const scene = eng.toJSON(), id = ++this.req;
+    this.sceneIds = Array.from(eng.ids.subarray(0, eng.N)); this.result = null;
     this.show('Searching for the path…', '<div class="fc-busy"><i></i></div><p class="fc-note">Pulling the two atoms along the reaction in a private copy, relaxing everything else at each step. The simulation keeps running.</p>');
     if (!this.worker) {
       this.worker = new Worker('kinetics-worker.js?v=' + (this.actions.version || ''));
-      this.worker.onmessage = ev => { if (ev.data.id === this.req) this.render(ev.data.result); };
+      this.worker.onmessage = ev => { if (ev.data.id === this.req) { this.result = ev.data.result; this.render(ev.data.result); } };
       this.worker.onerror = () => this.show('Forecast unavailable', '<p class="fc-note">The calculation could not start in this browser.</p>');
     }
     this.worker.postMessage({ id, scene, i, j });
@@ -62,6 +63,7 @@ class ForecastCard {
       ${isFinite(now.halfLife) && now.halfLife < 3.15e16 ? `<p class="fc-range">likely between <b>${esc(H(now.fastest))}</b> and <b>${esc(H(now.slowest))}</b></p>` : ''}
       <dl class="fc-stats"><div><dt>Barrier</dt><dd>${r.Ea.toFixed(0)} kJ/mol</dd></div><div><dt>${r.dE <= 0 ? 'Releases' : 'Costs'}</dt><dd>${Math.abs(r.dE).toFixed(0)} kJ/mol</dd></div></dl>
       ${prof}
+      ${r.event && isFinite(now.halfLife) && now.halfLife < 1e30 ? `<button class="fc-skip" id="fcSkip">Skip the wait · watch it happen</button><p class="fc-skipnote">Jumps the clock by a waiting time drawn at random from this rate, then plays the reaction itself in the live simulation from just past the top of the barrier.</p>` : ''}
       <table class="fc-table"><thead><tr><th>Temperature</th><th>Half-life</th></tr></thead><tbody>${rows}</tbody></table>
       ${alt ? '<p class="fc-sub">Also possible, more slowly</p><ul class="fc-alt">' + alt + '</ul>' : ''}
       <details class="quantum-notes"><summary>How this is estimated</summary>
@@ -69,6 +71,8 @@ class ForecastCard {
       <p>The time comes from transition-state theory: rate = A·e<sup>−barrier/RT</sup>. A is about 10<sup>15.5</sup> s⁻¹ for a bond simply coming apart, kT/h otherwise, and for two molecules the collision rate × 0.1. The range allows ±10 kJ/mol on the barrier and ×/÷10 on A.</p>
       <p>It is only as good as the model: where the model's barrier is wrong, so is the time. Known errors: aromatic and vinylic C–H bonds are 50–120 kJ/mol too weak, Cl + CH₄ comes out 20 kJ/mol too slow. Above about 2000 K the live simulation also decomposes hydrocarbons much faster than these numbers say; the forecast is the more trustworthy of the two there.</p></details>`;
     this.show(side(r.reactants) + ' → ' + side(r.products), body);
+    const skip = this.el('fcSkip');
+    if (skip) skip.onclick = () => { const res = this.result, ids = this.sceneIds; this.close(); this.actions.skip?.(res, ids); };
   }
   profile(path, Ea) {
     if (!path || path.length < 2) return '';

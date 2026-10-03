@@ -78,7 +78,8 @@ function runChannel(src, atoms, i, j, E0, ch, opts) {
     const target = c0 + (c1 - c0) * s / steps;
     e.restraints[0].r = target;
     const E = settle(e, iters);
-    path.push({ x: coord(), r: dist(e, a, b), E: E - E0, pos: e.pos.slice(0, 3 * e.N) });
+    const bo = []; for (let p = 0; p < e.nPairs; p++) if (e.pN[p] > 1.001) bo.push([e.pI[p], e.pJ[p], e.pN[p]]);
+    path.push({ x: coord(), r: dist(e, a, b), E: E - E0, pos: e.pos.slice(0, 3 * e.N), bo });
   }
   let top = 0;
   for (let s = 1; s < path.length; s++) if (path[s].E > path[top].E) top = s;
@@ -89,6 +90,7 @@ function runChannel(src, atoms, i, j, E0, ch, opts) {
   const done = ch.type === 'break' ? !nowBonded : nowBonded && (k === undefined || !bondedIn(e, b, k));
   return {
     channel: ch, done, Ea: Math.max(0, path[top].E), dE: Eend, barrierAtEnd: top === path.length - 1,
+    event: committed(path, top, j),
     start: path[0].pos, end: e.pos.slice(0, 3 * e.N), E0,
     products: fragmentFormulas(e), path: path.map(p => ({ x: p.x, r: p.r, E: p.E })),
     ts: path[top].pos ? { pos: path[top].pos, map } : null, tsDistance: path[top].r,
@@ -142,6 +144,15 @@ function directions(list) {
   const out = [];
   for (const d of list) if (d && !out.some(o => dot(o, d) > 0.9)) out.push(d);
   return out;
+}
+
+function committed(path, top, at) {
+  const last = path.length - 1, drop = Math.max(8, 0.3 * (path[top].E - path[last].E));
+  let c = top + 1;
+  while (c < last && path[c].E > path[top].E - drop) c++;
+  c = Math.min(c, last);
+  const from = path[Math.max(0, c - 1)].pos, to = path[c].pos;
+  return { pos: Array.from(to), push: Array.from(to, (v, q) => v - from[q]), bo: path[c].bo, at };
 }
 
 function bondedIn(e, a, b) {
@@ -198,6 +209,7 @@ function scanPair(src, i, j, opts = {}) {
     ok: true, kind, i, j, atoms, Ea: best.Ea, dE: best.dE, barrierAtEnd: best.barrierAtEnd,
     reactants: reactants.flatMap(x => x.formula), products: best.products, path: best.path, ts: best.ts, tsDistance: best.tsDistance,
     channel: { type: best.channel.type, k: best.channel.k }, bimolecular: ci !== cj, T: opts.T,
+    event: { atoms, pos: best.event.pos, push: best.event.push, bo: best.event.bo, anchor: ci !== cj ? frag.list[frag.comp[best.event.at]] : atoms },
     alternatives: distinct(ok.slice(1), best).map(r => ({ channel: { type: r.channel.type, k: r.channel.k }, Ea: r.Ea, dE: r.dE, products: r.products }))
   };
 }
@@ -277,10 +289,37 @@ function study(scene, i, j, temps) {
   const now = forecast(e, scan, { T });
   return {
     ok: true, kind: scan.kind, channel: scan.channel, Ea: scan.Ea, dE: scan.dE, reactants: scan.reactants, products: scan.products,
-    path: scan.path.map(p => p.E), bimolecular: scan.bimolecular, alternatives: scan.alternatives,
+    path: scan.path.map(p => p.E), bimolecular: scan.bimolecular, alternatives: scan.alternatives, event: scan.event,
     now, table: (temps || [200, 298, 500, 1000, 1500, 2500]).map(at), T
   };
 }
 
-return { scanPair, forecast, humanTime, isolate, settle, fromScene, study, UNCERTAINTY };
+function applyEvent(eng, ev, idx) {
+  const anchor = new Set(ev.anchor);
+  let cx = 0, cy = 0, cz = 0, ix = 0, iy = 0, iz = 0, n = 0;
+  ev.atoms.forEach((k, m) => {
+    if (!anchor.has(k)) return;
+    const i = idx[m];
+    cx += eng.pos[3 * i]; cy += eng.pos[3 * i + 1]; cz += eng.pos[3 * i + 2];
+    ix += ev.pos[3 * m]; iy += ev.pos[3 * m + 1]; iz += ev.pos[3 * m + 2]; n++;
+  });
+  const dx = (cx - ix) / n, dy = (cy - iy) / n, dz = (cz - iz) / n;
+  ev.atoms.forEach((k, m) => {
+    const i = idx[m];
+    eng.pos[3 * i] = ev.pos[3 * m] + dx; eng.pos[3 * i + 1] = ev.pos[3 * m + 1] + dy; eng.pos[3 * i + 2] = ev.pos[3 * m + 2] + dz;
+    eng.born[i] = eng.time;
+  });
+  eng.touch(); eng.refresh();
+  for (const [a, b, o] of ev.bo) eng.setBondOrder(idx[a], idx[b], o);
+  eng.thermalize(eng.T, idx);
+  let mD = 0;
+  idx.forEach((i, m) => { mD += eng.mass[i] * (ev.push[3 * m] ** 2 + ev.push[3 * m + 1] ** 2 + ev.push[3 * m + 2] ** 2); });
+  if (mD > 0) {
+    const sc = Math.sqrt(2 * CE.KB * Math.max(eng.T, 50) / (CE.KEU * mD));
+    idx.forEach((i, m) => { for (let d = 0; d < 3; d++) eng.vel[3 * i + d] += sc * ev.push[3 * m + d]; });
+  }
+  eng.refresh();
+}
+
+return { scanPair, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, UNCERTAINTY };
 });

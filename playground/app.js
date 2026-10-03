@@ -96,7 +96,21 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261003-build51', focus: () => canvas.focus() });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261003-build52', focus: () => canvas.focus(), skip: (r, ids) => skipToEvent(r, ids) });
+function skipToEvent(r, sceneIds) {
+  const ev = r && r.event;
+  if (!ev) return;
+  const idx = ev.atoms.map(k => eng.indexOfId(sceneIds[k]));
+  if (idx.some(i => i < 0)) { toast('Those atoms are gone · forecast again'); return; }
+  pushUndo();
+  const wait = -Math.log(1 - Math.random()) * r.now.halfLife / Math.LN2;
+  ChemKinetics.applyEvent(eng, ev, idx);
+  eng.skipped += wait;
+  eng.refresh();
+  scheduleSave();
+  toast('Skipped ' + ChemKinetics.humanTime(wait) + ' of waiting · this is the moment it happens');
+  if (!time.playing) setPlaying(true);
+}
 const inspector = new AtomInspector({ engine: eng, pause: () => { if(consoleIsOpen())closeConsole();closePop();setPlaying(false); }, focus: () => canvas.focus(),
   screenOf: i => R.toScreen(rp[3 * i], rp[3 * i + 1]),
   remove: id => {
@@ -1960,7 +1974,7 @@ function loadScene() {
       for (const [i, j, o] of s.bonds) if (index[i] >= 0 && index[j] >= 0 && Number.isFinite(o)) eng.setBondOrder(index[i], index[j], o);
       eng.refresh();
     }
-    for (const key of ['wallT', 'wallTarget', 'wallTau', 'heatToSample', 'heaterWork', 'kelvinWork']) if (Number.isFinite(s[key])) eng[key] = s[key];
+    for (const key of ['wallT', 'wallTarget', 'wallTau', 'heatToSample', 'heaterWork', 'kelvinWork', 'skipped']) if (Number.isFinite(s[key])) eng[key] = s[key];
     if (s.boundsMode === 'forcefield' || s.boundsMode === 'solid') eng.boundsMode = s.boundsMode;
     if (typeof s.voidTemperature === 'boolean') eng.voidTemperature = s.voidTemperature;
     eng.voidPressure = s.dampingVersion >= 3 && !!s.voidPressure;
@@ -2069,7 +2083,7 @@ function frame(now) {
   if (now - lastUI > 100) {
     lastUI = now;
     updateLab();
-    $('clock').textContent = fmtTime(eng.time);
+    $('clock').textContent = eng.skipped > 0 ? ChemKinetics.humanTime(eng.skipped) + ' skipped + ' + fmtTime(eng.time) : fmtTime(eng.time);
     const rate = $('rate');
     if (time.playing) {
       rate.textContent = (time.limited ? 'CPU-bound · ' : '') + fmtRate(time.rateEMA) + (time.limited ? ' · ' + Math.round(time.rateEMA / stepsPerSecond(time.speed) * 100) + '% target' : '');

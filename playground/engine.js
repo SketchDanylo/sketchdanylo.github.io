@@ -558,6 +558,7 @@ class Engine {
        spark on the step it landed and nothing could ever be lit. While this window is open the
        stat and the temperature void stand back and let the spark do its work. */
     this.sparkHold = 0;
+    this.skipped = 0;
     this.servoWork = 0; this.servoWorkTotal = 0;     // work the pointer has done on the sample
     this.wallMeasured = this.T; this.wallContact = 0; // what the fluid against the wall actually is
     /* Interaction cutoff. Bonds and reaction energies are converged well inside 6.5 Å, but the
@@ -2742,7 +2743,7 @@ class Engine {
       voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, voidVelocity: this.voidVelocity, voidTau: this.voidTau, voidSkin: this.voidSkin,
       pressureControl: this.pressureControl, pressureTarget: this.pressureTarget, pressureTau: this.pressureTau,
       voidHeat: this.voidHeat, voidForce: this.voidForce,
-      servoWork: this.servoWork, servoWorkTotal: this.servoWorkTotal,
+      servoWork: this.servoWork, servoWorkTotal: this.servoWorkTotal, skipped: this.skipped,
       wallTau: this.wallTau, wallCapacity: this.wallCapacity, wallSkin: this.wallSkin, wallCoupling: this.wallCoupling,
       heatToSample: this.heatToSample, heaterWork: this.heaterWork,
       nextSub: this.nextSub || 1, subHold: this.subHold || 0, subPeak: this.subPeak || 1, lastSub: this.lastSub || 1, Epot: this.Epot, Ewall: this.Ewall,
@@ -2759,7 +2760,7 @@ class Engine {
     this.N = s.N; this.time = s.time; this.stepCount = s.stepCount; this.rngState = s.rng; this.nextId = s.nextId;
     if (s.box) this.box = { ...s.box };
     this.sphere = s.sphere ? { ...s.sphere } : null;
-    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'kelvinWork', 'sparkHold', 'wallMeasured', 'wallContact', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidVelocity', 'voidTau', 'voidSkin', 'voidHeat', 'voidForce', 'servoWork', 'servoWorkTotal', 'pressureControl', 'pressureTarget', 'pressureTau', 'heatToSample', 'heaterWork', 'nextSub', 'subHold', 'subPeak', 'lastSub', 'redone', 'clamped', 'bondOrderDeficit', 'bondOrderHeld']) if (s[key] !== undefined) this[key] = s[key];
+    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'kelvinWork', 'sparkHold', 'wallMeasured', 'wallContact', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidVelocity', 'voidTau', 'voidSkin', 'voidHeat', 'voidForce', 'servoWork', 'servoWorkTotal', 'skipped', 'pressureControl', 'pressureTarget', 'pressureTau', 'heatToSample', 'heaterWork', 'nextSub', 'subHold', 'subPeak', 'lastSub', 'redone', 'clamped', 'bondOrderDeficit', 'bondOrderHeld']) if (s[key] !== undefined) this[key] = s[key];
     this.tweezer = null;
     this.pos.set(s.pos); this.vel.set(s.vel); this.frc.set(s.frc); this.prev.set(s.pos);
     this.type.set(s.type); this.formal.set(s.formal); this.val.set(s.val); this.lp.set(s.lp); this.pinned.set(s.pinned); this.ids.set(s.ids); this.cos0.set(s.cos0); if (s.born) this.born.set(s.born); else this.born.fill(-Infinity, 0, this.N);
@@ -2820,7 +2821,7 @@ class Engine {
     for (let i = 0; i < this.N; i++) atoms.push([ELEMENTS[this.type[i]].sym, +this.pos[3 * i].toFixed(4), +this.pos[3 * i + 1].toFixed(4), +this.pos[3 * i + 2].toFixed(4), +this.vel[3 * i].toFixed(6), +this.vel[3 * i + 1].toFixed(6), +this.vel[3 * i + 2].toFixed(6), this.formal[i], this.val[i]]);
     const bonds = [];
     for (let p = 0; p < this.nPairs; p++) if (this.pN[p] > 1.001) bonds.push([this.pI[p], this.pJ[p], +this.pN[p].toFixed(4)]);
-    return { format: 'chem-playground/scene@1', box: this.box, T: this.T, tau: this.tau, thermostat: this.thermostat, thermostatMode: this.thermostatMode, kelvinWork: this.kelvinWork, boundsMode: this.boundsMode, voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, voidVelocity: this.voidVelocity, dampingVersion: 3, voidTau: this.voidTau, voidSkin: this.voidSkin, voidHeat: this.voidHeat, pressureControl: this.pressureControl, pressureTarget: this.pressureTarget, wallT: this.wallT, wallTarget: this.wallTarget, wallTau: this.wallTau, heatToSample: this.heatToSample, heaterWork: this.heaterWork, time: this.time, atoms, bonds };
+    return { format: 'chem-playground/scene@1', box: this.box, T: this.T, tau: this.tau, thermostat: this.thermostat, thermostatMode: this.thermostatMode, kelvinWork: this.kelvinWork, boundsMode: this.boundsMode, voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, voidVelocity: this.voidVelocity, dampingVersion: 3, voidTau: this.voidTau, voidSkin: this.voidSkin, voidHeat: this.voidHeat, pressureControl: this.pressureControl, pressureTarget: this.pressureTarget, wallT: this.wallT, wallTarget: this.wallTarget, wallTau: this.wallTau, heatToSample: this.heatToSample, heaterWork: this.heaterWork, time: this.time, skipped: this.skipped, atoms, bonds };
   }
 }
 

@@ -94,4 +94,48 @@ test('Durations read the way a person says them', () => {
   assert.match(K.humanTime(1e30), /universe/);
 });
 
+function playEvent(e, i, j, steps) {
+  const r = K.study(JSON.parse(JSON.stringify(e.toJSON())), i, j);
+  assert.ok(r.ok, r.reason);
+  K.applyEvent(e, r.event, r.event.atoms);
+  for (let s = 0; s < steps; s++) e.step();
+  return { r, got: e.fragments().list.map(f => e.formulaOf(f) + (e.isRadical(f) ? '·' : '')).sort() };
+}
+
+test('Skipping ahead puts the pair just past the barrier, and the live simulation finishes the reaction itself', () => {
+  let made = 0;
+  for (let seed = 1; seed <= 4; seed++) {
+    const e = new Engine({ width: 30, height: 30, depth: 30, T: 298, seed, thermostatMode: 'kelvin' });
+    for (const [s, x, y, z] of geo('C2H4')) e.addAtom(s, 12 + x, 15 + y, z || 0, { thermal: false });
+    e.touch(); e.refresh(); e.setBondOrder(0, 1, 2);
+    e.addAtom('Cl', 20, 15, 0, { thermal: false }); e.touch(); e.refresh();
+    const { r, got } = playEvent(e, 6, 0, 3000);
+    assert.deepEqual(r.products, ['C2H4Cl·']);
+    if (got.join('+') === 'C2H4Cl·') made++;
+  }
+  assert.ok(made >= 3, made + ' of 4 additions completed');
+});
+
+test('An abstraction played from its moment ends as the forecast said: CH₃· and H₂', () => {
+  let made = 0;
+  for (let seed = 1; seed <= 4; seed++) {
+    const e = new Engine({ width: 30, height: 30, depth: 30, T: 600, seed, thermostatMode: 'kelvin' });
+    for (const [s, x, y, z] of geo('CH4')) e.addAtom(s, 15 + x, 15 + y, z || 0, { thermal: false });
+    e.addAtom('H', 19, 15, 0, { thermal: false }); e.touch(); e.refresh();
+    const { got } = playEvent(e, 5, 1, 2000);
+    if (got.join('+') === 'CH3·+H2') made++;
+  }
+  assert.ok(made >= 3, made + ' of 4 abstractions completed');
+});
+
+test('Skipped time is part of the state: undo, rewind and saved scenes keep it', () => {
+  const e = new Engine({ width: 20, height: 20, depth: 20, T: 298, thermostat: false });
+  e.addAtom('H', 5, 5, 0, { thermal: false }); e.touch(); e.refresh();
+  const before = e.snapshot();
+  e.skipped = 3600;
+  assert.equal(e.toJSON().skipped, 3600);
+  e.restore(before); assert.equal(e.skipped, 0);
+  e.skipped = 42; const s2 = e.snapshot(); e.skipped = 0; e.restore(s2); assert.equal(e.skipped, 42);
+});
+
 console.log(count + ' kinetics checks passed.');

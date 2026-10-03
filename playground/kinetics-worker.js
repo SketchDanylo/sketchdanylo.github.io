@@ -1,4 +1,4 @@
-importScripts('engine.js?v=20261003-build51', 'kinetics.js?v=20261003-build51');
+importScripts('engine.js?v=20261003-build52', 'kinetics.js?v=20261003-build52');
 onmessage = ev => {
   const { id, scene, i, j } = ev.data;
   try { postMessage({ id, result: self.ChemKinetics.study(scene, i, j) }); }

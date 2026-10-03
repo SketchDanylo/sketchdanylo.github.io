@@ -382,6 +382,79 @@ The free-atom references are ground-state atoms in the same STO-3G basis, spheri
 
 Hirshfeld shares sum exactly to the molecular density and no share can exceed it; `node playground/tests/quantum.cjs` checks both.
 
+## Forecasting and skipping ahead
+
+Most reactions take far longer than a browser can simulate: at about a picosecond of chemistry per
+second of screen time, one real second would take tens of thousands of years. A reaction is also not a
+slow creep: a molecule rattles in its well for a long time and then crosses in about 100 fs. So the slow
+part is never simulated. It is calculated, and only the crossing itself is shown.
+
+**Forecast** (toolbar hourglass, `F`): click two atoms. Bonded atoms ask when that bond breaks;
+atoms of different molecules ask when the two react. A copy of just those molecules is pulled
+through the reaction in a worker while every other atom relaxes (a relaxed scan; the live chamber is not
+touched). Several routes are tried and the lowest barrier kept:
+
+- joining the two atoms, with the attacker brought in along its current line, from the target's open
+  side, and from both faces of a flat (sp²) centre, turned so its own free valence leads;
+- transfers, where one of the target's existing bonds lets go, pulled along the difference between the
+  bond forming and the bond breaking and approached collinearly from behind the bond that breaks;
+- breaking, by stretching the bond 3.2 Å.
+
+The barrier becomes a half-life by transition-state theory, rate = A·e^(−barrier/RT): A ≈ 10^15.5 s⁻¹
+for a bond simply coming apart, kT/h for other unimolecular steps, and for two molecules the
+hard-sphere collision rate × 0.1 times the partner's number density in the chamber. The card gives the
+half-life now, a range (±10 kJ/mol on the barrier, ×/÷10 on A), a table from 200 to 2500 K, the energy
+along the path, and any slower routes found on the way.
+
+| Reaction | Forecast barrier | Force field fitted to / measured |
+| --- | --- | --- |
+| H + H₂ → H₂ + H | 46 | fitted 45 · real 40 |
+| H + CH₄ → H₂ + CH₃ | 46 | fitted 47 · real 50 |
+| Cl + CH₄ → HCl + CH₃ | 36 | real 16 |
+| Cl + C₂H₄ → C₂H₄Cl | 11 | engine test 10.4 · real ≈ 0 |
+| CH₃ + C₂H₄ → C₃H₇ | 9 | real 33 |
+| CH₄ → CH₃ + H | 439 | real 439 |
+| C₂H₆ → 2 CH₃ | 361 | real 377 |
+| H₂C=CH₂ → 2 CH₂ | 729 | real 728 |
+| C₆H₆ → C₆H₅ + H | 351 | real 473 |
+
+Where the forecast and reality disagree, it is the force field's barrier that is wrong, and the
+forecast shows it. Its H + H₂ rate at 1500 K, 1.3×10⁻¹² cm³/s, matches the measured 1.4×10⁻¹².
+
+**Skip the wait** (on the forecast card): the clock jumps by a waiting time drawn at random from the
+forecast rate, the molecules are placed at the first point clearly past the top of the barrier with a
+thermal push along the path, and the live simulation carries out the reaction itself. The skipped time
+is shown beside the simulated time, is part of saved scenes and undo, and Ctrl+Z puts everything back.
+Played this way, Cl· + ethene, CH₃· + ethene and H· + CH₄ complete in 9 of 9 browser trials and in
+at least 3 of 4 seeded runs each in the tests.
+
+### How far the forecast and the live simulation agree
+
+The forecast measures the model's energy surface; the live chamber moves on it. Checked against each other:
+
+- **CH₄ at 2000 K**: the forecast says days; in the live chamber it stays whole for 30 ps in 8 of 8 runs.
+  The splits seen earlier at that temperature were the fragment count briefly treating a stretched C–H
+  as broken.
+- **H + H₂**: an Arrhenius fit of exchanges counted in the live chamber (1000, 1500, 2500 K) gives a
+  barrier of 44–46 kJ/mol, the same as the forecast, but a prefactor about 40 times the collision
+  estimate, so the live chamber exchanges about 40 times faster than both the forecast and the real
+  reaction. The model's H captures H₂ from roughly twice the real distance.
+- **Ethane above about 2200 K**: the live chamber eliminates H₂ within picoseconds; the forecast's
+  barriers for that (408–435 kJ/mol, 1,2-elimination) say microseconds or longer. The cause is not yet
+  found. It is not the thermostat (the statistics match equipartition at 800–2000 K, and under CSVR it
+  still happens within picoseconds: 4 of 6 runs in 20 ps) and not energy accounting (insulated runs hold to 2 kJ/mol). The bond orders are implicated —
+  with them frozen ethane survives 20 ps at 2500 K — but freezing them also stops ethylene from forming
+  its π bond, so that test alone does not prove it. A nudged-elastic-band search for a lower path
+  fell apart (images flew to separated atoms through the force field's cutoffs) and was not kept.
+
+### What it does not do yet
+
+- It only forecasts what you point at. It does not search a chamber for the next likely event and
+  fast-forward to it on its own (kinetic Monte Carlo); the scans are fast enough for small scenes.
+- Solution chemistry: ions, proton transfer and solvent are not in the engine, so most textbook
+  organic mechanisms (SN1/SN2, E1/E2, acid catalysis) cannot be forecast or watched yet.
+- Pressure-dependent unimolecular rates (fall-off), tunnelling and zero-point energy are left out.
+
 ## Temperature readings
 
 The gauge shows a running mean of the kinetic temperature with the measured spread beside it. The instantaneous value genuinely wanders — a sample of N atoms has relative fluctuations of about `sqrt(2/3N)`, so twenty atoms swing by tens of kelvin from one instant to the next. That is the sample being small, not friction or a numerical fault. Hovering the gauge gives the mean, the spread, the instantaneous value and the expected fluctuation for the current atom count.
