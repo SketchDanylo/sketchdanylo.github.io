@@ -82,7 +82,7 @@ function runChannel(src, atoms, i, j, E0, ch, opts) {
     restrain(c0 + (c1 - c0) * s / steps);
     const E = settle(e, iters);
     const bo = []; for (let p = 0; p < e.nPairs; p++) if (e.pN[p] > 1.001) bo.push([e.pI[p], e.pJ[p], e.pN[p]]);
-    return { x: coord(), r: dist(e, a, b), E: E - E0, pos: e.pos.slice(0, 3 * e.N), bo };
+    return { x: coord(), r: dist(e, a, b), E: E - E0, pos: e.pos.slice(0, 3 * e.N), bo, bonds: bondsOf(e) };
   };
   for (let s = 0; s <= steps; s++) path.push(point(s));
   let Eend, done, products, endPos;
@@ -103,7 +103,10 @@ function runChannel(src, atoms, i, j, E0, ch, opts) {
         else Eend = apart;
       }
     }
-    if (done && !opts.oneWay) for (let s = steps; s >= 0; s--) { const q = point(s); if (q.E < path[s].E) path[s] = q; }
+    if (done && !opts.oneWay) {
+      const known = new Set([...path[0].bonds, ...bondsOf(e)]);
+      for (let s = steps; s >= 0; s--) { const q = point(s); if (q.E < path[s].E && [...q.bonds].every(x => known.has(x))) path[s] = q; }
+    }
   }
   e.restraints = null;
   let top = 0;
@@ -178,6 +181,12 @@ function committed(path, top, at) {
 function bondedIn(e, a, b) {
   const p = e.pairMap.get(Math.min(a, b) * 1048576 + Math.max(a, b));
   return p !== undefined && e.bondStrength(p) > 0.25;
+}
+
+function bondsOf(e) {
+  const out = new Set();
+  for (let p = 0; p < e.nPairs; p++) if (e.bondStrength(p) > 0.25) out.add(Math.min(e.pI[p], e.pJ[p]) * 1048576 + Math.max(e.pI[p], e.pJ[p]));
+  return out;
 }
 
 function distinct(list, best) {

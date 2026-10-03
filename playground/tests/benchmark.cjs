@@ -71,7 +71,12 @@ for (const [name, parts, i, j, products, real] of BARRIERS) {
   const want = products.slice().sort().join(' + ');
   const hit = r.products.join(' + ') === want ? r : (r.alternatives || []).find(a => a.products.join(' + ') === want);
   assert.ok(hit, name + ' was not found; the scan gave ' + r.products.join(' + '));
-  rows.push(['barrier', name + (hit === r ? '' : ' *'), hit.Ea, real]);
+  let well = null;
+  if (hit === r) {
+    const E = r.path.map(p => p.E), top = E.indexOf(Math.max(...E));
+    well = Math.min(0, ...E.slice(0, top + 1), ...E.slice(top).map(x => x - r.dE));
+  }
+  rows.push(['barrier', name + (hit === r ? '' : ' *'), hit.Ea, real, well]);
 }
 for (const [name, parts, i, j, real] of BONDS) {
   const r = K.scanPair(scene(parts), i, j);
@@ -79,9 +84,10 @@ for (const [name, parts, i, j, real] of BONDS) {
   rows.push(['bond', name, r.Ea, real]);
 }
 const pad = (s, n) => String(s).padEnd(n), num = x => x.toFixed(0).padStart(5);
-console.log(pad('', 8) + pad('reaction', 28) + 'model  real  error');
-for (const [kind, name, model, real] of rows) console.log(pad(kind, 8) + pad(name, 28) + num(model) + ' ' + num(real) + ' ' + num(model - real) + (Math.abs(model - real) > 15 ? '  ✗' : ''));
+console.log(pad('', 8) + pad('reaction', 28) + 'model  real  error   well');
+for (const [kind, name, model, real, well] of rows) console.log(pad(kind, 8) + pad(name, 28) + num(model) + ' ' + num(real) + ' ' + num(model - real) + (well == null ? '       ' : '  ' + num(well)) + (Math.abs(model - real) > 15 ? '  ✗' : '') + (well != null && well < -15 ? '  deep well' : ''));
 const rms = list => Math.sqrt(list.reduce((s, r) => s + (r[2] - r[3]) ** 2, 0) / list.length);
 console.log('rms error: barriers ' + rms(rows.filter(r => r[0] === 'barrier')).toFixed(1) + ' kJ/mol, bonds ' + rms(rows.filter(r => r[0] === 'bond')).toFixed(1) + ' kJ/mol');
 console.log('* not the fastest route from these reactants; read from the slower routes the scan also found.');
+console.log('well: the deepest complex on the way, before the barrier from the reactants and after it from the products;\n  real complexes here are bound by a few kJ/mol at most.');
 console.log('benchmark: ' + rows.length + ' reactions scanned, products as expected.');

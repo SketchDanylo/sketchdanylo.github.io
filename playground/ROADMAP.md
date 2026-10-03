@@ -48,6 +48,9 @@ What to do:
 - `tests/benchmark.cjs` is the benchmark: 39 reactions and bonds (barriers rms 12.5 kJ/mol), about a
   minute. Grow it to 60 or more (NIST kinetics database, standard compilations).
 - Fit the force field against that table automatically, rather than tuning one reaction at a time.
+  The fit must also score the wells along each path, not only the barrier: a chlorine-only crossing
+  stabilisation fixed all four chlorine barriers and every bond energy, but deepened the Cl···H···Cl
+  and Cl···CH₄ complexes by 25–50 kJ/mol (README, What was tried).
 - The errors fall into three families: hydrogen passing to or from O or Cl is 15–23 kJ/mol too high
   (the half-made crossings cost too much); every C–H next to another carbon is too weak (ethyl radical
   too stable), which makes H + C₂H₆ and CH₃ + C₂H₄ too easy; and the formyl radical lacks the C–O

@@ -404,7 +404,9 @@ touched). Several routes are tried and the lowest barrier kept:
 
 Each route is scanned both ways, reactants to products and back, and the lower energy at each point
 is kept: pulling one way only lets a bond hang on past the point where it should give way and snap later,
-which put OH + CH₄ at 96 kJ/mol (now 24; reality about 15). A route that ends with
+which put OH + CH₄ at 96 kJ/mol (now 24; reality about 15). The pass back from the products only
+keeps states whose bonds all exist in the reactants or the products: pulled back, the hydrogen of
+H + Cl₂ grabbed the other chlorine and gave HCl + Cl at the reactants' end of the path. A route that ends with
 an atom holding more than half a bond over its valence (a hydrogen stuck between two partners) is not
 counted as a product.
 
@@ -419,7 +421,7 @@ along the path, and any slower routes found on the way.
 
 | Reaction | Forecast | Real |
 | --- | --- | --- |
-| H + H₂ → H₂ + H | 38 | 40 |
+| H + H₂ → H₂ + H | 41 | 40 |
 | H + CH₄ → H₂ + CH₃ | 42 | 50 |
 | OH + CH₄ → H₂O + CH₃ | 24 | 15 |
 | OH + H₂ → H₂O + H | 36 | 15 |
@@ -434,6 +436,10 @@ along the path, and any slower routes found on the way.
 | C₂H₆ → C₂H₅ + H | 382 | 423 |
 | CH₃–Cl | 357 | 350 |
 | HCO–H (formaldehyde) | 493 | 369 |
+
+The scorecard also gives the deepest complex along each path. Hydrogen taken by a heavy atom passes
+through one bound by 17–27 kJ/mol (Cl + CH₄, Cl + C₂H₆, F + CH₄, OH + NH₃) where the real ones are
+bound by a few at most; these are the CH₄Cl-type complexes the chlorination chain runs into.
 
 The errors fall into three families, which is what a fit has to target:
 - a hydrogen passing to or from oxygen or chlorine (OH + H₂, H + H₂O, H + HCl, Cl + H₂, Cl + CH₄)
@@ -661,6 +667,13 @@ What was tried, so it is not repeated:
   and aromatic carbon carries (benzene 24 kJ/mol too stable, allylic and phenyl C–H weaker), and hot
   combustion then grew CH₅ and CH₆ fragments. A threshold (`tsStab` acting only above 0.2 spare) removes
   the π side effect but fits the barriers no better than the current set.
+- The same half-made-valence stabilisation for chlorine alone (25 kJ/mol at half a bond) fits every
+  chlorine barrier (Cl + CH₄ 28 → 16, real 11; Cl + H₂ 34 → 21, real 19; H + HCl 31 → 22, real 15;
+  Cl + C₂H₄ 11 → 0, real 0) and leaves every bond energy unchanged, but it is also the energy of the
+  complexes the chlorine paths pass through, which it deepens: Cl···H···Cl from −22 to −71 kJ/mol,
+  Cl₃ from −4 to −36, Cl···CH₄ from −19 to −44. Those would trap atoms in the live chamber. For oxygen
+  (10) it also made O₂ 14 kJ/mol too stable, because O₂'s bond orders do not sit at whole valence.
+  The barrier and the well have to be separated before a crossing term can be fitted.
 - Capping π bonding by the p orbitals an atom has left (bent two-coordinate C, N, O get one) raised the
   phenyl C–H from 351 to 389 kJ/mol, but the valence kept out of π went into extra σ partners in hot,
   bending fragments: CH₄ + O₂ at 3500 K grew C₃H₁₂O₄ clumps. A narrower version (carbon only, and only
