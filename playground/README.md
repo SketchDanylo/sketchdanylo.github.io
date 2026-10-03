@@ -473,3 +473,19 @@ What was tried, so it is not repeated:
   (an H capping three stretched hydrogens).
 - Gating the screen on the newcomer's free valence alone blocks CH₂ insertion; it has to be gated at all
   three corners, counting free valence with long-reach bonds so a stretched C–H cannot fake a carbene.
+- `kb` 1.1–1.2 with the half-made-valence stabilisation `tsStab` 8–22 to win the barriers back: the
+  barriers fit about as well (H + H₂ 40), but `tsStab` also rewards the 0.15 spare valence every alkene
+  and aromatic carbon carries (benzene 24 kJ/mol too stable, allylic and phenyl C–H weaker), and hot
+  combustion then grew CH₅ and CH₆ fragments. A threshold (`tsStab` acting only above 0.2 spare) removes
+  the π side effect but fits the barriers no better than the current set.
+- Capping π bonding by the p orbitals an atom has left (bent two-coordinate C, N, O get one) raised the
+  phenyl C–H from 351 to 389 kJ/mol, but the valence kept out of π went into extra σ partners in hot,
+  bending fragments: CH₄ + O₂ at 3500 K grew C₃H₁₂O₄ clumps.
+- Screening weak (below 0.12 of a bond) attractions harder (`ANG_B0` 0.04) stiffens a stretched C–H to
+  the methane value, but makes Cl· + ethene's entrance barrier 13 kJ/mol and hot mixtures no better.
+
+Still open, measured with impossible-fragment scans of hot mixtures (5 ps, 22 Å box): CH₄ + O₂ at 3500 K
+briefly shows a carbon with about five bonds' worth of attraction (a double bond, a C–C stretched to
+1.9 Å and three C–H at 1.45 Å, which `satF` counts as only 3.3 used valence), and ethane at 2500 K sheds
+most of its hydrogen within 5 ps. H₂ + O₂, N₂ + H₂, NH₃, H₂O, CO₂ + H₂ and CH₂O at 2500–3000 K stay
+clean.
