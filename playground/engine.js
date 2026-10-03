@@ -1455,13 +1455,6 @@ class Engine {
     this._angNt = nt;
     return A;
   }
-  _angTerms(u) {
-    const tri = this._angTri, tf = this._angTf, o = 18 * u, T = this._angT || (this._angT = {});
-    T.p = tri[6 * u]; T.q = tri[6 * u + 1]; T.q2 = tri[6 * u + 2]; T.c = tri[6 * u + 3]; T.n = tri[6 * u + 4]; T.k = tri[6 * u + 5];
-    T.H = tf[o]; T.dH = tf[o + 1]; T.S = tf[o + 2]; T.Y = tf[o + 3]; T.dSdr = tf[o + 4]; T.sq = tf[o + 5]; T.xn = tf[o + 6]; T.dxn = tf[o + 7];
-    T.xc = tf[o + 8]; T.dxc = tf[o + 9]; T.xk = tf[o + 10]; T.dxk = tf[o + 11]; T.m = tf[o + 12]; T.w = tf[o + 13];
-    return T;
-  }
   _angScreenForces() {
     const nt = this._angNt, tri = this._angTri, tf = this._angTf, A = this._angA, g = this._angG, gp = this._angGp, lam = this._angLam, R = this._angR, dR = this._angDR;
     const pI = this.pI, pJ = this.pJ, pF = this.pF, pFp = this.pFp, pN = this.pN, pR = this.pR, pDx = this.pDx, pDy = this.pDy, pDz = this.pDz, F = this.frc, G = this.G, pos = this.pos;
