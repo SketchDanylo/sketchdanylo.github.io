@@ -434,7 +434,9 @@ The cause was a mismatch between two curves. A C–H stretched by 0.3 Å still c
 Morse attraction, but `satF` counts it as only 0.68 of a used valence. The stretched hydrogens then
 looked open-shell and bonded to each other or to a newcomer side-on. The angular saturation term
 (force-field table) removes that side-on attraction instead of changing the saturation curve, so the
-fitted barriers are not touched. It costs about 30 % of step speed on hydrocarbons.
+fitted barriers are not touched. Together with the bond-order pairing it is the main cost of a step: measured
+against the engine before both, a 14-atom scene runs at 0.68 of the old speed, 96 atoms of cyclohexene
+at 0.58 and 72 atoms of benzene at 0.54.
 
 A leaving H could also draw partial attraction from two or three carbons at once, bridging them 2.0–2.3 Å
 out while using almost none of its own valence. Contacts down to a fifth of a bond (`ANG_G0` 0.12) now

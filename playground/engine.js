@@ -243,6 +243,10 @@ function piGeo(r, pp) {
   PG = t * t * t * (10 + t * (6 * t - 15)) / PI_REF; PGD = -30 * t * t * (1 - t) * (1 - t) / (w * PI_REF);
 }
 let AH = 0, AHD = 0, GX = 0, GXD = 0;
+function angGateOf(v) {
+  const t = (v - ANG_O0) / (ANG_O1 - ANG_O0);
+  if (t <= 0) { GX = 1; GXD = 0; } else if (t >= 1) { GX = 0; GXD = 0; } else { GX = 1 - t * t * (3 - 2 * t); GXD = -6 * t * (1 - t) / (ANG_O1 - ANG_O0); }
+}
 function angWindow(c) {
   let r = 0, dr = 0, f = 1, df = 0;
   const t = (c - ANG_C0) / (ANG_C1 - ANG_C0);
@@ -1320,13 +1324,6 @@ class Engine {
     }
     return E;
   }
-  _angGate(a, x, y) {
-    const g = this._angG, pN = this.pN, pI = this.pI, pJ = this.pJ, start = this._angStart, list = this._angList;
-    let v = this.val[a] - this._angZm[a];
-    for (let t = start[a]; t < start[a + 1]; t++) { const pp = list[t], o = pI[pp] === a ? pJ[pp] : pI[pp]; if (o === x || o === y) v += g[pp] * pN[pp]; }
-    const t = (v - ANG_O0) / (ANG_O1 - ANG_O0);
-    if (t <= 0) { GX = 1; GXD = 0; } else if (t >= 1) { GX = 0; GXD = 0; } else { GX = 1 - t * t * (3 - 2 * t); GXD = -6 * t * (1 - t) / (ANG_O1 - ANG_O0); }
-  }
   _angScreen() {
     const P = this.nPairs, N = this.N, pI = this.pI, pJ = this.pJ, pR = this.pR, pF = this.pF, pN = this.pN, type = this.type, Zs = this.Zs, val = this.val, pos = this.pos, pDx = this.pDx, pDy = this.pDy, pDz = this.pDz;
     const grow = (k, n, T) => (this[k] && this[k].length >= n ? this[k] : (this[k] = new T(Math.max(n, 64))));
@@ -1412,9 +1409,12 @@ class Engine {
           piGeo(pR[q], PAIR[type[pI[q]] * NT + type[pJ[q]]]);
           const sq = 1 - PG * PI_REF, dsq = -PGD * PI_REF, Y = 1 - sq * (1 - R[c]), S = 1 - R[n] * Y;
           if (S <= 0) continue;
-          this._angGate(n, c, k); const xn = GX, dxn = GXD; if (xn === 0) continue;
-          this._angGate(c, n, k); const xc = GX, dxc = GXD; if (xc === 0) continue;
-          this._angGate(k, c, n); const xk = GX, dxk = GXD; if (xk === 0) continue;
+          let zr = 0;
+          for (let y = start[n]; y < start[n + 1]; y++) { const t = list[y]; if ((pI[t] === n ? pJ[t] : pI[t]) === k) { zr = g[t] * pN[t]; break; } }
+          const zp = g[p] * pN[p], zq = g[q] * pN[q];
+          angGateOf(val[n] - Zm[n] + zp + zr); const xn = GX, dxn = GXD; if (xn === 0) continue;
+          angGateOf(val[c] - Zm[c] + zp + zq); const xc = GX, dxc = GXD; if (xc === 0) continue;
+          angGateOf(val[k] - Zm[k] + zq + zr); const xk = GX, dxk = GXD; if (xk === 0) continue;
           let q2 = -1;
           if (pF[p] !== 0 || this.pFp[p] !== 0) for (let y = cStart[n]; y < cStart[n + 1]; y++) { const t = cList[y]; if ((pI[t] === n ? pJ[t] : pI[t]) === k) { q2 = t; break; } }
           const mnk = q2 < 0 ? 1 : 1 - pF[p] * pF[q2];
