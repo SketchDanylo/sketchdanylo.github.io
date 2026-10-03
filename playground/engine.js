@@ -116,7 +116,7 @@ const NT = ELEMENTS.length;
 const CHI = Float64Array.from(ELEMENTS, e => e.chi);
 // chalcogens and halogens: with one of these in the formula, hydrogen is written first
 const TORS_NORM = 0.5625, TORS_W = 0.5;
-const ANG_G0 = 0.35, ANG_G1 = 0.65, ANG_C0 = 0.05, ANG_C1 = 0.35, ANG_C2 = 0.87, ANG_C3 = 0.95, ANG_O0 = 1.2, ANG_O1 = 1.8, ANG_R0 = 0.2, ANG_R1 = 0.8, ANG_Q0 = 0.02, ANG_Q1 = 0.3, ANG_B0 = 0.12, ANG_DCHI = 2.0, ANG_METAL = 1.4;
+const ANG_G0 = 0.12, ANG_G1 = 0.5, ANG_C0 = 0.05, ANG_C1 = 0.35, ANG_C2 = 0.87, ANG_C3 = 0.95, ANG_O0 = 1.2, ANG_O1 = 1.8, ANG_R0 = 0.2, ANG_R1 = 0.8, ANG_Q0 = 0.02, ANG_Q1 = 0.3, ANG_B0 = 0.12, ANG_DCHI = 2.0, ANG_METAL = 1.4, ANG_DM = 0.2, ANG_DU = 0.75;
 const INS_MAX = 0.6;                 // how much of a sigma bond's competition a carbene can take over
 const INS_ON = 0.8, INS_OFF = 1.8;   // Å past the bond length: fully engaged, and first felt
 const INS_T1 = 0.8, INS_T2 = 1.15;   // an end's new bond + old bond order: lends fully, lends nothing
@@ -1340,14 +1340,16 @@ class Engine {
       if (w <= 0) { Q[i] = 0; dQ[i] = 0; } else if (w >= 1) { Q[i] = 1; dQ[i] = 0; } else { Q[i] = w * w * (3 - 2 * w); dQ[i] = -6 * w * (1 - w) / (ANG_Q1 - ANG_Q0); }
     }
     let arms = 0;
+    const mM = grow('_angM', P, Float64Array), dmM = grow('_angDM', P, Float64Array);
     for (let p = 0; p < P; p++) {
-      g[p] = 0; gp[p] = 0;
+      g[p] = 0; gp[p] = 0; mM[p] = 0; dmM[p] = 0;
       const r = pR[p]; if (r < 0) continue;
       const ti = type[pI[p]], tj = type[pJ[p]], pp = PAIR[ti * NT + tj];
       if (!pp.bond || Math.abs(CHI[ti] - CHI[tj]) >= ANG_DCHI || Math.min(CHI[ti], CHI[tj]) < ANG_METAL) continue;
       const a = pp.a[1], y = a * (r - pp.re[1]);
       let m = 1, dm = 0;
       if (y > 0) { const ey = Math.exp(-y); m = 2 * ey - ey * ey; dm = a * (2 * ey * ey - 2 * ey); }
+      mM[p] = m; dmM[p] = dm;
       const t = (m - ANG_G0) / (ANG_G1 - ANG_G0);
       if (t <= 0) continue;
       if (t >= 1) g[p] = 1; else { g[p] = t * t * (3 - 2 * t); gp[p] = 6 * t * (1 - t) * dm / (ANG_G1 - ANG_G0); }
@@ -1359,11 +1361,30 @@ class Engine {
     fill.set(start.subarray(0, N + 1));
     for (let p = 0; p < P; p++) if (g[p] > 0) { list[fill[pI[p]]++] = p; list[fill[pJ[p]]++] = p; }
     const AU = grow('_angAU', 3 * arms, Float64Array), cStart = this.cStart, cList = this.cList;
+    const M13 = grow('_angM13', P, Float64Array), m13s = grow('_angM13s', P + 1, Int32Array);
+    let m13 = this._angM13t || (this._angM13t = new Int32Array(256)), n13 = 0;
+    for (let q = 0; q < P; q++) {
+      m13s[q] = n13; M13[q] = 1;
+      if (g[q] <= 0 || pF[q] >= 1) continue;
+      const a = pI[q], b = pJ[q];
+      for (let x = cStart[a]; x < cStart[a + 1]; x++) {
+        const pa = cList[x], i = pI[pa] === a ? pJ[pa] : pI[pa];
+        if (i === b) continue;
+        for (let y = cStart[b]; y < cStart[b + 1]; y++) {
+          const pb = cList[y], i2 = pI[pb] === b ? pJ[pb] : pI[pb];
+          if (i2 !== i) continue;
+          M13[q] *= 1 - pF[pa] * pF[pb] * (1 - pF[q]);
+          if (2 * n13 + 2 > m13.length) { const t2 = new Int32Array(m13.length * 2); t2.set(m13); m13 = this._angM13t = t2; }
+          m13[2 * n13] = pa; m13[2 * n13 + 1] = pb; n13++;
+        }
+      }
+    }
+    m13s[P] = n13;
     for (let c = 0; c < N; c++) for (let x = start[c]; x < start[c + 1]; x++) {
       const q = list[x], k = pI[q] === c ? pJ[q] : pI[q], ir = 1 / (pR[q] || 1e-6);
       AU[3 * x] = (pos[3 * k] - pos[3 * c]) * ir; AU[3 * x + 1] = (pos[3 * k + 1] - pos[3 * c + 1]) * ir; AU[3 * x + 2] = (pos[3 * k + 2] - pos[3 * c + 2]) * ir;
     }
-    let tri = this._angTri || (this._angTri = new Int32Array(384)), tf = this._angTf || (this._angTf = new Float64Array(64 * 14)), nt = 0;
+    let tri = this._angTri || (this._angTri = new Int32Array(384)), tf = this._angTf || (this._angTf = new Float64Array(64 * 18)), nt = 0;
     for (let p = 0; p < P; p++) {
       const r = pR[p]; if (r < 0) continue;
       const i0 = pI[p], j0 = pJ[p];
@@ -1389,13 +1410,19 @@ class Engine {
           if (pF[p] !== 0 || this.pFp[p] !== 0) for (let y = cStart[n]; y < cStart[n + 1]; y++) { const t = cList[y]; if ((pI[t] === n ? pJ[t] : pI[t]) === k) { q2 = t; break; } }
           const mnk = q2 < 0 ? 1 : 1 - pF[p] * pF[q2];
           const Om = 1 - (1 - Q[n]) * (1 - Q[c]);
-          const w = g[q] * S * H * mnk * xn * xc * xk * Om;
+          const du = (mM[q] - mM[p]) / ANG_DM + ANG_DU;
+          let D = 1, dD = 0;
+          if (du <= 0) continue; else if (du < 1) { D = du * du * (3 - 2 * du); dD = 6 * du * (1 - du) / ANG_DM; }
+          const Gq = g[q] * D * M13[q];
+          if (Gq <= 0) continue;
+          const w = Gq * S * H * mnk * xn * xc * xk * Om;
           if (w <= 0) continue;
           A[p] *= 1 - w;
           if (6 * nt + 6 > tri.length) { const t2 = new Int32Array(tri.length * 2); t2.set(tri); tri = this._angTri = t2; }
-          if (14 * nt + 14 > tf.length) { const t2 = new Float64Array(tf.length * 2); t2.set(tf); tf = this._angTf = t2; }
+          if (18 * nt + 18 > tf.length) { const t2 = new Float64Array(tf.length * 2); t2.set(tf); tf = this._angTf = t2; }
           tri[6 * nt] = p; tri[6 * nt + 1] = q; tri[6 * nt + 2] = q2; tri[6 * nt + 3] = c; tri[6 * nt + 4] = n; tri[6 * nt + 5] = k;
-          const o = 14 * nt;
+          const o = 18 * nt;
+          tf[o + 14] = Gq; tf[o + 15] = (gp[q] * D + g[q] * dD * dmM[q]) * M13[q]; tf[o + 16] = -g[q] * dD * dmM[p] * M13[q]; tf[o + 17] = g[q] * D;
           tf[o] = H; tf[o + 1] = dH; tf[o + 2] = S; tf[o + 3] = Y; tf[o + 4] = R[n] * (1 - R[c]) * dsq; tf[o + 5] = sq; tf[o + 6] = xn; tf[o + 7] = dxn;
           tf[o + 8] = xc; tf[o + 9] = dxc; tf[o + 10] = xk; tf[o + 11] = dxk; tf[o + 12] = mnk * Om; tf[o + 13] = w;
           nt++;
@@ -1406,7 +1433,7 @@ class Engine {
     return A;
   }
   _angTerms(u) {
-    const tri = this._angTri, tf = this._angTf, o = 14 * u, T = this._angT || (this._angT = {});
+    const tri = this._angTri, tf = this._angTf, o = 18 * u, T = this._angT || (this._angT = {});
     T.p = tri[6 * u]; T.q = tri[6 * u + 1]; T.q2 = tri[6 * u + 2]; T.c = tri[6 * u + 3]; T.n = tri[6 * u + 4]; T.k = tri[6 * u + 5];
     T.H = tf[o]; T.dH = tf[o + 1]; T.S = tf[o + 2]; T.Y = tf[o + 3]; T.dSdr = tf[o + 4]; T.sq = tf[o + 5]; T.xn = tf[o + 6]; T.dxn = tf[o + 7];
     T.xc = tf[o + 8]; T.dxc = tf[o + 9]; T.xk = tf[o + 10]; T.dxk = tf[o + 11]; T.m = tf[o + 12]; T.w = tf[o + 13];
@@ -1418,8 +1445,11 @@ class Engine {
     const start = this._angStart, list = this._angList, P = this.nPairs;
     if (!this._angProd || this._angProd.length < P) { this._angProd = new Float64Array(Math.max(P, 64)); this._angZero = new Int32Array(Math.max(P, 64)); }
     const prod = this._angProd, zero = this._angZero;
+    if (!this._angAccM || this._angAccM.length < P) this._angAccM = new Float64Array(Math.max(P, 64));
+    const accM = this._angAccM, M13 = this._angM13, m13s = this._angM13s, m13 = this._angM13t;
+    accM.fill(0, 0, P);
     for (let u = 0; u < nt; u++) { const p = tri[6 * u]; prod[p] = 1; zero[p] = 0; }
-    for (let u = 0; u < nt; u++) { const p = tri[6 * u], one = 1 - tf[14 * u + 13]; if (one > 1e-9) prod[p] *= one; else zero[p]++; }
+    for (let u = 0; u < nt; u++) { const p = tri[6 * u], one = 1 - tf[18 * u + 13]; if (one > 1e-9) prod[p] *= one; else zero[p]++; }
     const push = (p, dEdr) => {
       const s = dEdr / pR[p], a = pI[p], b = pJ[p], fx = s * pDx[p], fy = s * pDy[p], fz = s * pDz[p];
       F[3 * a] += fx; F[3 * a + 1] += fy; F[3 * a + 2] += fz;
@@ -1434,14 +1464,16 @@ class Engine {
     };
     for (let u = 0; u < nt; u++) {
       const p = tri[6 * u], L = lam[p]; if (L === 0) continue;
-      const q = tri[6 * u + 1], q2 = tri[6 * u + 2], c = tri[6 * u + 3], n = tri[6 * u + 4], k = tri[6 * u + 5], o = 14 * u;
+      const q = tri[6 * u + 1], q2 = tri[6 * u + 2], c = tri[6 * u + 3], n = tri[6 * u + 4], k = tri[6 * u + 5], o = 18 * u;
       const H = tf[o], dH = tf[o + 1], S = tf[o + 2], Y = tf[o + 3], dSdr = tf[o + 4], sq = tf[o + 5], xn0 = tf[o + 6], dxn = tf[o + 7];
       const xc = tf[o + 8], dxc = tf[o + 9], xk = tf[o + 10], dxk = tf[o + 11], m = tf[o + 12], w = tf[o + 13], one = 1 - w;
       let others;
       if (one > 1e-9) others = A[p] / one;
       else others = zero[p] > 1 ? 0 : prod[p];
-      const B = -L * others, gq = g[q], xn = xn0 * xk;
-      if (gp[q] !== 0 || dSdr !== 0) push(q, B * H * m * xn * xc * (gp[q] * S + gq * dSdr));
+      const B = -L * others, gq = tf[o + 14], dGq = tf[o + 15], dGp = tf[o + 16], xn = xn0 * xk;
+      if (dGq !== 0 || dSdr !== 0) push(q, B * H * m * xn * xc * (dGq * S + gq * dSdr));
+      if (dGp !== 0) push(p, B * H * m * xn * xc * S * dGp);
+      if (this._angM13s[q + 1] > this._angM13s[q]) accM[q] += B * H * m * xn * xc * S * tf[o + 17];
       const Qn = this._angQ[n], Qc = this._angQ[c], Om = 1 - (1 - Qn) * (1 - Qc), mr = Om > 0 ? m / Om : 0;
       if (q2 >= 0) {
         if (pFp[q2] !== 0) push(q2, -B * gq * H * S * xn * xc * Om * pF[p] * pFp[q2]);
@@ -1465,6 +1497,20 @@ class Engine {
         F[3 * n] += fnx; F[3 * n + 1] += fny; F[3 * n + 2] += fnz;
         F[3 * k] += fkx; F[3 * k + 1] += fky; F[3 * k + 2] += fkz;
         F[3 * c] -= fnx + fkx; F[3 * c + 1] -= fny + fky; F[3 * c + 2] -= fnz + fkz;
+      }
+    }
+    for (let q = 0; q < P; q++) {
+      const a = accM[q]; if (a === 0) continue;
+      const mq = 1 - pF[q];
+      for (let t = m13s[q]; t < m13s[q + 1]; t++) {
+        const pa = m13[2 * t], pb = m13[2 * t + 1], one = 1 - pF[pa] * pF[pb] * mq;
+        let rest;
+        if (one > 1e-9) rest = M13[q] / one;
+        else { rest = 1; for (let t2 = m13s[q]; t2 < m13s[q + 1]; t2++) if (t2 !== t) rest *= 1 - pF[m13[2 * t2]] * pF[m13[2 * t2 + 1]] * mq; }
+        const c = a * rest;
+        if (pFp[pa] !== 0) push(pa, -c * pFp[pa] * pF[pb] * mq);
+        if (pFp[pb] !== 0) push(pb, -c * pF[pa] * pFp[pb] * mq);
+        if (pFp[q] !== 0) push(q, c * pF[pa] * pF[pb] * pFp[q]);
       }
     }
   }
