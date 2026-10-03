@@ -2772,7 +2772,9 @@ class Engine {
   toJSON() {
     const atoms = [];
     for (let i = 0; i < this.N; i++) atoms.push([ELEMENTS[this.type[i]].sym, +this.pos[3 * i].toFixed(4), +this.pos[3 * i + 1].toFixed(4), +this.pos[3 * i + 2].toFixed(4), +this.vel[3 * i].toFixed(6), +this.vel[3 * i + 1].toFixed(6), +this.vel[3 * i + 2].toFixed(6), this.formal[i], this.val[i]]);
-    return { format: 'chem-playground/scene@1', box: this.box, T: this.T, tau: this.tau, thermostat: this.thermostat, thermostatMode: this.thermostatMode, kelvinWork: this.kelvinWork, boundsMode: this.boundsMode, voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, voidVelocity: this.voidVelocity, dampingVersion: 3, voidTau: this.voidTau, voidSkin: this.voidSkin, voidHeat: this.voidHeat, pressureControl: this.pressureControl, pressureTarget: this.pressureTarget, wallT: this.wallT, wallTarget: this.wallTarget, wallTau: this.wallTau, heatToSample: this.heatToSample, heaterWork: this.heaterWork, time: this.time, atoms };
+    const bonds = [];
+    for (let p = 0; p < this.nPairs; p++) if (this.pN[p] > 1.001) bonds.push([this.pI[p], this.pJ[p], +this.pN[p].toFixed(4)]);
+    return { format: 'chem-playground/scene@1', box: this.box, T: this.T, tau: this.tau, thermostat: this.thermostat, thermostatMode: this.thermostatMode, kelvinWork: this.kelvinWork, boundsMode: this.boundsMode, voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, voidVelocity: this.voidVelocity, dampingVersion: 3, voidTau: this.voidTau, voidSkin: this.voidSkin, voidHeat: this.voidHeat, pressureControl: this.pressureControl, pressureTarget: this.pressureTarget, wallT: this.wallT, wallTarget: this.wallTarget, wallTau: this.wallTau, heatToSample: this.heatToSample, heaterWork: this.heaterWork, time: this.time, atoms, bonds };
   }
 }
 

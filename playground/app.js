@@ -1941,8 +1941,14 @@ function loadScene() {
     if (box && ['x0', 'x1', 'y0', 'y1', 'z0', 'z1'].every(k => Number.isFinite(box[k])) && box.x1 > box.x0 && box.y1 > box.y0 && box.z1 > box.z0) {
       eng.box = { ...box }; saveBox();
     }
-    for (const a of s.atoms) if (BY_SYM[a[0]]) eng.addAtom(a[0], a[1], a[2], a[3], { v: [a[4], a[5], a[6]], charge: a[7], V: a[8] });
-    eng.time = s.time || 0; eng.born.fill(eng.time, 0, eng.N);
+    const base = eng.N, index = [];
+    for (const a of s.atoms) index.push(BY_SYM[a[0]] ? eng.addAtom(a[0], a[1], a[2], a[3], { v: [a[4], a[5], a[6]], charge: a[7], V: a[8] }) : -1);
+    eng.time = s.time || 0; eng.born.fill(eng.time, base, eng.N);
+    if (Array.isArray(s.bonds) && s.bonds.length) {
+      eng.touch(); eng.refresh();
+      for (const [i, j, o] of s.bonds) if (index[i] >= 0 && index[j] >= 0 && Number.isFinite(o)) eng.setBondOrder(index[i], index[j], o);
+      eng.refresh();
+    }
     for (const key of ['wallT', 'wallTarget', 'wallTau', 'heatToSample', 'heaterWork', 'kelvinWork']) if (Number.isFinite(s[key])) eng[key] = s[key];
     if (s.boundsMode === 'forcefield' || s.boundsMode === 'solid') eng.boundsMode = s.boundsMode;
     if (typeof s.voidTemperature === 'boolean') eng.voidTemperature = s.voidTemperature;

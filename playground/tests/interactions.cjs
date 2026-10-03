@@ -98,4 +98,20 @@ test('A molecule dragged through a bath of others arrives, and nothing it passes
   assert.ok(e.fragments().list.every(f => e.formulaOf(f) === 'C6H6'), frags(e));
 });
 
+test('A saved scene comes back with its double and aromatic bonds, not as single bonds', () => {
+  const e = new Engine({ width: 24, height: 20, depth: 12, T: 300, seed: 1, thermostatMode: 'kelvin' });
+  place(e, 'C6H6', 8, 10, e.box.z0 + 6); place(e, 'O2', 18, 10, e.box.z0 + 6);
+  e.touch(); e.refresh(); e.setBondOrder(12, 13, 2); e.refresh(); e.thermalize(300);
+  for (let i = 0; i < 500; i++) e.step();
+  const json = JSON.parse(JSON.stringify(e.toJSON()));
+  const f = new Engine({ width: 24, height: 20, depth: 12, T: 300, seed: 1, thermostatMode: 'kelvin' }); f.box = { ...json.box };
+  const index = json.atoms.map(a => f.addAtom(a[0], a[1], a[2], a[3], { v: [a[4], a[5], a[6]], charge: a[7], V: a[8] }));
+  f.touch(); f.refresh(); for (const [i, j, o] of json.bonds) f.setBondOrder(index[i], index[j], o); f.refresh();
+  assert.equal(json.bonds.length, 7);
+  let worst = 0;
+  for (let p = 0; p < e.nPairs; p++) { const q = f.pairMap.get(e.pI[p] * 1048576 + e.pJ[p]); if (q !== undefined) worst = Math.max(worst, Math.abs(e.pN[p] - f.pN[q])); }
+  assert.ok(worst < 1e-3, `bond orders changed by ${worst}`);
+  assert.ok(Math.abs(e.computeForces() - f.computeForces()) < 0.5);
+});
+
 console.log(count + ' interaction checks passed.');
