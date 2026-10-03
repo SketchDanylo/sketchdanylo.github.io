@@ -246,6 +246,8 @@ A custom, experimental bond-order model inspired by reactive force-field ideas. 
 | π blocking | A π bond blocks an incoming partner at 0.85 of a σ bond, being weaker and more polarizable. O₂'s π counts 0.78 (triplet O₂ is a diradical) and an O–O bond with one unpaired oxygen gains 0.45 order (the three-electron bond of HO₂·) | Cl + ethene; O₂ and HO₂ chemistry |
 | Angles | VSEPR, θ₀ a smooth function of the continuous steric number | 109.5°, 107°, 104.5°, 120°, 180° |
 | σ over-coordination | Every attracting contact of a carbon, nitrogen or oxygen is counted as a σ partner by how much Morse attraction it still gives (weak contacts down to a fifth of a bond, 1-3 neighbours excluded, π order not counted). Holding more than valence + 0.3 costs 200·excess² kJ/mol. Stretched bonds count as little used valence, so a hot carbon could otherwise hold five bonds' worth of attraction | Equilibrium molecules and every fitted barrier unchanged; five-coordinate carbon probe +162 kJ/mol |
+| σ radicals | A carbon with π bonds, at most two σ partners and valence left over after both (vinyl, ethynyl: the unpaired electron sits in an sp or sp² orbital, not in the π system) costs 50 kJ/mol (two σ partners) to 135 (one), switched smoothly on each of the three. Closed-shell molecules, CH₃, ethyl, allyl and carbenes are untouched | Vinyl C–H 412 → 462 kJ/mol (exp. 465), acetylene C–H 421 → 556 (exp. 556); everything fitted unchanged |
+| Bent π | A bent carbon with two σ partners has one p orbital out of the plane, so more than one π bond's worth on it costs 200·(π − 1)² kJ/mol, fading out between 143° and 162°. A phenyl radical otherwise borrowed a second π bond from both neighbours (1.89 each) and its C–H came out 122 kJ/mol too weak. A cap on the bond order itself was tried and left free valence that hydrogens smeared over (What was tried); a cost leaves the bond orders alone | Phenyl C–H 351 → 472 kJ/mol (exp. 473); acetylene and allene, being linear, are untouched; hot benzene no longer finds states below its own minimum |
 | Three-membered rings | An angle whose two outer atoms are themselves bonded bends at 6 % of the usual cost (`ring3` 0.94, switched by that bond): cyclopropane's bonds bow outward, so its 60° angles do not cost what bending tetrahedral carbon to 60° would. Without it cyclopropane was 611 kJ/mol underbound | Cyclopropane atomization 3403 kJ/mol (exp. 3401); C₄–C₆ rings, not fitted, within 3 % (cyclobutane +2.3 %) |
 | π torsion | Across a bond of order n > 1: `(n − 1)²·(De₂ − De₁)·⟨sin²φ·sin²θ₁·sin²θ₂⟩ / 0.5625`, averaged over the substituent pairs and switched with every bond involved. It fades out as either end gains a third substituent (2 → 2.5), since that centre is turning sp³. Twisting breaks the π bond, so the barrier is the π-bond energy itself; the angle factors keep it smooth through linear geometries | Ethene 90° twist: 248 kJ/mol unrelaxed (exp. ≈ 272) |
 | Non-bonded | Shielded Lennard-Jones (UFF); its Pauli wall fades where the Morse term already repels, and between atoms that can still bond. Shifted-force Coulomb between saturating bond-polarisation charges | UFF, Pauling electronegativity |
@@ -400,23 +402,34 @@ touched). Several routes are tried and the lowest barrier kept:
   bond forming and the bond breaking and approached collinearly from behind the bond that breaks;
 - breaking, by stretching the bond 3.2 Å.
 
+Each route is scanned both ways, reactants to products and back, and the lower energy at each point
+is kept: pulling one way only lets a bond hang on past the point where it should give way and snap later,
+which put OH + CH₄ at 96 kJ/mol where the live chamber (and reality) says about 15. A route that ends with
+an atom holding more than half a bond over its valence (a hydrogen stuck between two partners) is not
+counted as a product.
+
 The barrier becomes a half-life by transition-state theory, rate = A·e^(−barrier/RT): A ≈ 10^15.5 s⁻¹
 for a bond simply coming apart, kT/h for other unimolecular steps, and for two molecules the
 hard-sphere collision rate × 0.1 times the partner's number density in the chamber. The card gives the
 half-life now, a range (±10 kJ/mol on the barrier, ×/÷10 on A), a table from 200 to 2500 K, the energy
 along the path, and any slower routes found on the way.
 
-| Reaction | Forecast barrier | Force field fitted to / measured |
+`tests/benchmark.cjs` scans 23 textbook reactions and bonds and prints the scorecard (barriers rms
+11 kJ/mol). Selected rows:
+
+| Reaction | Forecast | Real |
 | --- | --- | --- |
-| H + H₂ → H₂ + H | 46 | fitted 45 · real 40 |
-| H + CH₄ → H₂ + CH₃ | 46 | fitted 47 · real 50 |
-| Cl + CH₄ → HCl + CH₃ | 36 | real 16 |
-| Cl + C₂H₄ → C₂H₄Cl | 11 | engine test 10.4 · real ≈ 0 |
-| CH₃ + C₂H₄ → C₃H₇ | 9 | real 33 |
-| CH₄ → CH₃ + H | 439 | real 439 |
-| C₂H₆ → 2 CH₃ | 361 | real 377 |
-| H₂C=CH₂ → 2 CH₂ | 729 | real 728 |
-| C₆H₆ → C₆H₅ + H | 351 | real 473 |
+| H + H₂ → H₂ + H | 43 | 40 (fitted 45) |
+| H + CH₄ → H₂ + CH₃ | 46 | 50 |
+| OH + CH₄ → H₂O + CH₃ | 17 | 15 |
+| Cl + CH₄ → HCl + CH₃ | 31 | 11 |
+| Cl + H₂ → HCl + H | 37 | 19 |
+| Cl + C₂H₄ → C₂H₄Cl | 11 | ≈ 0 |
+| CH₃ + C₂H₄ → C₃H₇ | 9 | 31 |
+| CH₄ → CH₃ + H | 439 | 439 |
+| C₂H₆ → C₂H₅ + H | 382 | 423 |
+| C₂H₃–H (vinyl) | 462 | 465 |
+| C₆H₅–H (phenyl) | 472 | 473 |
 
 Where the forecast and reality disagree, it is the force field's barrier that is wrong, and the
 forecast shows it. Its H + H₂ rate at 1500 K, 1.3×10⁻¹² cm³/s, matches the measured 1.4×10⁻¹².
@@ -447,8 +460,9 @@ reverse CH₃· + HCl → CH₄ + Cl· in between; 30 reactions and 323 µs of c
 It also produced CH₄Cl and CH₃Cl₂ complexes, which are the force field's over-coordination wells
 (above), not chemistry.
 
-In Cl· + ethene + methane at 298 K it gives the addition to the double bond 98% (half-life about 14 ns),
-taking ethene's hydrogen 2% and methane's 0.05%; in a 600 K mixture of H·, CH₃·, ethene and methane,
+In Cl· + ethene + methane at 298 K it gives the addition to the double bond 99.6% (half-life about
+14 ns) and methane's hydrogen 0.4%; taking ethene's own hydrogen needs 46 kJ/mol. (Before the σ-radical
+term, a vinyl C–H 50 kJ/mol too weak made that abstraction look downhill and it came out first.) in a 600 K mixture of H·, CH₃·, ethene and methane,
 H· + ethene 72%, CH₃· + H· 26%, CH₃· + ethene 1%. Two methanes at room temperature: nothing on any
 human timescale.
 
@@ -597,9 +611,9 @@ What was tried, so it is not repeated:
   valence on each carbon, and hydrogens spread over three to six of those at 2.1 Å bind almost a whole
   C–H bond each (Morse at 2.1 Å still gives 0.2–0.3 of the attraction, `satF` counts 0.03–0.1 of it):
   C₆ with six hydrogens hovering over it came out 890 kJ/mol below benzene, and one benzene at 1500 K
-  ran straight into it. Without the cap the same geometry relaxes to C₆ + 3 H₂. Directional radical
-  valence (a σ radical cannot take a partner from above the ring), or attraction that saturates with
-  the number of weak partners, would be needed first.
+  ran straight into it. Without the cap the same geometry relaxes to C₆ + 3 H₂. What works instead is
+  to leave the bond orders alone and charge for the second π bond on a bent carbon (Bent π, force-field
+  table): phenyl C–H 472, and hot benzene no longer finds those states.
 - Screening weak (below 0.12 of a bond) attractions harder (`ANG_B0` 0.04) stiffens a stretched C–H to
   the methane value, but makes Cl· + ethene's entrance barrier 13 kJ/mol and hot mixtures no better.
 

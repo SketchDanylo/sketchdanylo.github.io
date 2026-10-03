@@ -73,26 +73,34 @@ function runChannel(src, atoms, i, j, E0, ch, opts) {
   else c1 = pp.re[1] - (pairParams(src, j, ch.k).re[1] + BREAK_REACH);
   const steps = opts.steps || Math.max(14, Math.ceil(Math.abs(c1 - c0) / 0.08));
   const iters = opts.iters || 800, path = [];
-  e.restraints = [k === undefined ? { i: a, j: b, r: c0, k: RESTRAINT_K } : { i: a, j: b, m: b, n: k, r: c0, k: RESTRAINT_K }];
-  for (let s = 0; s <= steps; s++) {
-    const target = c0 + (c1 - c0) * s / steps;
-    e.restraints[0].r = target;
+  const restrain = r => { e.restraints = [k === undefined ? { i: a, j: b, r, k: RESTRAINT_K } : { i: a, j: b, m: b, n: k, r, k: RESTRAINT_K }]; };
+  const point = s => {
+    restrain(c0 + (c1 - c0) * s / steps);
     const E = settle(e, iters);
     const bo = []; for (let p = 0; p < e.nPairs; p++) if (e.pN[p] > 1.001) bo.push([e.pI[p], e.pJ[p], e.pN[p]]);
-    path.push({ x: coord(), r: dist(e, a, b), E: E - E0, pos: e.pos.slice(0, 3 * e.N), bo });
+    return { x: coord(), r: dist(e, a, b), E: E - E0, pos: e.pos.slice(0, 3 * e.N), bo };
+  };
+  for (let s = 0; s <= steps; s++) path.push(point(s));
+  let Eend, done, products, endPos;
+  if (ch.type === 'break') {
+    Eend = path[path.length - 1].E;
+    done = !bondedIn(e, a, b) && freeValence(e).every(x => x > -0.5);
+    products = fragmentFormulas(e); endPos = e.pos.slice(0, 3 * e.N);
+  } else {
+    e.restraints = null; Eend = settle(e, 3000) - E0;
+    const sane = freeValence(e).every(x => x > -0.5);
+    done = sane && bondedIn(e, a, b) && (k === undefined || !bondedIn(e, b, k));
+    products = fragmentFormulas(e); endPos = e.pos.slice(0, 3 * e.N);
+    if (done && !opts.oneWay) for (let s = steps; s >= 0; s--) { const q = point(s); if (q.E < path[s].E) path[s] = q; }
   }
+  e.restraints = null;
   let top = 0;
   for (let s = 1; s < path.length; s++) if (path[s].E > path[top].E) top = s;
-  let Eend;
-  if (ch.type === 'break') Eend = path[path.length - 1].E;
-  else { e.restraints = null; Eend = settle(e, 3000) - E0; }
-  const nowBonded = bondedIn(e, a, b);
-  const done = ch.type === 'break' ? !nowBonded : nowBonded && (k === undefined || !bondedIn(e, b, k));
   return {
     channel: ch, done, Ea: Math.max(0, path[top].E), dE: Eend, barrierAtEnd: top === path.length - 1,
     event: committed(path, top, j),
-    start: path[0].pos, end: e.pos.slice(0, 3 * e.N), E0,
-    products: fragmentFormulas(e), path: path.map(p => ({ x: p.x, r: p.r, E: p.E })),
+    start: path[0].pos, end: endPos, E0,
+    products, path: path.map(p => ({ x: p.x, r: p.r, E: p.E })),
     ts: path[top].pos ? { pos: path[top].pos, map } : null, tsDistance: path[top].r,
     leaving: ch.k
   };

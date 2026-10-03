@@ -28,22 +28,23 @@ temperature. The forecast tool now shows where the force field is wrong:
 
 | | model | real |
 | --- | --- | --- |
-| benzene C–H | 351 | 473 |
 | ethane C–H | 382 | 423 |
-| Cl + CH₄ barrier | 36 | 16 |
-| CH₃ + C₂H₄ barrier | 9 | 33 |
+| Cl + CH₄ barrier | 31 | 11 |
+| Cl + H₂ barrier | 37 | 19 |
+| CH₃ + C₂H₄ barrier | 9 | 31 |
 | H + C₂H₄ barrier | 0 | 9 |
 | O₃, NO bond energies | 32%, 12% low | |
 
+Fixed on the way: vinyl C–H (412 → 462, real 465), acetylene C–H (421 → 556, real 556) and phenyl C–H
+(351 → 472, real 473), by giving σ radicals and bent π bonds the cost they have in reality. The barrier
+scans themselves were also corrected (two-way scans): OH + CH₄ was 96, now 17 (real 15).
+
 What to do:
-- Build a benchmark table of 40–60 textbook barriers and bond energies (NIST kinetics database,
-  standard compilations) as a test file. The forecast scan takes about a second per reaction, so the
-  whole table runs in about a minute.
+- `tests/benchmark.cjs` is the start of the benchmark: 23 reactions and bonds, about 25 s. Grow it to
+  40–60 (NIST kinetics database, standard compilations).
 - Fit the force field against that table automatically, rather than tuning one reaction at a time.
-- Two structural changes will be needed before any fit can work: C–H strength that depends on the
-  carbon's hybridisation (sp³ 420, sp² 465, sp 556 kJ/mol), and radical valence that has a direction
-  (a σ radical such as phenyl cannot take a partner from above the ring). Capping π bonding alone was
-  tried and opened a worse hole (README, "What was tried").
+- What remains is mostly the thermochemistry fit itself (ethyl radical 33 kJ/mol too stable, so every
+  C–H next to another carbon is too weak) and hydrogen abstraction by heavier radicals (Cl, about +20).
 
 ### 2. The live simulation and the forecast must agree
 

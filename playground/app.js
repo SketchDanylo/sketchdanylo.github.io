@@ -96,7 +96,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261003-build54', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants) => skipToEvent(ev, wait, ids, what, reactants), pause: () => setPlaying(false) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261003-build55', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants) => skipToEvent(ev, wait, ids, what, reactants), pause: () => setPlaying(false) });
 function skipToEvent(ev, wait, sceneIds, what, reactants) {
   if (!ev) return;
   const idx = ev.atoms.map(k => eng.indexOfId(sceneIds[k]));

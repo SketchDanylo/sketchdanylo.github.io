@@ -69,7 +69,7 @@ class ForecastCard {
       <details class="quantum-notes"><summary>How this is estimated</summary>
       <p>The barrier is measured on this simulation's own energy surface: the two atoms are pulled through the reaction in a private copy while every other atom relaxes. Transfers are pulled along the difference between the bond forming and the bond breaking, and the lowest of the paths tried is kept.</p>
       <p>The time comes from transition-state theory: rate = A·e<sup>−barrier/RT</sup>. A is about 10<sup>15.5</sup> s⁻¹ for a bond simply coming apart, kT/h otherwise, and for two molecules the collision rate × 0.1. The range allows ±10 kJ/mol on the barrier and ×/÷10 on A.</p>
-      <p>It is only as good as the model: where the model's barrier is wrong, so is the time. Known errors: aromatic and vinylic C–H bonds are 50–120 kJ/mol too weak, Cl + CH₄ comes out 20 kJ/mol too slow. Above about 2000 K the live simulation also decomposes hydrocarbons much faster than these numbers say; the forecast is the more trustworthy of the two there.</p></details>`;
+      <p>It is only as good as the model: where the model's barrier is wrong, so is the time. Known errors: C–H bonds next to another carbon are 30–40 kJ/mol too weak, hydrogen taken by Cl· costs about 20 kJ/mol too much, and CH₃· adds to C=C 20 kJ/mol too easily. Above about 2000 K the live simulation also decomposes hydrocarbons much faster than these numbers say; the forecast is the more trustworthy of the two there.</p></details>`;
     this.show(side(r.reactants) + ' → ' + side(r.products), body);
     const skip = this.el('fcSkip');
     if (skip) skip.onclick = () => {

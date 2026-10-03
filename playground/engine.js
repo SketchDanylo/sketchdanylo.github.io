@@ -39,7 +39,7 @@ const Q_MAX = 1.1;                  // saturation of bond-polarisation charge (e
 //   wpiOO = the same for O=O, lower still (triplet O₂ is a diradical);
 //   oo3e = extra O–O bond order when only one oxygen is unpaired (three-electron bond, HO₂·);
 //   mu   = strength weighting of excess valence (Evans–Polanyi: exothermic transfers get lower barriers).
-const TUNE = { kappa: 0.38, c1: 0.6, c4: 10.82, k: 6, kb: 1.3, yoff: 3.0, wpi: 0.85, wpiOO: 0.78, oo3e: 0.45, mu: 0.5, kbo: 0.4, tsStab: 0, pauliOpen: 0, share: 0.5, insert: 1, vstate: 1, cap: 0.10, gel: 1, pairIter: 6, pairEps: 0.02, ring3: 0.94, ocK: 200, ocD: 0.3 };
+const TUNE = { kappa: 0.38, c1: 0.6, c4: 10.82, k: 6, kb: 1.3, yoff: 3.0, wpi: 0.85, wpiOO: 0.78, oo3e: 0.45, mu: 0.5, kbo: 0.4, tsStab: 0, pauliOpen: 0, share: 0.5, insert: 1, vstate: 1, cap: 0.10, gel: 1, pairIter: 6, pairEps: 0.02, ring3: 0.94, ocK: 200, ocD: 0.3, sigK2: 50, sigK1: 135, bentPi: 200 };
 const RAMP_W = 0.15;
 const Y_ON = 3.6, Y_OFF = 5.6;      // Morse taper window (in units of a·(r − re))
 const COORD_R1 = 1.22, COORD_R2 = 1.50; // structural coordination switch (× single-bond length)
@@ -233,6 +233,8 @@ function smoothSwitch(x, x1, x2) { // 1 → 0 between x1 and x2
    when stretched, exactly zero BO_OFF Å past it. Longer-ranged than the structural switch so a
    partner that is half-way into a bond already competes for valence. Output in SF, SFD. */
 let SF = 0, SFD = 0;
+let SS = 0, SSD = 0;
+function ss(t, d) { if (t <= 0) { SS = 0; SSD = 0; return; } if (t >= 1) { SS = 1; SSD = 0; return; } SS = t * t * (3 - 2 * t); SSD = 6 * t * (1 - t) / d; }
 let PG = 0, PGD = 0;
 const PI_REACH = 1.3, PI_REF = (() => { const t = 1 / PI_REACH; return t * t * t * (10 + t * (6 * t - 15)); })();
 function piGeo(r, pp) {
@@ -1039,6 +1041,8 @@ class Engine {
     // Pass E — angles (VSEPR) and 1-3 exclusions (the exclusions also add to G)
     E += this._angles();
     E += this._torsions();
+    E += this._sigmaRadical();
+    E += this._bentPi();
     // Pass S — forces from the screening factor
     this._angScreenForces();
     this._screenForces();
@@ -1350,6 +1354,94 @@ class Engine {
       // and through the free valence x = V − Zs, which sets how much room the unpaired electrons take
       const dEdx = dEdc0sum * (dc0 * RD_EX + dc0c4 * RD_C4X);
       if (dEdx !== 0) this.G[i] -= dEdx;
+    }
+    return E;
+  }
+  _sigmaRadical() {
+    if (!(TUNE.sigK2 > 0)) return 0;
+    const N = this.N, P = this.nPairs, pI = this.pI, pJ = this.pJ, pF = this.pF, pFp = this.pFp, pN = this.pN, type = this.type, val = this.val;
+    const Zc = this._sgZ && this._sgZ.length >= N ? this._sgZ : (this._sgZ = new Float64Array(this.cap));
+    const Pi = this._sgP && this._sgP.length >= N ? this._sgP : (this._sgP = new Float64Array(this.cap));
+    const dZ = this._sgdZ && this._sgdZ.length >= N ? this._sgdZ : (this._sgdZ = new Float64Array(this.cap));
+    const dP = this._sgdP && this._sgdP.length >= N ? this._sgdP : (this._sgdP = new Float64Array(this.cap));
+    Zc.fill(0, 0, N); Pi.fill(0, 0, N); dZ.fill(0, 0, N); dP.fill(0, 0, N);
+    for (let p = 0; p < P; p++) { const f = pF[p]; if (f <= 0) continue; const x = f * (pN[p] - 1); Zc[pI[p]] += f; Zc[pJ[p]] += f; Pi[pI[p]] += x; Pi[pJ[p]] += x; }
+    let E = 0, any = false;
+    for (let i = 0; i < N; i++) {
+      if (ELEMENTS[type[i]].Z !== 6 || Pi[i] <= 0.3 || Zc[i] >= 2.8) continue;
+      const Z = Zc[i], pi = Pi[i], x = val[i] - Z - pi;
+      if (x <= 0.3) continue;
+      ss((x - 0.3) / 0.6, 0.6); const q = SS, dq = SSD;
+      ss((Z - 2.2) / 0.6, 0.6); const h = 1 - SS, dh = -SSD;
+      ss((pi - 0.3) / 0.5, 0.5); const w = SS, dw = SSD;
+      ss((Z - 1.2) / 0.6, 0.6); const K = TUNE.sigK1 - (TUNE.sigK1 - TUNE.sigK2) * SS, dK = -(TUNE.sigK1 - TUNE.sigK2) * SSD;
+      const e = K * q * h * w;
+      if (e === 0) continue;
+      E += e; any = true;
+      dZ[i] = dK * q * h * w - K * dq * h * w + K * q * dh * w;
+      dP[i] = -K * dq * h * w + K * q * h * dw;
+    }
+    if (!any) return 0;
+    const pos = this.pos, F = this.frc, pR = this.pR, pDx = this.pDx, pDy = this.pDy, pDz = this.pDz;
+    for (let p = 0; p < P; p++) {
+      const fp = pFp[p]; if (fp === 0) continue;
+      const i = pI[p], j = pJ[p], m = pN[p] - 1;
+      const dEdr = (dZ[i] + dZ[j] + (dP[i] + dP[j]) * m) * fp;
+      if (dEdr === 0) continue;
+      const s = dEdr / pR[p], fx = s * pDx[p], fy = s * pDy[p], fz = s * pDz[p];
+      F[3 * i] += fx; F[3 * i + 1] += fy; F[3 * i + 2] += fz;
+      F[3 * j] -= fx; F[3 * j + 1] -= fy; F[3 * j + 2] -= fz;
+    }
+    return E;
+  }
+  _bentPi() {
+    if (!(TUNE.bentPi > 0)) return 0;
+    const N = this.N, P = this.nPairs, pI = this.pI, pJ = this.pJ, pF = this.pF, pFp = this.pFp, pN = this.pN, type = this.type, pos = this.pos, F = this.frc;
+    const cStart = this.cStart, cList = this.cList;
+    let E = 0;
+    for (let i = 0; i < N; i++) {
+      if (ELEMENTS[type[i]].Z !== 6) continue;
+      const c0 = cStart[i], c1 = cStart[i + 1];
+      if (c1 - c0 < 2) continue;
+      let Z = 0, pi = 0;
+      for (let a = c0; a < c1; a++) { const p = cList[a]; Z += pF[p]; pi += pF[p] * (pN[p] - 1); }
+      if (pi <= 1 || Z >= 2.8) continue;
+      ss((Z - 2.2) / 0.6, 0.6); const h = 1 - SS, dh = -SSD;
+      if (h === 0) continue;
+      const xs = pi - 1, base = TUNE.bentPi * xs * xs;
+      let bend = 0;
+      const xi = pos[3 * i], yi = pos[3 * i + 1], zi = pos[3 * i + 2];
+      const terms = [];
+      for (let a = c0; a < c1; a++) for (let b = a + 1; b < c1; b++) {
+        const pa = cList[a], pb = cList[b], j = pI[pa] === i ? pJ[pa] : pI[pa], k = pI[pb] === i ? pJ[pb] : pI[pb];
+        const ux = pos[3 * j] - xi, uy = pos[3 * j + 1] - yi, uz = pos[3 * j + 2] - zi, vx = pos[3 * k] - xi, vy = pos[3 * k + 1] - yi, vz = pos[3 * k + 2] - zi;
+        const ru = Math.sqrt(ux * ux + uy * uy + uz * uz), rv = Math.sqrt(vx * vx + vy * vy + vz * vz), c = (ux * vx + uy * vy + uz * vz) / (ru * rv);
+        ss((c + 0.95) / 0.15, 0.15);
+        const w = pF[pa] * pF[pb];
+        bend += w * SS;
+        terms.push({ pa, pb, j, k, w, g: SS, dg: SSD, c, ru, rv, ux, uy, uz, vx, vy, vz });
+      }
+      if (bend <= 0) continue;
+      const bc = Math.min(1, bend);
+      E += base * h * bc;
+      const dEdbc = bend < 1 ? base * h : 0, dEdpi = 2 * TUNE.bentPi * xs * h * bc, dEdZ = base * dh * bc;
+      for (let a = c0; a < c1; a++) {
+        const p = cList[a], fp = pFp[p]; if (fp === 0) continue;
+        let dEdf = dEdpi * (pN[p] - 1) + dEdZ;
+        for (const t of terms) { if (t.pa === p) dEdf += dEdbc * pF[t.pb] * t.g; else if (t.pb === p) dEdf += dEdbc * pF[t.pa] * t.g; }
+        const dEdr = dEdf * fp, s2 = dEdr / this.pR[p];
+        const fx = s2 * this.pDx[p], fy = s2 * this.pDy[p], fz = s2 * this.pDz[p];
+        F[3 * pI[p]] += fx; F[3 * pI[p] + 1] += fy; F[3 * pI[p] + 2] += fz;
+        F[3 * pJ[p]] -= fx; F[3 * pJ[p] + 1] -= fy; F[3 * pJ[p] + 2] -= fz;
+      }
+      if (dEdbc !== 0) for (const t of terms) {
+        const g = dEdbc * t.w * t.dg, iuv = 1 / (t.ru * t.rv);
+        const Fjx = -g * (t.vx * iuv - t.c * t.ux / (t.ru * t.ru)), Fjy = -g * (t.vy * iuv - t.c * t.uy / (t.ru * t.ru)), Fjz = -g * (t.vz * iuv - t.c * t.uz / (t.ru * t.ru));
+        const Fkx = -g * (t.ux * iuv - t.c * t.vx / (t.rv * t.rv)), Fky = -g * (t.uy * iuv - t.c * t.vy / (t.rv * t.rv)), Fkz = -g * (t.uz * iuv - t.c * t.vz / (t.rv * t.rv));
+        F[3 * t.j] += Fjx; F[3 * t.j + 1] += Fjy; F[3 * t.j + 2] += Fjz;
+        F[3 * t.k] += Fkx; F[3 * t.k + 1] += Fky; F[3 * t.k + 2] += Fkz;
+        F[3 * i] -= Fjx + Fkx; F[3 * i + 1] -= Fjy + Fky; F[3 * i + 2] -= Fjz + Fkz;
+      }
     }
     return E;
   }
