@@ -486,7 +486,15 @@ What was tried, so it is not repeated:
   the π side effect but fits the barriers no better than the current set.
 - Capping π bonding by the p orbitals an atom has left (bent two-coordinate C, N, O get one) raised the
   phenyl C–H from 351 to 389 kJ/mol, but the valence kept out of π went into extra σ partners in hot,
-  bending fragments: CH₄ + O₂ at 3500 K grew C₃H₁₂O₄ clumps.
+  bending fragments: CH₄ + O₂ at 3500 K grew C₃H₁₂O₄ clumps. A narrower version (carbon only, and only
+  while its two σ partners are bent below about 145°) leaves every fitted energy unchanged and lifts the
+  phenyl C–H to 421 and butadiene's inner C–H from 275 to 390, but a stripped ring then keeps one spare
+  valence on each carbon, and hydrogens spread over three to six of those at 2.1 Å bind almost a whole
+  C–H bond each (Morse at 2.1 Å still gives 0.2–0.3 of the attraction, `satF` counts 0.03–0.1 of it):
+  C₆ with six hydrogens hovering over it came out 890 kJ/mol below benzene, and one benzene at 1500 K
+  ran straight into it. Without the cap the same geometry relaxes to C₆ + 3 H₂. Directional radical
+  valence (a σ radical cannot take a partner from above the ring), or attraction that saturates with
+  the number of weak partners, would be needed first.
 - Screening weak (below 0.12 of a bond) attractions harder (`ANG_B0` 0.04) stiffens a stretched C–H to
   the methane value, but makes Cl· + ethene's entrance barrier 13 kJ/mol and hot mixtures no better.
 
