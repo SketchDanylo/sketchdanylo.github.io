@@ -72,7 +72,63 @@ class ForecastCard {
       <p>It is only as good as the model: where the model's barrier is wrong, so is the time. Known errors: aromatic and vinylic C–H bonds are 50–120 kJ/mol too weak, Cl + CH₄ comes out 20 kJ/mol too slow. Above about 2000 K the live simulation also decomposes hydrocarbons much faster than these numbers say; the forecast is the more trustworthy of the two there.</p></details>`;
     this.show(side(r.reactants) + ' → ' + side(r.products), body);
     const skip = this.el('fcSkip');
-    if (skip) skip.onclick = () => { const res = this.result, ids = this.sceneIds; this.close(); this.actions.skip?.(res, ids); };
+    if (skip) skip.onclick = () => {
+      const res = this.result, ids = this.sceneIds; this.close();
+      const side = list => list.map(this.actions.pretty || (x => x)).join(' + ');
+      this.actions.skip?.(res.event, -Math.log(1 - Math.random()) * res.now.halfLife / Math.LN2, ids, side(res.reactants) + ' → ' + side(res.products), res.reactants);
+    };
+  }
+  pool() {
+    if (this.workers) return this.workers;
+    const n = Math.max(1, Math.min(6, (navigator.hardwareConcurrency || 2) - 1));
+    this.pending = new Map(); this.seq = 0;
+    this.workers = Array.from({ length: n }, () => {
+      const w = new Worker('kinetics-worker.js?v=' + (this.actions.version || ''));
+      w.onmessage = ev => { const p = this.pending.get(ev.data.id); if (p) { this.pending.delete(ev.data.id); p(ev.data.result); } };
+      w.busy = 0; return w;
+    });
+    return this.workers;
+  }
+  dispatch(msg) {
+    const ws = this.pool(), w = ws.reduce((a, b) => (b.busy < a.busy ? b : a)), id = 'j' + (++this.seq);
+    w.busy++;
+    return new Promise(res => { this.pending.set(id, r => { w.busy--; res(r); }); w.postMessage({ ...msg, id }); });
+  }
+  async next() {
+    const eng = this.actions.engine, Kn = K();
+    if (!eng.N) return;
+    if (eng.needRebuild || eng.needForces) eng.refresh();
+    const key = ++this.req; this.ids = [];
+    this.actions.pause?.();
+    const scene = eng.toJSON(), ids = Array.from(eng.ids.subarray(0, eng.N)), T = scene.T || 298;
+    const { list, dropped } = Kn.candidates(eng);
+    if (!list.length) { this.show('Nothing here can react', '<p class="fc-note">No radical, no π bond and no bond to break was found.</p>'); return; }
+    const total = list.length + Math.min(Kn.REFINE, list.length);
+    let done = 0;
+    const bar = () => '<div class="fc-bar"><i style="width:' + (100 * done / total).toFixed(0) + '%"></i></div><p class="fc-note">Forecasting ' + list.length + ' possible reaction' + (list.length > 1 ? 's' : '') + ' in this chamber at ' + Math.round(T) + ' K, ' + this.pool().length + ' at a time. The simulation is paused until you choose.</p>';
+    this.show('What happens next?', bar());
+    this.panel.style.left = Math.max(12, innerWidth - (this.panel.offsetWidth || 330) - 24) + 'px'; this.panel.style.top = '76px';
+    const job = (c, quick) => this.dispatch({ type: 'scan', key: 'sv' + key, scene, c, T, quick }).then(r => { done++; if (key === this.req) this.el('fcBody').innerHTML = bar(); return r && r.ok === false ? null : r; });
+    const quick = await Promise.all(list.map(c => job(c, true)));
+    if (key !== this.req) return;
+    const order = quick.map((r, n) => ({ r, n })).filter(x => x.r).sort((a, b) => a.r.Ea - b.r.Ea).slice(0, Kn.REFINE);
+    const refined = await Promise.all(order.map(x => job(list[x.n], false)));
+    if (key !== this.req) return;
+    order.forEach((x, m) => { if (refined[m]) quick[x.n] = refined[m]; });
+    this.renderSurvey(Kn.combine(quick, T), ids, dropped);
+  }
+  renderSurvey(sv, ids, dropped) {
+    const H = K().humanTime, pretty = this.actions.pretty || (x => x), side = list => list.map(pretty).join(' + ');
+    const wait = sv.total > 0 ? Math.LN2 / sv.total : Infinity, never = !isFinite(wait) || wait > 3.15e16;
+    const rows = sv.events.slice(0, 6).map(x => '<tr><td>' + esc(side(x.reactants)) + ' → ' + esc(side(x.products)) + '</td><td>' + (x.share >= 0.001 ? (100 * x.share).toFixed(x.share > 0.1 ? 0 : 1) + '%' : '<0.1%') + '</td></tr>').join('');
+    const body = `<div class="fc-big"><b>${never ? 'Nothing on any human timescale' : 'Next reaction in about ' + esc(H(wait))}</b><span>${never ? 'the fastest step found would take ' + esc(H(sv.events[0] ? sv.events[0].halfLife : Infinity)) : 'half-life of the whole chamber at ' + Math.round(sv.T) + ' K'}</span></div>
+      ${never || !sv.events.length ? '' : '<button class="fc-skip" id="fcNext">Skip to it · watch it happen</button><p class="fc-skipnote">Which reaction comes first, and when, is drawn at random from these rates, the way it would be in a real flask. Each reaction you skip to plays out in the live simulation.</p>'}
+      <table class="fc-table fc-list"><thead><tr><th>Possible reaction</th><th>Chance next</th></tr></thead><tbody>${rows}</tbody></table>
+      ${dropped ? '<p class="fc-note">' + dropped + ' more candidates were not checked.</p>' : ''}
+      <details class="quantum-notes"><summary>What is searched</summary><p>A radical meeting any atom of another molecule, a π bond meeting the hydrogens of another molecule, and every distinct bond coming apart. Each is forecast as with the hourglass tool, counted as often as it occurs in the chamber, and its share is its rate over the total.</p><p>Not yet searched: two closed-shell molecules reacting with each other through their π systems (Diels–Alder, ene reactions), rearrangements inside one molecule, and anything ionic.</p></details>`;
+    this.show('What happens next at ' + Math.round(sv.T) + ' K', body);
+    const b = this.el('fcNext');
+    if (b) b.onclick = () => { const nx = K().pickNext(sv); this.close(); if (nx) this.actions.skip?.(nx.pick.event, nx.wait, ids, side(nx.pick.reactants) + ' → ' + side(nx.pick.products), nx.pick.reactants); };
   }
   profile(path, Ea) {
     if (!path || path.length < 2) return '';

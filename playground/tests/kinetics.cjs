@@ -138,4 +138,32 @@ test('Skipped time is part of the state: undo, rewind and saved scenes keep it',
   e.skipped = 42; const s2 = e.snapshot(); e.skipped = 0; e.restore(s2); assert.equal(e.skipped, 42);
 });
 
+test('What happens next in Cl· + ethene + methane: the addition, by far, and never a reaction that changes nothing', () => {
+  const e = new Engine({ width: 30, height: 30, depth: 12, T: 298, thermostat: false });
+  for (const [s, x, y, z] of geo('C2H4')) e.addAtom(s, 12 + x, 15 + y, z || 0, { thermal: false });
+  e.touch(); e.refresh(); e.setBondOrder(0, 1, 2);
+  e.addAtom('Cl', 18, 15, 0, { thermal: false });
+  for (const [s, x, y, z] of geo('CH4')) e.addAtom(s, 22 + x, 22 + y, z || 0, { thermal: false });
+  e.touch(); e.refresh();
+  const sv = K.survey(JSON.parse(JSON.stringify(e.toJSON())));
+  assert.equal(sv.events[0].label, 'Cl· + C2H4 → C2H4Cl·');
+  assert.ok(sv.events[0].share > 0.8, 'share ' + sv.events[0].share);
+  for (const x of sv.events) assert.notEqual(x.reactants.map(f => f.replace('·', '')).sort().join(), x.products.map(f => f.replace('·', '')).sort().join());
+  const abstraction = sv.events.find(x => x.label === 'Cl· + CH4 → CH3· + HCl');
+  assert.ok(abstraction && abstraction.share < 0.01);
+  const nx = K.pickNext(sv, 0.5, 0);
+  assert.equal(nx.pick, sv.events[0]);
+  assert.ok(Math.abs(nx.wait - Math.LN2 / sv.total) / nx.wait < 1e-9);
+  const idx = sv.events[0].event.atoms;
+  assert.ok(K.stillThere(e, sv.events[0].event, idx, sv.events[0].reactants));
+});
+
+test('A chamber of stable molecules at room temperature has nothing to skip to', () => {
+  const e = new Engine({ width: 30, height: 30, depth: 12, T: 298, thermostat: false });
+  for (const [dx, dy] of [[8, 8], [20, 20]]) for (const [s, x, y, z] of geo('CH4')) e.addAtom(s, dx + x, dy + y, z || 0, { thermal: false });
+  e.touch(); e.refresh();
+  const sv = K.survey(JSON.parse(JSON.stringify(e.toJSON())));
+  assert.ok(Math.LN2 / sv.total > 3.15e16, 'methane at 298 K reacted in ' + K.humanTime(Math.LN2 / sv.total));
+});
+
 console.log(count + ' kinetics checks passed.');

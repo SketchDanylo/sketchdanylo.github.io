@@ -174,15 +174,22 @@ function scanPair(src, i, j, opts = {}) {
   if (i === j) return { ok: false, reason: 'pick two different atoms' };
   if (!pp || !pp.bond) return { ok: false, reason: ELEMENTS[src.type[i]].sym + ' and ' + ELEMENTS[src.type[j]].sym + ' do not form a covalent bond in this model' };
   const kind = bonded(src, i, j) ? 'break' : ci === cj ? 'close' : 'form';
-  const reactants = ci === cj ? [relaxedEnergyOf(src, frag.list[ci], opts.T)] : [relaxedEnergyOf(src, frag.list[ci], opts.T), relaxedEnergyOf(src, frag.list[cj], opts.T)];
+  const relaxed = list => {
+    if (!opts.cache) return relaxedEnergyOf(src, list, opts.T);
+    const key = list.join(',');
+    if (!opts.cache.has(key)) opts.cache.set(key, relaxedEnergyOf(src, list, opts.T));
+    return opts.cache.get(key);
+  };
+  const reactants = ci === cj ? [relaxed(frag.list[ci])] : [relaxed(frag.list[ci]), relaxed(frag.list[cj])];
   const E0 = reactants.reduce((s, x) => s + x.E, 0);
   const channels = [];
-  const attacker = x => frag.list[frag.comp[x]];
+  const attacker = x => frag.list[frag.comp[x]], free = freeValence(src);
   if (kind === 'break' || kind === 'close') channels.push({ type: kind === 'break' ? 'break' : 'form' });
   else {
     for (const [x, y] of [[i, j], [j, i]]) {
       const user = unit(sub(P3(src, x), P3(src, y)));
       for (const d of directions([user, ...faces(src, y)])) channels.push({ type: 'form', from: x, at: y, place: pose(src, attacker(x), x, y, d) });
+      if (free[y] > 0.5) continue;
       for (const k of neighbours(src, y)) {
         if (k === x) continue;
         for (const d of directions([unit(sub(P3(src, y), P3(src, k))), user])) channels.push({ type: 'transfer', at: y, k, from: x, place: pose(src, attacker(x), x, y, d) });
@@ -190,13 +197,13 @@ function scanPair(src, i, j, opts = {}) {
     }
   }
   const run = (ch, o) => { const [x, y] = ch.from !== undefined ? [ch.from, ch.at] : [i, j]; return runChannel(src, atoms, x, y, E0, ch, o); };
-  const coarse = channels.length > 1 ? { steps: 10, iters: 300, T: opts.T } : opts;
+  const coarse = channels.length > 1 || opts.quick ? { steps: channels.length > 1 ? 10 : 16, iters: 300, T: opts.T } : opts;
   let results = [];
   for (const ch of channels) {
     results.push(run(ch, coarse));
     if (opts.onStep) opts.onStep(results.length / (channels.length + 2));
   }
-  if (channels.length > 1) {
+  if (channels.length > 1 && !opts.quick) {
     const good = results.filter(r => r.done).sort((p, q) => p.Ea - q.Ea);
     const keep = good.filter(r => r.Ea <= good[0].Ea + 25).slice(0, 3);
     const refined = keep.map(r => run(r.channel, opts));
@@ -294,6 +301,111 @@ function study(scene, i, j, temps) {
   };
 }
 
+function siteKey(src, frag, a) {
+  const nb = neighbours(src, a).map(b => ELEMENTS[src.type[b]].sym).sort().join('');
+  return src.formulaOf(frag) + ':' + ELEMENTS[src.type[a]].sym + '(' + nb + ')';
+}
+
+function freeValence(src) {
+  const used = new Float64Array(src.N);
+  for (let p = 0; p < src.nPairs; p++) if (src.bondStrength(p) > 0.25) { used[src.pI[p]] += src.pN[p]; used[src.pJ[p]] += src.pN[p]; }
+  return Array.from(used, (u, i) => src.val[i] - u);
+}
+
+function candidates(src, cap = 24) {
+  const frag = src.fragments(), free = freeValence(src), out = [], seen = new Map(), pairSeen = new Set();
+  const pi = new Set();
+  for (let p = 0; p < src.nPairs; p++) if (src.bondStrength(p) > 0.25 && src.pN[p] > 1.2) { pi.add(src.pI[p]); pi.add(src.pJ[p]); }
+  const add = (i, j, kind, key, prio) => {
+    const d = Math.hypot(src.pos[3 * j] - src.pos[3 * i], src.pos[3 * j + 1] - src.pos[3 * i + 1], src.pos[3 * j + 2] - src.pos[3 * i + 2]);
+    const have = seen.get(key);
+    if (have) { have.mult++; if (d < have.d) { have.i = i; have.j = j; have.d = d; } return; }
+    const c = { i, j, kind, key, prio, mult: 1, d };
+    seen.set(key, c); out.push(c);
+  };
+  const L = frag.list;
+  for (let A = 0; A < L.length; A++) for (let B = 0; B < L.length; B++) {
+    if (A === B) continue;
+    for (const r of L[A]) {
+      const radical = free[r] > 0.5, pib = pi.has(r);
+      if (!radical && !pib) continue;
+      for (const t of L[B]) {
+        const pp = pairParams(src, r, t);
+        if (!pp || !pp.bond) continue;
+        if (!radical && ELEMENTS[src.type[t]].sym !== 'H') continue;
+        const pk = Math.min(r, t) + ',' + Math.max(r, t);
+        if (pairSeen.has(pk)) continue;
+        pairSeen.add(pk);
+        const ka = siteKey(src, L[A], r), kb = siteKey(src, L[B], t);
+        add(r, t, 'meet', ka < kb ? ka + '|' + kb : kb + '|' + ka, radical ? 0 : 1);
+      }
+    }
+  }
+  for (let p = 0; p < src.nPairs; p++) {
+    if (src.bondStrength(p) <= 0.25) continue;
+    const i = src.pI[p], j = src.pJ[p], f = L[frag.comp[i]];
+    const ki = siteKey(src, f, i), kj = siteKey(src, f, j);
+    add(i, j, 'break', 'break ' + (ki < kj ? ki + '–' + kj : kj + '–' + ki) + ' ' + src.pN[p].toFixed(1), 2);
+  }
+  out.sort((x, y) => x.prio - y.prio || x.d - y.d);
+  return { list: out.slice(0, cap), dropped: Math.max(0, out.length - cap) };
+}
+
+function chamberVolume(e) { const b = e.box; return (b.x1 - b.x0) * (b.y1 - b.y0) * (b.z1 - b.z0) * 1e-24; }
+
+function scanCandidate(e, c, T, quick, cache) {
+  const scan = scanPair(e, c.i, c.j, { T, quick, cache });
+  if (!scan.ok) return null;
+  const f = forecast(e, scan, { T, partnerPerCm3: 1 });
+  if (!f.ok) return null;
+  const rate = scan.bimolecular ? f.k * c.mult / chamberVolume(e) : f.k * c.mult;
+  return { label: scan.reactants.join(' + ') + ' → ' + scan.products.join(' + '), i: c.i, j: c.j, Ea: scan.Ea, dE: scan.dE, rate, reactants: scan.reactants, products: scan.products, event: scan.event, kind: scan.kind };
+}
+
+const bare = list => list.map(f => f.replace(/·/g, '')).sort().join(' + ');
+
+function combine(results, T) {
+  const events = [], seen = new Map();
+  for (const r of results) {
+    if (!r) continue;
+    if (bare(r.reactants) === bare(r.products)) continue;
+    const key = bare(r.reactants) + ' → ' + bare(r.products);
+    const prev = seen.get(key);
+    if (prev) { prev.rate += r.rate; if (r.Ea < prev.Ea) { prev.Ea = r.Ea; prev.event = r.event; } continue; }
+    const x = { ...r }; seen.set(key, x); events.push(x);
+  }
+  const total = events.reduce((s, x) => s + x.rate, 0);
+  for (const x of events) { x.share = total > 0 ? x.rate / total : 0; x.halfLife = LN2 / x.rate; }
+  events.sort((x, y) => y.rate - x.rate);
+  return { ok: true, T, events, total };
+}
+
+const REFINE = 3;
+
+function survey(scene, opts = {}) {
+  const e = fromScene(scene), T = scene.T || 298, cache = new Map();
+  const { list, dropped } = candidates(e, opts.cap);
+  const quick = list.map((c, n) => { if (opts.onProgress) opts.onProgress(n, list.length + REFINE); return { c, r: scanCandidate(e, c, T, true, cache) }; });
+  const best = quick.filter(q => q.r).sort((x, y) => x.r.Ea - y.r.Ea).slice(0, REFINE);
+  for (const q of best) q.r = scanCandidate(e, q.c, T, false, cache);
+  const out = combine(quick.map(q => q.r), T);
+  out.dropped = dropped; out.scanned = list.length;
+  return out;
+}
+
+function pickNext(sv, u1 = Math.random(), u2 = Math.random()) {
+  if (!sv.total || !isFinite(sv.total)) return null;
+  const wait = -Math.log(1 - u1) / sv.total;
+  let acc = 0, pick = sv.events[sv.events.length - 1];
+  for (const x of sv.events) { acc += x.share; if (u2 < acc) { pick = x; break; } }
+  return { wait, pick };
+}
+
+function stillThere(eng, ev, idx, reactants) {
+  const f = eng.fragments(), comps = new Set(idx.map(i => f.comp[i]));
+  return bare([...comps].map(c => eng.formulaOf(f.list[c]))) === bare(reactants);
+}
+
 function applyEvent(eng, ev, idx) {
   const anchor = new Set(ev.anchor);
   let cx = 0, cy = 0, cz = 0, ix = 0, iy = 0, iz = 0, n = 0;
@@ -321,5 +433,5 @@ function applyEvent(eng, ev, idx) {
   eng.refresh();
 }
 
-return { scanPair, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, UNCERTAINTY };
+return { scanPair, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, stillThere, candidates, scanCandidate, combine, survey, pickNext, REFINE, UNCERTAINTY };
 });

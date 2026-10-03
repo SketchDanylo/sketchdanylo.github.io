@@ -96,19 +96,18 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261003-build52', focus: () => canvas.focus(), skip: (r, ids) => skipToEvent(r, ids) });
-function skipToEvent(r, sceneIds) {
-  const ev = r && r.event;
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261003-build53', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants) => skipToEvent(ev, wait, ids, what, reactants), pause: () => setPlaying(false) });
+function skipToEvent(ev, wait, sceneIds, what, reactants) {
   if (!ev) return;
   const idx = ev.atoms.map(k => eng.indexOfId(sceneIds[k]));
   if (idx.some(i => i < 0)) { toast('Those atoms are gone · forecast again'); return; }
+  if (reactants && !ChemKinetics.stillThere(eng, ev, idx, reactants)) { toast('Those molecules have already changed · forecast again'); return; }
   pushUndo();
-  const wait = -Math.log(1 - Math.random()) * r.now.halfLife / Math.LN2;
   ChemKinetics.applyEvent(eng, ev, idx);
   eng.skipped += wait;
   eng.refresh();
   scheduleSave();
-  toast('Skipped ' + ChemKinetics.humanTime(wait) + ' of waiting · this is the moment it happens');
+  toast('Skipped ' + ChemKinetics.humanTime(wait) + ' · ' + what);
   if (!time.playing) setPlaying(true);
 }
 const inspector = new AtomInspector({ engine: eng, pause: () => { if(consoleIsOpen())closeConsole();closePop();setPlaying(false); }, focus: () => canvas.focus(),
@@ -1359,8 +1358,10 @@ act('tool.grab', 'Tools', 'Grab & pan', ['V'], () => setTool('grab'));
 act('tool.erase', 'Tools', 'Erase', ['X'], () => setTool('erase'));
 act('tool.heat', 'Tools', 'Heat brush', ['B'], () => setTool('heat'));
 act('tool.spark', 'Tools', 'Spark', ['G'], () => setTool('spark'));
-act('tool.cleave', 'Tools', 'Break bond', ['D'], () => setTool('cleave'));
-act('tool.forecast', 'Tools', 'Forecast a reaction', ['F'], () => setTool('forecast'));   // D: dissociate — C is carbon
+act('tool.cleave', 'Tools', 'Break bond', ['D'], () => setTool('cleave'));   // D: dissociate — C is carbon
+act('tool.forecast', 'Tools', 'Forecast a reaction', ['W'], () => setTool('forecast'));
+act('time.next', 'Time', 'What happens next? Skip to the next reaction', ['J'], () => forecastCard.next());
+$('nextRxBtn').onclick = () => forecastCard.next();
 act('el.more', 'Tools', 'All elements…', ['E'], () => openElPop());
 for (const [sym, key] of [['H', 'H'], ['C', 'C'], ['N', 'N'], ['O', 'O'], ['F', 'F'], ['S', 'S'], ['P', 'P'], ['Cl', 'L'], ['Na', 'A'], ['Br', ''], ['I', ''], ['He', ''], ['Ar', '']])
   act('el.' + sym, 'Elements', BY_SYM[sym].name, key ? [key] : [], () => arm(armed === sym ? null : sym));

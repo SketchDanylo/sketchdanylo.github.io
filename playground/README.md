@@ -428,6 +428,22 @@ is shown beside the simulated time, is part of saved scenes and undo, and Ctrl+Z
 Played this way, Cl· + ethene, CH₃· + ethene and H· + CH₄ complete in 9 of 9 browser trials and in
 at least 3 of 4 seeded runs each in the tests.
 
+**What happens next?** (`J`, or the double-arrow button beside step-forward): the chamber is paused
+and searched for everything that could happen: a radical meeting any atom of another molecule, a π
+bond meeting another molecule's hydrogens, and every distinct bond coming apart (at most 24
+candidates, nearest first). Each is forecast in a pool of workers, quickly at first and then properly
+for the three lowest barriers, and counted as often as it occurs (methane's four hydrogens make four
+times the rate). The card lists the reactions with each one's chance of coming first and the half-life
+of the chamber as a whole. Skipping draws which reaction comes first and when from those rates, as a
+real flask would (kinetic Monte Carlo), and plays it in the live simulation; ask again for the one after.
+Reactions that only swap identical partners are left out of the list. If the molecules a forecast was
+made for have changed by the time you skip, it refuses and asks for a new forecast.
+
+In Cl· + ethene + methane at 298 K it gives the addition to the double bond 98% (half-life about 14 ns),
+taking ethene's hydrogen 2% and methane's 0.05%; in a 600 K mixture of H·, CH₃·, ethene and methane,
+H· + ethene 72%, CH₃· + H· 26%, CH₃· + ethene 1%. Two methanes at room temperature: nothing on any
+human timescale.
+
 ### How far the forecast and the live simulation agree
 
 The forecast measures the model's energy surface; the live chamber moves on it. Checked against each other:
@@ -449,8 +465,11 @@ The forecast measures the model's energy surface; the live chamber moves on it. 
 
 ### What it does not do yet
 
-- It only forecasts what you point at. It does not search a chamber for the next likely event and
-  fast-forward to it on its own (kinetic Monte Carlo); the scans are fast enough for small scenes.
+- The search takes 10–60 s for a handful of molecules and is capped at 24 candidates, so a crowded
+  chamber is only partly searched (the card says how many were left out). It does not run on by itself
+  from one reaction to the next yet.
+- Two closed-shell molecules reacting through their π systems (Diels–Alder, ene), and rearrangements
+  inside one molecule, are not searched; the hourglass can still be pointed at them.
 - Solution chemistry: ions, proton transfer and solvent are not in the engine, so most textbook
   organic mechanisms (SN1/SN2, E1/E2, acid catalysis) cannot be forecast or watched yet.
 - Pressure-dependent unimolecular rates (fall-off), tunnelling and zero-point energy are left out.
