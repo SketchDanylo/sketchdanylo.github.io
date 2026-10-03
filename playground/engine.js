@@ -39,7 +39,7 @@ const Q_MAX = 1.1;                  // saturation of bond-polarisation charge (e
 //   wpiOO = the same for O=O, lower still (triplet O₂ is a diradical);
 //   oo3e = extra O–O bond order when only one oxygen is unpaired (three-electron bond, HO₂·);
 //   mu   = strength weighting of excess valence (Evans–Polanyi: exothermic transfers get lower barriers).
-const TUNE = { kappa: 0.38, c1: 0.6, c4: 10.82, k: 6, kb: 1.3, yoff: 3.0, wpi: 0.85, wpiOO: 0.78, oo3e: 0.45, mu: 0.5, kbo: 0.4, tsStab: 0, pauliOpen: 0, share: 0.5, insert: 1, vstate: 1, cap: 0.10, gel: 1, pairIter: 6, pairEps: 0.02, ring3: 0.94 };
+const TUNE = { kappa: 0.38, c1: 0.6, c4: 10.82, k: 6, kb: 1.3, yoff: 3.0, wpi: 0.85, wpiOO: 0.78, oo3e: 0.45, mu: 0.5, kbo: 0.4, tsStab: 0, pauliOpen: 0, share: 0.5, insert: 1, vstate: 1, cap: 0.10, gel: 1, pairIter: 6, pairEps: 0.02, ring3: 0.94, ocK: 200, ocD: 0.3 };
 const RAMP_W = 0.15;
 const Y_ON = 3.6, Y_OFF = 5.6;      // Morse taper window (in units of a·(r − re))
 const COORD_R1 = 1.22, COORD_R2 = 1.50; // structural coordination switch (× single-bond length)
@@ -935,6 +935,7 @@ class Engine {
 
     // Pass C — pair energies
     const angA = this._angScreen(), angLam = this._angLam;
+    E += this._ocE;
     const pB = this.pB, gA = this.gA, gB = this.gB, gAs = this.gAs, gBs = this.gBs, gAb = this.gAb, gBb = this.gBb, pN = this.pN, G = this.G, lje = this.lje, ljeA = this.ljeA;
     const gc = 1 / Math.sqrt(rc * rc + COUL_D2), dgc = -rc * gc * gc * gc;
     gA.fill(0, 0, P); gB.fill(0, 0, P); gAs.fill(0, 0, P); gBs.fill(0, 0, P);
@@ -1385,6 +1386,17 @@ class Engine {
       }
     }
     m13s[P] = n13;
+    this._ocE = 0;
+    if (TUNE.ocK > 0) {
+      const Zc = grow('_ocZ', N, Float64Array), dZ = grow('_ocD', N, Float64Array);
+      Zc.fill(0, 0, N); dZ.fill(0, 0, N);
+      for (let q = 0; q < P; q++) if (g[q] > 0) { const z = g[q] * M13[q]; Zc[pI[q]] += z; Zc[pJ[q]] += z; }
+      for (let i = 0; i < N; i++) {
+        const zz = ELEMENTS[type[i]].Z; if (zz < 6 || zz > 8) continue;
+        const x = Zc[i] - val[i] - TUNE.ocD; if (x <= 0) continue;
+        this._ocE += TUNE.ocK * x * x; dZ[i] = 2 * TUNE.ocK * x;
+      }
+    }
     for (let c = 0; c < N; c++) for (let x = start[c]; x < start[c + 1]; x++) {
       const q = list[x], k = pI[q] === c ? pJ[q] : pI[q], ir = 1 / (pR[q] || 1e-6);
       AU[3 * x] = (pos[3 * k] - pos[3 * c]) * ir; AU[3 * x + 1] = (pos[3 * k + 1] - pos[3 * c + 1]) * ir; AU[3 * x + 2] = (pos[3 * k + 2] - pos[3 * c + 2]) * ir;
@@ -1508,6 +1520,15 @@ class Engine {
         F[3 * n] += fnx; F[3 * n + 1] += fny; F[3 * n + 2] += fnz;
         F[3 * k] += fkx; F[3 * k + 1] += fky; F[3 * k + 2] += fkz;
         F[3 * c] -= fnx + fkx; F[3 * c + 1] -= fny + fky; F[3 * c + 2] -= fnz + fkz;
+      }
+    }
+    if (TUNE.ocK > 0) {
+      const dZ = this._ocD;
+      for (let q = 0; q < P; q++) {
+        if (g[q] <= 0) continue;
+        const c = dZ[pI[q]] + dZ[pJ[q]]; if (c === 0) continue;
+        if (gp[q] !== 0) push(q, c * gp[q] * M13[q]);
+        if (m13s[q + 1] > m13s[q]) accM[q] += c * g[q];
       }
     }
     for (let q = 0; q < P; q++) {
