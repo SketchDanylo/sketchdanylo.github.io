@@ -1159,10 +1159,12 @@ class Engine {
       wA[p] = f * Math.min(2, capOf(j, f, pN[p])); wB[p] = f * Math.min(2, capOf(i, f, pN[p]));
       oA[p] = D[i] > 1e-9 ? spare[i] * wA[p] / D[i] : 0; oB[p] = D[j] > 1e-9 ? spare[j] * wB[p] / D[j] : 0;
     }
+    const pF = this.pF;
     for (let it = 0; it < TUNE.pairIter; it++) {
       D.fill(0, 0, N);
-      for (let p = 0; p < P; p++) { if (wA[p] <= 0 && wB[p] <= 0) continue; D[pI[p]] += wA[p] * (TUNE.pairEps + oB[p]); D[pJ[p]] += wB[p] * (TUNE.pairEps + oA[p]); }
+      for (let p = 0; p < P; p++) { if (pF[p] <= 0 || (wA[p] <= 0 && wB[p] <= 0)) continue; D[pI[p]] += wA[p] * (TUNE.pairEps + oB[p]); D[pJ[p]] += wB[p] * (TUNE.pairEps + oA[p]); }
       for (let p = 0; p < P; p++) {
+        if (pF[p] <= 0) { nA[p] = oA[p]; nB[p] = oB[p]; continue; }
         const i = pI[p], j = pJ[p];
         nA[p] = D[i] > 1e-12 ? spare[i] * wA[p] * (TUNE.pairEps + oB[p]) / D[i] : 0;
         nB[p] = D[j] > 1e-12 ? spare[j] * wB[p] * (TUNE.pairEps + oA[p]) / D[j] : 0;

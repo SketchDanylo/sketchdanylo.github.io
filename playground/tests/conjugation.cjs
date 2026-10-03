@@ -59,4 +59,20 @@ test('Allyl is a radical even though its unpaired electron is shared half and ha
   assert.equal(e.isRadical([...Array(e.N).keys()]), true);
 });
 
+test('Pairing leaves H + O2 → HO2 barrierless along the direct approach', () => {
+  const { geo, E } = require('./reactions.cjs');
+  const O2 = geo('O2'), ref = E('O2') + E('H');
+  for (const ang of [1.75, 1.9, 2.1]) {
+    let top = -Infinity;
+    for (let r = 3.4; r >= 0.95; r -= 0.1) {
+      const e = new Engine({ T: 0, thermostat: false });
+      e.box = { x0: -200, x1: 200, y0: -200, y1: 200, z0: -200, z1: 200 };
+      for (const a of [...O2, ['H', O2[0][1] - r * Math.cos(Math.PI - ang), O2[0][2] + r * Math.sin(Math.PI - ang), 0]]) e.addAtom(a[0], a[1], a[2], a[3] || 0, q);
+      e.refresh(); for (let k = 0; k < 300; k++) e.computeForces(1);
+      top = Math.max(top, e.computeForces() - ref);
+    }
+    assert.ok(top < 10, `H–O–O ${(ang * 180 / Math.PI).toFixed(0)}°: barrier ${top.toFixed(1)} kJ/mol`);
+  }
+});
+
 console.log(count + ' conjugation checks passed.');
