@@ -443,23 +443,24 @@ contact no stronger than itself (`ANG_DM`, `ANG_DU`), so the nearer of two weak 
 both cancelling, and a 1-3 contact held by a shared neighbour (an H on one carbon 2.1 Å from the next)
 is no arm at all. Cl· + ethene keeps an entrance barrier of about 10 kJ/mol (8.5 before).
 
-Hot hydrocarbons, 20 ps in a bath (`major` mixtures), before → after:
+Hot hydrocarbons, 20 ps in a bath (`major` mixtures), before → after. The two ethylene rows are from a
+26 Å box, three seeds each; a 20 Å box packed the molecules into each other and every result from it
+was a crash, not chemistry.
 
 | Mixture | Before | After | Real, on picoseconds |
 | --- | --- | --- | --- |
 | cyclohexene, 1200 K, alone | loses an H in 0.2–1.6 ps | intact 3 ps, 4 of 4 seeds | intact |
 | benzene + H₂, 700 K | 19 H·, fragments | no reaction | no reaction |
 | butadiene + ethylene, 900 K | atomised | no reaction | no reaction (Diels–Alder too slow) |
-| ethylene + 2 CH₃·, 450 K | 26 H·, fragments | C₆H₁₄ formed: two additions, then recombination | chain growth |
-| ethylene alone, 450 K | 24 H·, fragments | one C₄H₈ | no reaction |
-| benzene, 1500 K | all broken up | 2 of 4 intact | intact |
+| ethylene + 2 CH₃·, 450 K | not rerun | the two CH₃· recombine to C₂H₆, ethylene untouched (3 of 3) | mostly recombination; CH₃· + C₂H₄ has a 33 kJ/mol barrier |
+| ethylene alone, 450 K | not rerun | no reaction (3 of 3) | no reaction |
+| benzene, 1500 K, 4 molecules | all broken up | 2 of 4 intact on one seed; broken up on two others | intact |
 | cyclohexene, 1500–3000 K | broken up | still loses an H within 0.2–0.6 ps | intact (ns–µs) |
 
 Still open: above about 1500 K hydrocarbons still shed H far too fast. A C–H stretched to 1.4 Å costs
 35–45 kJ/mol in cyclohexene against 76 in methane and about 85 for a real C–H, and the relaxed scan lets
 the allylic H walk to the other end of the allyl unit (a suprafacial [1,3] shift, forbidden in reality)
-for under 160 kJ/mol. Ethylene can also dimerise to C₄H₈ with no initiator, which a thermally forbidden
-[2+2] should not allow.
+for under 160 kJ/mol.
 
 What was tried, so it is not repeated:
 
