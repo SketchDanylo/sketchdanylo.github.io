@@ -24,7 +24,7 @@ class ForecastCard {
     const eng = this.actions.engine, [i, j] = this.picked();
     if (i === undefined || j === undefined) { this.close(); return; }
     const scene = eng.toJSON(), id = ++this.req, pair = this.ids.slice();
-    this.sceneIds = Array.from(eng.ids.subarray(0, eng.N)); this.result = null;
+    this.sceneIds = Array.from(eng.ids.subarray(0, eng.N)); this.result = null; this.probeScene = scene;
     this.fx = { ...(this.fx || {}), scan: null, probe: null, focus: pair };
     if (!this.worker) {
       this.worker = new Worker('kinetics-worker.js?v=' + (this.actions.version || ''));
@@ -46,13 +46,20 @@ class ForecastCard {
       skip: !!r.event && !never
     };
   }
-  skipProbe() {
-    const res = this.result, ids = this.sceneIds, pair = this.ids.slice();
-    if (!res || !res.event || !(res.now.halfLife < 3.15e16)) return;
+  async skipProbe() {
+    const res = this.result, ids = this.sceneIds, pair = this.ids.slice(), scene = this.probeScene;
+    if (!res || !res.event || !(res.now.halfLife < 3.15e16) || this.checking) return;
+    const key = this.req;
+    this.checking = true; this.fx = { ...(this.fx || {}), probe: null, focus: pair };
+    const runs = await Promise.all([1, 2, 3].map(first => this.dispatch({ type: 'verify', scene, event: res.event, products: res.products, T: scene.T || 298, seeds: 1, first })));
+    this.checking = false;
+    if (key !== this.req) return;
     this.close();
+    if (runs.reduce((a, n) => a + (n || 0), 0) < 2) { this.fx = { ...(this.fx || {}), focus: null, fail: { atoms: pair, t0: performance.now() } }; return; }
     const side = list => list.map(this.actions.pretty || (x => x)).join(' + ');
     const wait = -Math.log(1 - Math.random()) * res.now.halfLife / Math.LN2;
     if (this.actions.skip?.(res.event, wait, ids, side(res.reactants) + ' → ' + side(res.products), res.reactants, true) !== false) this.jumped(pair, wait);
+    else this.fx = { ...(this.fx || {}), focus: null, fail: { atoms: pair, t0: performance.now() } };
   }
   pool() {
     if (this.workers) return this.workers;
@@ -65,8 +72,8 @@ class ForecastCard {
     });
     return this.workers;
   }
-  dispatch(msg) {
-    const ws = this.pool(), w = ws.reduce((a, b) => (b.busy < a.busy ? b : a)), id = 'j' + (++this.seq);
+  dispatch(msg, pin) {
+    const ws = this.pool(), w = pin === undefined ? ws.reduce((a, b) => (b.busy < a.busy ? b : a)) : ws[pin % ws.length], id = 'j' + (++this.seq);
     w.busy++;
     return new Promise(res => { this.pending.set(id, r => { w.busy--; res(r); }); w.postMessage({ ...msg, id }); });
   }
@@ -84,11 +91,11 @@ class ForecastCard {
     const memo = this.memo || (this.memo = new Map()), mk = c => Math.round(T) + '|' + c.key;
     this.lastScene = { scene, key, T };
     const mark = (n, r) => { if (n === undefined || !fx.scan) return; fx.scan[n].done = true; fx.scan[n].Ea = r && r.ok !== false ? r.Ea : null; };
-    const job = (c, quick, n) => this.dispatch({ type: 'scan', key: 'sv' + key, scene, c, T, quick }).then(r => { mark(n, r); if (r && r.ok !== false) { r.cand = c; const m = memo.get(mk(c)); if (!m || !m.refined || r.refined) memo.set(mk(c), { ...r, event: null, cand: null, also: (r.also || []).map(a => ({ ...a, event: null })) }); return r; } return null; });
-    const quick = await Promise.all(list.map((c, n) => { const m = memo.get(mk(c)); if (m) { mark(n, m); return Promise.resolve(Kn.reuse(m, c, V)); } return job(c, true, n); }));
+    const job = (c, quick, n, pin) => this.dispatch({ type: 'scan', key: 'sv' + key, scene, c, T, quick }, pin).then(r => { mark(n, r); if (r && r.ok !== false) { r.cand = c; const m = memo.get(mk(c)); if (!m || !m.refined || r.refined) memo.set(mk(c), { ...r, event: null, cand: null, also: (r.also || []).map(a => ({ ...a, event: null })) }); return r; } return null; });
+    const quick = await Promise.all(list.map((c, n) => { const m = memo.get(mk(c)); if (m) { mark(n, m); return Promise.resolve(Kn.reuse(m, c, V)); } return job(c, true, n, n); }));
     if (key !== this.req) return;
     const order = quick.map((r, n) => ({ r, n })).filter(x => x.r && !x.r.refined).sort((a, c) => a.r.Ea - c.r.Ea).slice(0, Kn.REFINE);
-    const refined = await Promise.all(order.map(x => job(list[x.n], false)));
+    const refined = await Promise.all(order.map(x => job(list[x.n], false, undefined, x.n)));
     if (key !== this.req) return;
     order.forEach((x, m) => { if (refined[m]) quick[x.n] = refined[m]; });
     this.decide(Kn.combine(quick, T), ids);
@@ -127,9 +134,9 @@ class ForecastCard {
       }
       let good = !!(pick && pick.event);
       if (good && ls) {
-        const n = await this.dispatch({ type: 'verify', scene: ls.scene, event: pick.event, products: pick.products, T: ls.T });
+        const runs = await Promise.all([1, 2, 3].map(first => this.dispatch({ type: 'verify', scene: ls.scene, event: pick.event, products: pick.products, T: ls.T, seeds: 1, first })));
         if (key !== this.req) return false;
-        good = n >= 2;
+        good = runs.reduce((a, n) => a + (n || 0), 0) >= 2;
       }
       if (!good) { failed.add(nx.pick); continue; }
       const side = list => list.map(this.actions.pretty || (x => x)).join(' + ');

@@ -60,6 +60,7 @@ class FieldRenderer {
     if (sc.ghost) this._ghost(sc.ghost);
     this._flashes(sc);
     this._uv(sc);
+    this._empty(sc);
     this._fx(sc);
     this._overlay(sc);
     if (sc.inspect) this._leader(sc.inspect, sc.now);
@@ -410,6 +411,15 @@ class FieldRenderer {
       ctx.fillText(gh.fling.label, x2 + 10, y2 - 6);
       ctx.restore();
     }
+  }
+  _empty(sc) {
+    if (sc.N || !sc.box || !sc.emptyHint) return;
+    const b = sc.box, [x0, y0] = this.toScreen(b.x0, b.y0), [x1, y1] = this.toScreen(b.x1, b.y1), ctx = this.ctx;
+    ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const w = Math.abs(x1 - x0), lines = w > 520 ? [sc.emptyHint.join(' · ')] : sc.emptyHint;
+    ctx.font = '400 ' + (w > 520 ? 13 : 11) + 'px "Martian Mono", monospace'; ctx.fillStyle = 'rgba(200,200,210,.42)';
+    lines.forEach((l, k) => ctx.fillText(l, (x0 + x1) / 2, (y0 + y1) / 2 + (k - (lines.length - 1) / 2) * 20));
+    ctx.restore();
   }
   _fx(sc) {
     const fx = sc.fx;

@@ -183,6 +183,11 @@ which the stat and the temperature void stand back. That window is part of the s
 replays exactly. It is the one place where a temperature void can be briefly exceeded, and
 deliberately so: a spark is hotter than its surroundings, which is the entire point of one.
 
+Spark, Break bond and the UV flash start the chamber running if it was paused. Reactions appear in the
+list at the bottom left only once the new molecules have lasted 100 fs: a freshly made bond vibrates
+through the bonding threshold a few times, and listing every crossing used to show C₂H₄ + H· → C₂H₅·
+followed at once by C₂H₅· → C₂H₄ + H·, which never happened.
+
 Measured, three H₂ and two O₂ in a 1.6 nm chamber at 300 K, 150 ps:
 
 | | left alone | after one spark |
@@ -387,7 +392,7 @@ Hirshfeld shares sum exactly to the molecular density and no share can exceed it
 ## Light
 
 **UV flash** (sun tool, or `L` from any tool): a flash of 330 nm light. Each Cl–Cl, Br–Br, I–I and F–F
-bond in the chamber absorbs with a chance of one half and comes apart with the photon's 362 kJ/mol as
+bond in the chamber absorbs with a chance of one quarter (at least one always does) and comes apart with the photon's 362 kJ/mol as
 motion along the bond (243 of it to break Cl₂, the rest as the speed of the two atoms, as measured for
 chlorine). Nothing else in the chamber absorbs at that wavelength. This is how a lamp starts a
 chlorination: ethene and Cl₂ sit unchanged in the dark (the gas-phase reaction without light is far too
@@ -404,7 +409,8 @@ part is never simulated. It is calculated, and only the crossing itself is shown
 
 **Forecast** (toolbar hourglass, `W`): click two atoms. The chamber pauses, and the answer appears
 between them in the scene: the half-life, what they become, and the energy along the way. Click either
-atom again (or Enter) to skip ahead to it. Bonded atoms ask when that bond breaks;
+atom again (or Enter) to skip ahead to it; the reaction is first tried on three copies, as with `J`, and
+a red ✕ instead of a skip means it did not end as forecast. Bonded atoms ask when that bond breaks;
 atoms of different molecules ask when the two react. A copy of just those molecules is pulled
 through the reaction in a worker while every other atom relaxes (a relaxed scan; the live chamber is not
 touched). Several routes are tried and the lowest barrier kept:
@@ -707,6 +713,16 @@ What was tried, so it is not repeated:
   Cl₃ from −4 to −36, Cl···CH₄ from −19 to −44. Those would trap atoms in the live chamber. For oxygen
   (10) it also made O₂ 14 kJ/mol too stable, because O₂'s bond orders do not sit at whole valence.
   The barrier and the well have to be separated before a crossing term can be fitted.
+- Leaving a bond's own polarisation charge out of the Coulomb term between its two atoms. The term was
+  switched off as (1 − f) while the charges grow with f, so a half-made polar bond attracted itself
+  (f²(1 − f), largest at about two thirds formed). Removing that keeps every equilibrium molecule and
+  bond energy exactly as before and makes the chlorine complexes shallower (Cl + CH₄ −20 → −15, Cl +
+  C₂H₆ −24 → −17 kJ/mol), but the same attraction was carrying the crossings: Cl + CH₄ rises 31 → 40,
+  OH + CH₄ 17 → 36, OH + NH₃ 1 → 21, and the benchmark goes from 12.8 to 14.4 kJ/mol rms. Adding the
+  chlorine/oxygen crossing stabilisation on top lowers the barriers again but deepens the complexes
+  with them (Cl + CH₄ −37, Cl···H···Cl −43): in this bond-order model the top of the barrier and the
+  complex are the same half-shared state, so no per-atom term separates them. The fix has to change
+  how a hydrogen hands its bond from one partner to the other.
 - Capping π bonding by the p orbitals an atom has left (bent two-coordinate C, N, O get one) raised the
   phenyl C–H from 351 to 389 kJ/mol, but the valence kept out of π went into extra σ partners in hot,
   bending fragments: CH₄ + O₂ at 3500 K grew C₃H₁₂O₄ clumps. A narrower version (carbon only, and only
@@ -720,7 +736,13 @@ What was tried, so it is not repeated:
   table): phenyl C–H 472, and hot benzene no longer finds those states.
 - Softening the Pauli wall between open-shell partners (`pauliOpen` 0.3 / 0.6) lowers Cl + CH₄ from 31
   to 27 / 23 kJ/mol, but lowers every other radical barrier with it (H + CH₄ 40 / 36, CH₃ + ethene 1 / 0)
-  and worsens the bond energies; the remaining Cl excess is not a general radical effect.
+  and worsens the bond energies; the remaining Cl excess is not a general radical effect. A
+  chlorine-only version (0.45 wherever a chlorine meets an open-shell partner) lowered every chlorine
+  barrier without deepening the complexes (Cl + CH₄ 31 → 26, Cl + H₂ 37 → 31, H + HCl 33 → 28,
+  Cl· + ethene 11 → 2; benchmark 12.8 → 11.6 rms) and made Cl· add to ethene five times as often in
+  live runs. It was not kept: the Cl· + ethene path became flat and bumpy, so a skipped addition placed
+  at its commit point bounced off (1 of 6 trials instead of 6 of 6), and Cl· + CH₄ fell into the CH₄Cl
+  complex (2 of 6). At 0.3 the gain is too small to matter (Cl· + ethene 9).
 - Screening weak (below 0.12 of a bond) attractions harder (`ANG_B0` 0.04) stiffens a stretched C–H to
   the methane value, but makes Cl· + ethene's entrance barrier 13 kJ/mol and hot mixtures no better.
 

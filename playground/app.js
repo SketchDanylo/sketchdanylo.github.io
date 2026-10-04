@@ -96,7 +96,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261004-build70', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow) => skipToEvent(ev, wait, ids, what, reactants, slow), pause: () => setPlaying(false), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0 });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261004-build71', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow) => skipToEvent(ev, wait, ids, what, reactants, slow), pause: () => setPlaying(false), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0 });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -601,7 +601,7 @@ const TOOLS = [['grab', 'Grab & pan', 'Drag atoms (pulls while running, moves th
   ['heat', 'Heat brush', 'Drag to heat atoms under the brush; Shift or right-drag cools. Alt+scroll resizes.'],
   ['spark', 'Spark', 'Click to ignite. A stable mixture needs a starter, the same as it does on a bench: this breaks a bond where you click and lets the radicals begin the chain.'],
   ['cleave', 'Break bond', 'Click a bond to split it into two radicals, the way light breaks one on a bench: it gets just enough energy to come apart, and what the two halves do next is chemistry.'],
-  ['light', 'UV flash', 'Click anywhere, or press L: a flash of 330 nm light splits about half of the Cl₂, Br₂, I₂ and F₂ in the chamber into atoms, which is how a lamp starts a chlorination. Nothing else here absorbs it.'],
+  ['light', 'UV flash', 'Click anywhere, or press L: a flash of 330 nm light splits about a quarter of the Cl₂, Br₂, I₂ and F₂ in the chamber (at least one molecule) into atoms, which is how a lamp starts a chlorination. Nothing else here absorbs it.'],
   ['forecast', 'Forecast', 'Click two atoms: how long until they react appears between them, with the energy along the way. Click one of them again to skip ahead to it. Two bonded atoms ask when their bond breaks.']];
 let tool = 'grab', armed = null; // armed element symbol for placing
 const dockEls = [store.get('lastElement', 'H')].filter(s=>BY_SYM[s]);
@@ -687,8 +687,8 @@ for(const [, id] of LIBRARY_TABS)$(id).addEventListener('keydown',e=>{
 });
 const EXP_MOLS = {"CH4":[["C",0,0,0],["H",0.627,0.627,0.627],["H",-0.627,-0.627,0.627],["H",-0.627,0.627,-0.627],["H",0.627,-0.627,-0.627]],"Cl2":[["Cl",0,0,0],["Cl",1.99,0,0]],"Cl":[["Cl",0,0,0]],"C2H4":[["C",-0.001,0,0],["C",1.341,0,0],["H",-0.551,0.941,0],["H",-0.551,-0.941,0],["H",1.891,0.941,0],["H",1.891,-0.941,0]],"CH3":[["C",-0.001,-0.001,-0.022],["H",1.087,0,0.016],["H",-0.543,0.941,0.016],["H",-0.543,-0.94,0.066]],"OH":[["O",0.002,0,0],["H",0.962,0,0]]};
 const EXPERIMENTS = [
-  { name: 'Radical chlorination of methane', T: 298.15, mix: [['CH4', 3], ['Cl2', 3]], look: 'Nothing happens in the dark. Press L: light splits Cl₂, Cl· takes a hydrogen from methane as HCl, and the methyl radical takes a chlorine from Cl₂, freeing the next Cl·.' },
-  { name: 'Chlorine adds across ethene', T: 298.15, mix: [['C2H4', 2, [[0, 1, 2]]], ['Cl2', 2]], look: 'Nothing happens in the dark. Press L: light splits Cl₂, Cl· adds to the double bond, and the radical takes a chlorine from Cl₂: 1,2-dichloroethane, made by a chain.' },
+  { name: 'Radical chlorination of methane', T: 298.15, light: true, mix: [['CH4', 3], ['Cl2', 3]], look: 'Nothing happens in the dark. Press L: light splits Cl₂, Cl· takes a hydrogen from methane as HCl, and the methyl radical takes a chlorine from Cl₂, freeing the next Cl·.' },
+  { name: 'Chlorine adds across ethene', T: 298.15, light: true, mix: [['C2H4', 2, [[0, 1, 2]]], ['Cl2', 2]], look: 'Nothing happens in the dark. Press L: light splits Cl₂, Cl· adds to the double bond, and the radical takes a chlorine from Cl₂: 1,2-dichloroethane, made by a chain.' },
   { name: 'Radical polymerisation of ethene', T: 350, mix: [['C2H4', 5, [[0, 1, 2]]], ['CH3', 1]], look: 'A methyl radical opens one double bond; the radical it becomes opens the next, and the chain grows: C₃H₇·, C₅H₁₁·, … the start of polyethylene. In this model the first step comes about 20 kJ/mol too easily.' },
   { name: 'Methyl radicals meet', T: 298.15, mix: [['CH3', 4]], look: 'Two radicals with nothing in the way pair up into ethane in picoseconds, without any barrier.' },
   { name: 'Hydroxyl radicals and methane', T: 298.15, mix: [['CH4', 3], ['OH', 2]], look: 'OH· is what cleans methane out of the air, but slowly: here the two OH· find each other first (H₂O + O·, or H₂O₂). Remove one OH to watch the slow attack on methane.' }
@@ -718,7 +718,8 @@ function runExperiment(x) {
   }
   eng.touch(); eng.refresh(); eng.minimize(300, 1); eng.thermalize(eng.T);
   edited(); fitBox(true);
-  toast(x.name + ' · press J to see what happens next');
+  document.activeElement?.blur();
+  toast(x.name + (x.light ? ' · L for light, then J for the next reaction' : ' · J for the next reaction'));
 }
 
 /* tooltips */
@@ -1032,7 +1033,7 @@ function ignite(wx, wy) {
   eng.checkpoints.length = 0; eng.touch();
   bondTrack.pending.push({ x: wx, y: wy, t0: performance.now(), dur: 520, kind: 'form', big: true });
   toast('Spark · ' + added.toFixed(0) + ' kJ/mol into ' + list.length + ' atom' + (list.length === 1 ? '' : 's'));
-  if (!time.playing) toast('Press play to watch what it starts');
+  if (!time.playing) setPlaying(true);
   edited();
 }
 /* Break a bond. Light does this on a bench: a photon lands in one bond and the two halves fly apart
@@ -1075,7 +1076,7 @@ function uvFlash() {
   pushUndo();
   let n = 0;
   for (const b of hit) {
-    if (Math.random() >= 0.5 && !(n === 0 && b === hit[hit.length - 1])) continue;
+    if (Math.random() >= 0.25 && !(n === 0 && b === hit[hit.length - 1])) continue;
     kickApart(b.i, b.j, UV_PHOTON); n++;
     bondTrack.pending.push({ x: (rp[3 * b.i] + rp[3 * b.j]) / 2, y: (rp[3 * b.i + 1] + rp[3 * b.j + 1]) / 2, t0: performance.now(), dur: 700, kind: 'break', big: true });
   }
@@ -1104,7 +1105,7 @@ function cleave(wx, wy) {
   const mx = (rp[3 * i] + rp[3 * j]) / 2, my = (rp[3 * i + 1] + rp[3 * j + 1]) / 2;
   bondTrack.pending.push({ x: mx, y: my, t0: performance.now(), dur: 520, kind: 'break', big: true });
   toast(ELEMENTS[eng.type[i]].sym + '–' + ELEMENTS[eng.type[j]].sym + ' broken · ' + E.toFixed(0) + ' kJ/mol');
-  if (!time.playing) toast('Press play to watch the halves part');
+  if (!time.playing) setPlaying(true);
   edited();
 }
 function applyBrush(dt) {
@@ -1125,16 +1126,18 @@ function applyBrush(dt) {
 const species = { map: new Map(), reset: true, last: 0, count: 0 };
 const bondTrack = { set: new Map(), reset: true, pending: [] };
 const flashes = [];
-const feedItems = [];
+const feedItems = [], FEED_SETTLE = 100;
 function speciesNow() {
   const fr = eng.fragments(), map = new Map(), frags = [], byId = new Map();
+  const sig = [];
   fr.list.forEach((g, k) => {
     const f = eng.formulaOf(g) + (eng.isRadical(g) ? '·' : '');
     map.set(f, (map.get(f) || 0) + 1);
-    let x = 0, y = 0; for (const i of g) { x += eng.pos[3 * i]; y += eng.pos[3 * i + 1]; byId.set(eng.ids[i], k); }
+    let x = 0, y = 0, lo = Infinity; for (const i of g) { x += eng.pos[3 * i]; y += eng.pos[3 * i + 1]; byId.set(eng.ids[i], k); lo = Math.min(lo, eng.ids[i]); }
     frags.push({ f, x: x / g.length, y: y / g.length, n: g.length });
+    sig.push(lo + ':' + eng.formulaOf(g));
   });
-  return { map, frags, byId, n: fr.list.length };
+  return { map, frags, byId, n: fr.list.length, sig: sig.sort().join('|') };
 }
 /* A reaction = a connected cluster of old and new fragments that share atoms. */
 function reactionsBetween(prev, cur) {
@@ -1145,7 +1148,7 @@ function reactionsBetween(prev, cur) {
   for (const k of parent.keys()) { const r = find(k); if (!groups.has(r)) groups.set(r, { o: [], n: [] }); groups.get(r)[k[0]].push(+k.slice(1)); }
   const out = [];
   for (const g of groups.values()) {
-    if (g.o.length === 1 && g.n.length === 1 && prev.frags[g.o[0]].f === cur.frags[g.n[0]].f) continue;
+    if (g.o.length === 1 && g.n.length === 1 && prev.frags[g.o[0]].f.replace('·', '') === cur.frags[g.n[0]].f.replace('·', '')) continue;
     const side = (list, frs) => { const c = new Map(); list.forEach(k => c.set(frs[k].f, (c.get(frs[k].f) || 0) + 1)); return [...c.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([f, n]) => (n > 1 ? n + ' ' : '') + pretty(f)).join(' + '); };
     const lhs = side(g.o, prev.frags), rhs = side(g.n, cur.frags);
     if (lhs === rhs) continue;
@@ -1158,14 +1161,16 @@ function updateSpecies(now) {
   if (now - species.last < 200) return;
   species.last = now;
   const cur = speciesNow();
-  species.count = cur.n;
-  if (!species.reset && species.prev) {
-    const rx = reactionsBetween(species.prev, cur);
-    rx.slice(0, 3).forEach(r => logReaction(r.lhs, r.rhs, r.loc));
-    if (rx.length > 3) logReaction('', '+' + (rx.length - 3) + ' more at once', null);
-  }
-  species.reset = false; species.map = cur.map; species.prev = cur;
+  species.count = cur.n; species.map = cur.map;
   renderInventory(cur.map);
+  if (species.reset || !species.prev || (species.pend && eng.time < species.pend.t)) { species.reset = false; species.prev = cur; species.pend = null; return; }
+  if (cur.sig === species.prev.sig) { species.prev = cur; species.pend = null; return; }
+  if (!species.pend || species.pend.sig !== cur.sig) { species.pend = { sig: cur.sig, t: eng.time }; return; }
+  if (eng.time - species.pend.t < FEED_SETTLE) return;
+  const rx = reactionsBetween(species.prev, cur);
+  rx.slice(0, 3).forEach(r => logReaction(r.lhs, r.rhs, r.loc));
+  if (rx.length > 3) logReaction('', '+' + (rx.length - 3) + ' more at once', null);
+  species.prev = cur; species.pend = null;
 }
 function renderInventory(map) {
   const items = [...map.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 10);
@@ -2166,7 +2171,7 @@ function frame(now) {
     N: eng.N, type: eng.type, pos: rp, bonds, box: eng.box, box3: viewTilted() ? boxCorners() : null, cleave: cleaveHover,
     bounds: { mode: eng.boundsMode, range: eng.fieldRange, voidT: eng.voidTemperature, voidP: eng.voidPressure },
     boxHot: gesture && gesture.type === 'box' ? gesture.edge : boxHot,
-    uv: uvAt, fx: fxView(), hover: gesture ? -1 : hoverAtom, eraseHover: tool === 'erase' && !armed, selected: selection, pinned: eng.pinned.subarray(0, eng.N), ghost, flashes, now,
+    uv: uvAt, fx: fxView(), emptyHint: armed || placing ? null : ['pick an element below, then click here', '+ for molecules and experiments'], hover: gesture ? -1 : hoverAtom, eraseHover: tool === 'erase' && !armed, selected: selection, pinned: eng.pinned.subarray(0, eng.N), ghost, flashes, now,
     tweezer: eng.tweezer, brush: tool === 'heat' && !armed && !placing ? brush : null,
     marquee: gesture && gesture.type === 'marquee' ? gesture : null,
     inspect: inspectLeader(), forecast: forecastPick()

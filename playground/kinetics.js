@@ -233,9 +233,13 @@ function scanPair(src, i, j, opts = {}) {
   const run = (ch, o) => { const [x, y] = ch.from !== undefined ? [ch.from, ch.at] : [i, j]; return runChannel(src, atoms, x, y, E0, ch, o); };
   const coarse = channels.length > 1 || opts.quick ? { steps: channels.length > 1 ? 10 : 16, iters: 300, T: opts.T } : opts;
   let results = [];
-  for (const ch of channels) {
-    results.push(run(ch, coarse));
-    if (opts.onStep) opts.onStep(results.length / (channels.length + 2));
+  if (opts.coarseIn && channels.length > 1) results = opts.coarseIn.slice();
+  else {
+    for (const ch of channels) {
+      results.push(run(ch, coarse));
+      if (opts.onStep) opts.onStep(results.length / (channels.length + 2));
+    }
+    if (opts.coarseOut && channels.length > 1) opts.coarseOut(results.slice());
   }
   if (channels.length > 1 && !opts.quick) {
     const good = results.filter(r => r.done).sort((p, q) => p.Ea - q.Ea);
@@ -387,8 +391,9 @@ function candidates(src, cap = 24) {
 
 function chamberVolume(e) { const b = e.box; return (b.x1 - b.x0) * (b.y1 - b.y0) * (b.z1 - b.z0) * 1e-24; }
 
-function scanCandidate(e, c, T, quick, cache) {
-  const scan = scanPair(e, c.i, c.j, { T, quick, cache });
+function scanCandidate(e, c, T, quick, cache, store) {
+  const at = c.i + ',' + c.j;
+  const scan = scanPair(e, c.i, c.j, { T, quick, cache, coarseIn: !quick && store ? store.get(at) : null, coarseOut: quick && store ? r => store.set(at, r) : null });
   if (!scan.ok) return null;
   const f = forecast(e, scan, { T, partnerPerCm3: 1 });
   if (!f.ok) return null;
@@ -429,11 +434,11 @@ function reuse(cached, c, V) {
 }
 
 function survey(scene, opts = {}) {
-  const e = fromScene(scene), T = scene.T || 298, cache = new Map();
+  const e = fromScene(scene), T = scene.T || 298, cache = new Map(), store = new Map();
   const { list, dropped } = candidates(e, opts.cap);
-  const quick = list.map((c, n) => { if (opts.onProgress) opts.onProgress(n, list.length + REFINE); return { c, r: scanCandidate(e, c, T, true, cache) }; });
+  const quick = list.map((c, n) => { if (opts.onProgress) opts.onProgress(n, list.length + REFINE); return { c, r: scanCandidate(e, c, T, true, cache, store) }; });
   const best = quick.filter(q => q.r).sort((x, y) => x.r.Ea - y.r.Ea).slice(0, REFINE);
-  for (const q of best) q.r = scanCandidate(e, q.c, T, false, cache);
+  for (const q of best) q.r = scanCandidate(e, q.c, T, false, cache, store);
   const out = combine(quick.map(q => q.r), T);
   out.dropped = dropped; out.scanned = list.length;
   return out;
@@ -457,9 +462,9 @@ function formed(eng, idx, products) {
   return bare([...comps].map(c => eng.formulaOf(f.list[c]))) === bare(products) ? [...comps].flatMap(c => f.list[c]) : null;
 }
 
-function verifyEvent(scene, ev, products, T, seeds = 3, fs = 400) {
+function verifyEvent(scene, ev, products, T, seeds = 3, fs = 400, first = 1) {
   let ok = 0;
-  for (let s = 1; s <= seeds; s++) {
+  for (let s = first; s < first + seeds; s++) {
     const e = fromScene(scene);
     e.T = T; e.thermostat = true; e.thermostatMode = 'kelvin'; e.rngState = s * 7919 + 13;
     applyEvent(e, ev, ev.atoms);
