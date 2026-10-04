@@ -113,8 +113,8 @@ function runChannel(src, atoms, i, j, E0, ch, opts) {
   let top = 0;
   for (let s = 1; s < path.length; s++) if (path[s].E > path[top].E) top = s;
   return {
-    channel: ch, done, Ea: Math.max(0, path[top].E), dE: Eend, barrierAtEnd: top === path.length - 1,
-    event: committed(path, top, j),
+    channel: ch, done, Ea: Math.max(0, path[top].E, done ? Eend : 0), dE: Eend, barrierAtEnd: top === path.length - 1 || (done && Eend > path[top].E),
+    event: committed(path, top, j, ch.type === 'form' && products.length === 1),
     start: path[0].pos, end: endPos, E0,
     products, path: path.map(p => ({ x: p.x, r: p.r, E: p.E })),
     ts: path[top].pos ? { pos: path[top].pos, map } : null, tsDistance: path[top].r,
@@ -170,8 +170,8 @@ function directions(list) {
   return out;
 }
 
-function committed(path, top, at) {
-  const last = path.length - 1, drop = Math.max(8, 0.3 * (path[top].E - path[last].E));
+function committed(path, top, at, joins) {
+  const last = path.length - 1, drop = Math.max(8, (joins && top === 0 ? 0.6 : 0.3) * (path[top].E - path[last].E));
   let c = top + 1;
   while (c < last && path[c].E > path[top].E - drop) c++;
   c = Math.min(c, last);
@@ -458,8 +458,8 @@ function stillThere(eng, ev, idx, reactants) {
 }
 
 function formed(eng, idx, products) {
-  const f = eng.fragments(), comps = new Set(idx.map(i => f.comp[i]));
-  return bare([...comps].map(c => eng.formulaOf(f.list[c]))) === bare(products) ? [...comps].flatMap(c => f.list[c]) : null;
+  const f = eng.fragments(), comps = new Set(idx.map(i => f.comp[i])), got = bare([...comps].map(c => eng.formulaOf(f.list[c])));
+  return (Array.isArray(products[0]) ? products : [products]).some(p => bare(p) === got) ? [...comps].flatMap(c => f.list[c]) : null;
 }
 
 function verifyEvent(scene, ev, products, T, seeds = 3, fs = 400, first = 1) {

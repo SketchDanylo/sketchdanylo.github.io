@@ -96,7 +96,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261004-build71', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow) => skipToEvent(ev, wait, ids, what, reactants, slow), pause: () => setPlaying(false), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0 });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261004-build73', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow) => skipToEvent(ev, wait, ids, what, reactants, slow), pause: () => setPlaying(false), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0 });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -1127,14 +1127,29 @@ const species = { map: new Map(), reset: true, last: 0, count: 0 };
 const bondTrack = { set: new Map(), reset: true, pending: [] };
 const flashes = [];
 const feedItems = [], FEED_SETTLE = 100;
+function complexLabel(g, links) {
+  const count = new Map();
+  for (const [a, b] of links) { count.set(a, (count.get(a) || 0) + 1); count.set(b, (count.get(b) || 0) + 1); }
+  let over = -1;
+  for (const [a, n] of count) if (n > (ELEMENTS[eng.type[a]].valences[0] || 4)) { over = a; break; }
+  if (over < 0) return null;
+  const weakest = links.filter(l => l[0] === over || l[1] === over).sort((x, y) => x[2] - y[2])[0];
+  const parent = new Map(g.map(i => [i, i])), find = i => { while (parent.get(i) !== i) i = parent.get(i); return i; };
+  for (const l of links) if (l !== weakest) { const x = find(l[0]), y = find(l[1]); if (x !== y) parent.set(x, y); }
+  const parts = new Map();
+  for (const i of g) { const r = find(i); if (!parts.has(r)) parts.set(r, []); parts.get(r).push(i); }
+  if (parts.size !== 2) return null;
+  return [...parts.values()].sort((x, y) => y.length - x.length).map(p => eng.formulaOf(p) + (eng.isRadical(p) ? '·' : '')).join('···');
+}
 function speciesNow() {
   const fr = eng.fragments(), map = new Map(), frags = [], byId = new Map();
-  const sig = [];
+  const sig = [], links = fr.list.map(() => []);
+  for (let p = 0; p < eng.nPairs; p++) { const st = eng.bondStrength(p); if (st > 0.25) links[fr.comp[eng.pI[p]]].push([eng.pI[p], eng.pJ[p], st]); }
   fr.list.forEach((g, k) => {
-    const f = eng.formulaOf(g) + (eng.isRadical(g) ? '·' : '');
+    const f = (g.length > 2 && complexLabel(g, links[k])) || eng.formulaOf(g) + (eng.isRadical(g) ? '·' : '');
     map.set(f, (map.get(f) || 0) + 1);
     let x = 0, y = 0, lo = Infinity; for (const i of g) { x += eng.pos[3 * i]; y += eng.pos[3 * i + 1]; byId.set(eng.ids[i], k); lo = Math.min(lo, eng.ids[i]); }
-    frags.push({ f, x: x / g.length, y: y / g.length, n: g.length });
+    frags.push({ f, raw: eng.formulaOf(g), x: x / g.length, y: y / g.length, n: g.length });
     sig.push(lo + ':' + eng.formulaOf(g));
   });
   return { map, frags, byId, n: fr.list.length, sig: sig.sort().join('|') };
@@ -1148,7 +1163,7 @@ function reactionsBetween(prev, cur) {
   for (const k of parent.keys()) { const r = find(k); if (!groups.has(r)) groups.set(r, { o: [], n: [] }); groups.get(r)[k[0]].push(+k.slice(1)); }
   const out = [];
   for (const g of groups.values()) {
-    if (g.o.length === 1 && g.n.length === 1 && prev.frags[g.o[0]].f.replace('·', '') === cur.frags[g.n[0]].f.replace('·', '')) continue;
+    if (g.o.length === 1 && g.n.length === 1 && prev.frags[g.o[0]].raw === cur.frags[g.n[0]].raw) continue;
     const side = (list, frs) => { const c = new Map(); list.forEach(k => c.set(frs[k].f, (c.get(frs[k].f) || 0) + 1)); return [...c.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([f, n]) => (n > 1 ? n + ' ' : '') + pretty(f)).join(' + '); };
     const lhs = side(g.o, prev.frags), rhs = side(g.n, cur.frags);
     if (lhs === rhs) continue;
@@ -2181,7 +2196,7 @@ function frame(now) {
   if (now - lastUI > 100) {
     lastUI = now;
     updateLab();
-    $('clock').textContent = eng.skipped > 0 ? ChemKinetics.humanTime(eng.skipped) + ' skipped + ' + fmtTime(eng.time) : fmtTime(eng.time);
+    $('clock').textContent = eng.skipped > 0 ? ChemKinetics.humanTime(eng.skipped) + (innerWidth < 760 ? ' + ' : ' skipped + ') + fmtTime(eng.time) : fmtTime(eng.time);
     const rate = $('rate');
     if (time.playing) {
       rate.textContent = (time.limited ? 'CPU-bound · ' : '') + fmtRate(time.rateEMA) + (time.limited ? ' · ' + Math.round(time.rateEMA / stepsPerSecond(time.speed) * 100) + '% target' : '');

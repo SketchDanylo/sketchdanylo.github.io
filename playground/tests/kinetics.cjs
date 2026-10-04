@@ -189,4 +189,19 @@ test('Ethene and Cl₂ in the dark: nothing; after light the Cl· atoms add to e
   assert.ok(!pair || pair.share < 0.05, 'Cl· + Cl· share ' + (pair && pair.share));
 });
 
+test('No route is cheaper than its own reaction energy: CH₃· + ethene → propene + H· costs at least what it is uphill', () => {
+  const r = K.scanPair(scene([['C2H4', [0, 0, 0], [[0, 1, 2]]], ['CH3', [0, 0, 3.4]]]), 6, 0);
+  assert.ok(r.ok);
+  for (const x of [r, ...(r.alternatives || [])]) assert.ok(x.Ea >= x.dE - 1e-9, x.products.join(' + ') + ': barrier ' + x.Ea.toFixed(1) + ' below reaction energy ' + x.dE.toFixed(1));
+});
+
+test('Two hydroxyls joined by a skip stay joined as H₂O₂: a barrierless join starts far enough along to finish', () => {
+  const e = new Engine({ width: 30, height: 30, depth: 12, T: 298, thermostat: false });
+  for (const [x, y] of [[12, 15], [16, 15.4]]) { for (const [s, a, c, z] of geo('OH')) e.addAtom(s, x + a, y + c, z || 0, { thermal: false }); e.touch(); e.refresh(); }
+  const sc = JSON.parse(JSON.stringify(e.toJSON())), r = K.study(sc, 0, 2);
+  assert.ok(r.ok); assert.deepEqual(r.products, ['H2O2']);
+  const n = K.verifyEvent(sc, r.event, r.products, 298, 4);
+  assert.ok(n >= 3, n + ' of 4 trials joined');
+});
+
 console.log(count + ' kinetics checks passed.');

@@ -186,7 +186,9 @@ deliberately so: a spark is hotter than its surroundings, which is the entire po
 Spark, Break bond and the UV flash start the chamber running if it was paused. Reactions appear in the
 list at the bottom left only once the new molecules have lasted 100 fs: a freshly made bond vibrates
 through the bonding threshold a few times, and listing every crossing used to show C₂H₄ + H· → C₂H₅·
-followed at once by C₂H₅· → C₂H₄ + H·, which never happened.
+followed at once by C₂H₅· → C₂H₄ + H·, which never happened. A cluster in which an atom holds more
+bonds than its valence (a hydrogen half-shared between a carbon and a chlorine) is listed as the
+encounter it is, split at its weakest bond, CH₃···HCl rather than "CH₄Cl".
 
 Measured, three H₂ and two O₂ in a 1.6 nm chamber at 300 K, 150 ps:
 
@@ -429,6 +431,10 @@ H + Cl₂ grabbed the other chlorine and gave HCl + Cl at the reactants' end of 
 an atom holding more than half a bond over its valence (a hydrogen stuck between two partners) is not
 counted as a product.
 
+A barrier is never taken lower than the reaction's own energy: a scan pulls the products only a little
+way apart, so an uphill route used to report less than it costs to finish it (CH₃· + ethene → propene
++ H· read 16 kJ/mol for a reaction 24 kJ/mol uphill, and came up as a stray H· in polymerisation runs).
+
 The barrier becomes a half-life by transition-state theory, rate = A·e^(−barrier/RT): A ≈ 10^15.5 s⁻¹
 for a bond simply coming apart, kT/h for other unimolecular steps, and for two molecules the
 hard-sphere collision rate × 0.1 times the partner's number density in the chamber. The scene shows the
@@ -486,6 +492,9 @@ is shown beside the simulated time, is part of saved scenes and undo, and Ctrl+Z
 The skipped time floats up from the reacting pair, and the first 0.8 ps after a skip run at 0.5× (about
 80 fs a second), so the bond-making itself can be watched, and the speed then returns to what it was (kept-going chains stay at
 full speed).
+A reaction with no barrier that joins two molecules into one (CH₃· + CH₃·, OH· + OH· → H₂O₂) starts
+further along its path, at 60 % of the way down instead of 30 %: from the shallower point the two
+hydroxyls bounced apart in 5 of 6 trials, and from the deeper one they join in 6 of 6.
 Played this way, Cl· + ethene, CH₃· + ethene and H· + CH₄ complete in 9 of 9 browser trials and in
 at least 3 of 4 seeded runs each in the tests.
 
@@ -559,17 +568,20 @@ The forecast measures the model's energy surface; the live chamber moves on it. 
 Repeating the search remembers every barrier it has measured, by reaction type and temperature,
 and only scans what is new; the reaction it skips to is played from the geometry its full scan found
 (scanned afresh only if the search had it from memory), and is tried on a copy first. If it does not
-end as forecast on the copy, a red ✕ marks the pair and nothing is skipped; it does not fall back to a less
-likely reaction, which would bend the odds. Two artefacts
-the search has shown up, both force-field errors still to fix: C₂H₃· + H₂ → C₂H₅· (H₂ adding whole to
-a vinyl radical) comes out barrierless where the real reaction is an abstraction over about 40 kJ/mol,
-and a hot C₂H₅ formed by H· + ethene lost its hydrogen again within picoseconds in the live chamber.
+end as forecast on the copy, a red ✕ marks the pair and nothing is skipped (ending in another of the
+same molecules' known outcomes counts: OH· + OH· may become H₂O + O· or H₂O₂, and which one is the
+dynamics' choice); it does not fall back to a less
+likely reaction, which would bend the odds. Two artefacts the search showed up earlier are gone:
+C₂H₃· + H₂ used to come out as H₂ adding whole to the vinyl radical (C₂H₅·, barrierless); it is now the
+real abstraction, C₂H₃· + H₂ → C₂H₄ + H·, over 27 kJ/mol (real about 40, the reaction energy right),
+since the scan back from the products may no longer swap to an equivalent product. And a hot C₂H₅
+formed by H· + ethene lost its hydrogen again within picoseconds in the live chamber.
 That second one is now handled the way a real gas handles it: a freshly formed molecule carries its
 whole reaction energy, and in a real flask collisions with the surrounding gas take it away within
 nanoseconds, while the chamber holds too few molecules to do that. The product is therefore brought
-back to the chamber's temperature at 80, 160, 300 and 600 fs after the skip, standing in for those
-collisions. Before a skip is played, the chosen event is also tried on a copy three times (400 fs each);
-if fewer than two of those end in the forecast products, the next most likely reaction is drawn instead.
+back to the chamber's temperature at 80, 160 and 300 fs after the skip, standing in for those
+collisions. Before a skip is played, the chosen event is also tried on three copies at once (400 fs
+each); if fewer than two of those end in one of its known outcomes, nothing is skipped.
 
 The search used to scan ethene's carbon reaching for the H atom rather than the H atom reaching for
 ethene, which gave a poorer starting geometry: H· + ethene then completed in 6 of 10 runs. Radicals
@@ -595,8 +607,10 @@ are now always the ones that attack, and it completes in 6 of 6 seeded runs and 
   keeps hydrogen combustion from being forecast yet: H· + O₂ → HO₂ wins on barrier, but at high
   temperature HO₂ needs a third molecule to carry away its energy, and without that H· + O₂ → OH· + O·
   (the branching step, which the search does list, at 7% at 1500 K) should win.
-- Concerted four-centre additions that orbital symmetry forbids (H₂ adding whole to a radical or a
-  double bond) can come out barrierless: a bond-order force field has no orbital phases to forbid them.
+- Concerted four-centre additions that orbital symmetry forbids (H₂ or a C–H adding whole across a
+  double bond) are not penalised: a bond-order force field has no orbital phases to forbid them. The
+  search leaves them out below 500 K, where they could never win anyway; above it their barriers read
+  too low.
 
 ## Temperature readings
 

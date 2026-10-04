@@ -51,7 +51,8 @@ class ForecastCard {
     if (!res || !res.event || !(res.now.halfLife < 3.15e16) || this.checking) return;
     const key = this.req;
     this.checking = true; this.fx = { ...(this.fx || {}), probe: null, focus: pair };
-    const runs = await Promise.all([1, 2, 3].map(first => this.dispatch({ type: 'verify', scene, event: res.event, products: res.products, T: scene.T || 298, seeds: 1, first })));
+    const outs = [res.products, ...(res.alternatives || []).map(a => a.products)];
+    const runs = await Promise.all([1, 2, 3].map(first => this.dispatch({ type: 'verify', scene, event: res.event, products: outs, T: scene.T || 298, seeds: 1, first })));
     this.checking = false;
     if (key !== this.req) return;
     this.close();
@@ -134,7 +135,9 @@ class ForecastCard {
       }
       let good = !!(pick && pick.event);
       if (good && ls) {
-        const runs = await Promise.all([1, 2, 3].map(first => this.dispatch({ type: 'verify', scene: ls.scene, event: pick.event, products: pick.products, T: ls.T, seeds: 1, first })));
+        const bare = l => l.map(f => f.replace(/·/g, '')).sort().join();
+        const outs = sv.events.filter(x => bare(x.reactants) === bare(pick.reactants)).map(x => x.products);
+        const runs = await Promise.all([1, 2, 3].map(first => this.dispatch({ type: 'verify', scene: ls.scene, event: pick.event, products: [pick.products, ...outs], T: ls.T, seeds: 1, first })));
         if (key !== this.req) return false;
         good = runs.reduce((a, n) => a + (n || 0), 0) >= 2;
       }

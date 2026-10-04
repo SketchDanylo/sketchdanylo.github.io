@@ -113,8 +113,8 @@ Without this, the forecast and fast-forward will work well for radical and gas-p
 - Pressure fall-off for unimolecular and association steps (needed before hydrogen combustion can be
   forecast: H· + O₂ → HO₂ only wins at high pressure), tunnelling and zero-point energy for hydrogen
   transfers.
-- A penalty for concerted additions that orbital symmetry forbids (H₂ adding whole to a radical comes
-  out barrierless today).
+- A penalty for concerted additions that orbital symmetry forbids (two closed-shell molecules adding
+  in one step, such as ethene + methane through a four-centre ring; the search skips these below 500 K).
 - Large chambers: forecast once per distinct situation and reuse it, instead of rescanning every copy.
 
 ### 5. The teaching layer
