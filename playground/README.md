@@ -384,6 +384,17 @@ The free-atom references are ground-state atoms in the same STO-3G basis, spheri
 
 Hirshfeld shares sum exactly to the molecular density and no share can exceed it; `node playground/tests/quantum.cjs` checks both.
 
+## Light
+
+**UV flash** (sun tool, or `L` from any tool): a flash of 330 nm light. Each Cl–Cl, Br–Br, I–I and F–F
+bond in the chamber absorbs with a chance of one half and comes apart with the photon's 362 kJ/mol as
+motion along the bond (243 of it to break Cl₂, the rest as the speed of the two atoms, as measured for
+chlorine). Nothing else in the chamber absorbs at that wavelength. This is how a lamp starts a
+chlorination: ethene and Cl₂ sit unchanged in the dark (the gas-phase reaction without light is far too
+slow to see, and the ionic route through a chloronium ion needs a solvent the engine does not have
+yet); after a flash, Cl· adds to the double bond and the radical takes a chlorine from Cl₂, and
+`J` carries the chain on to 1,2-dichloroethane.
+
 ## Forecasting and skipping ahead
 
 Most reactions take far longer than a browser can simulate: at about a picosecond of chemistry per
@@ -391,7 +402,9 @@ second of screen time, one real second would take tens of thousands of years. A 
 slow creep: a molecule rattles in its well for a long time and then crosses in about 100 fs. So the slow
 part is never simulated. It is calculated, and only the crossing itself is shown.
 
-**Forecast** (toolbar hourglass, `F`): click two atoms. Bonded atoms ask when that bond breaks;
+**Forecast** (toolbar hourglass, `W`): click two atoms. The chamber pauses, and the answer appears
+between them in the scene: the half-life, what they become, and the energy along the way. Click either
+atom again (or Enter) to skip ahead to it. Bonded atoms ask when that bond breaks;
 atoms of different molecules ask when the two react. A copy of just those molecules is pulled
 through the reaction in a worker while every other atom relaxes (a relaxed scan; the live chamber is not
 touched). Several routes are tried and the lowest barrier kept:
@@ -412,9 +425,9 @@ counted as a product.
 
 The barrier becomes a half-life by transition-state theory, rate = A·e^(−barrier/RT): A ≈ 10^15.5 s⁻¹
 for a bond simply coming apart, kT/h for other unimolecular steps, and for two molecules the
-hard-sphere collision rate × 0.1 times the partner's number density in the chamber. The card gives the
-half-life now, a range (±10 kJ/mol on the barrier, ×/÷10 on A), a table from 200 to 2500 K, the energy
-along the path, and any slower routes found on the way.
+hard-sphere collision rate × 0.1 times the partner's number density in the chamber. The scene shows the
+half-life and the energy along the path; the uncertainty behind it is ±10 kJ/mol on the barrier and
+×/÷10 on A.
 
 `tests/benchmark.cjs` scans 39 textbook reactions and bonds and prints the scorecard: barriers rms
 12.8 kJ/mol over 23 reactions, bonds rms 33 kJ/mol over 16 (14 without the formyl outlier). Selected rows:
@@ -460,33 +473,39 @@ some reactions are committed (Cl· + CH₄ played out in 4 of 6 trials instead o
 is never perfectly symmetric anyway. A hand-built collinear start can still read a barrier too high
 (OH + H₂ on one line: 69, against 36 slightly off the line).
 
-**Skip the wait** (on the forecast card): the clock jumps by a waiting time drawn at random from the
+**Skipping ahead**: the clock jumps by a waiting time drawn at random from the
 forecast rate, the molecules are placed at the first point clearly past the top of the barrier with a
 thermal push along the path, and the live simulation carries out the reaction itself. The skipped time
 is shown beside the simulated time, is part of saved scenes and undo, and Ctrl+Z puts everything back.
-The first 0.8 ps after a skip run at 0.5× (about 80 fs a second) with the reacting atoms ringed, so the
-bond-making itself can be watched, and the speed then returns to what it was (kept-going chains stay at
+The skipped time floats up from the reacting pair, and the first 0.8 ps after a skip run at 0.5× (about
+80 fs a second), so the bond-making itself can be watched, and the speed then returns to what it was (kept-going chains stay at
 full speed).
 Played this way, Cl· + ethene, CH₃· + ethene and H· + CH₄ complete in 9 of 9 browser trials and in
 at least 3 of 4 seeded runs each in the tests.
 
-**What happens next?** (`J`, or the double-arrow button beside step-forward): the chamber is paused
+**Next reaction** (`J`, or the double-arrow button beside step-forward): the chamber is paused
 and searched for everything that could happen: a radical meeting any atom of another molecule (the radical is always
-the one that attacks), a π bond meeting the hydrogens of another closed-shell molecule, and every
+the one that attacks), a π bond meeting the hydrogens of another closed-shell molecule (above 500 K only: below it
+that four-centre addition, about 170 kJ/mol here and symmetry-forbidden in reality, never wins), and every
 distinct bond coming apart (at most 24
-candidates, nearest first). Each is forecast in a pool of workers, quickly at first and then properly
-for the three lowest barriers, and counted as often as it occurs (methane's four hydrogens make four
-times the rate). The card lists the reactions with each one's chance of coming first and the half-life
-of the chamber as a whole. Skipping draws which reaction comes first and when from those rates, as a
-real flask would (kinetic Monte Carlo), and plays it in the live simulation; ask again for the one after.
+candidates, nearest first). While it searches, each candidate pair is a dashed line in the scene, and
+it turns solid as its barrier comes in: brighter and thicker the easier the reaction. Each is forecast
+in a pool of workers, quickly at first and then properly for the three lowest barriers, and counted as
+often as it occurs (methane's four hydrogens make four times the rate). Then it draws which reaction comes first and when from those rates, as a
+real flask would (kinetic Monte Carlo), and plays it in the live simulation; press J again for the one
+after. A stable chamber says so in the scene instead ("stable · nothing for …"), and a reaction that
+does not play out as forecast on a trial copy is marked with a red ✕ and not skipped.
+Two lone atoms joining into a diatomic (Cl· + Cl· → Cl₂) count at a thousandth of their meeting rate:
+on their own they fly apart again within one vibration, and in a real gas at 1 atm another molecule
+arrives to carry the energy off only about once in a thousand such meetings.
 Every distinct outcome a scan finds counts with its own rate, not only the lowest: Cl· + ethene lists
 addition, abstraction and substitution, and CH₃· + C₂H₃· both recombination and disproportionation.
 Reactions that only swap identical partners are left out of the list. If the molecules a forecast was
 made for have changed by the time you skip, it refuses and asks for a new forecast.
 
-**Keep going on its own** (a switch on that card) repeats this: skip to the next reaction, watch it for
-3 ps, search again, until nothing more can happen on a human timescale or the card is closed, with a log
-of what happened and when. One Cl· in a chamber of three CH₄ and three Cl₂ at 298 K ran the textbook chain
+**Keep going** (`Shift+J`, or double-click the double arrow, which then pulses; `J` or Esc stops it)
+repeats this: skip to the next reaction, watch it for 3 ps, search again, until nothing more can happen
+on a human timescale. One Cl· in a chamber of three CH₄ and three Cl₂ at 298 K ran the textbook chain
 by itself: Cl· + CH₄ → CH₃· + HCl, CH₃· + Cl₂ → CH₃Cl + Cl·, then CH₃Cl → CH₂Cl· → CH₂Cl₂, with the
 reverse CH₃· + HCl → CH₄ + Cl· in between; 30 reactions and 323 µs of chemistry in about six minutes.
 It also produced CH₄Cl and CH₃Cl₂ complexes, which are the force field's over-coordination wells
@@ -534,7 +553,7 @@ The forecast measures the model's energy surface; the live chamber moves on it. 
 Repeating the search remembers every barrier it has measured, by reaction type and temperature,
 and only scans what is new; the reaction it skips to is played from the geometry its full scan found
 (scanned afresh only if the search had it from memory), and is tried on a copy first. If it does not
-end as forecast on the copy, the card says so and nothing is skipped; it does not fall back to a less
+end as forecast on the copy, a red ✕ marks the pair and nothing is skipped; it does not fall back to a less
 likely reaction, which would bend the odds. Two artefacts
 the search has shown up, both force-field errors still to fix: C₂H₃· + H₂ → C₂H₅· (H₂ adding whole to
 a vinyl radical) comes out barrierless where the real reaction is an abstraction over about 40 kJ/mol,
@@ -556,12 +575,12 @@ are now always the ones that attack, and it completes in 6 of 6 seeded runs and 
   up (20 steps in three minutes, 24 µs of chemistry, ending in CH₃Cl and HCl, then Cl· and CH₃Cl
   swapping a hydrogen back and forth) and then stops: hydrogen passing between chlorine and carbon
   can end in a Cl···H···C complex 20–27 kJ/mol deep in the model (the scorecard's well column), and
-  when the trial run ends there the card says so and nothing is skipped. The fix belongs in the force
+  when the trial run ends there a red ✕ marks it and nothing is skipped. The fix belongs in the force
   field (ROADMAP, item 1). Whether the molecules are still the ones the search saw is judged from the
   same rebuilt copy the search used, so a borderline complex no longer reads as a change.
 
 - The search takes 10–60 s for a handful of molecules and is capped at 24 candidates, so a crowded
-  chamber is only partly searched (the card says how many were left out).
+  chamber is only partly searched.
 - Two closed-shell molecules reacting through their π systems (Diels–Alder, ene), and rearrangements
   inside one molecule, are not searched; the hourglass can still be pointed at them.
 - Solution chemistry: ions, proton transfer and solvent are not in the engine, so most textbook

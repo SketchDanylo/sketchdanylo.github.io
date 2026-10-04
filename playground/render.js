@@ -59,6 +59,8 @@ class FieldRenderer {
     this._nuclei(sc, atoms, 0.17);
     if (sc.ghost) this._ghost(sc.ghost);
     this._flashes(sc);
+    this._uv(sc);
+    this._fx(sc);
     this._overlay(sc);
     if (sc.inspect) this._leader(sc.inspect, sc.now);
     if (this.showBox && sc.box3) this._box3(sc.box3, 'over');
@@ -408,6 +410,104 @@ class FieldRenderer {
       ctx.fillText(gh.fling.label, x2 + 10, y2 - 6);
       ctx.restore();
     }
+  }
+  _fx(sc) {
+    const fx = sc.fx;
+    if (!fx) return;
+    const ctx = this.ctx, P = sc.pos, now = sc.now || 0, ok = i => i >= 0 && i < sc.N;
+    const xy = i => this.toScreen(P[3 * i], P[3 * i + 1]);
+    const mid = p => { const [x1, y1] = xy(p[0]), [x2, y2] = xy(p[1]); return [(x1 + x2) / 2, (y1 + y2) / 2]; };
+    ctx.save(); ctx.lineCap = 'round';
+    if (fx.scan) fx.scan.forEach((c, n) => {
+      if (!ok(c.i) || !ok(c.j)) return;
+      const [x1, y1] = xy(c.i), [x2, y2] = xy(c.j);
+      if (!c.done) {
+        const a = 0.18 + 0.14 * Math.sin(now / 180 + n * 1.7);
+        ctx.strokeStyle = 'rgba(190,160,255,' + a.toFixed(3) + ')'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 5]); ctx.lineDashOffset = -now / 40;
+      } else {
+        const k = c.Ea == null ? 0 : Math.max(0, Math.min(1, 1 - c.Ea / 120));
+        ctx.strokeStyle = 'rgba(200,170,255,' + (0.08 + 0.75 * k * k).toFixed(3) + ')'; ctx.lineWidth = 0.8 + 2.4 * k * k; ctx.setLineDash([]);
+      }
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    });
+    ctx.setLineDash([]);
+    if (fx.focus && fx.focus.every(ok)) {
+      const pulse = 0.6 + 0.4 * Math.sin(now / 120);
+      ctx.strokeStyle = 'rgba(214,190,255,' + pulse.toFixed(3) + ')'; ctx.lineWidth = 2;
+      for (const i of fx.focus) { const [x, y] = xy(i); ctx.beginPath(); ctx.arc(x, y, 10 + 4 * pulse, 0, Math.PI * 2); ctx.stroke(); }
+      const [x1, y1] = xy(fx.focus[0]), [x2, y2] = xy(fx.focus[1]);
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    }
+    const j = fx.jump;
+    if (j && j.at && j.at.every(ok)) {
+      const t = (now - j.t0) / 2800;
+      if (t >= 0 && t <= 1) {
+        const [mx, my] = mid(j.at), e = 1 - Math.pow(1 - Math.min(1, t * 3), 3);
+        ctx.strokeStyle = 'rgba(214,190,255,' + (0.9 * (1 - e)).toFixed(3) + ')'; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(mx, my, 12 + 60 * e, 0, Math.PI * 2); ctx.stroke();
+        const a = t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4;
+        ctx.font = '600 22px "Martian Mono", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+        ctx.fillStyle = 'rgba(10,8,20,' + (0.55 * a).toFixed(3) + ')'; ctx.fillText(j.text, mx + 1, my - 22 - 28 * t + 1);
+        ctx.fillStyle = 'rgba(226,208,255,' + a.toFixed(3) + ')'; ctx.fillText(j.text, mx, my - 22 - 28 * t);
+      }
+    }
+    const f = fx.fail;
+    if (f && f.at && f.at.every(ok)) {
+      const t = (now - f.t0) / 1600;
+      if (t >= 0 && t <= 1) {
+        const [mx, my] = mid(f.at), r = 9, a = 1 - t;
+        ctx.strokeStyle = 'rgba(255,107,91,' + a.toFixed(3) + ')'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(mx - r, my - r); ctx.lineTo(mx + r, my + r); ctx.moveTo(mx + r, my - r); ctx.lineTo(mx - r, my + r); ctx.stroke();
+      }
+    }
+    const pr = fx.probe;
+    if (pr && pr.at && pr.at.every(ok)) {
+      const [mx, my] = mid(pr.at), a = Math.min(1, (now - pr.t0) / 250), W = 76, Hh = 24, top = my - 74;
+      ctx.globalAlpha = a; ctx.textAlign = 'center';
+      ctx.font = '600 19px "Martian Mono", monospace'; ctx.textBaseline = 'bottom';
+      ctx.fillStyle = 'rgba(10,8,20,.6)'; ctx.fillText(pr.text, mx + 1, top + 1);
+      ctx.fillStyle = '#e2d0ff'; ctx.fillText(pr.text, mx, top);
+      ctx.font = '400 10.5px "Martian Mono", monospace'; ctx.textBaseline = 'top';
+      ctx.fillStyle = 'rgba(214,200,240,.8)'; ctx.fillText('→ ' + pr.sub, mx, top + 4);
+      const path = pr.path || [];
+      if (path.length > 1) {
+        const lo = Math.min(0, ...path), hi = Math.max(1, ...path), x0 = mx - W / 2, y0 = top + 20;
+        const Y = e => y0 + Hh * (1 - (e - lo) / (hi - lo));
+        ctx.strokeStyle = 'rgba(214,200,240,.25)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x0, Y(0)); ctx.lineTo(x0 + W, Y(0)); ctx.stroke();
+        ctx.strokeStyle = '#c9a8ff'; ctx.lineWidth = 1.6; ctx.beginPath();
+        path.forEach((e, k) => { const x = x0 + W * k / (path.length - 1); if (k) ctx.lineTo(x, Y(e)); else ctx.moveTo(x, Y(e)); });
+        ctx.stroke();
+        if (pr.Ea > 0.5) { const k = path.indexOf(Math.max(...path)); ctx.fillStyle = '#e2d0ff'; ctx.beginPath(); ctx.arc(x0 + W * k / (path.length - 1), Y(path[k]), 2.5, 0, Math.PI * 2); ctx.fill(); }
+      }
+      if (pr.skip) {
+        const pulse = 0.55 + 0.45 * Math.sin(now / 260), bx = mx + W / 2 + 14, by = top + 32;
+        ctx.fillStyle = 'rgba(201,168,255,' + pulse.toFixed(3) + ')';
+        for (const o of [0, 7]) { ctx.beginPath(); ctx.moveTo(bx + o, by - 5); ctx.lineTo(bx + o + 6, by); ctx.lineTo(bx + o, by + 5); ctx.fill(); }
+      }
+      ctx.globalAlpha = 1;
+    }
+    const m = fx.msg;
+    if (m && sc.box) {
+      const t = (now - m.t0) / 3200;
+      if (t >= 0 && t <= 1) {
+        const b = sc.box, [x0, y0] = this.toScreen(b.x0, b.y0), [x1, y1] = this.toScreen(b.x1, b.y1), a = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3;
+        ctx.font = '500 15px "Martian Mono", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = 'rgba(226,208,255,' + (0.9 * a).toFixed(3) + ')';
+        const room = Math.abs(x1 - x0) - 24, lines = ctx.measureText(m.text).width > room ? m.text.split(' · ') : [m.text];
+        if (lines.some(l => ctx.measureText(l).width > room)) ctx.font = '500 11px "Martian Mono", monospace';
+        lines.forEach((l, k) => ctx.fillText(l, (x0 + x1) / 2, Math.min(y0, y1) + 28 + k * 20));
+      }
+    }
+    ctx.restore();
+  }
+  _uv(sc) {
+    const t = ((sc.now || 0) - (sc.uv || -1e9)) / 700;
+    if (t < 0 || t > 1 || !sc.box) return;
+    const b = sc.box, [x0, y0] = this.toScreen(b.x0, b.y0), [x1, y1] = this.toScreen(b.x1, b.y1), ctx = this.ctx;
+    ctx.save();
+    ctx.fillStyle = 'rgba(176,132,255,' + (0.28 * (1 - t) * (1 - t)).toFixed(3) + ')';
+    ctx.fillRect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0));
+    ctx.restore();
   }
   _flashes(sc) {
     if (!sc.flashes || !sc.flashes.length) return;

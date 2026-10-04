@@ -174,4 +174,19 @@ test('A chamber of stable molecules at room temperature has nothing to skip to',
   assert.ok(Math.LN2 / sv.total > 3.15e16, 'methane at 298 K reacted in ' + K.humanTime(Math.LN2 / sv.total));
 });
 
+test('Ethene and Cl₂ in the dark: nothing; after light the Cl· atoms add to ethene long before they find each other', () => {
+  const e = new Engine({ width: 30, height: 30, depth: 12, T: 298, thermostat: false });
+  const put = (name, x, y, dbl) => { const b = e.N; for (const [s, a, c, z] of geo(name)) e.addAtom(s, x + a, y + c, z || 0, { thermal: false }); e.touch(); e.refresh(); if (dbl) e.setBondOrder(b, b + 1, 2); };
+  put('C2H4', 8, 8, true); put('C2H4', 22, 22, true); put('Cl2', 22, 8); put('Cl2', 8, 22);
+  const dark = K.survey(JSON.parse(JSON.stringify(e.toJSON())));
+  assert.ok(Math.LN2 / dark.total > 3.15e16, 'in the dark: ' + K.humanTime(Math.LN2 / dark.total));
+  const lit = new Engine({ width: 30, height: 30, depth: 12, T: 298, thermostat: false });
+  const put2 = (name, x, y, dbl) => { const b = lit.N; for (const [s, a, c, z] of geo(name)) lit.addAtom(s, x + a, y + c, z || 0, { thermal: false }); lit.touch(); lit.refresh(); if (dbl) lit.setBondOrder(b, b + 1, 2); };
+  put2('C2H4', 8, 8, true); put2('C2H4', 22, 22, true); put2('Cl2', 22, 8); put2('Cl', 6, 20); put2('Cl', 11, 23);
+  const sv = K.survey(JSON.parse(JSON.stringify(lit.toJSON())));
+  const add = sv.events.find(x => x.label === 'Cl· + C2H4 → C2H4Cl·'), pair = sv.events.find(x => x.label === 'Cl· + Cl· → Cl2');
+  assert.ok(add && add.share > 0.9, 'addition share ' + (add && add.share));
+  assert.ok(!pair || pair.share < 0.05, 'Cl· + Cl· share ' + (pair && pair.share));
+});
+
 console.log(count + ' kinetics checks passed.');

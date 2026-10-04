@@ -362,7 +362,7 @@ function candidates(src, cap = 24) {
     if (A === B || (!first && open[B])) continue;
     for (const r of L[A]) {
       const radical = free[r] > 0.5, pib = pi.has(r);
-      if (radical !== first || (!radical && !pib)) continue;
+      if (radical !== first || (!radical && (!pib || (src.T || 298) < 500))) continue;
       for (const t of L[B]) {
         const pp = pairParams(src, r, t);
         if (!pp || !pp.bond) continue;
@@ -392,7 +392,8 @@ function scanCandidate(e, c, T, quick, cache) {
   if (!scan.ok) return null;
   const f = forecast(e, scan, { T, partnerPerCm3: 1 });
   if (!f.ok) return null;
-  const V = chamberVolume(e), one = (s, kRate) => ({ label: scan.reactants.join(' + ') + ' → ' + s.products.join(' + '), i: c.i, j: c.j, Ea: s.Ea, dE: s.dE, rate: scan.bimolecular ? kRate * c.mult / V : kRate * c.mult, kRate, bimolecular: scan.bimolecular, refined: !quick, reactants: scan.reactants, products: s.products, event: s.event, kind: scan.kind });
+  const fr = e.fragments(), lone = fr.list[fr.comp[c.i]].length === 1 && fr.list[fr.comp[c.j]].length === 1;
+  const V = chamberVolume(e), one = (s, k) => { const kRate = lone && scan.bimolecular && s.products.length === 1 ? k * THIRD_BODY : k; return ({ label: scan.reactants.join(' + ') + ' → ' + s.products.join(' + '), i: c.i, j: c.j, Ea: s.Ea, dE: s.dE, rate: scan.bimolecular ? kRate * c.mult / V : kRate * c.mult, kRate, bimolecular: scan.bimolecular, refined: !quick, reactants: scan.reactants, products: s.products, event: s.event, kind: scan.kind }); };
   const main = one(scan, f.k);
   main.also = (scan.alternatives || []).filter(a => !(bare(a.products) === bare(scan.reactants))).map(a => {
     const g = forecast(e, { ok: true, Ea: a.Ea, kind: a.channel.type === 'break' ? 'break' : scan.kind, barrierAtEnd: a.barrierAtEnd, bimolecular: scan.bimolecular, i: scan.i, j: scan.j }, { T, partnerPerCm3: 1 });
@@ -420,7 +421,7 @@ function combine(results, T) {
   return { ok: true, T, events, total };
 }
 
-const REFINE = 3, COOL = [80, 160, 300];
+const REFINE = 3, COOL = [80, 160, 300], THIRD_BODY = 1e-3;
 
 function reuse(cached, c, V) {
   const one = x => ({ ...x, i: c.i, j: c.j, event: null, cand: c, rate: x.bimolecular ? x.kRate * c.mult / V : x.kRate * c.mult });

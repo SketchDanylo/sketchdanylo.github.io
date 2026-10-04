@@ -68,7 +68,7 @@ function updateLab() {
   $('bathBtn').setAttribute('aria-pressed', eng.thermostat);
   $('physicsNotice').hidden = !eng.clamped;
   $('physicsNotice').textContent = eng.clamped ? eng.clamped + ' safety speed clamps · energy affected' : '';
-  const hint = placing ? 'Click to place · Q/E rotate · right-click for the hand' : armed ? armed + ' selected · click to place · right-click for the hand' : tool === 'heat' ? 'Drag to heat · Shift-drag to cool' : tool === 'spark' ? 'Click to ignite · a stable mixture needs a starter' : tool === 'cleave' ? 'Click a bond to split it' : tool === 'forecast' ? (forecastCard.ids.length === 1 ? 'Now click the second atom' : 'Click two atoms · when would they react?') : tool === 'erase' ? 'Click an atom to erase · Alt: molecule' : viewTilted() ? 'Turning · release to face the chamber again' : '';
+  const hint = placing ? 'Click to place · Q/E rotate · right-click for the hand' : armed ? armed + ' selected · click to place · right-click for the hand' : tool === 'heat' ? 'Drag to heat · Shift-drag to cool' : tool === 'spark' ? 'Click to ignite · a stable mixture needs a starter' : tool === 'cleave' ? 'Click a bond to split it' : tool === 'light' ? 'Click to flash UV light · L does it from any tool' : tool === 'forecast' ? (forecastCard.result ? 'Click either atom again, or Enter, to skip ahead to it' : forecastCard.ids.length === 1 ? 'Now click the second atom' : 'Click two atoms · when would they react?') : tool === 'erase' ? 'Click an atom to erase · Alt: molecule' : viewTilted() ? 'Turning · release to face the chamber again' : '';
   const ctx = $('toolContext');
   if (ctx.textContent !== hint) {
     ctx.textContent = hint; ctx.classList.toggle('show',!!hint);
@@ -96,7 +96,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261003-build69', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow) => skipToEvent(ev, wait, ids, what, reactants, slow), pause: () => setPlaying(false) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261004-build70', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow) => skipToEvent(ev, wait, ids, what, reactants, slow), pause: () => setPlaying(false), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0 });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -117,7 +117,6 @@ function skipToEvent(ev, wait, sceneIds, what, reactants, slow) {
   scheduleSave();
   if (slow) { replay = { until: eng.time + 800, speed: time.speed, ids: idx.map(i => eng.ids[i]) }; setSpeed(0.5); }
   cooling = ChemKinetics.COOL.map(dt => ({ at: eng.time + dt, ids: idx.map(i => eng.ids[i]) }));
-  toast('Skipped ' + ChemKinetics.humanTime(wait) + ' · ' + what + (slow ? ' · slow motion while it happens' : ''));
   if (!time.playing) setPlaying(true);
   return true;
 }
@@ -594,6 +593,7 @@ const TOOL_ICONS = {
   heat: '<svg viewBox="0 0 20 20"><path d="M10 17.5c-3 0-5-2.1-5-4.8 0-3.3 3.2-4.5 3.2-8.2 2.9 1.4 4 3.6 3.6 6 1-.4 1.6-1.4 1.8-2.4 1.3 1.4 1.4 3 1.4 4.6 0 2.7-2 4.8-5 4.8z"/></svg>',
   spark: '<svg viewBox="0 0 20 20"><path d="M11.2 2.5L5 11h4l-.8 6.5L15 9h-4z"/><path d="M3.2 4.2l1.6 1.4M16.8 4.2l-1.6 1.4M2.6 14.8l1.9-.7M17.4 14.8l-1.9-.7"/></svg>',
   cleave: '<svg viewBox="0 0 20 20"><circle cx="4.6" cy="15.4" r="2.3"/><circle cx="15.4" cy="4.6" r="2.3"/><path d="M6.4 13.6l2.2-2.2M11.4 8.6l2.2-2.2M7.4 6.8l5.8 6.4"/></svg>',
+  light: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="3.2"/><path d="M10 2.2v2.4M10 15.4v2.4M2.2 10h2.4M15.4 10h2.4M4.5 4.5l1.7 1.7M13.8 13.8l1.7 1.7M15.5 4.5l-1.7 1.7M6.2 13.8l-1.7 1.7"/></svg>',
   forecast: '<svg viewBox="0 0 20 20"><path d="M5.5 2.8h9M5.5 17.2h9M6.5 2.8c0 4 3.5 5 3.5 7.2S6.5 13.2 6.5 17.2M13.5 2.8c0 4-3.5 5-3.5 7.2s3.5 3.2 3.5 7.2"/><path d="M8.2 15.6h3.6"/></svg>'
 };
 const TOOLS = [['grab', 'Grab & pan', 'Drag atoms (pulls while running, moves the molecule while paused). Drag empty space to pan. Shift-drag to select.'],
@@ -601,7 +601,8 @@ const TOOLS = [['grab', 'Grab & pan', 'Drag atoms (pulls while running, moves th
   ['heat', 'Heat brush', 'Drag to heat atoms under the brush; Shift or right-drag cools. Alt+scroll resizes.'],
   ['spark', 'Spark', 'Click to ignite. A stable mixture needs a starter, the same as it does on a bench: this breaks a bond where you click and lets the radicals begin the chain.'],
   ['cleave', 'Break bond', 'Click a bond to split it into two radicals, the way light breaks one on a bench: it gets just enough energy to come apart, and what the two halves do next is chemistry.'],
-  ['forecast', 'Forecast', 'Click two atoms to ask whether they react and how long it would take at this temperature: seconds, hours or never. Two bonded atoms ask when their bond breaks.']];
+  ['light', 'UV flash', 'Click anywhere, or press L: a flash of 330 nm light splits about half of the Cl₂, Br₂, I₂ and F₂ in the chamber into atoms, which is how a lamp starts a chlorination. Nothing else here absorbs it.'],
+  ['forecast', 'Forecast', 'Click two atoms: how long until they react appears between them, with the energy along the way. Click one of them again to skip ahead to it. Two bonded atoms ask when their bond breaks.']];
 let tool = 'grab', armed = null; // armed element symbol for placing
 const dockEls = [store.get('lastElement', 'H')].filter(s=>BY_SYM[s]);
 if(!dockEls.length)dockEls.push('H');
@@ -686,8 +687,8 @@ for(const [, id] of LIBRARY_TABS)$(id).addEventListener('keydown',e=>{
 });
 const EXP_MOLS = {"CH4":[["C",0,0,0],["H",0.627,0.627,0.627],["H",-0.627,-0.627,0.627],["H",-0.627,0.627,-0.627],["H",0.627,-0.627,-0.627]],"Cl2":[["Cl",0,0,0],["Cl",1.99,0,0]],"Cl":[["Cl",0,0,0]],"C2H4":[["C",-0.001,0,0],["C",1.341,0,0],["H",-0.551,0.941,0],["H",-0.551,-0.941,0],["H",1.891,0.941,0],["H",1.891,-0.941,0]],"CH3":[["C",-0.001,-0.001,-0.022],["H",1.087,0,0.016],["H",-0.543,0.941,0.016],["H",-0.543,-0.94,0.066]],"OH":[["O",0.002,0,0],["H",0.962,0,0]]};
 const EXPERIMENTS = [
-  { name: 'Radical chlorination of methane', T: 298.15, mix: [['CH4', 3], ['Cl2', 3], ['Cl', 1]], look: 'One chlorine atom starts a chain. Cl· takes a hydrogen from methane as HCl; the methyl radical takes a chlorine from Cl₂ and sets the next Cl· free. Keep going and CH₂Cl₂ appears as well.' },
-  { name: 'Chlorine adds across ethene', T: 298.15, mix: [['C2H4', 2, [[0, 1, 2]]], ['Cl2', 2], ['Cl', 1]], look: 'Cl· adds to the double bond, and the radical it leaves takes a chlorine from Cl₂: 1,2-dichloroethane, made by a chain.' },
+  { name: 'Radical chlorination of methane', T: 298.15, mix: [['CH4', 3], ['Cl2', 3]], look: 'Nothing happens in the dark. Press L: light splits Cl₂, Cl· takes a hydrogen from methane as HCl, and the methyl radical takes a chlorine from Cl₂, freeing the next Cl·.' },
+  { name: 'Chlorine adds across ethene', T: 298.15, mix: [['C2H4', 2, [[0, 1, 2]]], ['Cl2', 2]], look: 'Nothing happens in the dark. Press L: light splits Cl₂, Cl· adds to the double bond, and the radical takes a chlorine from Cl₂: 1,2-dichloroethane, made by a chain.' },
   { name: 'Radical polymerisation of ethene', T: 350, mix: [['C2H4', 5, [[0, 1, 2]]], ['CH3', 1]], look: 'A methyl radical opens one double bond; the radical it becomes opens the next, and the chain grows: C₃H₇·, C₅H₁₁·, … the start of polyethylene. In this model the first step comes about 20 kJ/mol too easily.' },
   { name: 'Methyl radicals meet', T: 298.15, mix: [['CH3', 4]], look: 'Two radicals with nothing in the way pair up into ethane in picoseconds, without any barrier.' },
   { name: 'Hydroxyl radicals and methane', T: 298.15, mix: [['CH4', 3], ['OH', 2]], look: 'OH· is what cleans methane out of the air, but slowly: here the two OH· find each other first (H₂O + O·, or H₂O₂). Remove one OH to watch the slow attack on methane.' }
@@ -695,7 +696,7 @@ const EXPERIMENTS = [
 function renderExperiments() {
   const list = $('expList');
   if (list.childElementCount) return;
-  list.innerHTML = '<p class="exp-head">Textbook chemistry, set up and ready. After loading, press <kbd>J</kbd> or the double arrow to see what happens next.</p>' +
+  list.innerHTML = '<p class="exp-head">Load one. <kbd>L</kbd> flashes light, <kbd>J</kbd> skips to the next reaction, <kbd>Shift</kbd>+<kbd>J</kbd> keeps going.</p>' +
     EXPERIMENTS.map((x, k) => '<button class="exp" data-k="' + k + '"><span class="nm">' + esc(x.name) + '</span><span class="fm">' + x.mix.map(([m, n]) => (n > 1 ? n + ' ' : '') + pretty(m)).join(' + ') + ' · ' + Math.round(x.T) + ' K</span><span class="lk">' + esc(x.look) + '</span></button>').join('');
   list.querySelectorAll('.exp').forEach(b => b.onclick = () => runExperiment(EXPERIMENTS[+b.dataset.k]));
 }
@@ -882,6 +883,7 @@ canvas.addEventListener('pointerdown', e => {
     canvas.className = 'orbiting'; return;
   }
   if (tool === 'spark') { ignite(wx, wy); gesture = { type: 'spark' }; return; }
+  if (tool === 'light') { uvFlash(); gesture = { type: 'spark' }; return; }
   if (tool === 'cleave') { cleave(wx, wy); gesture = { type: 'cleave' }; return; }
   if (tool === 'forecast') { if (hit >= 0) forecastCard.choose(hit); else forecastCard.close(); return; }
   if (tool === 'erase') { pushUndo(); gesture = { type: 'erase', alt: e.altKey }; eraseAt(wx, wy, e.altKey); return; }
@@ -1052,6 +1054,35 @@ function cleaveTarget(wx, wy, bonds) {
     if (d < reach && t > 0.15 && t < 0.85 && d < bd) { bd = d; best = b; }
   }
   return best;
+}
+function kickApart(i, j, E) {
+  const k = 3 * i, l = 3 * j;
+  let nx = eng.pos[l] - eng.pos[k], ny = eng.pos[l + 1] - eng.pos[k + 1], nz = eng.pos[l + 2] - eng.pos[k + 2];
+  const r = Math.hypot(nx, ny, nz) || 1; nx /= r; ny /= r; nz /= r;
+  const mi = eng.mass[i], mj = eng.mass[j], mu = mi * mj / (mi + mj);
+  const vrel = Math.sqrt(2 * E / (mu * 1e4));
+  const ui = -vrel * mj / (mi + mj), uj = vrel * mi / (mi + mj);
+  eng.vel[k] += ui * nx; eng.vel[k + 1] += ui * ny; eng.vel[k + 2] += ui * nz;
+  eng.vel[l] += uj * nx; eng.vel[l + 1] += uj * ny; eng.vel[l + 2] += uj * nz;
+}
+const UV_ABSORB = new Set(['F', 'Cl', 'Br', 'I']), UV_PHOTON = 362;
+let uvAt = -1e9;
+function uvTargets() { return eng.bonds().filter(b => b.strength >= 0.4 && UV_ABSORB.has(ELEMENTS[eng.type[b.i]].sym) && UV_ABSORB.has(ELEMENTS[eng.type[b.j]].sym)); }
+function uvFlash() {
+  const hit = uvTargets();
+  uvAt = performance.now();
+  if (!hit.length) return toast('Nothing here absorbs it · Cl₂, Br₂, I₂ and F₂ do');
+  pushUndo();
+  let n = 0;
+  for (const b of hit) {
+    if (Math.random() >= 0.5 && !(n === 0 && b === hit[hit.length - 1])) continue;
+    kickApart(b.i, b.j, UV_PHOTON); n++;
+    bondTrack.pending.push({ x: (rp[3 * b.i] + rp[3 * b.j]) / 2, y: (rp[3 * b.i + 1] + rp[3 * b.j + 1]) / 2, t0: performance.now(), dur: 700, kind: 'break', big: true });
+  }
+  eng.sparkHold = eng.time + 400;
+  eng.checkpoints.length = 0; eng.touch();
+  edited();
+  if (!time.playing) setPlaying(true);
 }
 function cleave(wx, wy) {
   const b = cleaveTarget(wx, wy);
@@ -1408,9 +1439,14 @@ act('tool.erase', 'Tools', 'Erase', ['X'], () => setTool('erase'));
 act('tool.heat', 'Tools', 'Heat brush', ['B'], () => setTool('heat'));
 act('tool.spark', 'Tools', 'Spark', ['G'], () => setTool('spark'));
 act('tool.cleave', 'Tools', 'Break bond', ['D'], () => setTool('cleave'));   // D: dissociate — C is carbon
+act('tool.light', 'Tools', 'UV flash', ['L'], () => uvFlash());
 act('tool.forecast', 'Tools', 'Forecast a reaction', ['W'], () => setTool('forecast'));
-act('time.next', 'Time', 'What happens next? Skip to the next reaction', ['J'], () => forecastCard.next());
-$('nextRxBtn').onclick = () => forecastCard.next();
+const nextReaction = () => forecastCard.auto ? forecastCard.stop() : forecastCard.next();
+act('time.next', 'Time', 'Skip to the next reaction', ['J'], nextReaction);
+act('time.skipProbe', 'Time', 'Skip ahead to the forecast reaction', ['Enter'], () => forecastCard.skipProbe());
+act('time.keepGoing', 'Time', 'Keep skipping from reaction to reaction', ['Shift+J'], () => forecastCard.toggleAuto());
+$('nextRxBtn').onclick = e => e.shiftKey ? forecastCard.toggleAuto() : nextReaction();
+$('nextRxBtn').ondblclick = () => { if (!forecastCard.auto) forecastCard.toggleAuto(); };
 act('el.more', 'Tools', 'All elements…', ['E'], () => openElPop());
 for (const [sym, key] of [['H', 'H'], ['C', 'C'], ['N', 'N'], ['O', 'O'], ['F', 'F'], ['S', 'S'], ['P', 'P'], ['Cl', 'L'], ['Na', 'A'], ['Br', ''], ['I', ''], ['He', ''], ['Ar', '']])
   act('el.' + sym, 'Elements', BY_SYM[sym].name, key ? [key] : [], () => arm(armed === sym ? null : sym));
@@ -1516,6 +1552,7 @@ window.addEventListener('keydown', e => {
     if (cond) { closeSheet(); return; }
     if (armed) { arm(null); return; }
     if (selection.size) { selection.clear(); return; }
+    if (forecastCard.auto) { forecastCard.stop(); return; }
     if (forecastCard.ids.length) { forecastCard.close(); return; }
     setTool('grab'); return;
   }
@@ -2040,17 +2077,21 @@ setInterval(() => { if (time.playing) saveScene(); }, 5000);
 
 /* The inspector card rides with its atom: it is repositioned every frame, and the field draws
    the leader that says which atom it belongs to. */
+function fxView() {
+  const fx = forecastCard.fx;
+  if (!fx) return null;
+  const at = id => eng.indexOfId(id), pair = p => p ? p.map(at) : null;
+  return {
+    scan: fx.scan ? fx.scan.map(x => ({ i: at(x.a), j: at(x.b), done: x.done, Ea: x.Ea })) : null,
+    focus: pair(fx.focus), t0: fx.t0,
+    jump: fx.jump ? { ...fx.jump, at: pair(fx.jump.atoms) } : null,
+    fail: fx.fail ? { ...fx.fail, at: pair(fx.fail.atoms) } : null,
+    msg: fx.msg,
+    probe: fx.probe ? { ...fx.probe, at: pair(fx.probe.atoms) } : null
+  };
+}
 function forecastPick() {
-  if (!forecastCard.ids.length) return null;
-  const pick = forecastCard.picked();
-  if (forecastCard.isOpen && pick.length) {
-    const pts = pick.map(i => R.toScreen(rp[3 * i], rp[3 * i + 1]));
-    const sx = pts.reduce((a, p) => a + p[0], 0) / pts.length, sy = pts.reduce((a, p) => a + p[1], 0) / pts.length;
-    let reach = 0; const frags = eng.fragments();
-    for (const i of pick) for (const a of frags.list[frags.comp[i]]) { const [x, y] = R.toScreen(rp[3 * a], rp[3 * a + 1]); reach = Math.max(reach, Math.abs(x - sx) + 12); }
-    forecastCard.place(sx, sy, reach);
-  }
-  return pick;
+  return forecastCard.ids.length ? forecastCard.picked() : null;
 }
 function inspectLeader() {
   const i = inspector.i;
@@ -2125,10 +2166,10 @@ function frame(now) {
     N: eng.N, type: eng.type, pos: rp, bonds, box: eng.box, box3: viewTilted() ? boxCorners() : null, cleave: cleaveHover,
     bounds: { mode: eng.boundsMode, range: eng.fieldRange, voidT: eng.voidTemperature, voidP: eng.voidPressure },
     boxHot: gesture && gesture.type === 'box' ? gesture.edge : boxHot,
-    hover: gesture ? -1 : hoverAtom, eraseHover: tool === 'erase' && !armed, selected: selection, pinned: eng.pinned.subarray(0, eng.N), ghost, flashes, now,
+    uv: uvAt, fx: fxView(), hover: gesture ? -1 : hoverAtom, eraseHover: tool === 'erase' && !armed, selected: selection, pinned: eng.pinned.subarray(0, eng.N), ghost, flashes, now,
     tweezer: eng.tweezer, brush: tool === 'heat' && !armed && !placing ? brush : null,
     marquee: gesture && gesture.type === 'marquee' ? gesture : null,
-    inspect: inspectLeader(), forecast: replay ? replay.ids.map(id => eng.indexOfId(id)).filter(i => i >= 0) : forecastPick()
+    inspect: inspectLeader(), forecast: forecastPick()
   });
   if (replay && eng.time >= replay.until) { if (Math.abs(time.speed - 0.5) < 1e-9) setSpeed(replay.speed); replay = null; }
   // UI text, ~10 Hz
