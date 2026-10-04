@@ -27,6 +27,10 @@ organic chemistry from, and loose enough to experiment in.
 
 ### 1. Barriers good to about 5 kJ/mol
 
+What it costs today: the classic H₂ + Cl₂ photochemical chain cannot be shown. With Cl· + H₂ at 37
+kJ/mol instead of 19, the step runs about a thousand times too slowly at room temperature, so after a
+flash the chlorine atoms find each other again before they find a hydrogen.
+
 First target: a hydrogen shared between Cl (or O) and C is held by about 60 kJ/mol of Coulomb
 attraction at 1.8 Å, because the charges follow the geometric bond switch rather than how much bond has
 actually formed. That makes the Cl···H···C complexes, the high Cl barriers and the stray CH₃Cl₂ /
