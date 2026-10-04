@@ -96,7 +96,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261003-build68', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow) => skipToEvent(ev, wait, ids, what, reactants, slow), pause: () => setPlaying(false) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261003-build69', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow) => skipToEvent(ev, wait, ids, what, reactants, slow), pause: () => setPlaying(false) });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -109,7 +109,7 @@ function skipToEvent(ev, wait, sceneIds, what, reactants, slow) {
   if (!ev) return;
   const idx = ev.atoms.map(k => eng.indexOfId(sceneIds[k]));
   if (idx.some(i => i < 0)) { toast('Those atoms are gone · forecast again'); return false; }
-  if (reactants && !ChemKinetics.stillThere(eng, ev, idx, reactants)) { toast('Those molecules have already changed · forecast again'); return false; }
+  if (reactants && !ChemKinetics.stillThere(ChemKinetics.fromScene(eng.toJSON()), ev, idx, reactants)) { toast('Those molecules have already changed · forecast again'); return false; }
   pushUndo();
   ChemKinetics.applyEvent(eng, ev, idx);
   eng.skipped += wait;
