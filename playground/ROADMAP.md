@@ -10,6 +10,8 @@ organic chemistry from, and loose enough to experiment in.
 - **Watching.** A reactive molecular-dynamics engine (bond-order Morse force field, continuous bond
   orders, energy bookkeeping) runs in the browser at about a picosecond of chemistry per second. Radical
   reactions, combustion, chlorination and polymerisation happen on their own when conditions allow.
+- **Light.** A UV flash (L) splits halogen molecules the way a lamp does, so a chlorination starts
+  the way it does on a bench: nothing in the dark, a chain after the flash.
 - **Forecasting.** The hourglass tool measures the barrier of any reaction you point at on the
   engine's own energy surface, in a worker, and turns it into a half-life with a range and a temperature
   table (transition-state theory).
@@ -24,6 +26,12 @@ organic chemistry from, and loose enough to experiment in.
 ## What still has to happen, most important first
 
 ### 1. Barriers good to about 5 kJ/mol
+
+First target: a hydrogen shared between Cl (or O) and C is held by about 60 kJ/mol of Coulomb
+attraction at 1.8 Å, because the charges follow the geometric bond switch rather than how much bond has
+actually formed. That makes the Cl···H···C complexes, the high Cl barriers and the stray CH₃Cl₂ /
+C₂H₄Cl₃ species in long chains. Fixing it means tying charge transfer to the formed bond and refitting
+every polar bond energy against the benchmark.
 
 Every time on the clock depends exponentially on a barrier: 6 kJ/mol is a factor of 10 at room
 temperature. The forecast tool now shows where the force field is wrong:
