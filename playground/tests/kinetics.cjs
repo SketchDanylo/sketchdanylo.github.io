@@ -222,4 +222,15 @@ test('A skipped reaction is never placed on top of a bystander: an HCl in the wa
   assert.ok(Math.abs(d(7, 8) - 1.3) < 0.2, 'HCl moved whole: H–Cl ' + d(7, 8).toFixed(2));
 });
 
+test('Two closed-shell molecules never add whole in one step: hot methane and O₂ give no CH₃OOH from a single encounter', () => {
+  const e = new Engine({ width: 30, height: 30, depth: 12, T: 2000, thermostat: false });
+  for (const [s, x, y, z] of geo('CH4')) e.addAtom(s, 10 + x, 15 + y, z || 0, { thermal: false });
+  e.touch(); e.refresh();
+  for (const [s, x, y, z] of geo('O2')) e.addAtom(s, 16 + x, 15 + y, z || 0, { thermal: false });
+  e.touch(); e.refresh(); e.setBondOrder(5, 6, 2);
+  const sv = K.survey(JSON.parse(JSON.stringify(e.toJSON())));
+  assert.ok(sv.events.length > 0);
+  for (const x of sv.events) if (x.reactants.length === 2) assert.ok(x.products.length >= 2, 'concerted addition counted: ' + x.label);
+});
+
 console.log(count + ' kinetics checks passed.');

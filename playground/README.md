@@ -620,9 +620,12 @@ are now always the ones that attack, and it completes in 6 of 6 seeded runs and 
   temperature HO₂ needs a third molecule to carry away its energy, and without that H· + O₂ → OH· + O·
   (the branching step, which the search does list, at 7% at 1500 K) should win.
 - Concerted four-centre additions that orbital symmetry forbids (H₂ or a C–H adding whole across a
-  double bond) are not penalised: a bond-order force field has no orbital phases to forbid them. The
-  search leaves them out below 500 K, where they could never win anyway; above it their barriers read
-  too low.
+  double bond, O₂ inserting whole into a C–H) are not penalised by the force field: a bond-order model
+  has no orbital phases to forbid them. The search therefore never counts them: when two closed-shell
+  molecules meet through a π bond and a hydrogen, only outcomes that make as many molecules as went in
+  (an abstraction) are kept, and below 500 K such meetings are not searched at all. Methane and O₂ at
+  2000 K used to start with O₂ inserting into a C–H (CH₃OOH in one step); now the first step is a C–H
+  bond breaking, and the radicals take it from there. The live simulation itself can still do it.
 
 ## Temperature readings
 

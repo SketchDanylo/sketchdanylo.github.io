@@ -404,7 +404,10 @@ function scanCandidate(e, c, T, quick, cache, store) {
     const g = forecast(e, { ok: true, Ea: a.Ea, kind: a.channel.type === 'break' ? 'break' : scan.kind, barrierAtEnd: a.barrierAtEnd, bimolecular: scan.bimolecular, i: scan.i, j: scan.j }, { T, partnerPerCm3: 1 });
     return g.ok ? one(a, g.k) : null;
   }).filter(Boolean);
-  return main;
+  const list = [main, ...main.also].filter(x => c.prio !== 1 || x.products.length >= x.reactants.length);
+  if (!list.length) return null;
+  list[0].also = list.slice(1);
+  return list[0];
 }
 
 const bare = list => list.map(f => f.replace(/·/g, '')).sort().join(' + ');
