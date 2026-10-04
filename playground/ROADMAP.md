@@ -27,6 +27,16 @@ organic chemistry from, and loose enough to experiment in.
 
 ### 1. Barriers good to about 5 kJ/mol
 
+Why single knobs fail here, measured on Cl + CH₄: the model's path is reactants (0) → an abrupt switch
+of bonding pattern (+31 kJ/mol, the barrier) → a half-shared Cl···H···C complex (−20) → products (+8),
+where the real path has the half-shared state as its top, at about +11. So the fix has to lower the
+switch and raise the shared state at the same time. Four levers tried on 4 October each moved both the
+same way: chlorine crossing stabilisation, chlorine Pauli softening, removing a bond's own charge from
+its Coulomb term, and the chlorine–hydrogen saturation range (`kb` for Cl–H alone: 1.0 gives barrier
+46 / well −15, 1.7 gives 8 / −55). The likely structural fix is a saturation function for hydrogen
+that lets it share its bond gradually (no abrupt switch) together with a cost on the shared state
+itself, fitted against the benchmark's barrier and well columns at once.
+
 What it costs today: the classic H₂ + Cl₂ photochemical chain cannot be shown. With Cl· + H₂ at 37
 kJ/mol instead of 19, the step runs about a thousand times too slowly at room temperature, so after a
 flash the chlorine atoms find each other again before they find a hydrogen.
