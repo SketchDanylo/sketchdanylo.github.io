@@ -152,10 +152,11 @@ class ForecastCard {
       if (!good) { events = events.filter(x => x !== nx.pick); continue; }
       const label = side(pick.reactants) + ' → ' + side(pick.products);
       const ok = this.actions.skip?.(pick.event, nx.wait, ids, label, pick.reactants, !this.auto);
-      if (ok === false) return false;
+      if (ok === false) { this.failNote = 'The molecules changed before the reaction could be played. Search again.'; return false; }
       (this.log = this.log || []).push({ wait: nx.wait, label });
       return true;
     }
+    this.failNote = 'The likeliest reactions did not end as forecast when tried on a copy, so nothing was skipped.';
     return false;
   }
   showWatching() {
@@ -178,12 +179,15 @@ class ForecastCard {
     const H = K().humanTime, pretty = this.actions.pretty || (x => x), side = list => list.map(pretty).join(' + ');
     const wait = sv.total > 0 ? Math.LN2 / sv.total : Infinity, never = !isFinite(wait) || wait > 3.15e16;
     if (this.auto && !never && sv.events.length) {
-      this.go(sv, ids).then(ok => { if (ok) this.showWatching(); else { this.auto = false; this.renderSurvey(sv, ids, dropped); } });
+      const key = this.req;
+      this.go(sv, ids).then(ok => { if (ok) this.showWatching(); else if (key === this.req) { this.auto = false; this.renderSurvey(sv, ids, dropped); } });
       return;
     }
     if (this.auto && never) this.auto = false;
     const rows = sv.events.slice(0, 6).map(x => '<tr><td>' + esc(side(x.reactants)) + ' → ' + esc(side(x.products)) + '</td><td>' + (x.share >= 0.001 ? (100 * x.share).toFixed(x.share > 0.1 ? 0 : 1) + '%' : '<0.1%') + '</td></tr>').join('');
-    const body = `<div class="fc-big"><b>${never ? 'Nothing on any human timescale' : 'Next reaction in about ' + esc(H(wait))}</b><span>${never ? 'the fastest step found would take ' + esc(H(sv.events[0] ? sv.events[0].halfLife : Infinity)) : 'half-life of the whole chamber at ' + Math.round(sv.T) + ' K'}</span></div>
+    const note = this.failNote ? '<p class="fc-note">' + esc(this.failNote) + '</p>' : '';
+    this.failNote = null;
+    const body = `${note}<div class="fc-big"><b>${never ? 'Nothing on any human timescale' : 'Next reaction in about ' + esc(H(wait))}</b><span>${never ? 'the fastest step found would take ' + esc(H(sv.events[0] ? sv.events[0].halfLife : Infinity)) : 'half-life of the whole chamber at ' + Math.round(sv.T) + ' K'}</span></div>
       ${never || !sv.events.length ? '' : '<button class="fc-skip" id="fcNext">Skip to it · watch it happen</button><label class="fc-auto"><input type="checkbox" id="fcAuto"> Keep going on its own</label><p class="fc-skipnote">Which reaction comes first, and when, is drawn at random from these rates, the way it would be in a real flask. Each reaction you skip to plays out in the live simulation; kept going, it watches each for 3 ps and then looks for the next.</p>'}
       ${this.logHtml()}
       <table class="fc-table fc-list"><thead><tr><th>Possible reaction</th><th>Chance next</th></tr></thead><tbody>${rows}</tbody></table>
@@ -192,8 +196,9 @@ class ForecastCard {
     this.show('What happens next at ' + Math.round(sv.T) + ' K', body);
     const b = this.el('fcNext'), auto = this.el('fcAuto');
     if (b) b.onclick = () => {
-      if (auto && auto.checked) { this.auto = true; this.log = []; this.go(sv, ids).then(ok => { if (ok) this.showWatching(); }); return; }
-      this.go(sv, ids).then(() => this.close());
+      const key = this.req, fail = () => { if (key !== this.req) return; this.auto = false; this.renderSurvey(sv, ids, dropped); };
+      if (auto && auto.checked) { this.auto = true; this.log = []; this.go(sv, ids).then(ok => ok ? this.showWatching() : fail()); return; }
+      this.go(sv, ids).then(ok => ok ? this.close() : fail());
     };
   }
   profile(path, Ea) {

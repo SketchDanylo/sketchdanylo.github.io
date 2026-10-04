@@ -51,6 +51,13 @@ What to do:
   The fit must also score the wells along each path, not only the barrier: a chlorine-only crossing
   stabilisation fixed all four chlorine barriers and every bond energy, but deepened the Cl···H···Cl
   and Cl···CH₄ complexes by 25–50 kJ/mol (README, What was tried).
+- Where the chlorine barrier and its complex come from, measured on Cl + CH₄ with the Cl–H distance
+  held: the C–H holds on unchanged to 2.0 Å (+48 kJ/mol), then flips within 0.2 Å to a shared
+  Cl···H···C state with bond strengths 0.43 / 0.48 and charges Cl −0.26, H +0.33, at −12 kJ/mol. With
+  the charge transfer switched off the same state is +35. So the barrier is the abrupt switch between
+  two bonding patterns, and the complex is the shared state over-stabilised by charge transfer. The lead
+  is to let a shared hydrogen pass its bond over gradually and to limit the charge a hydrogen held by
+  two partners can take, then refit, rather than adding stabilisation.
 - The errors fall into three families: hydrogen passing to or from O or Cl is 15–23 kJ/mol too high
   (the half-made crossings cost too much); every C–H next to another carbon is too weak (ethyl radical
   too stable), which makes H + C₂H₆ and CH₃ + C₂H₄ too easy; and the formyl radical lacks the C–O

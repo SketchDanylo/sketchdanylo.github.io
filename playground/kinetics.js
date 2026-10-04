@@ -356,9 +356,9 @@ function candidates(src, cap = 24) {
     const c = { i, j, kind, key, prio, mult: 1, d };
     seen.set(key, c); out.push(c);
   };
-  const L = frag.list;
+  const L = frag.list, open = L.map(f => f.some(x => free[x] > 0.5));
   for (const first of [true, false]) for (let A = 0; A < L.length; A++) for (let B = 0; B < L.length; B++) {
-    if (A === B) continue;
+    if (A === B || (!first && open[B])) continue;
     for (const r of L[A]) {
       const radical = free[r] > 0.5, pib = pi.has(r);
       if (radical !== first || (!radical && !pib)) continue;
