@@ -104,7 +104,7 @@ class ForecastCard {
   say(text) { this.fx = { ...(this.fx || {}), scan: null, focus: null, msg: { text, t0: performance.now() } }; }
   finish() { if (this.auto) { this.auto = false; clearInterval(this.timer); this.actions.autoChanged?.(false); } }
   stop() { this.req++; this.finish(); if (this.fx) { this.fx.scan = null; this.fx.focus = null; } }
-  toggleAuto() { if (this.auto) { this.stop(); return; } this.auto = true; this.actions.autoChanged?.(true); this.next(); }
+  toggleAuto() { if (this.auto) { this.stop(); return; } this.auto = true; this.misses = 0; this.actions.autoChanged?.(true); this.next(); }
   async decide(sv, ids) {
     const H = K().humanTime, wait = sv.total > 0 ? Math.LN2 / sv.total : Infinity;
     if (!isFinite(wait) || wait > 3.15e16 || !sv.events.length) {
@@ -114,7 +114,9 @@ class ForecastCard {
     const key = this.req, ok = await this.go(sv, ids);
     if (key !== this.req) return;
     if (this.fx) { this.fx.scan = null; this.fx.focus = null; }
-    if (ok && this.auto) this.watchThenNext(); else this.finish();
+    if (ok) this.misses = 0;
+    if (this.auto && (ok || (this.misses = (this.misses || 0) + 1) <= 3)) { if (!ok) this.actions.play?.(); this.watchThenNext(); }
+    else this.finish();
   }
   async go(sv, ids) {
     const ls = this.lastScene, key = this.req;

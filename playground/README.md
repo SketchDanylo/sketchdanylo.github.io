@@ -492,6 +492,11 @@ is shown beside the simulated time, is part of saved scenes and undo, and Ctrl+Z
 The skipped time floats up from the reacting pair, and the first 0.8 ps after a skip run at 0.5× (about
 80 fs a second), so the bond-making itself can be watched, and the speed then returns to what it was (kept-going chains stay at
 full speed).
+The reacting pair is placed where its own scan put it, in a copy that held only those two molecules;
+any other molecule found within 2.4 Å of them in the real chamber is moved straight out, whole, first
+(over the time that was skipped it would have drifted anyway). Without that, a pair could land on a
+bystander, and an HCl struck that way once fell apart into H· and Cl· at room temperature.
+
 A reaction with no barrier that joins two molecules into one (CH₃· + CH₃·, OH· + OH· → H₂O₂) starts
 further along its path, at 60 % of the way down instead of 30 %: from the shallower point the two
 hydroxyls bounced apart in 5 of 6 trials, and from the deeper one they join in 6 of 6.
@@ -520,7 +525,8 @@ made for have changed by the time you skip, it refuses and asks for a new foreca
 
 **Keep going** (`Shift+J`, or double-click the double arrow, which then pulses; `J` or Esc stops it)
 repeats this: skip to the next reaction, watch it for 3 ps, search again, until nothing more can happen
-on a human timescale. One Cl· in a chamber of three CH₄ and three Cl₂ at 298 K ran the textbook chain
+on a human timescale. A reaction that does not play out on its trial copies does not end the run: the
+chamber is left to move for 3 ps and searched again, and only three such misses in a row stop it. One Cl· in a chamber of three CH₄ and three Cl₂ at 298 K ran the textbook chain
 by itself: Cl· + CH₄ → CH₃· + HCl, CH₃· + Cl₂ → CH₃Cl + Cl·, then CH₃Cl → CH₂Cl· → CH₂Cl₂, with the
 reverse CH₃· + HCl → CH₄ + Cl· in between; 30 reactions and 323 µs of chemistry in about six minutes.
 It also produced CH₄Cl and CH₃Cl₂ complexes, which are the force field's over-coordination wells
@@ -588,6 +594,12 @@ ethene, which gave a poorer starting geometry: H· + ethene then completed in 6 
 are now always the ones that attack, and it completes in 6 of 6 seeded runs and 5 of 5 browser trials.
 
 ### What it does not do yet
+
+- A random sweep (eight chambers from twelve small molecules and radicals at 298, 600 and 1200 K, three
+  skips each) ran without errors or impossible fragments, and the trial copies turned away two products
+  the force field should not make (HClO₂ from O₂ + HCl, and Cl· + NH₃ ending in a complex). One got
+  through: at 1200 K O₂ + NH₃ formed H₃N–O₂, because nitrogen may take a valence of five (for nitro
+  groups and N-oxides) and the cost of doing so is too low for an amine and O₂.
 
 - Kept going on its own, one Cl· with three CH₄ and three Cl₂ runs the chain until the Cl₂ is used
   up (20 steps in three minutes, 24 µs of chemistry, ending in CH₃Cl and HCl, then Cl· and CH₃Cl

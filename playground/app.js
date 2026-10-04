@@ -96,7 +96,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261004-build73', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow) => skipToEvent(ev, wait, ids, what, reactants, slow), pause: () => setPlaying(false), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0 });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261004-build74', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow) => skipToEvent(ev, wait, ids, what, reactants, slow), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0 });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {

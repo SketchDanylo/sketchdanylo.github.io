@@ -478,6 +478,39 @@ function verifyEvent(scene, ev, products, T, seeds = 3, fs = 400, first = 1) {
   return ok;
 }
 
+const CLEAR = 2.4;
+function clearAround(eng, idx) {
+  const mine = new Set(idx), P = eng.pos, b = eng.box, m = 0.5;
+  let moved = 0;
+  for (let pass = 0; pass < 4; pass++) {
+    const f = eng.fragments();
+    let any = false;
+    for (const g of f.list) {
+      if (g.some(i => mine.has(i))) continue;
+      let dmin = Infinity, dx = 0, dy = 0, dz = 0;
+      for (const a of g) for (const c of idx) {
+        const x = P[3 * a] - P[3 * c], y = P[3 * a + 1] - P[3 * c + 1], z = P[3 * a + 2] - P[3 * c + 2], d = Math.hypot(x, y, z);
+        if (d < dmin) { dmin = d; dx = x; dy = y; dz = z; }
+      }
+      if (dmin >= CLEAR) continue;
+      const n = Math.hypot(dx, dy, dz) || 1, step = CLEAR - dmin + 0.2;
+      let sx = dx / n * step, sy = dy / n * step, sz = dz / n * step;
+      for (const a of g) {
+        const nx = P[3 * a] + sx, ny = P[3 * a + 1] + sy, nz = P[3 * a + 2] + sz;
+        if (nx < b.x0 + m || nx > b.x1 - m) sx = 0;
+        if (ny < b.y0 + m || ny > b.y1 - m) sy = 0;
+        if (nz < b.z0 + m || nz > b.z1 - m) sz = 0;
+      }
+      if (sx === 0 && sy === 0 && sz === 0) continue;
+      for (const a of g) { P[3 * a] += sx; P[3 * a + 1] += sy; P[3 * a + 2] += sz; }
+      any = true; moved++;
+    }
+    if (!any) break;
+    eng.touch(); eng.refresh();
+  }
+  return moved;
+}
+
 function applyEvent(eng, ev, idx) {
   const anchor = new Set(ev.anchor);
   let cx = 0, cy = 0, cz = 0, ix = 0, iy = 0, iz = 0, n = 0;
@@ -494,6 +527,7 @@ function applyEvent(eng, ev, idx) {
     eng.born[i] = eng.time;
   });
   eng.touch(); eng.refresh();
+  clearAround(eng, idx);
   for (const [a, b, o] of ev.bo) eng.setBondOrder(idx[a], idx[b], o);
   eng.thermalize(eng.T, idx);
   let mD = 0;

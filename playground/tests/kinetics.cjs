@@ -204,4 +204,22 @@ test('Two hydroxyls joined by a skip stay joined as H₂O₂: a barrierless join
   assert.ok(n >= 3, n + ' of 4 trials joined');
 });
 
+test('A skipped reaction is never placed on top of a bystander: an HCl in the way is moved clear, whole', () => {
+  const e = new Engine({ width: 30, height: 30, depth: 12, T: 298, thermostat: false });
+  for (const [s, x, y, z] of geo('C2H4')) e.addAtom(s, 12 + x, 15 + y, z || 0, { thermal: false });
+  e.touch(); e.refresh(); e.setBondOrder(0, 1, 2);
+  e.addAtom('Cl', 20, 15, 0, { thermal: false }); e.touch(); e.refresh();
+  const sc = JSON.parse(JSON.stringify(e.toJSON())), r = K.study(sc, 6, 0);
+  const g = K.fromScene(sc), at = r.event.atoms.indexOf(6), p = r.event.pos.slice(3 * at, 3 * at + 3);
+  const cx = r.event.anchor.reduce((a, i) => a + g.pos[3 * i], 0) / r.event.anchor.length - r.event.anchor.reduce((a, i) => a + r.event.pos[3 * r.event.atoms.indexOf(i)], 0) / r.event.anchor.length;
+  const cy = r.event.anchor.reduce((a, i) => a + g.pos[3 * i + 1], 0) / r.event.anchor.length - r.event.anchor.reduce((a, i) => a + r.event.pos[3 * r.event.atoms.indexOf(i) + 1], 0) / r.event.anchor.length;
+  const cz = r.event.anchor.reduce((a, i) => a + g.pos[3 * i + 2], 0) / r.event.anchor.length - r.event.anchor.reduce((a, i) => a + r.event.pos[3 * r.event.atoms.indexOf(i) + 2], 0) / r.event.anchor.length;
+  g.addAtom('H', p[0] + cx + 0.9, p[1] + cy, p[2] + cz, { thermal: false }); g.addAtom('Cl', p[0] + cx + 2.2, p[1] + cy, p[2] + cz, { thermal: false }); g.touch(); g.refresh();
+  K.applyEvent(g, r.event, r.event.atoms);
+  const d = (a, b) => Math.hypot(g.pos[3 * a] - g.pos[3 * b], g.pos[3 * a + 1] - g.pos[3 * b + 1], g.pos[3 * a + 2] - g.pos[3 * b + 2]);
+  let dmin = Infinity; for (const a of r.event.atoms) for (const b of [7, 8]) dmin = Math.min(dmin, d(a, b));
+  assert.ok(dmin >= 2.4 - 1e-6, 'bystander at ' + dmin.toFixed(2) + ' Å');
+  assert.ok(Math.abs(d(7, 8) - 1.3) < 0.2, 'HCl moved whole: H–Cl ' + d(7, 8).toFixed(2));
+});
+
 console.log(count + ' kinetics checks passed.');
