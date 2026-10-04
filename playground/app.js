@@ -96,7 +96,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261004-build74', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow) => skipToEvent(ev, wait, ids, what, reactants, slow), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0 });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261004-build75', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow) => skipToEvent(ev, wait, ids, what, reactants, slow), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0 });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -696,7 +696,7 @@ const EXPERIMENTS = [
 function renderExperiments() {
   const list = $('expList');
   if (list.childElementCount) return;
-  list.innerHTML = '<p class="exp-head">Load one. <kbd>L</kbd> flashes light, <kbd>J</kbd> skips to the next reaction, <kbd>Shift</kbd>+<kbd>J</kbd> keeps going.</p>' +
+  list.innerHTML = '<p class="exp-head">Load one. ☀ or <kbd>L</kbd> flashes light; » or <kbd>J</kbd> skips to the next reaction; double-tap » or <kbd>Shift</kbd>+<kbd>J</kbd> keeps going.</p>' +
     EXPERIMENTS.map((x, k) => '<button class="exp" data-k="' + k + '"><span class="nm">' + esc(x.name) + '</span><span class="fm">' + x.mix.map(([m, n]) => (n > 1 ? n + ' ' : '') + pretty(m)).join(' + ') + ' · ' + Math.round(x.T) + ' K</span><span class="lk">' + esc(x.look) + '</span></button>').join('');
   list.querySelectorAll('.exp').forEach(b => b.onclick = () => runExperiment(EXPERIMENTS[+b.dataset.k]));
 }
@@ -719,7 +719,7 @@ function runExperiment(x) {
   eng.touch(); eng.refresh(); eng.minimize(300, 1); eng.thermalize(eng.T);
   edited(); fitBox(true);
   document.activeElement?.blur();
-  toast(x.name + (x.light ? ' · L for light, then J for the next reaction' : ' · J for the next reaction'));
+  toast(x.name + (x.light ? ' · ☀ L for light, then » J for the next reaction' : ' · » J for the next reaction'));
 }
 
 /* tooltips */
@@ -2205,7 +2205,7 @@ function frame(now) {
     $('rateDetail').textContent=rate.textContent;
     $('measurementsBtn').title='Sample measurements · '+rate.textContent+' · right-click for playback presets';
     readTemperature();
-    $('pVal').textContent = eng.N ? fmtP(eng.pressureEMA) : '—';
+    $('pVal').textContent = eng.N && eng.pressureEMA > 1e-4 ? fmtP(eng.pressureEMA) : '—';
     $('backBtn').disabled = !eng.canStepBack();
     // scale bar
     const s = R.scale, cands = [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50], nm = cands.find(v => v * 10 * s >= 60) || 2;
