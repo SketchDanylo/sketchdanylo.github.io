@@ -138,7 +138,7 @@ class ForecastCard {
       if (!nx) return false;
       let pick = nx.pick;
       this.show('Setting up the reaction…', '<div class="fc-busy"><i></i></div>' + this.logHtml());
-      if (pick.cand && ls) {
+      if (pick.cand && ls && !(pick.event && pick.refined)) {
         const r = await this.dispatch({ type: 'scan', key: 'sv' + ls.key, scene: ls.scene, c: pick.cand, T: ls.T, quick: false });
         if (key !== this.req) return false;
         pick = r && r.ok !== false ? [r, ...(r.also || [])].find(x => same(x, pick)) || null : null;
