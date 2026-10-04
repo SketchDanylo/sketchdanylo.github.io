@@ -552,11 +552,12 @@ are now always the ones that attack, and it completes in 6 of 6 seeded runs and 
 
 ### What it does not do yet
 
-- Kept going on its own, one Cl· with three CH₄ and three Cl₂ runs 11 steps of the chain in about
-  2.5 minutes (CH₃Cl, then CH₂Cl₂) and then stops: once the chlorine is used up, the next step is Cl·
-  taking a hydrogen from CH₃Cl, and in the model that ends in a Cl···H···C complex 20–27 kJ/mol deep
-  (the scorecard's well column), so the trial runs fail and the card says nothing was skipped. The fix
-  belongs in the force field (ROADMAP, item 1).
+- Kept going on its own, one Cl· with three CH₄ and three Cl₂ runs 5 to 11 steps of the chain
+  (CH₃Cl, then CH₂Cl₂; about 15 s a step) and then stops, because hydrogen passing between chlorine
+  and carbon ends in a Cl···H···C complex 20–27 kJ/mol deep in the model (the scorecard's well column).
+  Either the trial run ends in the complex, or the live chamber already holds one where the search's
+  copy saw two molecules; both times the card says so and nothing is skipped. The fix belongs in the
+  force field (ROADMAP, item 1).
 
 - The search takes 10–60 s for a handful of molecules and is capped at 24 candidates, so a crowded
   chamber is only partly searched (the card says how many were left out).
