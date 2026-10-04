@@ -533,8 +533,9 @@ The forecast measures the model's energy surface; the live chamber moves on it. 
 
 Repeating the search remembers every barrier it has measured, by reaction type and temperature,
 and only scans what is new; the reaction it skips to is played from the geometry its full scan found
-(scanned afresh only if the search had it from memory), and is tried on a copy first. If none of the
-likeliest reactions ends as forecast on the copy, the card says so and nothing is skipped. Two artefacts
+(scanned afresh only if the search had it from memory), and is tried on a copy first. If it does not
+end as forecast on the copy, the card says so and nothing is skipped; it does not fall back to a less
+likely reaction, which would bend the odds. Two artefacts
 the search has shown up, both force-field errors still to fix: C₂H₃· + H₂ → C₂H₅· (H₂ adding whole to
 a vinyl radical) comes out barrierless where the real reaction is an abstraction over about 40 kJ/mol,
 and a hot C₂H₅ formed by H· + ethene lost its hydrogen again within picoseconds in the live chamber.

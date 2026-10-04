@@ -131,11 +131,11 @@ class ForecastCard {
     const side = list => list.map(this.actions.pretty || (x => x)).join(' + ');
     const ls = this.lastScene, key = this.req;
     const same = (x, want) => x.products.map(f => f.replace(/·/g, '')).sort().join() === want.products.map(f => f.replace(/·/g, '')).sort().join();
-    let events = sv.events.slice(), tries = 0;
-    while (events.length && tries++ < 4) {
-      const total = events.reduce((a, x) => a + x.rate, 0);
-      const nx = K().pickNext({ ...sv, events: events.map(x => ({ ...x, share: x.rate / total })), total });
+    const failed = new Set();
+    for (let tries = 0; tries < 4; tries++) {
+      const nx = K().pickNext(sv);
       if (!nx) return false;
+      if (failed.has(nx.pick)) break;
       let pick = nx.pick;
       this.show('Setting up the reaction…', '<div class="fc-busy"><i></i></div>' + this.logHtml());
       if (pick.cand && ls && !(pick.event && pick.refined)) {
@@ -149,14 +149,14 @@ class ForecastCard {
         if (key !== this.req) return false;
         good = n >= 2;
       }
-      if (!good) { events = events.filter(x => x !== nx.pick); continue; }
+      if (!good) { failed.add(nx.pick); continue; }
       const label = side(pick.reactants) + ' → ' + side(pick.products);
       const ok = this.actions.skip?.(pick.event, nx.wait, ids, label, pick.reactants, !this.auto);
       if (ok === false) { this.failNote = 'The molecules changed before the reaction could be played. Search again.'; return false; }
       (this.log = this.log || []).push({ wait: nx.wait, label });
       return true;
     }
-    this.failNote = 'The likeliest reactions did not end as forecast when tried on a copy, so nothing was skipped.';
+    this.failNote = 'The reaction drawn did not end as forecast when tried on a copy, so nothing was skipped. Searching again draws afresh.';
     return false;
   }
   showWatching() {
