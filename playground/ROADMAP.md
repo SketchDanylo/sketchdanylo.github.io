@@ -31,21 +31,21 @@ temperature. The forecast tool now shows where the force field is wrong:
 | ethane C–H | 382 | 423 |
 | formaldehyde C–H (formyl radical) | 493 | 369 |
 | OH + H₂ barrier | 36 | 15 |
-| H + HCl barrier | 31 | 15 |
-| Cl + CH₄ barrier | 28 | 11 |
-| Cl + H₂ barrier | 34 | 19 |
+| H + HCl barrier | 33 | 15 |
+| Cl + CH₄ barrier | 31 | 11 |
+| Cl + H₂ barrier | 37 | 19 |
 | H + C₂H₆ barrier | 12 | 38 |
-| CH₃ + C₂H₄ barrier | 10 | 31 |
+| CH₃ + C₂H₄ barrier | 9 | 31 |
 | Cl + C₂H₄ barrier | 11 | 0 |
 | O₃, NO bond energies | 32%, 12% low | |
 
 Fixed on the way: vinyl C–H (412 → 462, real 465), acetylene C–H (421 → 556, real 556) and phenyl C–H
 (351 → 472, real 473), by giving σ radicals and bent π bonds the cost they have in reality. The barrier
-scans themselves were also corrected: two-way scans (OH + CH₄ was 96, now 24, real 15) and a small
-nudge so a symmetric start cannot stay trapped on a line (OH + H₂ was 69, now 36, real 15).
+scans themselves were also corrected: two-way scans (OH + CH₄ was 96, now 17, real 15), and the pass
+back from the products may no longer swap to an equivalent product.
 
 What to do:
-- `tests/benchmark.cjs` is the benchmark: 39 reactions and bonds (barriers rms 12.5 kJ/mol), about a
+- `tests/benchmark.cjs` is the benchmark: 39 reactions and bonds (barriers rms 12.8 kJ/mol), about a
   minute. Grow it to 60 or more (NIST kinetics database, standard compilations).
 - Fit the force field against that table automatically, rather than tuning one reaction at a time.
   The fit must also score the wells along each path, not only the barrier: a chlorine-only crossing

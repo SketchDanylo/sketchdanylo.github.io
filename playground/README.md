@@ -404,7 +404,7 @@ touched). Several routes are tried and the lowest barrier kept:
 
 Each route is scanned both ways, reactants to products and back, and the lower energy at each point
 is kept: pulling one way only lets a bond hang on past the point where it should give way and snap later,
-which put OH + CH₄ at 96 kJ/mol (now 24; reality about 15). The pass back from the products only
+which put OH + CH₄ at 96 kJ/mol where the live chamber (and reality) says about 15. The pass back from the products only
 keeps states whose bonds all exist in the reactants or the products: pulled back, the hydrogen of
 H + Cl₂ grabbed the other chlorine and gave HCl + Cl at the reactants' end of the path. A route that ends with
 an atom holding more than half a bond over its valence (a hydrogen stuck between two partners) is not
@@ -417,28 +417,28 @@ half-life now, a range (±10 kJ/mol on the barrier, ×/÷10 on A), a table from 
 along the path, and any slower routes found on the way.
 
 `tests/benchmark.cjs` scans 39 textbook reactions and bonds and prints the scorecard: barriers rms
-12.5 kJ/mol over 23 reactions, bonds rms 33 kJ/mol over 16 (14 without the formyl outlier). Selected rows:
+12.8 kJ/mol over 23 reactions, bonds rms 33 kJ/mol over 16 (14 without the formyl outlier). Selected rows:
 
 | Reaction | Forecast | Real |
 | --- | --- | --- |
-| H + H₂ → H₂ + H | 41 | 40 |
-| H + CH₄ → H₂ + CH₃ | 42 | 50 |
-| OH + CH₄ → H₂O + CH₃ | 24 | 15 |
+| H + H₂ → H₂ + H | 43 | 40 |
+| H + CH₄ → H₂ + CH₃ | 46 | 50 |
+| OH + CH₄ → H₂O + CH₃ | 17 | 15 |
 | OH + H₂ → H₂O + H | 36 | 15 |
-| H + HCl → H₂ + Cl | 31 | 15 |
-| Cl + CH₄ → HCl + CH₃ | 28 | 11 |
-| Cl + H₂ → HCl + H | 34 | 19 |
-| F + H₂ → HF + H | 3 | 4 |
+| H + HCl → H₂ + Cl | 33 | 15 |
+| Cl + CH₄ → HCl + CH₃ | 31 | 11 |
+| Cl + H₂ → HCl + H | 37 | 19 |
+| F + H₂ → HF + H | 7 | 4 |
 | H + C₂H₆ → H₂ + C₂H₅ | 12 | 38 |
 | Cl + C₂H₄ → C₂H₄Cl | 11 | ≈ 0 |
-| CH₃ + C₂H₄ → C₃H₇ | 10 | 31 |
+| CH₃ + C₂H₄ → C₃H₇ | 9 | 31 |
 | CH₄ → CH₃ + H | 439 | 439 |
 | C₂H₆ → C₂H₅ + H | 382 | 423 |
 | CH₃–Cl | 357 | 350 |
 | HCO–H (formaldehyde) | 493 | 369 |
 
 The scorecard also gives the deepest complex along each path. Hydrogen taken by a heavy atom passes
-through one bound by 17–27 kJ/mol (Cl + CH₄, Cl + C₂H₆, F + CH₄, OH + NH₃) where the real ones are
+through one bound by 20–27 kJ/mol (Cl + CH₄, Cl + C₂H₆, OH + NH₃) where the real ones are
 bound by a few at most; these are the CH₄Cl-type complexes the chlorination chain runs into.
 
 The errors fall into three families, which is what a fit has to target:
@@ -451,11 +451,14 @@ The errors fall into three families, which is what a fit has to target:
   toward a triple. Aldehyde chemistry needs this before it can be forecast.
 
 Where the forecast and reality disagree, it is the force field's barrier that is wrong, and the
-forecast shows it. Its H + H₂ rate at 1500 K is 2.5×10⁻¹² cm³/s against a measured 1.4×10⁻¹².
+forecast shows it. Its H + H₂ rate at 1500 K, 1.7×10⁻¹² cm³/s, is close to the measured 1.4×10⁻¹².
 
-Every scan starts from a copy whose atoms are nudged by up to 0.03 Å. A perfectly symmetric start
-(three atoms on one line) used to stay symmetric through every relaxation: water formed by OH + H₂ in
-a line stayed linear, 136 kJ/mol above bent water, and the barrier read 69 instead of 36.
+Reactant and product energies are relaxed from a copy nudged by up to 0.03 Å, because a perfectly
+symmetric start stays symmetric through every relaxation: water formed by OH + H₂ on one line stayed
+linear, 136 kJ/mol above bent water. The scans themselves are not nudged: even 0.005 Å changed where
+some reactions are committed (Cl· + CH₄ played out in 4 of 6 trials instead of 6), and a live chamber
+is never perfectly symmetric anyway. A hand-built collinear start can still read a barrier too high
+(OH + H₂ on one line: 69, against 36 slightly off the line).
 
 **Skip the wait** (on the forecast card): the clock jumps by a waiting time drawn at random from the
 forecast rate, the molecules are placed at the first point clearly past the top of the barrier with a
@@ -468,8 +471,9 @@ Played this way, Cl· + ethene, CH₃· + ethene and H· + CH₄ complete in 9 o
 at least 3 of 4 seeded runs each in the tests.
 
 **What happens next?** (`J`, or the double-arrow button beside step-forward): the chamber is paused
-and searched for everything that could happen: a radical meeting any atom of another molecule, a π
-bond meeting another molecule's hydrogens, and every distinct bond coming apart (at most 24
+and searched for everything that could happen: a radical meeting any atom of another molecule (the radical is always
+the one that attacks), a π bond meeting the hydrogens of another closed-shell molecule, and every
+distinct bond coming apart (at most 24
 candidates, nearest first). Each is forecast in a pool of workers, quickly at first and then properly
 for the three lowest barriers, and counted as often as it occurs (methane's four hydrogens make four
 times the rate). The card lists the reactions with each one's chance of coming first and the half-life
@@ -488,9 +492,8 @@ reverse CH₃· + HCl → CH₄ + Cl· in between; 30 reactions and 323 µs of c
 It also produced CH₄Cl and CH₃Cl₂ complexes, which are the force field's over-coordination wells
 (above), not chemistry.
 
-In Cl· + ethene + methane at 298 K it gives the addition to the double bond 98% and methane's
-hydrogen 1.8% (in reality about 99.9% and 0.1%: the model gives the addition a 10 kJ/mol barrier it
-does not have); taking ethene's own hydrogen needs 42 kJ/mol. (Before the σ-radical
+In Cl· + ethene + methane at 298 K it gives the addition to the double bond 99.6% and methane's
+hydrogen 0.4% (in reality about 99.9% and 0.1%); taking ethene's own hydrogen needs 46 kJ/mol. (Before the σ-radical
 term, a vinyl C–H 50 kJ/mol too weak made that abstraction look downhill and it came out first.) in a 600 K mixture of H·, CH₃·, ethene and methane,
 H· + ethene 72%, CH₃· + H· 26%, CH₃· + ethene 1%. Two methanes at room temperature: nothing on any
 human timescale.
@@ -529,7 +532,9 @@ The forecast measures the model's energy surface; the live chamber moves on it. 
   fell apart (images flew to separated atoms through the force field's cutoffs) and was not kept.
 
 Repeating the search remembers every barrier it has measured, by reaction type and temperature,
-and only scans what is new; the reaction it skips to is scanned afresh for its geometry. Two artefacts
+and only scans what is new; the reaction it skips to is played from the geometry its full scan found
+(scanned afresh only if the search had it from memory), and is tried on a copy first. If none of the
+likeliest reactions ends as forecast on the copy, the card says so and nothing is skipped. Two artefacts
 the search has shown up, both force-field errors still to fix: C₂H₃· + H₂ → C₂H₅· (H₂ adding whole to
 a vinyl radical) comes out barrierless where the real reaction is an abstraction over about 40 kJ/mol,
 and a hot C₂H₅ formed by H· + ethene lost its hydrogen again within picoseconds in the live chamber.
@@ -545,6 +550,12 @@ ethene, which gave a poorer starting geometry: H· + ethene then completed in 6 
 are now always the ones that attack, and it completes in 6 of 6 seeded runs and 5 of 5 browser trials.
 
 ### What it does not do yet
+
+- Kept going on its own, one Cl· with three CH₄ and three Cl₂ runs 11 steps of the chain in about
+  2.5 minutes (CH₃Cl, then CH₂Cl₂) and then stops: once the chlorine is used up, the next step is Cl·
+  taking a hydrogen from CH₃Cl, and in the model that ends in a Cl···H···C complex 20–27 kJ/mol deep
+  (the scorecard's well column), so the trial runs fail and the card says nothing was skipped. The fix
+  belongs in the force field (ROADMAP, item 1).
 
 - The search takes 10–60 s for a handful of molecules and is capped at 24 candidates, so a crowded
   chamber is only partly searched (the card says how many were left out).

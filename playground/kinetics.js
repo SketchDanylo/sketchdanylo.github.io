@@ -22,8 +22,7 @@ function isolate(src, atoms, place, T) {
   cx /= atoms.length; cy /= atoms.length; cz /= atoms.length;
   for (const i of atoms) {
     const p = at(i);
-    const n = 3 * map.size, w = q => 0.03 * Math.sin(12.9898 * (n + q) + 4.1414);
-    map.set(i, e.addAtom(ELEMENTS[src.type[i]].sym, p[0] - cx + w(0), p[1] - cy + w(1), p[2] - cz + w(2), { thermal: false, charge: src.formal[i], V: src.val[i] }));
+    map.set(i, e.addAtom(ELEMENTS[src.type[i]].sym, p[0] - cx, p[1] - cy, p[2] - cz, { thermal: false, charge: src.formal[i], V: src.val[i] }));
   }
   e.touch(); e.refresh();
   for (let p = 0; p < src.nPairs; p++) {
@@ -52,6 +51,8 @@ function fragmentFormulas(e) {
 
 function relaxedEnergyOf(src, atoms, T) {
   const { e } = isolate(src, atoms, null, T);
+  for (let n = 0; n < 3 * e.N; n++) e.pos[n] += 0.03 * Math.sin(12.9898 * n + 4.1414);
+  e.touch(); e.refresh();
   return { E: settle(e, 3000), formula: fragmentFormulas(e) };
 }
 
@@ -419,7 +420,7 @@ function combine(results, T) {
   return { ok: true, T, events, total };
 }
 
-const REFINE = 3;
+const REFINE = 3, COOL = [80, 160, 300];
 
 function reuse(cached, c, V) {
   const one = x => ({ ...x, i: c.i, j: c.j, event: null, cand: c, rate: x.bimolecular ? x.kRate * c.mult / V : x.kRate * c.mult });
@@ -450,19 +451,23 @@ function stillThere(eng, ev, idx, reactants) {
   return bare([...comps].map(c => eng.formulaOf(f.list[c]))) === bare(reactants);
 }
 
+function formed(eng, idx, products) {
+  const f = eng.fragments(), comps = new Set(idx.map(i => f.comp[i]));
+  return bare([...comps].map(c => eng.formulaOf(f.list[c]))) === bare(products) ? [...comps].flatMap(c => f.list[c]) : null;
+}
+
 function verifyEvent(scene, ev, products, T, seeds = 3, fs = 400) {
   let ok = 0;
   for (let s = 1; s <= seeds; s++) {
     const e = fromScene(scene);
     e.T = T; e.thermostat = true; e.thermostatMode = 'kelvin'; e.rngState = s * 7919 + 13;
     applyEvent(e, ev, ev.atoms);
-    const cool = [80, 160, 300];
-    for (let k = 0; k < fs; k++) {
+    const cool = COOL.slice();
+    for (let k = 1; k <= fs; k++) {
       e.step();
-      if (cool.length && k + 1 >= cool[0]) { cool.shift(); const f0 = e.fragments(), cs = new Set(ev.atoms.map(i => f0.comp[i])); e.thermalize(T, [...cs].flatMap(c => f0.list[c])); }
+      if (cool.length && k >= cool[0]) { cool.shift(); const f0 = e.fragments(), cs = new Set(ev.atoms.map(i => f0.comp[i])); e.thermalize(T, [...cs].flatMap(c => f0.list[c])); }
     }
-    const f = e.fragments(), comps = new Set(ev.atoms.map(i => f.comp[i]));
-    if (bare([...comps].map(c => e.formulaOf(f.list[c]))) === bare(products)) ok++;
+    if (formed(e, ev.atoms, products)) ok++;
   }
   return ok;
 }
@@ -494,5 +499,5 @@ function applyEvent(eng, ev, idx) {
   eng.refresh();
 }
 
-return { scanPair, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, verifyEvent, stillThere, candidates, scanCandidate, combine, survey, pickNext, reuse, REFINE, UNCERTAINTY };
+return { scanPair, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, verifyEvent, stillThere, candidates, scanCandidate, combine, survey, pickNext, reuse, REFINE, COOL, UNCERTAINTY };
 });

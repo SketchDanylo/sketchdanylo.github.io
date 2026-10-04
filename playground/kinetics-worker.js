@@ -1,4 +1,4 @@
-importScripts('engine.js?v=20261003-build65', 'kinetics.js?v=20261003-build65');
+importScripts('engine.js?v=20261003-build66', 'kinetics.js?v=20261003-build66');
 let last = null;
 onmessage = ev => {
   const m = ev.data, K = self.ChemKinetics;
