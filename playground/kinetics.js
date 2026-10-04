@@ -411,7 +411,7 @@ function combine(results, T) {
     if (bare(r.reactants) === bare(r.products)) continue;
     const key = bare(r.reactants) + ' → ' + bare(r.products);
     const prev = seen.get(key);
-    if (prev) { prev.rate += r.rate; if (r.Ea < prev.Ea) { prev.Ea = r.Ea; prev.event = r.event; } continue; }
+    if (prev) { prev.rate += r.rate; if (r.refined && !prev.refined || r.refined === prev.refined && r.Ea < prev.Ea) Object.assign(prev, { Ea: r.Ea, event: r.event, refined: r.refined, cand: r.cand }); continue; }
     const x = { ...r }; seen.set(key, x); events.push(x);
   }
   const total = events.reduce((s, x) => s + x.rate, 0);
