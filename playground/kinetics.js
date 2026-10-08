@@ -6,7 +6,7 @@
 const { Engine, ELEMENTS, PAIR } = CE;
 const NT = ELEMENTS.length;
 const R = 0.008314462618, KB_SI = 1.380649e-23, H_SI = 6.62607015e-34, AMU = 1.66053906660e-27, LN2 = Math.log(2);
-const RESTRAINT_K = 4000, BREAK_REACH = 3.2, START_GAP = 4.2;
+const RESTRAINT_K = 4000, BREAK_REACH = 3.2, START_GAP = 4.2, TRAP = 8;
 
 function blank(T) {
   const e = new Engine({ width: 200, height: 200, depth: 200, T: T || 0, thermostat: false });
@@ -112,9 +112,14 @@ function runChannel(src, atoms, i, j, E0, ch, opts) {
   e.restraints = null;
   let top = 0;
   for (let s = 1; s < path.length; s++) if (path[s].E > path[top].E) top = s;
+  let gate = top;
+  for (let s = top + 1, lo = Infinity; s < path.length - 1; s++) {
+    lo = Math.min(lo, path[s].E);
+    if (path[s].E >= path[s - 1].E && path[s].E >= path[s + 1].E && path[s].E - lo > TRAP) { gate = s; lo = Infinity; }
+  }
   return {
     channel: ch, done, Ea: Math.max(0, path[top].E, done ? Eend : 0), dE: Eend, barrierAtEnd: top === path.length - 1 || (done && Eend > path[top].E),
-    event: committed(path, top, j, ch.type === 'form' && products.length === 1),
+    event: committed(path, gate, j, ch.type === 'form' && products.length === 1),
     start: path[0].pos, end: endPos, E0,
     products, path: path.map(p => ({ x: p.x, r: p.r, E: p.E })),
     ts: path[top].pos ? { pos: path[top].pos, map } : null, tsDistance: path[top].r,

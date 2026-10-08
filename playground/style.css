@@ -597,6 +597,15 @@ kbd{font:500 9.5px var(--mono);padding:1px 5px;border:1px solid var(--line-hi);b
 
 /* a control that cannot act right now, rather than one that is simply off */
 .seg-mini button.inactive{opacity:.35}
+.starters{position:fixed;transform:translate(-50%,-50%);z-index:4;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:14px}
+.st-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;width:100%}
+.st{pointer-events:auto;flex:1 1 200px;max-width:230px;display:flex;flex-direction:column;gap:5px;text-align:left;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:rgba(12,20,32,.62);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:border-color .2s,background .2s,transform .2s var(--ease)}
+.st:hover{border-color:rgba(190,160,255,.55);background:rgba(190,160,255,.09);transform:translateY(-1px)}
+.st .nm{font:500 13px var(--sans);color:var(--bone)}
+.st .fm{font:400 10.5px var(--mono);color:rgb(190,160,255)}
+.st .sun{color:var(--sodium)}
+.st-or{font:400 11px var(--mono);color:rgba(200,200,210,.42);text-align:center}
+@media (max-width:560px){.st{flex-basis:100%;max-width:none;padding:9px 12px}.st-grid{gap:7px}}
 .exp-list{display:flex;flex-direction:column;gap:8px;padding:4px 2px 2px;max-height:min(38vh,330px);overflow:auto;overscroll-behavior:contain}
 .exp-head{font-size:11.5px;color:var(--dim);margin:2px 4px 4px;line-height:1.45}
 .exp{display:flex;flex-direction:column;gap:3px;text-align:left;padding:10px 12px;border-radius:11px;border:1px solid var(--line);background:rgba(255,255,255,.02);cursor:pointer;transition:border-color .2s,background .2s}

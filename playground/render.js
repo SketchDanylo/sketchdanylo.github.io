@@ -457,8 +457,9 @@ class FieldRenderer {
         ctx.beginPath(); ctx.arc(mx, my, 12 + 60 * e, 0, Math.PI * 2); ctx.stroke();
         const a = t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4;
         ctx.font = '600 22px "Martian Mono", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-        ctx.fillStyle = 'rgba(10,8,20,' + (0.55 * a).toFixed(3) + ')'; ctx.fillText(j.text, mx + 1, my - 22 - 28 * t + 1);
-        ctx.fillStyle = 'rgba(226,208,255,' + a.toFixed(3) + ')'; ctx.fillText(j.text, mx, my - 22 - 28 * t);
+        const hw = ctx.measureText(j.text).width / 2 + 10, lx = Math.max(hw, Math.min(this.W - hw, mx)), ly = Math.max(34, my - 22 - 28 * t);
+        ctx.fillStyle = 'rgba(10,8,20,' + (0.55 * a).toFixed(3) + ')'; ctx.fillText(j.text, lx + 1, ly + 1);
+        ctx.fillStyle = 'rgba(226,208,255,' + a.toFixed(3) + ')'; ctx.fillText(j.text, lx, ly);
       }
     }
     const f = fx.fail;

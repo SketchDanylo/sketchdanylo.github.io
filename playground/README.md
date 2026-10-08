@@ -497,6 +497,12 @@ any other molecule found within 2.4 Å of them in the real chamber is moved stra
 (over the time that was skipped it would have drifted anyway). Without that, a pair could land on a
 bystander, and an HCl struck that way once fell apart into H· and Cl· at room temperature.
 
+Where a path climbs its barrier, drops into a well and then climbs a second, lower bump before the
+products (the Cl···H···C wells, above), the pair is placed past that last bump instead, provided the
+well in between is deeper than 8 kJ/mol. Placed past the first top, Cl· + CH₃Cl stayed stuck as a
+CH₃Cl₂ complex in 11 of 30 seeded trials; past the last bump, in none. The barrier and the rate are
+still those of the highest top; only the starting point moves.
+
 A reaction with no barrier that joins two molecules into one (CH₃· + CH₃·, OH· + OH· → H₂O₂) starts
 further along its path, at 60 % of the way down instead of 30 %: from the shallower point the two
 hydroxyls bounced apart in 5 of 6 trials, and from the deeper one they join in 6 of 6.
@@ -538,8 +544,12 @@ term, a vinyl C–H 50 kJ/mol too weak made that abstraction look downhill and i
 H· + ethene 72%, CH₃· + H· 26%, CH₃· + ethene 1%. Two methanes at room temperature: nothing on any
 human timescale.
 
-**Experiments** (a third tab in the add-atoms library): ready-made textbook chambers: radical
-chlorination of methane, chlorine adding across ethene (C₂H₄Cl· + Cl₂ → C₂H₄Cl₂ + Cl· follows within
+**Experiments** (tiles in the middle of an empty chamber, and a third tab in the add-atoms library):
+ready-made textbook chambers: radical chlorination of methane (at 500 K, as the industrial process runs
+warm: at 298 K the model's Cl· + CH₄ barrier, 31 kJ/mol against 11, lets Cl· + Cl· win often and leaves
+CH₃···HCl complexes, while at 500 K three of three runs went Cl· + CH₄ → CH₃· + HCl, CH₃· + Cl₂ → CH₃Cl +
+Cl· twice over and on to CH₂Cl·; it is still dark-stable, Cl₂ splitting by heat alone once in about two
+years), chlorine adding across ethene (C₂H₄Cl· + Cl₂ → C₂H₄Cl₂ + Cl· follows within
 picoseconds, the chain making 1,2-dichloroethane), radical polymerisation of ethene (CH₃· → C₃H₇· →
 C₅H₁₁· on its own), methyl radicals recombining, and hydroxyl radicals with
 methane (where, as in the real gas, the two OH· meet each other long before either attacks methane).
@@ -752,6 +762,22 @@ What was tried, so it is not repeated:
   with them (Cl + CH₄ −37, Cl···H···Cl −43): in this bond-order model the top of the barrier and the
   complex are the same half-shared state, so no per-atom term separates them. The fix has to change
   how a hydrogen hands its bond from one partner to the other.
+- Taking the Cl···H···C complex apart term by term (Cl–H held at 1.65 Å, everything else relaxed). Two
+  things hold it together. First, the two ends bond to each other across the hydrogen: C and Cl, 3.3 Å
+  apart, reach a bond order of 0.52 and gain about 22 kJ/mol, where real chemistry has the opposite
+  (in X···H···Y the electrons on X and Y cannot pair: the triplet repulsion of bond-energy/bond-order
+  theory). Second, the C–H at 1.6 Å has already left the 1.33–1.64 Å window that switches the Coulomb
+  term off inside a bond, so the hydrogen's +0.3 and the carbon's −0.4 attract at full strength: about
+  66 kJ/mol once the Cl–H range is widened. Both were tried as terms with exact forces. Suppressing
+  the end-to-end bond through a monovalent bridge, and fading the Coulomb term out with the bond's
+  saturation instead of the short switch (with the 1-3 exclusion made consistent, so bond energies
+  stay put), removes the complex: the shared state goes from −23 to +18 kJ/mol. Every
+  hydrogen transfer to or from oxygen or nitrogen rises with it, because that same attraction was
+  carrying those crossings: OH + CH₄ 17 → 50, OH + NH₃ 1 → 46, H + H₂O 99 → 106. With the Cl–H range
+  widened (`kb` 1.7) to win the chlorine barriers back, the benchmark ends at 14–17 kJ/mol rms
+  against 12.8. Same verdict as above, now with the cause measured: the fix is a hydrogen that hands
+  its bond over continuously (n_XH + n_HY ≈ 1 along the path) and carries charge in proportion to the
+  bond it has, refitted as a whole.
 - Capping π bonding by the p orbitals an atom has left (bent two-coordinate C, N, O get one) raised the
   phenyl C–H from 351 to 389 kJ/mol, but the valence kept out of π went into extra σ partners in hot,
   bending fragments: CH₄ + O₂ at 3500 K grew C₃H₁₂O₄ clumps. A narrower version (carbon only, and only

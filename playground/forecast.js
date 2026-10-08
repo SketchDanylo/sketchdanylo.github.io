@@ -108,7 +108,7 @@ class ForecastCard {
   async decide(sv, ids) {
     const H = K().humanTime, wait = sv.total > 0 ? Math.LN2 / sv.total : Infinity;
     if (!isFinite(wait) || wait > 3.15e16 || !sv.events.length) {
-      this.say((sv.events[0] ? 'stable · nothing for ' + H(sv.events[0].halfLife) : 'nothing here can react') + (this.actions.absorbs?.() ? ' · L for light' : ''));
+      this.say((sv.events[0] ? 'stable · nothing for ' + H(sv.events[0].halfLife) : 'nothing here can react') + (this.actions.absorbs?.() ? ' · ' + (this.actions.lightHint?.() || 'L for light') : ''));
       this.finish(); return;
     }
     const key = this.req, ok = await this.go(sv, ids);
