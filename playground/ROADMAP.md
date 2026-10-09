@@ -145,6 +145,10 @@ Without this, the forecast and fast-forward will work well for radical and gas-p
   atom inserting into a σ bond. The search already refuses to count both; the live simulation can
   still do them, because the model carries no spin.
 - Large chambers: forecast once per distinct situation and reuse it, instead of rescanning every copy.
+- Large molecules: every scan point relaxes every atom of both partners, so a C₉ radical meeting ethene
+  costs 25–30 s a candidate. Scanning only the atoms within two bonds of the reacting pair, capped with
+  hydrogens, would make it independent of chain length; the catch is placing the result back, since
+  the rest of the chain must follow the moved region without straining the cut bonds.
 
 ### 5. The teaching layer
 
