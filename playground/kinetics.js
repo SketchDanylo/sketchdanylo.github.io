@@ -346,8 +346,24 @@ function fromScene(scene) {
   return e;
 }
 
+function polarPair(e, i, j) {
+  const fr = e.fragments(), sym = a => ELEMENTS[e.type[a]].sym;
+  for (const [x, c] of [[i, j], [j, i]]) {
+    const g = fr.list[fr.comp[x]];
+    if (!POLAR.has(sym(x)) || g.length !== 2 || sym(g[0]) !== sym(g[1]) || sym(c) !== 'C' || fr.comp[c] === fr.comp[x]) continue;
+    const c2 = neighbours(e, c).find(b => { const p = e.pairMap.get(Math.min(b, c) * 1048576 + Math.max(b, c)); return sym(b) === 'C' && p !== undefined && e.pN[p] > 1.5 && e.pN[p] < 2.5; });
+    if (c2 !== undefined) return { i: x, j: c, kind: 'polar', mult: 1, x2: [x, g[0] === x ? g[1] : g[0]], cc: [c, c2] };
+  }
+  return null;
+}
+
 function study(scene, i, j, temps) {
   const e = fromScene(scene), T = scene.T || 298;
+  const pc = polarPair(e, i, j);
+  if (pc) {
+    const r = polarAddition(e, pc, T), h = LN2 / r.rate, at = t => ({ T: t, halfLife: h, fastest: h / UNCERTAINTY.A, slowest: h * UNCERTAINTY.A });
+    return { ok: true, kind: 'polar', channel: { type: 'polar' }, Ea: 0, EaModel: 0, dE: 0, reactants: r.reactants, products: r.products, path: null, bimolecular: true, alternatives: [], event: r.event, now: { ok: true, T, halfLife: h, fastest: h / UNCERTAINTY.A, slowest: h * UNCERTAINTY.A, k: K_WALL, note: 'ionic addition on the glass, through a halonium ion' }, table: (temps || [200, 298, 500, 1000, 1500, 2500]).map(at), T };
+  }
   const raw = scanPair(e, i, j, { T });
   if (!raw.ok) return raw;
   const [d, a] = measured(e, raw, raw, i, j), steric = 0.1 * a;
