@@ -98,6 +98,7 @@ kbd{font:500 9.5px var(--mono);padding:1px 5px;border:1px solid var(--line-hi);b
 .tbtn:disabled{opacity:.3;pointer-events:none}
 #nextRxBtn.on{color:#e2d0ff;background:rgba(176,132,255,.18);animation:keepgo 1.4s ease-in-out infinite}
 @keyframes keepgo{50%{background:rgba(176,132,255,.32)}}
+
 .tbtn.play{width:42px;height:42px;border-radius:50%;background:var(--bone);color:var(--field)}
 .tbtn.play:hover{background:#fff;color:var(--field)}
 .tbtn.play.running{background:var(--sodium);box-shadow:0 0 0 0 rgba(214,201,172,.5);animation:pulseRun 2.4s ease-out infinite}

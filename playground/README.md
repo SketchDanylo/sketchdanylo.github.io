@@ -591,7 +591,8 @@ and hydrogen with chlorine, the classic photochemical chain (Cl· + H₂ → HCl
 at 500 K because the model's Cl· + H₂ barrier is 37 kJ/mol against a real 19; there Cl· takes H₂ 97% of
 the time instead of finding another Cl·, and in four browser runs of seven skips each the chain ran to
 nothing but HCl, restarting by itself when the last radicals met (Cl₂ splitting by heat, after years).
-Loading one is undoable; pressing `J` then shows what happens next.
+Loading one is undoable; pressing `J` then shows what happens next. Until you do, the button to
+press glows: ☀ first when the experiment needs light, then the double arrow.
 
 The search also knows two-bond swaps: two atoms of one molecule joining while each lets go of a
 partner, such as H₂ leaving ethane (1,2-elimination, 400 kJ/mol; 1,1 to a carbene, 403). A route whose

@@ -96,7 +96,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build84', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0, lightHint: () => matchMedia('(pointer: coarse)').matches ? '☀ for light' : 'L for light', nameOf: g => groupName(g) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build85', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0, lightHint: () => matchMedia('(pointer: coarse)').matches ? '☀ for light' : 'L for light', nameOf: g => groupName(g) });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -753,6 +753,7 @@ function runExperiment(x) {
   eng.touch(); eng.refresh(); eng.minimize(300, 1); eng.thermalize(eng.T);
   edited(); fitBox(true);
   document.activeElement?.blur();
+  cue(x.light ? 'light' : 'next');
   const touch = matchMedia('(pointer: coarse)').matches;
   toast(x.name + (x.light ? (touch ? ' · ☀ for light, then » for the next reaction' : ' · ☀ L for light, then » J for the next reaction') : (touch ? ' · » for the next reaction' : ' · » J for the next reaction')));
 }
@@ -1108,6 +1109,7 @@ function uvFlash() {
   const hit = uvTargets();
   uvAt = performance.now();
   if (!hit.length) return toast('Nothing here absorbs it · Cl₂, Br₂, I₂ and F₂ do');
+  if (document.querySelector('.tool[data-tool="light"].cue')) cue('next');
   pushUndo();
   let n = 0;
   for (const b of hit) {
@@ -1501,12 +1503,17 @@ act('tool.spark', 'Tools', 'Spark', ['G'], () => setTool('spark'));
 act('tool.cleave', 'Tools', 'Break bond', ['D'], () => setTool('cleave'));   // D: dissociate — C is carbon
 act('tool.light', 'Tools', 'UV flash', ['L'], () => uvFlash());
 act('tool.forecast', 'Tools', 'Forecast a reaction', ['W'], () => setTool('forecast'));
-const nextReaction = () => forecastCard.auto ? forecastCard.stop() : forecastCard.next();
+function cue(which) {
+  document.querySelectorAll('.cue').forEach(b => b.classList.remove('cue'));
+  const el = which === 'light' ? document.querySelector('.tool[data-tool="light"]') : which === 'next' ? $('nextRxBtn') : null;
+  if (el) el.classList.add('cue');
+}
+const nextReaction = () => { cue(null); return forecastCard.auto ? forecastCard.stop() : forecastCard.next(); };
 act('time.next', 'Time', 'Skip to the next reaction', ['J'], nextReaction);
 act('time.skipProbe', 'Time', 'Skip ahead to the forecast reaction', ['Enter'], () => forecastCard.skipProbe());
-act('time.keepGoing', 'Time', 'Keep skipping from reaction to reaction', ['Shift+J'], () => forecastCard.toggleAuto());
-$('nextRxBtn').onclick = e => e.shiftKey ? forecastCard.toggleAuto() : nextReaction();
-$('nextRxBtn').ondblclick = () => { if (!forecastCard.auto) forecastCard.toggleAuto(); };
+act('time.keepGoing', 'Time', 'Keep skipping from reaction to reaction', ['Shift+J'], () => { cue(null); forecastCard.toggleAuto(); });
+$('nextRxBtn').onclick = e => e.shiftKey ? (cue(null), forecastCard.toggleAuto()) : nextReaction();
+$('nextRxBtn').ondblclick = () => { cue(null); if (!forecastCard.auto) forecastCard.toggleAuto(); };
 act('el.more', 'Tools', 'All elements…', ['E'], () => openElPop());
 for (const [sym, key] of [['H', 'H'], ['C', 'C'], ['N', 'N'], ['O', 'O'], ['F', 'F'], ['S', 'S'], ['P', 'P'], ['Cl', 'L'], ['Na', 'A'], ['Br', ''], ['I', ''], ['He', ''], ['Ar', '']])
   act('el.' + sym, 'Elements', BY_SYM[sym].name, key ? [key] : [], () => arm(armed === sym ? null : sym));

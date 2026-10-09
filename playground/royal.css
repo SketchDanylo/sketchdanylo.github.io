@@ -122,3 +122,7 @@ input[type=checkbox]:checked{background:#dadad8;border-color:#e9e9e6}input[type=
 @media(max-height:600px){.console-win{top:72px!important;max-height:calc(100dvh - 174px)}.pop{max-height:calc(100dvh - 110px)}.atom-inspector{max-height:calc(100dvh - 24px)}}
 html[data-motion=reduced] *,html[data-motion=reduced] *::before,html[data-motion=reduced] *::after,html[data-motion=reduced] select::picker(select),html[data-motion=reduced] details::details-content{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after,select::picker(select),details::details-content{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+.tool.cue,.tbtn.cue{color:var(--sodium)!important;box-shadow:0 0 0 1.5px rgba(255,178,63,.65)!important;animation:cue 1.6s ease-in-out infinite!important}
+@keyframes cue{50%{box-shadow:0 0 0 1.5px rgba(255,178,63,.65),0 0 0 7px rgba(255,178,63,.18)}}
+@media (prefers-reduced-motion:reduce){.tool.cue,.tbtn.cue{animation:none!important}}
+html[data-motion=reduced] .tool.cue,html[data-motion=reduced] .tbtn.cue{animation:none!important}
