@@ -115,7 +115,8 @@ class ForecastCard {
     if (key !== this.req) return;
     if (this.fx) { this.fx.scan = null; this.fx.focus = null; }
     if (ok) this.misses = 0;
-    if (this.auto && (ok || (this.misses = (this.misses || 0) + 1) <= 3)) { if (!ok) this.actions.play?.(); this.watchThenNext(); }
+    else this.actions.play?.();
+    if (this.auto && (ok || (this.misses = (this.misses || 0) + 1) <= 3)) this.watchThenNext();
     else this.finish();
   }
   async go(sv, ids) {

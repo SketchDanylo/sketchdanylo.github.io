@@ -248,4 +248,19 @@ test('H· + Cl₂ in a crowded 500 K chamber is played and accepted as HCl + Cl�
   assert.ok(n >= 10, n + ' of 12 trials made HCl + Cl·');
 });
 
+test('A ground-state oxygen atom (a triplet) abstracts and never inserts: O + CH₄ gives CH₃· + ·OH, not methanol in one step; O + ethene still adds', () => {
+  const run = (mol, pi) => {
+    const e = new Engine({ width: 30, height: 30, depth: 12, T: 298, thermostat: false });
+    for (const [s, x, y, z] of geo(mol)) e.addAtom(s, 12 + x, 15 + y, z || 0, { thermal: false });
+    e.touch(); e.refresh(); if (pi) e.setBondOrder(0, 1, 2);
+    e.addAtom('O', 16.5, 15.2, 0.3, { thermal: false }); e.touch(); e.refresh();
+    return K.survey(JSON.parse(JSON.stringify(e.toJSON()))).events;
+  };
+  const m = run('CH4');
+  assert.equal(m[0].products.map(f => f.replace(/·/g, '')).sort().join(' + '), 'CH3 + HO');
+  assert.ok(!m.some(x => x.products.length === 1), 'insertion counted: ' + m.map(x => x.label).join(', '));
+  assert.ok(Math.abs(m[0].Ea - 40) < 12, 'O + CH₄ barrier ' + m[0].Ea.toFixed(0));
+  assert.ok(run('C2H4', true).some(x => x.products.length === 1), 'O + ethene lost its addition');
+});
+
 console.log(count + ' kinetics checks passed.');

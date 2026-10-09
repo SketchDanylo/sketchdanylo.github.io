@@ -131,8 +131,9 @@ Without this, the forecast and fast-forward will work well for radical and gas-p
   forecast: H· + O₂ → HO₂ only wins at high pressure), tunnelling and zero-point energy for hydrogen
   transfers.
 - A penalty in the force field for concerted additions that orbital symmetry forbids (two closed-shell
-  molecules adding in one step through a four-centre ring). The search already refuses to count them;
-  the live simulation can still do them.
+  molecules adding in one step through a four-centre ring), and for a ground-state (triplet) O or S
+  atom inserting into a σ bond. The search already refuses to count both; the live simulation can
+  still do them, because the model carries no spin.
 - Large chambers: forecast once per distinct situation and reuse it, instead of rescanning every copy.
 
 ### 5. The teaching layer

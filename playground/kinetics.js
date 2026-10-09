@@ -95,7 +95,9 @@ function runChannel(src, atoms, i, j, E0, ch, opts) {
     done = !bondedIn(e, a, b) && freeValence(e).every(x => x > -0.5);
     products = fragmentFormulas(e); endPos = e.pos.slice(0, 3 * e.N);
   } else {
+    const tail = ch.type === 'transfer' ? { pos: e.pos.slice(0, 3 * e.N), n: e.fragments().list.length } : null;
     e.restraints = null; Eend = settle(e, 3000) - E0;
+    if (tail && tail.n > 1 && e.fragments().list.length < tail.n) { e.pos.set(tail.pos); e.touch(); e.refresh(); Eend = Infinity; }
     const sane = freeValence(e).every(x => x > -0.5);
     done = sane && bondedIn(e, a, b) && (k === undefined || !bondedIn(e, b, k)) && (ka === undefined || !bondedIn(e, a, ka));
     products = fragmentFormulas(e); endPos = e.pos.slice(0, 3 * e.N);
@@ -232,8 +234,9 @@ function scanPair(src, i, j, opts = {}) {
       const user = unit(sub(P3(src, x), P3(src, y)));
       for (const d of directions([user, ...faces(src, y)])) channels.push({ type: 'form', from: x, at: y, place: pose(src, attacker(x), x, y, d) });
       if (free[y] > 0.5) continue;
+      const sp3 = ELEMENTS[src.type[y]].sym === 'C' && neighbours(src, y).length >= 4;
       for (const k of neighbours(src, y)) {
-        if (k === x) continue;
+        if (k === x || (sp3 && ELEMENTS[src.type[k]].sym === 'H')) continue;
         for (const d of directions([unit(sub(P3(src, y), P3(src, k))), user])) channels.push({ type: 'transfer', at: y, k, from: x, place: pose(src, attacker(x), x, y, d) });
       }
     }
@@ -247,14 +250,14 @@ function scanPair(src, i, j, opts = {}) {
     let best = Infinity;
     for (const ch of channels) {
       const r = run(ch, opts.quick && channels.length > 1 && isFinite(best) ? { ...coarse, cap: best + spare } : coarse);
-      if (r.done) best = Math.min(best, r.Ea);
+      if (r.done && (!opts.allow || opts.allow(r))) best = Math.min(best, r.Ea);
       results.push(r);
       if (opts.onStep) opts.onStep(results.length / (channels.length + 2));
     }
     if (opts.coarseOut && channels.length > 1) opts.coarseOut(results.slice());
   }
   if (channels.length > 1 && !opts.quick) {
-    const good = results.filter(r => r.done).sort((p, q) => p.Ea - q.Ea);
+    const good = results.filter(r => r.done && (!opts.allow || opts.allow(r))).sort((p, q) => p.Ea - q.Ea);
     const keep = good.filter(r => r.Ea <= good[0].Ea + 25).slice(0, 3);
     const refined = keep.map(r => run(r.channel, opts));
     results = refined.concat(results.filter(r => !keep.includes(r)));
@@ -404,25 +407,35 @@ function candidates(src, cap = 24) {
 function chamberVolume(e) { const b = e.box; return (b.x1 - b.x0) * (b.y1 - b.y0) * (b.z1 - b.z0) * 1e-24; }
 
 function scanCandidate(e, c, T, quick, cache, store) {
-  const at = c.i + ',' + c.j;
-  const scan = scanPair(e, c.i, c.j, { T, quick, cache, coarseIn: !quick && store ? store.get(at) : null, coarseOut: quick && store ? r => store.set(at, r) : null });
+  const at = c.i + ',' + c.j, fr = e.fragments();
+  const triplet = fr.comp[c.i] !== fr.comp[c.j] && fr.list[fr.comp[c.i]].length === 1 && SPIN_LOCKED.has(ELEMENTS[e.type[c.i]].sym) && closedShell(e, fr.list[fr.comp[c.j]]);
+  const allow = c.prio === 1 || triplet ? r => r.products.length >= 2 : null;
+  const scan = scanPair(e, c.i, c.j, { T, quick, cache, allow, coarseIn: !quick && store ? store.get(at) : null, coarseOut: quick && store ? r => store.set(at, r) : null });
   if (!scan.ok) return null;
   const f = forecast(e, scan, { T, partnerPerCm3: 1 });
   if (!f.ok) return null;
-  const fr = e.fragments(), lone = fr.list[fr.comp[c.i]].length === 1 && fr.list[fr.comp[c.j]].length === 1;
+  const lone = fr.list[fr.comp[c.i]].length === 1 && fr.list[fr.comp[c.j]].length === 1;
   const V = chamberVolume(e), one = (s, k) => { const kRate = lone && scan.bimolecular && s.products.length === 1 ? k * THIRD_BODY : k; return ({ label: scan.reactants.join(' + ') + ' → ' + s.products.join(' + '), i: c.i, j: c.j, Ea: s.Ea, dE: s.dE, rate: scan.bimolecular ? kRate * c.mult / V : kRate * c.mult, kRate, bimolecular: scan.bimolecular, refined: !quick, reactants: scan.reactants, products: s.products, event: s.event, kind: scan.kind }); };
   const main = one(scan, f.k);
   main.also = (scan.alternatives || []).filter(a => !(bare(a.products) === bare(scan.reactants))).map(a => {
     const g = forecast(e, { ok: true, Ea: a.Ea, kind: a.channel.type === 'break' ? 'break' : scan.kind, barrierAtEnd: a.barrierAtEnd, bimolecular: scan.bimolecular, i: scan.i, j: scan.j }, { T, partnerPerCm3: 1 });
     return g.ok ? one(a, g.k) : null;
   }).filter(Boolean);
-  const list = [main, ...main.also].filter(x => c.prio !== 1 || x.products.length >= x.reactants.length);
+  const list = [main, ...main.also].filter(x => !allow || x.products.length >= x.reactants.length);
   if (!list.length) return null;
   list[0].also = list.slice(1);
   return list[0];
 }
 
 const bare = list => list.map(f => f.replace(/·/g, '')).sort().join(' + ');
+
+const SPIN_LOCKED = new Set(['O', 'S']);
+function closedShell(e, frag) {
+  const free = freeValence(e), inFrag = new Set(frag);
+  if (frag.some(x => free[x] > 0.5)) return false;
+  for (let p = 0; p < e.nPairs; p++) if (inFrag.has(e.pI[p]) && e.bondStrength(p) > 0.25 && e.pN[p] > 1.2) return false;
+  return true;
+}
 
 function combine(results, T) {
   const events = [], seen = new Map(), flat = [];
@@ -512,11 +525,13 @@ function verifyEvent(scene, ev, products, T, seeds = 3, fs = 400, first = 1) {
     e.T = T; e.thermostat = true; e.thermostatMode = 'kelvin'; e.rngState = s * 7919 + 13;
     applyEvent(e, ev, ev.atoms);
     const cool = COOL.slice(), want = wanted(products);
+    let seen = false;
     for (let k = 1; k <= fs; k++) {
       e.step();
-      if (cool.length && k >= cool[0]) { cool.shift(); coolProducts(e, ev.atoms, T, want, !cool.length); }
+      if (k === 40 && formed(e, ev.atoms, products)) seen = true;
+      if (cool.length && k >= cool[0]) { cool.shift(); if (!seen && formed(e, ev.atoms, products)) seen = true; coolProducts(e, ev.atoms, T, want, !cool.length); }
     }
-    if (formed(e, ev.atoms, products)) ok++;
+    if (seen || formed(e, ev.atoms, products)) ok++;
   }
   return ok;
 }

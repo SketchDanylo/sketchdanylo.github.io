@@ -96,7 +96,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261008-build78', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0, lightHint: () => matchMedia('(pointer: coarse)').matches ? '☀ for light' : 'L for light' });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build79', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0, lightHint: () => matchMedia('(pointer: coarse)').matches ? '☀ for light' : 'L for light' });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -691,7 +691,7 @@ const EXPERIMENTS = [
   { name: 'Chlorine adds across ethene', T: 298.15, light: true, mix: [['C2H4', 2, [[0, 1, 2]]], ['Cl2', 2]], look: 'Nothing happens in the dark. Press L: light splits Cl₂, Cl· adds to the double bond, and the radical takes a chlorine from Cl₂: 1,2-dichloroethane, made by a chain.' },
   { name: 'Radical polymerisation of ethene', T: 350, mix: [['C2H4', 5, [[0, 1, 2]]], ['CH3', 1]], look: 'A methyl radical opens one double bond; the radical it becomes opens the next, and the chain grows: C₃H₇·, C₅H₁₁·, … the start of polyethylene. In this model the first step comes about 20 kJ/mol too easily.' },
   { name: 'Methyl radicals meet', T: 298.15, mix: [['CH3', 4]], look: 'Two radicals with nothing in the way pair up into ethane in picoseconds, without any barrier.' },
-  { name: 'Hydroxyl radicals and methane', T: 298.15, mix: [['CH4', 3], ['OH', 2]], look: 'OH· is what cleans methane out of the air, but slowly: here the two OH· find each other first (H₂O + O·, or H₂O₂). Remove one OH to watch the slow attack on methane.' },
+  { name: 'Hydroxyl radicals and methane', T: 298.15, mix: [['CH4', 3], ['OH', 2]], look: 'OH· is what cleans methane out of the air, but slowly: here the two OH· find each other first (H₂O + O·, or H₂O₂). The O· takes a hydrogen from methane after milliseconds, and the CH₃· and ·OH it leaves pair up into methanol at once: in reality they are born as a triplet pair and fly apart, but this model has no spin. Remove one OH to watch OH· + CH₄ itself.' },
   { name: 'Hydrogen and chlorine', T: 500, light: true, mix: [['H2', 3], ['Cl2', 3]], look: 'The classic photochemical chain. Dark: nothing. Press L: Cl· takes a hydrogen from H₂, the H· left behind takes a chlorine from Cl₂ at once, and every Cl· freed goes round again until HCl is all that is left. Real mixtures explode in sunlight at room temperature; here it runs at 500 K because this model makes the Cl· + H₂ step 18 kJ/mol too hard.' }
 ];
 function renderExperiments() {

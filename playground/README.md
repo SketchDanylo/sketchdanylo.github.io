@@ -533,7 +533,21 @@ search; asking about a pair by hand still reports every route), and counted as
 often as it occurs (methane's four hydrogens make four times the rate). Then it draws which reaction comes first and when from those rates, as a
 real flask would (kinetic Monte Carlo), and plays it in the live simulation; press J again for the one
 after. A stable chamber says so in the scene instead ("stable · nothing for …"), and a reaction that
-does not play out as forecast on a trial copy is marked with a red ✕ and not skipped.
+does not play out as forecast on a trial copy is marked with a red ✕ and not skipped, and the chamber
+then runs on, so the next J meets molecules that have moved instead of failing the same way again.
+A lone oxygen or sulfur atom is a triplet in its ground state, and a triplet atom cannot slip into a
+σ bond of a closed-shell molecule in one step (only the excited O(¹D) does that): the model has no
+spin, and without this rule it made methanol from O + CH₄ at 42 kJ/mol, as easily as the real
+abstraction. Such single-product routes are not counted, so O + CH₄ → CH₃· + ·OH (38 kJ/mol, real
+about 40), O + H₂ → ·OH + H· (40, real 37) and O + H₂O → 2 ·OH; additions to π bonds and to radicals
+are untouched. A radical knocking a hydrogen off a saturated, four-bonded carbon (substitution at
+sp³ carbon, CH₄ + O· → CH₃O· + H·) is not tried either: the model put it at its bare reaction energy,
+53 kJ/mol, where the real backside attack costs far more and never competes with taking the hydrogen.
+When a scan that hands an atom over ends with its two products already apart, they are relaxed apart
+too; relaxed together, CH₃· and ·OH from O + CH₄ paired up into methanol and the scan reported that
+second step as the reaction. A trial now also counts if the products were there at 40 fs or at any
+cooling point, since a radical pair born in contact may pair up straight afterwards; the feed then shows
+both steps.
 Two lone atoms joining into a diatomic (Cl· + Cl· → Cl₂) count at a thousandth of their meeting rate:
 on their own they fly apart again within one vibration, and in a real gas at 1 atm another molecule
 arrives to carry the energy off only about once in a thousand such meetings.
