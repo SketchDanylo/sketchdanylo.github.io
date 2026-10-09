@@ -331,4 +331,12 @@ test('Cl· meeting C₂H₄Cl· mostly combines to 1,2-dichloroethane; taking a 
   assert.ok(join > 0.5 && join > 3 * split, 'combine ' + join.toFixed(2) + ' vs H-transfer ' + split.toFixed(2));
 });
 
+test('One ethene and one Cl₂ under the lamp: after the only Cl₂ splits, Cl· still adds to ethene rather than only rejoining', () => {
+  const e = scene([['C2H4', [0, 0, 0], [[0, 1, 2]]]]);
+  e.addAtom('Cl', 21, 15, 0, { thermal: false }); e.addAtom('Cl', 9, 22, 0, { thermal: false }); e.touch(); e.refresh();
+  const js = JSON.parse(JSON.stringify(e.toJSON())); js.lamp = true; js.chain = true;
+  const sv = K.survey(js);
+  assert.ok(sv.events[0] && /C2H4 → C2H4Cl·|C2H4Cl·$/.test(sv.events[0].label) && sv.events[0].share > 0.5, sv.events.slice(0, 3).map(x => x.label + ' ' + x.share.toFixed(2)).join(' | '));
+});
+
 console.log(count + ' kinetics checks passed.');
