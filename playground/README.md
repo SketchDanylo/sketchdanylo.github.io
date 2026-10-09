@@ -447,6 +447,8 @@ not in any class: radicals meeting have no barrier. Neither is a hydrogen on a d
 | OH· + H–C | OH· + C₂H₆: 9 (0); OH· + CH₄: 15 (24) | ×0.2, ×0.05 |
 | ROO· + H–C | CH₃O₂· + CH₄: 90 (29) | |
 | OH· + H–OOR | OH· + CH₃OOH: 0 (2); back, CH₃O₂· + H₂O: 139 (78) | ×0.1 |
+| OH· + H–NH₂ | OH· + NH₃: 9 (0); back, NH₂· + H₂O: 56 (65) | ×0.1 |
+| OH· + H–Cl | OH· + HCl: 2 (70); back, Cl· + H₂O: 67 (66) | ×0.05 |
 | Br· adds to C=C | Br· + C₂H₄: 0 (25), back 30 | |
 | Br· + H–H, H–C | Br· + H₂: 82 (72); Br· + CH₄: 75 (75); Br· + C₂H₆: 57 (26) | |
 
