@@ -96,7 +96,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build105', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build106', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -1177,12 +1177,19 @@ function groupName(g) {
   for (let p = 0; p < eng.nPairs; p++) { if (!set.has(eng.pI[p])) continue; const st = eng.bondStrength(p); if (st > 0.25) links.push([eng.pI[p], eng.pJ[p], st]); }
   return (g.length > 2 && complexLabel(g, links)) || eng.formulaOf(g) + (eng.isRadical(g) ? '·' : '');
 }
+function openIn(g, ls) {
+  const used = new Map();
+  for (const [i, j, , p] of ls) { used.set(i, (used.get(i) || 0) + eng.pN[p]); used.set(j, (used.get(j) || 0) + eng.pN[p]); }
+  let total = 0;
+  for (const i of g) { const free = eng.val[i] - (used.get(i) || 0); if (free > 0.5) return true; if (free > 0) total += free; }
+  return total >= 0.75;
+}
 function speciesNow() {
-  const fr = eng.fragments(), map = new Map(), frags = [], byId = new Map();
+  const fr = ChemKinetics.untangled(eng), map = new Map(), frags = [], byId = new Map();
   const sig = [], links = fr.list.map(() => []);
-  for (let p = 0; p < eng.nPairs; p++) { const st = eng.bondStrength(p); if (st > 0.25) links[fr.comp[eng.pI[p]]].push([eng.pI[p], eng.pJ[p], st]); }
+  for (let p = 0; p < eng.nPairs; p++) { const st = eng.bondStrength(p), a = fr.comp[eng.pI[p]]; if (st > 0.25 && a === fr.comp[eng.pJ[p]]) links[a].push([eng.pI[p], eng.pJ[p], st, p]); }
   fr.list.forEach((g, k) => {
-    const f = (g.length > 2 && complexLabel(g, links[k])) || eng.formulaOf(g) + (eng.isRadical(g) ? '·' : '');
+    const f = (g.length > 2 && complexLabel(g, links[k])) || eng.formulaOf(g) + (openIn(g, links[k]) ? '·' : '');
     map.set(f, (map.get(f) || 0) + 1);
     let x = 0, y = 0, lo = Infinity; for (const i of g) { x += eng.pos[3 * i]; y += eng.pos[3 * i + 1]; byId.set(eng.ids[i], k); lo = Math.min(lo, eng.ids[i]); }
     frags.push({ f, raw: eng.formulaOf(g), x: x / g.length, y: y / g.length, n: g.length });
