@@ -428,7 +428,8 @@ turns the measured barrier into the rate instead of the one it found, and the me
 where the model's own (a tenth of the collision rate) is far from it. The reverse of each reaction gets
 the measured barrier minus the measured reaction enthalpy, with the same prefactor, so both directions
 follow real thermochemistry. A hydrogen taken from a radical (Cl· + C₂H₄Cl· → C₂H₃Cl + HCl) is
-not in any class: radicals meeting have no barrier. The live simulation and the reaction played after a skip are unchanged.
+not in any class: radicals meeting have no barrier. Neither is a hydrogen on a double-bonded carbon
+(vinyl C–H, 465 kJ/mol), which keeps the model's own barrier. The live simulation and the reaction played after a skip are unchanged.
 
 | class | measured, kJ/mol (search found) | prefactor |
 | --- | --- | --- |
@@ -443,12 +444,16 @@ not in any class: radicals meeting have no barrier. The live simulation and the 
 | CH₃· + H–C | CH₃· + C₂H₆: 45 (6) | ×0.01 |
 | OH· + H–C | OH· + C₂H₆: 9 (0); OH· + CH₄: 15 (24) | ×0.2, ×0.05 |
 | ROO· + H–C | CH₃O₂· + CH₄: 90 (29) | |
+| OH· + H–OOR | OH· + CH₃OOH: 0 (2); back, CH₃O₂· + H₂O: 139 (78) | ×0.1 |
+| Br· adds to C=C | Br· + C₂H₄: 0 (25), back 30 | |
+| Br· + H–H, H–C | Br· + H₂: 82 (72); Br· + CH₄: 75 (75); Br· + C₂H₆: 57 (26) | |
 
 A radical adding to a double bond, for example, has a tight transition state and a real prefactor
 near 10⁻¹³ cm³ s⁻¹, a hundred times below a typical collision.
 
 With them the classic chains run at room temperature as they do on a bench: methane and Cl₂ under the
-lamp give CH₃Cl and then CH₂Cl₂, H₂ and Cl₂ give HCl, and ethene and Cl₂ give 1,2-dichloroethane. The
+lamp give CH₃Cl and then CH₂Cl₂, H₂ and Cl₂ give HCl, ethene and Cl₂ give 1,2-dichloroethane, and
+ethene and Br₂ give 1,2-dibromoethane. The
 underlying errors (ethyl C–H 41 kJ/mol too weak, peroxide O–H too strong, Cl···H complexes too deep)
 are still in the force field and in the live simulation; ROADMAP has them.
 

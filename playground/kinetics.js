@@ -447,8 +447,8 @@ function scanCandidate(e, c, T, quick, cache, store) {
   return list[0];
 }
 
-const ADD_PI = { H: [9, 0.2, -150], C: [31, 0.01, -93], Cl: [0, 3, -75] };
-const SHIFT_H = { 'Cl|H': ['Cl', 18, 0.45, 4], 'Cl|Cm': ['Cl', 11, 0.2, 7], 'H|O': ['H', 76, 1, 61], 'C|H': ['H', 38, 1, -13], 'Cm|H': ['H', 50, 1, 3], 'C|Cm': ['Cm', 45, 0.01, -16], 'C|O': ['O', 9, 0.2, -74], 'Cm|O': ['O', 15, 0.05, -58], 'C|Oo': ['Oo', 75, 1, 65], 'Cm|Oo': ['Oo', 90, 1, 81], 'Cc|Cl': ['Cl', 10, 1, -13] };
+const ADD_PI = { H: [9, 0.2, -150], C: [31, 0.01, -93], Cl: [0, 3, -75], Br: [0, 1, -30] };
+const SHIFT_H = { 'Cl|H': ['Cl', 18, 0.45, 4], 'Cl|Cm': ['Cl', 11, 0.2, 7], 'H|O': ['H', 76, 1, 61], 'C|H': ['H', 38, 1, -13], 'Cm|H': ['H', 50, 1, 3], 'C|Cm': ['Cm', 45, 0.01, -16], 'C|O': ['O', 9, 0.2, -74], 'Cm|O': ['O', 15, 0.05, -58], 'C|Oo': ['Oo', 75, 1, 65], 'Cm|Oo': ['Oo', 90, 1, 81], 'Cc|Cl': ['Cl', 10, 1, -13], 'O|Oo': ['O', 0, 0.1, -139], 'Br|H': ['Br', 82, 1, 70], 'Br|Cm': ['Br', 75, 1, 73], 'Br|C': ['Br', 57, 1, 57] };
 const HALO = new Set(['F', 'Cl', 'Br', 'I']);
 const NONE = [0, 1];
 
@@ -475,7 +475,7 @@ function measured(e, scan, s, i, j) {
     if (e.isRadical(fr.list[fr.comp[m]])) return NONE;
     const cls = a => {
       const o = nb(a).filter(b => b !== m);
-      if (sym(a) === 'C') return o.some(b => HALO.has(sym(b))) ? 'Cc' : o.every(b => sym(b) === 'H') ? 'Cm' : 'C';
+      if (sym(a) === 'C') return o.some(b => order(a, b) > 1.2) ? 'Cv' : o.some(b => HALO.has(sym(b))) ? 'Cc' : o.every(b => sym(b) === 'H') ? 'Cm' : 'C';
       if (sym(a) === 'O') return o.some(b => sym(b) === 'O') ? 'Oo' : o.length === 1 && sym(o[0]) === 'H' ? 'O' : 'Ox';
       return sym(a);
     };
