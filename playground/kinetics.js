@@ -561,14 +561,42 @@ function clearAround(eng, idx) {
         if (ny < b.y0 + m || ny > b.y1 - m) sy = 0;
         if (nz < b.z0 + m || nz > b.z1 - m) sz = 0;
       }
-      if (sx === 0 && sy === 0 && sz === 0) continue;
-      for (const a of g) { P[3 * a] += sx; P[3 * a + 1] += sy; P[3 * a + 2] += sz; }
+      if (sx === 0 && sy === 0 && sz === 0) relocate(eng, g);
+      else for (const a of g) { P[3 * a] += sx; P[3 * a + 1] += sy; P[3 * a + 2] += sz; }
       any = true; moved++;
     }
     if (!any) break;
     eng.touch(); eng.refresh();
   }
-  return moved;
+  const f = eng.fragments(), near = g => g.some(a => idx.some(c => Math.hypot(P[3 * a] - P[3 * c], P[3 * a + 1] - P[3 * c + 1], P[3 * a + 2] - P[3 * c + 2]) < CLEAR));
+  let late = 0;
+  for (const g of f.list) if (!g.some(i => mine.has(i)) && near(g)) { relocate(eng, g); late++; }
+  if (late) { eng.touch(); eng.refresh(); }
+  return moved + late;
+}
+
+function relocate(eng, g) {
+  const P = eng.pos, b = eng.box, N = eng.N, own = new Set(g);
+  let cx = 0, cy = 0, cz = 0;
+  for (const a of g) { cx += P[3 * a]; cy += P[3 * a + 1]; cz += P[3 * a + 2]; }
+  cx /= g.length; cy /= g.length; cz /= g.length;
+  const rad = Math.max(...g.map(a => Math.hypot(P[3 * a] - cx, P[3 * a + 1] - cy, P[3 * a + 2] - cz))) + 0.8;
+  let seed = (N * 7919 + g[0] * 104729) % 2147483647 || 1;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const lo = (u0, u1) => [Math.min(u0 + rad, (u0 + u1) / 2), Math.max(u1 - rad, (u0 + u1) / 2)];
+  const [xa, xb] = lo(b.x0, b.x1), [ya, yb] = lo(b.y0, b.y1), [za, zb] = lo(b.z0, b.z1);
+  let best = null, bestD = -1;
+  for (let t = 0; t < 400 && bestD < 3.4; t++) {
+    const x = xa + (xb - xa) * rnd(), y = ya + (yb - ya) * rnd(), z = za + (zb - za) * rnd();
+    let d = Infinity;
+    for (const a of g) {
+      const ax = P[3 * a] - cx + x, ay = P[3 * a + 1] - cy + y, az = P[3 * a + 2] - cz + z;
+      for (let i = 0; i < N && d > bestD; i++) if (!own.has(i)) d = Math.min(d, Math.hypot(P[3 * i] - ax, P[3 * i + 1] - ay, P[3 * i + 2] - az));
+    }
+    if (d > bestD) { bestD = d; best = [x, y, z]; }
+  }
+  if (!best) return;
+  for (const a of g) { P[3 * a] += best[0] - cx; P[3 * a + 1] += best[1] - cy; P[3 * a + 2] += best[2] - cz; }
 }
 
 function applyEvent(eng, ev, idx) {
@@ -586,6 +614,12 @@ function applyEvent(eng, ev, idx) {
     eng.pos[3 * i] = ev.pos[3 * m] + dx; eng.pos[3 * i + 1] = ev.pos[3 * m + 1] + dy; eng.pos[3 * i + 2] = ev.pos[3 * m + 2] + dz;
     eng.born[i] = eng.time;
   });
+  const b = eng.box, in3 = [[b.x0, b.x1], [b.y0, b.y1], [b.z0, b.z1]];
+  for (let d = 0; d < 3; d++) {
+    const [u0, u1] = in3[d], xs = idx.map(i => eng.pos[3 * i + d]), lo = Math.min(...xs), hi = Math.max(...xs);
+    const shift = lo < u0 + 0.6 ? u0 + 0.6 - lo : hi > u1 - 0.6 ? u1 - 0.6 - hi : 0;
+    if (shift) for (const i of idx) eng.pos[3 * i + d] += shift;
+  }
   eng.touch(); eng.refresh();
   clearAround(eng, idx);
   for (const [a, b, o] of ev.bo) eng.setBondOrder(idx[a], idx[b], o);

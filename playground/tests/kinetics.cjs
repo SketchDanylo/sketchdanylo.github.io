@@ -222,6 +222,25 @@ test('A skipped reaction is never placed on top of a bystander: an HCl in the wa
   assert.ok(Math.abs(d(7, 8) - 1.3) < 0.2, 'HCl moved whole: H–Cl ' + d(7, 8).toFixed(2));
 });
 
+test('A bystander caught between a skipped reaction and a wall is moved elsewhere, whole, not left in the way to be torn apart', () => {
+  const e = new Engine({ width: 30, height: 30, depth: 12, T: 298, thermostat: false });
+  for (const [s, x, y, z] of geo('C2H4')) e.addAtom(s, 12 + x, 15 + y, z || 0, { thermal: false });
+  e.touch(); e.refresh(); e.setBondOrder(0, 1, 2);
+  e.addAtom('Cl', 20, 15, 0, { thermal: false }); e.touch(); e.refresh();
+  const sc = JSON.parse(JSON.stringify(e.toJSON())), r = K.study(sc, 6, 0);
+  const g = K.fromScene(sc), at = r.event.atoms.indexOf(6), p = r.event.pos.slice(3 * at, 3 * at + 3);
+  const off = d => r.event.anchor.reduce((a, i) => a + g.pos[3 * i + d], 0) / r.event.anchor.length - r.event.anchor.reduce((a, i) => a + r.event.pos[3 * r.event.atoms.indexOf(i) + d], 0) / r.event.anchor.length;
+  const px = p[0] + off(0), py = p[1] + off(1), pz = p[2] + off(2);
+  g.addAtom('H', px + 0.9, py, pz, { thermal: false }); g.addAtom('Cl', px + 2.2, py, pz, { thermal: false }); g.touch(); g.refresh();
+  g.box = { ...g.box, x1: px + 2.9 };
+  K.applyEvent(g, r.event, r.event.atoms);
+  const d = (a, b) => Math.hypot(g.pos[3 * a] - g.pos[3 * b], g.pos[3 * a + 1] - g.pos[3 * b + 1], g.pos[3 * a + 2] - g.pos[3 * b + 2]);
+  let dmin = Infinity; for (const a of r.event.atoms) for (const b of [7, 8]) dmin = Math.min(dmin, d(a, b));
+  assert.ok(dmin >= 2.4 - 1e-6, 'bystander left at ' + dmin.toFixed(2) + ' Å');
+  assert.ok(Math.abs(d(7, 8) - 1.3) < 0.2, 'HCl moved whole: H–Cl ' + d(7, 8).toFixed(2));
+  for (let i = 0; i < g.N; i++) assert.ok(g.pos[3 * i] <= g.box.x1 && g.pos[3 * i] >= g.box.x0, 'atom ' + i + ' outside the box');
+});
+
 test('Two closed-shell molecules never add whole in one step: hot methane and O₂ give no CH₃OOH from a single encounter', () => {
   const e = new Engine({ width: 30, height: 30, depth: 12, T: 2000, thermostat: false });
   for (const [s, x, y, z] of geo('CH4')) e.addAtom(s, 10 + x, 15 + y, z || 0, { thermal: false });

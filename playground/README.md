@@ -499,7 +499,11 @@ full speed).
 The reacting pair is placed where its own scan put it, in a copy that held only those two molecules;
 any other molecule found within 2.4 Å of them in the real chamber is moved straight out, whole, first
 (over the time that was skipped it would have drifted anyway). Without that, a pair could land on a
-bystander, and an HCl struck that way once fell apart into H· and Cl· at room temperature.
+bystander, and an HCl struck that way once fell apart into H· and Cl· at room temperature. A bystander
+that cannot be pushed straight out, because a wall is in the way, is set down whole in the emptiest
+place in the chamber instead, and the reacting pair itself is kept inside the walls. Before that, one
+caught between a pair and a wall was left 0.9 Å away and blown apart: HCl into H· and Cl·, a water
+into H· and ·OH, both at room temperature, which is how this was found.
 
 Where a path climbs its barrier, drops into a well and then climbs a second, lower bump before the
 products (the Cl···H···C wells, above), the pair is placed past that last bump instead, provided the
