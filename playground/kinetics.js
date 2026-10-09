@@ -6,7 +6,7 @@
 const { Engine, ELEMENTS, PAIR } = CE;
 const NT = ELEMENTS.length;
 const R = 0.008314462618, KB_SI = 1.380649e-23, H_SI = 6.62607015e-34, AMU = 1.66053906660e-27, LN2 = Math.log(2);
-const RESTRAINT_K = 4000, BREAK_REACH = 3.2, START_GAP = 4.2, TRAP = 8;
+const RESTRAINT_K = 4000, BREAK_REACH = 3.2, START_GAP = 4.2, TRAP = 8, PRUNE = 40;
 
 function blank(T) {
   const e = new Engine({ width: 200, height: 200, depth: 200, T: T || 0, thermostat: false });
@@ -85,7 +85,10 @@ function runChannel(src, atoms, i, j, E0, ch, opts) {
     const bo = []; for (let p = 0; p < e.nPairs; p++) if (e.pN[p] > 1.001) bo.push([e.pI[p], e.pJ[p], e.pN[p]]);
     return { x: coord(), r: dist(e, a, b), E: E - E0, pos: e.pos.slice(0, 3 * e.N), bo, bonds: bondsOf(e) };
   };
-  for (let s = 0; s <= steps; s++) path.push(point(s));
+  for (let s = 0; s <= steps; s++) {
+    path.push(point(s));
+    if (opts.cap !== undefined && path[s].E > opts.cap) { e.restraints = null; return { channel: ch, done: false, pruned: true, Ea: path[s].E, dE: NaN, products: [], path: path.map(p => ({ x: p.x, r: p.r, E: p.E })) }; }
+  }
   let Eend, done, products, endPos;
   if (ch.type === 'break') {
     Eend = path[path.length - 1].E;
@@ -240,8 +243,12 @@ function scanPair(src, i, j, opts = {}) {
   let results = [];
   if (opts.coarseIn && channels.length > 1) results = opts.coarseIn.slice();
   else {
+    const spare = Math.max(PRUNE, 14 * 0.008314 * (opts.T || 298));
+    let best = Infinity;
     for (const ch of channels) {
-      results.push(run(ch, coarse));
+      const r = run(ch, opts.quick && channels.length > 1 && isFinite(best) ? { ...coarse, cap: best + spare } : coarse);
+      if (r.done) best = Math.min(best, r.Ea);
+      results.push(r);
       if (opts.onStep) opts.onStep(results.length / (channels.length + 2));
     }
     if (opts.coarseOut && channels.length > 1) opts.coarseOut(results.slice());
@@ -434,7 +441,17 @@ function combine(results, T) {
   return { ok: true, T, events, total };
 }
 
-const REFINE = 3, COOL = [80, 160, 300], THIRD_BODY = 1e-3;
+const REFINE = 3, COOL = [80, 160, 300, 500, 800], THIRD_BODY = 1e-3;
+
+function wanted(products) {
+  const lists = Array.isArray(products && products[0]) ? products : [products || []];
+  return new Set(lists.flat().map(f => f.replace(/·/g, '')));
+}
+function coolProducts(e, atoms, T, want, force) {
+  const f = e.fragments(), comps = [...new Set(atoms.filter(i => i >= 0).map(i => f.comp[i]))];
+  const done = comps.filter(c => force || !want.size || want.has(e.formulaOf(f.list[c])));
+  if (done.length && T > 0) e.thermalize(T, done.flatMap(c => f.list[c]));
+}
 
 function reuse(cached, c, V) {
   const one = x => ({ ...x, i: c.i, j: c.j, event: null, cand: c, rate: x.bimolecular ? x.kRate * c.mult / V : x.kRate * c.mult });
@@ -465,9 +482,27 @@ function stillThere(eng, ev, idx, reactants) {
   return bare([...comps].map(c => eng.formulaOf(f.list[c]))) === bare(reactants);
 }
 
+function untangled(eng) {
+  const links = [], by = new Map(), cut = new Set();
+  for (let p = 0; p < eng.nPairs; p++) { const s = eng.bondStrength(p); if (s > 0.25) links.push([eng.pI[p], eng.pJ[p], s]); }
+  for (const l of links) for (const a of [l[0], l[1]]) { if (!by.has(a)) by.set(a, []); by.get(a).push(l); }
+  for (const [a, ls] of by) { const v = Math.max(1, Math.round(eng.val[a])); if (ls.length > v) ls.slice().sort((x, y) => x[2] - y[2]).slice(0, ls.length - v).forEach(l => cut.add(l)); }
+  const parent = Int32Array.from({ length: eng.N }, (_, i) => i), find = i => { while (parent[i] !== i) i = parent[i] = parent[parent[i]]; return i; };
+  for (const l of links) if (!cut.has(l)) { const x = find(l[0]), y = find(l[1]); if (x !== y) parent[x] = y; }
+  const groups = new Map(), comp = new Int32Array(eng.N);
+  for (let i = 0; i < eng.N; i++) { const r = find(i); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(i); }
+  const list = [...groups.values()];
+  list.forEach((g, k) => { for (const i of g) comp[i] = k; });
+  return { comp, list };
+}
+
 function formed(eng, idx, products) {
-  const f = eng.fragments(), comps = new Set(idx.map(i => f.comp[i])), got = bare([...comps].map(c => eng.formulaOf(f.list[c])));
-  return (Array.isArray(products[0]) ? products : [products]).some(p => bare(p) === got) ? [...comps].flatMap(c => f.list[c]) : null;
+  const lists = Array.isArray(products[0]) ? products : [products];
+  for (const f of [eng.fragments(), untangled(eng)]) {
+    const comps = new Set(idx.map(i => f.comp[i])), got = bare([...comps].map(c => eng.formulaOf(f.list[c])));
+    if (lists.some(p => bare(p) === got)) return [...comps].flatMap(c => f.list[c]);
+  }
+  return null;
 }
 
 function verifyEvent(scene, ev, products, T, seeds = 3, fs = 400, first = 1) {
@@ -476,10 +511,10 @@ function verifyEvent(scene, ev, products, T, seeds = 3, fs = 400, first = 1) {
     const e = fromScene(scene);
     e.T = T; e.thermostat = true; e.thermostatMode = 'kelvin'; e.rngState = s * 7919 + 13;
     applyEvent(e, ev, ev.atoms);
-    const cool = COOL.slice();
+    const cool = COOL.slice(), want = wanted(products);
     for (let k = 1; k <= fs; k++) {
       e.step();
-      if (cool.length && k >= cool[0]) { cool.shift(); const f0 = e.fragments(), cs = new Set(ev.atoms.map(i => f0.comp[i])); e.thermalize(T, [...cs].flatMap(c => f0.list[c])); }
+      if (cool.length && k >= cool[0]) { cool.shift(); coolProducts(e, ev.atoms, T, want, !cool.length); }
     }
     if (formed(e, ev.atoms, products)) ok++;
   }
@@ -547,5 +582,5 @@ function applyEvent(eng, ev, idx) {
   eng.refresh();
 }
 
-return { scanPair, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, verifyEvent, stillThere, candidates, scanCandidate, combine, survey, pickNext, reuse, REFINE, COOL, UNCERTAINTY };
+return { scanPair, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, verifyEvent, stillThere, candidates, scanCandidate, combine, survey, pickNext, reuse, REFINE, COOL, wanted, coolProducts, UNCERTAINTY };
 });

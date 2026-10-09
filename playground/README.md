@@ -506,6 +506,16 @@ still those of the highest top; only the starting point moves.
 A reaction with no barrier that joins two molecules into one (CH₃· + CH₃·, OH· + OH· → H₂O₂) starts
 further along its path, at 60 % of the way down instead of 30 %: from the shallower point the two
 hydroxyls bounced apart in 5 of 6 trials, and from the deeper one they join in 6 of 6.
+A skipped reaction's heat is taken away the way a gas would, by later collisions: 80, 160, 300, 500 and
+800 fs after the skip, each piece that is already one of the expected products is set back to the
+chamber temperature, and at 800 fs whatever is left is too. Pieces that are still together wait. When
+everything was cooled at 80 fs whatever its state, H· + Cl₂ → HCl + Cl· (188 kJ/mol downhill, the
+products flying apart) was stopped mid-separation and dropped into the model's Cl···H···Cl well in
+half of all trials at 500 K. A trial also counts as done when the products are there but still
+touching, which is how the feed already reads such a cluster (HCl···Cl·): the over-coordinated atom's
+weakest link is set aside and what remains is compared. In a crowded 500 K chamber H· + Cl₂ now passes
+12 of 12 trials instead of 5–6, and a hydrogen–chlorine chain no longer stalls on repeated ✕.
+
 Played this way, Cl· + ethene, CH₃· + ethene and H· + CH₄ complete in 9 of 9 browser trials and in
 at least 3 of 4 seeded runs each in the tests.
 
@@ -516,7 +526,10 @@ that four-centre addition, about 170 kJ/mol here and symmetry-forbidden in reali
 distinct bond coming apart (at most 24
 candidates, nearest first). While it searches, each candidate pair is a dashed line in the scene, and
 it turns solid as its barrier comes in: brighter and thicker the easier the reaction. Each is forecast
-in a pool of workers, quickly at first and then properly for the three lowest barriers, and counted as
+in a pool of workers, quickly at first and then properly for the three lowest barriers (in the quick
+pass a route is dropped as soon as it climbs more than max(40 kJ/mol, 14·RT) above the best route
+already found for that pair, a million times slower, which takes about a fifth off a growing polymer's
+search; asking about a pair by hand still reports every route), and counted as
 often as it occurs (methane's four hydrogens make four times the rate). Then it draws which reaction comes first and when from those rates, as a
 real flask would (kinetic Monte Carlo), and plays it in the live simulation; press J again for the one
 after. A stable chamber says so in the scene instead ("stable · nothing for …"), and a reaction that
@@ -552,7 +565,11 @@ Cl· twice over and on to CH₂Cl·; it is still dark-stable, Cl₂ splitting by
 years), chlorine adding across ethene (C₂H₄Cl· + Cl₂ → C₂H₄Cl₂ + Cl· follows within
 picoseconds, the chain making 1,2-dichloroethane), radical polymerisation of ethene (CH₃· → C₃H₇· →
 C₅H₁₁· on its own), methyl radicals recombining, and hydroxyl radicals with
-methane (where, as in the real gas, the two OH· meet each other long before either attacks methane).
+methane (where, as in the real gas, the two OH· meet each other long before either attacks methane),
+and hydrogen with chlorine, the classic photochemical chain (Cl· + H₂ → HCl + H·, H· + Cl₂ → HCl + Cl·),
+at 500 K because the model's Cl· + H₂ barrier is 37 kJ/mol against a real 19; there Cl· takes H₂ 97% of
+the time instead of finding another Cl·, and in four browser runs of seven skips each the chain ran to
+nothing but HCl, restarting by itself when the last radicals met (Cl₂ splitting by heat, after years).
 Loading one is undoable; pressing `J` then shows what happens next.
 
 The search also knows two-bond swaps: two atoms of one molecule joining while each lets go of a

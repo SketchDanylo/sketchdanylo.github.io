@@ -233,4 +233,19 @@ test('Two closed-shell molecules never add whole in one step: hot methane and O�
   for (const x of sv.events) if (x.reactants.length === 2) assert.ok(x.products.length >= 2, 'concerted addition counted: ' + x.label);
 });
 
+test('H· + Cl₂ in a crowded 500 K chamber is played and accepted as HCl + Cl·, even while the two still touch: the chain step is not cooled into, or rejected as, a Cl···H···Cl complex', () => {
+  let seed = 3; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const e = new Engine({ width: 30, height: 30, depth: 12, T: 500 }); e.box = { x0: 0, x1: 30, y0: 0, y1: 30, z0: -6, z1: 6 };
+  const centers = [];
+  for (const m of ['H', 'Cl2', 'Cl', 'H2', 'HCl', 'HCl']) {
+    let c, t = 0; do { c = [4 + rnd() * 22, 4 + rnd() * 22]; } while (centers.some(d => Math.hypot(d[0] - c[0], d[1] - c[1]) < 6.5) && ++t < 500); centers.push(c);
+    const a = rnd() * 6.28; for (const [s, x, y, z] of geo(m)) e.addAtom(s, c[0] + x * Math.cos(a) - y * Math.sin(a), c[1] + x * Math.sin(a) + y * Math.cos(a), z || 0, { thermal: false }); e.touch(); e.refresh();
+  }
+  e.touch(); e.refresh(); e.minimize(300, 1); e.thermalize(500); for (let k = 0; k < 1000; k++) e.step();
+  const sc = JSON.parse(JSON.stringify(e.toJSON())), ev = K.survey(sc).events[0];
+  assert.equal(ev.reactants.map(f => f.replace(/·/g, '')).sort().join(' + '), 'Cl2 + H');
+  const n = K.verifyEvent(sc, ev.event, ev.products, 500, 12);
+  assert.ok(n >= 10, n + ' of 12 trials made HCl + Cl·');
+});
+
 console.log(count + ' kinetics checks passed.');

@@ -59,7 +59,7 @@ class ForecastCard {
     if (runs.reduce((a, n) => a + (n || 0), 0) < 2) { this.fx = { ...(this.fx || {}), focus: null, fail: { atoms: pair, t0: performance.now() } }; return; }
     const side = list => list.map(this.actions.pretty || (x => x)).join(' + ');
     const wait = -Math.log(1 - Math.random()) * res.now.halfLife / Math.LN2;
-    if (this.actions.skip?.(res.event, wait, ids, side(res.reactants) + ' → ' + side(res.products), res.reactants, true) !== false) this.jumped(pair, wait);
+    if (this.actions.skip?.(res.event, wait, ids, side(res.reactants) + ' → ' + side(res.products), res.reactants, true, outs) !== false) this.jumped(pair, wait);
     else this.fx = { ...(this.fx || {}), focus: null, fail: { atoms: pair, t0: performance.now() } };
   }
   pool() {
@@ -136,16 +136,16 @@ class ForecastCard {
         pick = r && r.ok !== false ? [r, ...(r.also || [])].find(x => same(x, pick)) || null : null;
       }
       let good = !!(pick && pick.event);
+      const bare = l => l.map(f => f.replace(/·/g, '')).sort().join();
+      const outs = pick ? sv.events.filter(x => bare(x.reactants) === bare(pick.reactants)).map(x => x.products) : [];
       if (good && ls) {
-        const bare = l => l.map(f => f.replace(/·/g, '')).sort().join();
-        const outs = sv.events.filter(x => bare(x.reactants) === bare(pick.reactants)).map(x => x.products);
         const runs = await Promise.all([1, 2, 3].map(first => this.dispatch({ type: 'verify', scene: ls.scene, event: pick.event, products: [pick.products, ...outs], T: ls.T, seeds: 1, first })));
         if (key !== this.req) return false;
         good = runs.reduce((a, n) => a + (n || 0), 0) >= 2;
       }
       if (!good) { failed.add(nx.pick); continue; }
       const side = list => list.map(this.actions.pretty || (x => x)).join(' + ');
-      const ok = this.actions.skip?.(pick.event, nx.wait, ids, side(pick.reactants) + ' → ' + side(pick.products), pick.reactants, !this.auto);
+      const ok = this.actions.skip?.(pick.event, nx.wait, ids, side(pick.reactants) + ' → ' + side(pick.products), pick.reactants, !this.auto, [pick.products, ...outs]);
       if (ok === false) break;
       this.jumped(pair, nx.wait);
       return true;

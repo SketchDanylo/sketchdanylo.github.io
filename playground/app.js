@@ -96,16 +96,15 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261008-build77', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow) => skipToEvent(ev, wait, ids, what, reactants, slow), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0, lightHint: () => matchMedia('(pointer: coarse)').matches ? '☀ for light' : 'L for light' });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261008-build78', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0, lightHint: () => matchMedia('(pointer: coarse)').matches ? '☀ for light' : 'L for light' });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
-    const c = cooling.shift(), f = eng.fragments(), comps = new Set(c.ids.map(id => eng.indexOfId(id)).filter(i => i >= 0).map(i => f.comp[i]));
-    const atoms = [...comps].flatMap(k => f.list[k]);
-    if (atoms.length && eng.T > 0) eng.thermalize(eng.T, atoms);
+    const c = cooling.shift();
+    ChemKinetics.coolProducts(eng, c.ids.map(id => eng.indexOfId(id)), eng.T, c.want, !cooling.length);
   }
 }
-function skipToEvent(ev, wait, sceneIds, what, reactants, slow) {
+function skipToEvent(ev, wait, sceneIds, what, reactants, slow, products) {
   if (!ev) return;
   const idx = ev.atoms.map(k => eng.indexOfId(sceneIds[k]));
   if (idx.some(i => i < 0)) { toast('Those atoms are gone · forecast again'); return false; }
@@ -116,7 +115,8 @@ function skipToEvent(ev, wait, sceneIds, what, reactants, slow) {
   eng.refresh();
   scheduleSave();
   if (slow) { replay = { until: eng.time + 800, speed: time.speed, ids: idx.map(i => eng.ids[i]) }; setSpeed(0.5); }
-  cooling = ChemKinetics.COOL.map(dt => ({ at: eng.time + dt, ids: idx.map(i => eng.ids[i]) }));
+  const want = ChemKinetics.wanted(products);
+  cooling = ChemKinetics.COOL.map(dt => ({ at: eng.time + dt, ids: idx.map(i => eng.ids[i]), want }));
   if (!time.playing) setPlaying(true);
   return true;
 }
@@ -685,13 +685,14 @@ for(const [, id] of LIBRARY_TABS)$(id).addEventListener('keydown',e=>{
   selectLibrary(LIBRARY_TABS[next][0]);
   $(LIBRARY_TABS[next][1]).focus();
 });
-const EXP_MOLS = {"CH4":[["C",0,0,0],["H",0.627,0.627,0.627],["H",-0.627,-0.627,0.627],["H",-0.627,0.627,-0.627],["H",0.627,-0.627,-0.627]],"Cl2":[["Cl",0,0,0],["Cl",1.99,0,0]],"Cl":[["Cl",0,0,0]],"C2H4":[["C",-0.001,0,0],["C",1.341,0,0],["H",-0.551,0.941,0],["H",-0.551,-0.941,0],["H",1.891,0.941,0],["H",1.891,-0.941,0]],"CH3":[["C",-0.001,-0.001,-0.022],["H",1.087,0,0.016],["H",-0.543,0.941,0.016],["H",-0.543,-0.94,0.066]],"OH":[["O",0.002,0,0],["H",0.962,0,0]]};
+const EXP_MOLS = {"CH4":[["C",0,0,0],["H",0.627,0.627,0.627],["H",-0.627,-0.627,0.627],["H",-0.627,0.627,-0.627],["H",0.627,-0.627,-0.627]],"Cl2":[["Cl",0,0,0],["Cl",1.99,0,0]],"Cl":[["Cl",0,0,0]],"C2H4":[["C",-0.001,0,0],["C",1.341,0,0],["H",-0.551,0.941,0],["H",-0.551,-0.941,0],["H",1.891,0.941,0],["H",1.891,-0.941,0]],"CH3":[["C",-0.001,-0.001,-0.022],["H",1.087,0,0.016],["H",-0.543,0.941,0.016],["H",-0.543,-0.94,0.066]],"OH":[["O",0.002,0,0],["H",0.962,0,0]],"H2":[["H",0,0,0],["H",0.741,0,0]]};
 const EXPERIMENTS = [
   { name: 'Radical chlorination of methane', T: 500, light: true, mix: [['CH4', 3], ['Cl2', 3]], look: 'Warm (227 °C, as the industrial process runs), and still nothing happens in the dark. Press L: light splits Cl₂, Cl· takes a hydrogen from methane as HCl, and the methyl radical takes a chlorine from Cl₂, freeing the next Cl·. At room temperature this model makes the Cl· step about 20 kJ/mol too hard, and the chain stalls.' },
   { name: 'Chlorine adds across ethene', T: 298.15, light: true, mix: [['C2H4', 2, [[0, 1, 2]]], ['Cl2', 2]], look: 'Nothing happens in the dark. Press L: light splits Cl₂, Cl· adds to the double bond, and the radical takes a chlorine from Cl₂: 1,2-dichloroethane, made by a chain.' },
   { name: 'Radical polymerisation of ethene', T: 350, mix: [['C2H4', 5, [[0, 1, 2]]], ['CH3', 1]], look: 'A methyl radical opens one double bond; the radical it becomes opens the next, and the chain grows: C₃H₇·, C₅H₁₁·, … the start of polyethylene. In this model the first step comes about 20 kJ/mol too easily.' },
   { name: 'Methyl radicals meet', T: 298.15, mix: [['CH3', 4]], look: 'Two radicals with nothing in the way pair up into ethane in picoseconds, without any barrier.' },
-  { name: 'Hydroxyl radicals and methane', T: 298.15, mix: [['CH4', 3], ['OH', 2]], look: 'OH· is what cleans methane out of the air, but slowly: here the two OH· find each other first (H₂O + O·, or H₂O₂). Remove one OH to watch the slow attack on methane.' }
+  { name: 'Hydroxyl radicals and methane', T: 298.15, mix: [['CH4', 3], ['OH', 2]], look: 'OH· is what cleans methane out of the air, but slowly: here the two OH· find each other first (H₂O + O·, or H₂O₂). Remove one OH to watch the slow attack on methane.' },
+  { name: 'Hydrogen and chlorine', T: 500, light: true, mix: [['H2', 3], ['Cl2', 3]], look: 'The classic photochemical chain. Dark: nothing. Press L: Cl· takes a hydrogen from H₂, the H· left behind takes a chlorine from Cl₂ at once, and every Cl· freed goes round again until HCl is all that is left. Real mixtures explode in sunlight at room temperature; here it runs at 500 K because this model makes the Cl· + H₂ step 18 kJ/mol too hard.' }
 ];
 function renderExperiments() {
   const list = $('expList');
