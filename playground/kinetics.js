@@ -230,9 +230,11 @@ function scanPair(src, i, j, opts = {}) {
     channels.push({ type: 'form' });
     if (free[i] <= 0.5 && free[j] <= 0.5) for (const ka of neighbours(src, i)) for (const kb of neighbours(src, j)) if (ka !== j && kb !== i) channels.push({ type: 'swap', from: i, at: j, ka, k: kb });
   } else {
+    const open = list => list.some(a => free[a] > 0.5), oneSide = opts.oneSided && open(frag.list[ci]) !== open(frag.list[cj]);
     for (const [x, y] of [[i, j], [j, i]]) {
+      if (oneSide && !open(frag.list[frag.comp[x]])) continue;
       const user = unit(sub(P3(src, x), P3(src, y)));
-      for (const d of directions([user, ...faces(src, y)])) channels.push({ type: 'form', from: x, at: y, place: pose(src, attacker(x), x, y, d) });
+      if (!(oneSide && HALO.has(ELEMENTS[src.type[y]].sym) && free[y] <= 0.5)) for (const d of directions([user, ...faces(src, y)])) channels.push({ type: 'form', from: x, at: y, place: pose(src, attacker(x), x, y, d) });
       if (free[y] > 0.5) continue;
       if (ELEMENTS[src.type[y]].sym === 'C') continue;
       for (const k of neighbours(src, y)) {
@@ -372,11 +374,11 @@ function candidates(src, cap = 24) {
   const frag = src.fragments(), free = freeValence(src), out = [], seen = new Map(), pairSeen = new Set();
   const pi = new Set();
   for (let p = 0; p < src.nPairs; p++) if (src.bondStrength(p) > 0.25 && src.pN[p] > 1.2) { pi.add(src.pI[p]); pi.add(src.pJ[p]); }
-  const add = (i, j, kind, key, prio) => {
+  const add = (i, j, kind, key, prio, rr = false) => {
     const d = Math.hypot(src.pos[3 * j] - src.pos[3 * i], src.pos[3 * j + 1] - src.pos[3 * i + 1], src.pos[3 * j + 2] - src.pos[3 * i + 2]);
     const have = seen.get(key);
     if (have) { have.mult++; if (d < have.d) { have.i = i; have.j = j; have.d = d; } return; }
-    const c = { i, j, kind, key, prio, mult: 1, d };
+    const c = { i, j, kind, key, prio, mult: 1, d, rr };
     seen.set(key, c); out.push(c);
   };
   const L = frag.list, open = L.map(f => f.some(x => free[x] > 0.5));
@@ -389,11 +391,12 @@ function candidates(src, cap = 24) {
         const pp = pairParams(src, r, t);
         if (!pp || !pp.bond) continue;
         if (!radical && ELEMENTS[src.type[t]].sym !== 'H') continue;
+        if (radical && (src.T || 298) < 700 && ELEMENTS[src.type[t]].sym === 'H' && neighbours(src, t).some(a => pi.has(a) && ELEMENTS[src.type[a]].sym === 'C')) continue;
         const pk = Math.min(r, t) + ',' + Math.max(r, t);
         if (pairSeen.has(pk)) continue;
         pairSeen.add(pk);
         const ka = siteKey(src, L[A], r), kb = siteKey(src, L[B], t);
-        add(r, t, 'meet', ka < kb ? ka + '|' + kb : kb + '|' + ka, radical ? 0 : 1);
+        add(r, t, 'meet', ka < kb ? ka + '|' + kb : kb + '|' + ka, radical ? 0 : 1, radical && open[B]);
       }
     }
   }
@@ -427,14 +430,14 @@ function scanCandidate(e, c, T, quick, cache, store) {
   const at = c.i + ',' + c.j, fr = e.fragments();
   const triplet = fr.comp[c.i] !== fr.comp[c.j] && fr.list[fr.comp[c.i]].length === 1 && SPIN_LOCKED.has(ELEMENTS[e.type[c.i]].sym) && closedShell(e, fr.list[fr.comp[c.j]]);
   const allow = c.prio === 1 || triplet ? r => r.products.length >= 2 : null;
-  const scan = scanPair(e, c.i, c.j, { T, quick, cache, allow, coarseIn: !quick && store ? store.get(at) : null, coarseOut: quick && store ? r => store.set(at, r) : null });
+  const scan = scanPair(e, c.i, c.j, { T, quick, cache, allow, oneSided: true, coarseIn: !quick && store ? store.get(at) : null, coarseOut: quick && store ? r => store.set(at, r) : null });
   if (!scan.ok) return null;
   const [d0, a0] = measured(e, scan, scan, c.i, c.j);
   const f = forecast(e, { ...scan, Ea: Math.max(0, scan.Ea + d0) }, { T, partnerPerCm3: 1, steric: 0.1 * a0 });
   if (!f.ok) return null;
   const lone = fr.list[fr.comp[c.i]].length === 1 && fr.list[fr.comp[c.j]].length === 1;
   const rr = scan.bimolecular && e.isRadical(fr.list[fr.comp[c.i]]) && e.isRadical(fr.list[fr.comp[c.j]]);
-  const V = chamberVolume(e), one = (s, k, d) => { const kRate = lone && scan.bimolecular && s.products.length === 1 ? k * THIRD_BODY : k; return ({ label: scan.reactants.join(' + ') + ' → ' + s.products.join(' + '), i: c.i, j: c.j, Ea: Math.max(0, s.Ea + d), EaModel: s.Ea, dE: s.dE, rate: scan.bimolecular ? kRate * c.mult / V : kRate * c.mult, kRate, bimolecular: scan.bimolecular, rr, refined: !quick, reactants: scan.reactants, products: s.products, event: s.event, kind: scan.kind, path: s.path ? s.path.map(p => Math.round(p.E * 10) / 10) : null }); };
+  const V = chamberVolume(e), one = (s, k, d) => { const kRate = lone && scan.bimolecular && s.products.length === 1 ? k * THIRD_BODY : k; return ({ label: scan.reactants.join(' + ') + ' → ' + s.products.join(' + '), i: c.i, j: c.j, Ea: Math.max(0, s.Ea + d), EaModel: s.Ea, known: d !== 0, dE: s.dE, rate: scan.bimolecular ? kRate * c.mult / V : kRate * c.mult, kRate, bimolecular: scan.bimolecular, rr, refined: !quick, reactants: scan.reactants, products: s.products, event: s.event, kind: scan.kind, path: s.path ? s.path.map(p => Math.round(p.E * 10) / 10) : null }); };
   const main = one(scan, f.k, d0);
   main.also = (scan.alternatives || []).filter(a => !(bare(a.products) === bare(scan.reactants))).map(a => {
     const [d, x] = measured(e, scan, a, c.i, c.j);
@@ -501,6 +504,20 @@ function context(e) { const f = e.fragments(); return { V: chamberVolume(e), nRa
 const odd = f => f.includes('·');
 function initiates(r) { return r.kind === 'photo' || (!r.reactants.some(odd) && r.products.some(odd)); }
 
+function dilutionOf(results, ctx) {
+  const flat = [];
+  for (const r of results) if (r) { flat.push(r); for (const a of r.also || []) flat.push(a); }
+  return dilution(flat, ctx);
+}
+
+function needless(results, rrList, ctx) {
+  const f = dilutionOf(results, ctx);
+  if (!(f < 1) || !rrList.length) return false;
+  const total = results.reduce((s, r) => s + (r ? r.rate + (r.also || []).reduce((a, x) => a + x.rate, 0) : 0), 0);
+  const bound = rrList.reduce((s, c) => s + RR_MAX * c.mult / ctx.V * f, 0);
+  return total > 0 && bound < 1e-3 * total;
+}
+
 function dilution(flat, ctx) {
   if (!ctx || !(ctx.nRad > 0) || !(ctx.V > 0)) return 1;
   const lit = flat.some(r => r.kind === 'photo');
@@ -530,7 +547,7 @@ function combine(results, T, ctx) {
 }
 
 const REFINE = 3, COOL = [80, 160, 300, 500, 800], THIRD_BODY = 1e-3;
-const LAMP_FLUX = 1e17, K_TERM = 3e-11;
+const LAMP_FLUX = 1e17, K_TERM = 3e-11, RR_MAX = 1e-9;
 const PHOTO = { F: { sigma: 1.0e-20, E: 412 }, Cl: { sigma: 2.6e-19, E: 362 }, Br: { sigma: 6.2e-19, E: 288 }, I: { sigma: 2.6e-18, E: 239 } };
 
 function wanted(products) {
@@ -542,6 +559,16 @@ function coolProducts(e, atoms, T, want, force) {
   const f = e.fragments(), comps = [...new Set(atoms.filter(i => i >= 0).map(i => f.comp[i]))];
   const done = comps.filter(c => force || !want.size || want.has(e.formulaOf(f.list[c])));
   if (done.length && T > 0) e.thermalize(T, done.flatMap(c => f.list[c]));
+}
+
+function loosenAll(e) {
+  const f = e.fragments(), u = untangled(e);
+  let n = 0;
+  for (const g of f.list) {
+    const parts = [...new Set(g.map(i => u.comp[i]))].map(k => u.list[k]);
+    if (parts.length === 2) { apart(e, parts[0], parts[1]); clearAround(e, g); n++; }
+  }
+  return n;
 }
 
 function loosen(e, atoms, want) {
@@ -559,13 +586,20 @@ function reuse(cached, c, V) {
 
 function survey(scene, opts = {}) {
   const e = fromScene(scene), T = scene.T || 298, cache = new Map(), store = new Map();
-  const { list, dropped } = candidates(e, opts.cap);
-  const quick = list.map((c, n) => { if (opts.onProgress) opts.onProgress(n, list.length + REFINE); return { c, r: scanCandidate(e, c, T, true, cache, store) }; });
-  const best = quick.filter(q => q.r).sort((x, y) => x.r.Ea - y.r.Ea).slice(0, REFINE);
+  const { list, dropped } = candidates(e, opts.cap), ctx = context(e);
+  const scanOne = (c, n) => { if (opts.onProgress) opts.onProgress(n, list.length + REFINE); return { c, r: scanCandidate(e, c, T, true, cache, store) }; };
+  const quick = list.filter(c => !c.rr).map(scanOne), rrList = list.filter(c => c.rr);
+  if (!needless(quick.map(q => q.r), rrList, ctx)) quick.push(...rrList.map(scanOne));
+  const pick = new Set(worthRefining(quick.map(q => q.r), T)), best = quick.filter(q => pick.has(q.r));
   for (const q of best) q.r = scanCandidate(e, q.c, T, false, cache, store);
-  const out = combine(quick.map(q => q.r), T, context(e));
+  const out = combine(quick.map(q => q.r), T, ctx);
   out.dropped = dropped; out.scanned = list.length;
   return out;
+}
+
+function worthRefining(results, T) {
+  const all = results.filter(Boolean), total = all.reduce((s, r) => s + (r.rr ? 0 : r.rate + (r.also || []).reduce((a, x) => a + x.rate, 0)), 0), slack = Math.exp(UNCERTAINTY.Ea / (R * Math.max(T, 50)));
+  return all.filter(r => !r.refined && r.Ea > 0.5 && !r.known && r.rate * slack >= 0.05 * total).sort((x, y) => x.Ea - y.Ea).slice(0, REFINE);
 }
 
 function pickNext(sv, u1 = Math.random(), u2 = Math.random()) {
@@ -775,5 +809,5 @@ function applyEvent(eng, ev, idx) {
   eng.refresh();
 }
 
-return { scanPair, measured, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, verifyEvent, stillThere, candidates, scanCandidate, combine, context, initiates, survey, pickNext, reuse, REFINE, COOL, wanted, coolProducts, UNCERTAINTY };
+return { scanPair, measured, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, verifyEvent, stillThere, candidates, scanCandidate, combine, context, initiates, needless, survey, pickNext, worthRefining, loosenAll, reuse, REFINE, COOL, wanted, coolProducts, UNCERTAINTY };
 });

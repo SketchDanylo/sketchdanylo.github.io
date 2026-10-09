@@ -588,10 +588,13 @@ that four-centre addition, about 170 kJ/mol here and symmetry-forbidden in reali
 distinct bond coming apart (at most 24
 candidates, nearest first). While it searches, each candidate pair is a dashed line in the scene, and
 it turns solid as its barrier comes in: brighter and thicker the easier the reaction. Each is forecast
-in a pool of workers, quickly at first and then properly for the three lowest barriers (in the quick
+in a pool of workers, quickly at first and then properly for at most three whose rate could still
+matter (a barrier the measured table already gives, or none at all, is not re-scanned; the reaction
+that is drawn is played from its quick scan, and scanned properly only if the trial copies reject it;
+in the quick
 pass a route is dropped as soon as it climbs more than max(40 kJ/mol, 14·RT) above the best route
 already found for that pair, a million times slower, which takes about a fifth off a growing polymer's
-search; asking about a pair by hand still reports every route), and counted as
+search, while asking about a pair by hand still reports every route), and counted as
 often as it occurs (methane's four hydrogens make four times the rate). Then it draws which reaction comes first and when from those rates, as a
 real flask would (kinetic Monte Carlo), and plays it in the live simulation; press J again for the one
 after. A stable chamber says so in the scene instead ("stable · nothing for …"), and a reaction that
@@ -723,8 +726,17 @@ are now always the ones that attack, and it completes in 6 of 6 seeded runs and 
   field (ROADMAP, item 1). Whether the molecules are still the ones the search saw is judged from the
   same rebuilt copy the search used, so a borderline complex no longer reads as a change.
 
-- The search takes 10–60 s for a handful of molecules and is capped at 24 candidates, so a crowded
-  chamber is only partly searched.
+- The search takes 2–30 s for a handful of molecules on a 4-core machine (a minute when many new
+  molecules appear at once) and is capped at 24 candidates, so a crowded chamber is only partly
+  searched. To get there the skip-ahead's search leaves out what cannot matter: a radical meeting a
+  closed-shell molecule is posed from the radical's side only (the hourglass still tries both); a
+  radical reaching for a hydrogen on a double-bonded carbon is not searched below 700 K (it is at
+  least 45 kJ/mol uphill beside the addition to the same double bond); a radical bonding onto a
+  halogen that already holds a bond (R–Cl–Cl·, which the model allows for ClF₃ but which is barely
+  bound in reality) is not a route; and while radicals meet at a flask's rate, two radicals are only
+  searched if even their fastest possible meeting could compete. Before each search, a complex the
+  model holds too tightly (CH₃···HCl, Cl···H₂, R–Cl···Cl, real binding a few kJ/mol) is let fall apart
+  into its two molecules, as it would within picoseconds.
 - Two closed-shell molecules reacting through their π systems (Diels–Alder, ene), and rearrangements
   inside one molecule, are not searched; the hourglass can still be pointed at them.
 - Solution chemistry: ions, proton transfer and solvent are not in the engine, so most textbook

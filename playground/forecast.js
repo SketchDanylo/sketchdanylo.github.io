@@ -90,6 +90,7 @@ class ForecastCard {
     const eng = this.actions.engine, Kn = K();
     if (!eng.N) return;
     if (eng.needRebuild || eng.needForces) eng.refresh();
+    if (Kn.loosenAll(eng)) eng.refresh();
     const key = ++this.req; this.ids = [];
     this.actions.pause?.();
     const scene = eng.toJSON(), ids = Array.from(eng.ids.subarray(0, eng.N)), T = scene.T || 298;
@@ -112,13 +113,19 @@ class ForecastCard {
     this.lastScene = { scene, key, T };
     const mark = (n, r) => { if (n === undefined || !fx.scan) return; fx.scan[n].done = true; fx.scan[n].Ea = r && r.ok !== false ? r.Ea : null; };
     const job = (c, quick, n, pin) => this.dispatch({ type: 'scan', key: 'sv' + key, scene, c, T, quick }, pin).then(r => { mark(n, r); if (r && r.ok !== false) { r.cand = c; const m = memo.get(mk(c)); if (!m || !m.refined || r.refined) memo.set(mk(c), { ...r, event: null, cand: null, also: (r.also || []).map(a => ({ ...a, event: null })) }); return r; } return null; });
-    const quick = await Promise.all(list.map((c, n) => { const m = memo.get(mk(c)); if (m) { mark(n, m); return Promise.resolve(Kn.reuse(m, c, V)); } return job(c, true, n, n); }));
+    const heavy = c => c.kind === 'meet' ? 2 : c.kind === 'break' ? 1 : 0, slot = new Map(list.map((c, n) => [c, n]).sort((a, c) => heavy(c[0]) - heavy(a[0])).map(([c], k) => [c, k]));
+    const one = (c, n) => { const m = memo.get(mk(c)); if (m) { mark(n, m); return Promise.resolve(Kn.reuse(m, c, V)); } return job(c, true, n, slot.get(c)); };
+    const quick = await Promise.all(list.map((c, n) => c.rr ? null : one(c, n)));
     if (key !== this.req) return;
-    const order = quick.map((r, n) => ({ r, n })).filter(x => x.r && !x.r.refined).sort((a, c) => a.r.Ea - c.r.Ea).slice(0, Kn.REFINE);
-    const refined = await Promise.all(order.map(x => job(list[x.n], false, undefined, x.n)));
+    const rr = list.map((c, n) => c.rr ? n : -1).filter(n => n >= 0), ctx = Kn.context(eng);
+    if (Kn.needless(quick, rr.map(n => list[n]), ctx)) rr.forEach(n => mark(n, null));
+    else (await Promise.all(rr.map(n => one(list[n], n)))).forEach((r, k) => { quick[rr[k]] = r; });
+    if (key !== this.req) return;
+    const order = Kn.worthRefining(quick, T).map(r => ({ r, n: quick.indexOf(r) }));
+    const refined = await Promise.all(order.map(x => job(list[x.n], false, undefined, slot.get(list[x.n]))));
     if (key !== this.req) return;
     order.forEach((x, m) => { if (refined[m]) quick[x.n] = refined[m]; });
-    this.decide(Kn.combine(quick, T, Kn.context(eng)), ids);
+    this.decide(Kn.combine(quick, T, ctx), ids);
   }
   say(text) { this.fx = { ...(this.fx || {}), scan: null, focus: null, msg: { text, t0: performance.now() } }; }
   finish() { if (this.auto) { this.auto = false; clearInterval(this.timer); this.actions.autoChanged?.(false); } }
@@ -151,18 +158,24 @@ class ForecastCard {
       let pick = nx.pick;
       pair = [ids[pick.i], ids[pick.j]];
       if (this.fx) { this.fx.scan = null; this.fx.focus = pair; }
-      if (pick.cand && ls && !(pick.event && pick.refined)) {
-        const r = await this.dispatch({ type: 'scan', key: 'sv' + ls.key, scene: ls.scene, c: pick.cand, T: ls.T, quick: false });
-        if (key !== this.req) return false;
-        pick = r && r.ok !== false ? [r, ...(r.also || [])].find(x => same(x, pick)) || null : null;
-      }
-      let good = !!(pick && pick.event);
       const bare = l => l.map(f => f.replace(/·/g, '')).sort().join();
-      const outs = pick ? sv.events.filter(x => bare(x.reactants) === bare(pick.reactants)).map(x => x.products) : [];
-      if (good && ls) {
-        const runs = await Promise.all([1, 2, 3].map(first => this.dispatch({ type: 'verify', scene: ls.scene, event: pick.event, products: [pick.products, ...outs], T: ls.T, seeds: 1, first })));
+      const outs = sv.events.filter(x => bare(x.reactants) === bare(nx.pick.reactants)).map(x => x.products);
+      const rescan = async quick => { const r = await this.dispatch({ type: 'scan', key: 'sv' + ls.key, scene: ls.scene, c: nx.pick.cand, T: ls.T, quick }); return r && r.ok !== false ? [r, ...(r.also || [])].find(x => same(x, nx.pick)) || null : null; };
+      const check = async p => {
+        if (!(p && p.event)) return false;
+        if (!ls) return true;
+        const runs = await Promise.all([1, 2, 3].map(first => this.dispatch({ type: 'verify', scene: ls.scene, event: p.event, products: [p.products, ...outs], T: ls.T, seeds: 1, first })));
+        return runs.reduce((a, n) => a + (n || 0), 0) >= 2;
+      };
+      if (pick.cand && ls && !pick.event) pick = await rescan(true);
+      if (key !== this.req) return false;
+      let good = await check(pick);
+      if (key !== this.req) return false;
+      if (!good && nx.pick.cand && ls && !(pick && pick.refined)) {
+        pick = await rescan(false);
         if (key !== this.req) return false;
-        good = runs.reduce((a, n) => a + (n || 0), 0) >= 2;
+        good = await check(pick);
+        if (key !== this.req) return false;
       }
       if (!good) { failed.add(nx.pick); continue; }
       const side = list => list.map(this.actions.pretty || (x => x)).join(' + ');
