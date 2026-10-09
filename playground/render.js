@@ -460,17 +460,6 @@ class FieldRenderer {
         const hw = ctx.measureText(j.text).width / 2 + 10, lx = Math.max(hw, Math.min(this.W - hw, mx)), ly = Math.max(34, my - 22 - 28 * t);
         ctx.fillStyle = 'rgba(10,8,20,' + (0.55 * a).toFixed(3) + ')'; ctx.fillText(j.text, lx + 1, ly + 1);
         ctx.fillStyle = 'rgba(226,208,255,' + a.toFixed(3) + ')'; ctx.fillText(j.text, lx, ly);
-        const path = j.path;
-        if (path) {
-          const W = 96, Hh = 34, lo = Math.min(0, ...path), hi = Math.max(1, ...path), x0 = lx - W / 2, y0 = ly + 10;
-          const Y = e => y0 + Hh * (1 - (e - lo) / (hi - lo)), grow = Math.min(1, t * 2.2), n = Math.max(2, Math.ceil(path.length * grow));
-          ctx.fillStyle = 'rgba(10,8,20,' + (0.55 * a).toFixed(3) + ')'; ctx.beginPath(); ctx.roundRect(x0 - 8, y0 - 6, W + 16, Hh + 12, 8); ctx.fill();
-          ctx.strokeStyle = 'rgba(214,200,240,' + (0.3 * a).toFixed(3) + ')'; ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.beginPath(); ctx.moveTo(x0, Y(0)); ctx.lineTo(x0 + W, Y(0)); ctx.stroke(); ctx.setLineDash([]);
-          ctx.strokeStyle = 'rgba(201,168,255,' + a.toFixed(3) + ')'; ctx.lineWidth = 2; ctx.beginPath();
-          for (let k = 0; k < n; k++) { const x = x0 + W * k / (path.length - 1); if (k) ctx.lineTo(x, Y(path[k])); else ctx.moveTo(x, Y(path[k])); }
-          ctx.stroke();
-          if (j.Ea > 0.5) { const k = path.indexOf(Math.max(...path)); if (k < n) { ctx.fillStyle = 'rgba(226,208,255,' + a.toFixed(3) + ')'; ctx.beginPath(); ctx.arc(x0 + W * k / (path.length - 1), Y(path[k]), 2.5, 0, Math.PI * 2); ctx.fill(); } }
-        }
       }
     }
     const f = fx.fail;
@@ -480,30 +469,6 @@ class FieldRenderer {
         const [mx, my] = mid(f.at), r = 9, a = 1 - t;
         ctx.strokeStyle = 'rgba(255,107,91,' + a.toFixed(3) + ')'; ctx.lineWidth = 3;
         ctx.beginPath(); ctx.moveTo(mx - r, my - r); ctx.lineTo(mx + r, my + r); ctx.moveTo(mx + r, my - r); ctx.lineTo(mx - r, my + r); ctx.stroke();
-      }
-    }
-    const st = fx.story;
-    if (st && st.length >= 2 && sc.box) {
-      const b = sc.box, [bx0, by0] = this.toScreen(b.x0, b.y0), [bx1, by1] = this.toScreen(b.x1, b.y1);
-      const W = Math.min(240, Math.abs(bx1 - bx0) * 0.42), Hh = 44, x0 = Math.min(bx0, bx1) + 12, yb = Math.max(by0, by1) - 12, y0 = yb - Hh;
-      const pts = [];
-      let base = 0;
-      st.forEach((step, k) => {
-        const p = step.path, n = p.length;
-        p.forEach((e, i) => pts.push({ x: x0 + W * (k + i / (n - 1)) / st.length, e: base + e, k }));
-        base += step.dE;
-        pts.push({ x: x0 + W * (k + 1) / st.length, e: base, k });
-      });
-      const lo = Math.min(...pts.map(q => q.e)), hi = Math.max(...pts.map(q => q.e)), span = Math.max(1, hi - lo);
-      const Y = e => y0 + Hh * (1 - (e - lo) / span);
-      ctx.fillStyle = 'rgba(10,8,20,.42)'; ctx.beginPath(); ctx.roundRect(x0 - 8, y0 - 16, W + 16, Hh + 24, 8); ctx.fill();
-      ctx.font = '400 9px "Martian Mono", monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = 'rgba(214,200,240,.5)';
-      ctx.fillText('energy · last ' + st.length + ' steps', x0, y0 - 5);
-      ctx.lineWidth = 1.5;
-      for (let k = 0; k < st.length; k++) {
-        const seg = pts.filter(q => q.k === k);
-        ctx.strokeStyle = k === st.length - 1 ? 'rgba(226,208,255,.95)' : 'rgba(201,168,255,.55)';
-        ctx.beginPath(); seg.forEach((q, i) => i ? ctx.lineTo(q.x, Y(q.e)) : ctx.moveTo(q.x, Y(q.e))); ctx.stroke();
       }
     }
     const pr = fx.probe;
@@ -547,13 +512,11 @@ class FieldRenderer {
     ctx.restore();
   }
   _uv(sc) {
-    const t = ((sc.now || 0) - (sc.uv || -1e9)) / 700;
-    if (t < 0 || t > 1 || !sc.box) return;
+    if (!sc.lamp || !sc.box) return;
     const b = sc.box, [x0, y0] = this.toScreen(b.x0, b.y0), [x1, y1] = this.toScreen(b.x1, b.y1), ctx = this.ctx;
-    ctx.save();
-    ctx.fillStyle = 'rgba(176,132,255,' + (0.28 * (1 - t) * (1 - t)).toFixed(3) + ')';
-    ctx.fillRect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0));
-    ctx.restore();
+    const top = Math.min(y0, y1), h = Math.abs(y1 - y0), g = ctx.createLinearGradient(0, top, 0, top + h);
+    g.addColorStop(0, 'rgba(176,132,255,.10)'); g.addColorStop(1, 'rgba(176,132,255,.02)');
+    ctx.save(); ctx.fillStyle = g; ctx.fillRect(Math.min(x0, x1), top, Math.abs(x1 - x0), h); ctx.restore();
   }
   _flashes(sc) {
     if (!sc.flashes || !sc.flashes.length) return;

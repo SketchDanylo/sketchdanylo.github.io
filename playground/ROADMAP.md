@@ -10,10 +10,10 @@ organic chemistry from, and loose enough to experiment in.
 - **Watching.** A reactive molecular-dynamics engine (bond-order Morse force field, continuous bond
   orders, energy bookkeeping) runs in the browser at about a picosecond of chemistry per second. Radical
   reactions, combustion, chlorination and polymerisation happen on their own when conditions allow.
-- **Light.** A UV flash (L) splits halogen molecules the way a lamp does, so a chlorination starts
-  the way it does on a bench: nothing in the dark, a chain after the flash. Methane chlorination and
-  the hydrogen–chlorine chain run at 500 K, where the model's too-high Cl· barriers cost what the real
-  ones cost at room temperature; both run to completion on their own.
+- **Light.** A lamp (L) is a condition that stays on: Cl₂, Br₂, I₂ and F₂ split at their measured
+  rates, so a chlorination starts the way it does on a bench: nothing in the dark, a chain under the
+  lamp. While it is on, radicals meet at the rate they would in a lit flask, so the chains run their
+  real length. Methane, ethene and hydrogen chlorination all run at room temperature.
 - **Forecasting.** The hourglass tool measures the barrier of any reaction you point at on the
   engine's own energy surface, in a worker, and turns it into a half-life with a range and a temperature
   table (transition-state theory).
@@ -43,10 +43,9 @@ its Coulomb term, and the chlorine–hydrogen saturation range (`kb` for Cl–H 
 that lets it share its bond gradually (no abrupt switch) together with a cost on the shared state
 itself, fitted against the benchmark's barrier and well columns at once.
 
-What it costs today: the classic H₂ + Cl₂ photochemical chain cannot be shown at room temperature.
-With Cl· + H₂ at 37 kJ/mol instead of 19, the step runs about a thousand times too slowly there, so
-after a flash the chlorine atoms find each other again before they find a hydrogen. The experiments
-work around it honestly by running at 500 K and saying why; a fixed barrier would let them run cold.
+What it costs today: the live simulation still has the wrong barriers. The skip-ahead corrects them
+with measured values per reaction class (README, Measured barriers), which is a patch over
+the force field, not a fix of it: a fixed force field would let the corrections go.
 
 First target: a hydrogen shared between Cl (or O) and C is held by about 60 kJ/mol of Coulomb
 attraction at 1.8 Å, because the charges follow the geometric bond switch rather than how much bond has

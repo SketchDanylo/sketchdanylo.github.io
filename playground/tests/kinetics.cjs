@@ -90,7 +90,7 @@ test('A saved scene gives the same forecast in a worker as on the page', () => {
   e.addAtom('Cl', 15.6, 15, 3.4, { thermal: false }); e.touch(); e.refresh();
   const direct = K.scanPair(e, 6, 0, { T: e.T });
   const viaScene = K.study(JSON.parse(JSON.stringify(e.toJSON())), 6, 0);
-  assert.ok(viaScene.ok); assert.ok(Math.abs(viaScene.Ea - direct.Ea) < 0.5, `${viaScene.Ea} vs ${direct.Ea}`);
+  assert.ok(viaScene.ok); assert.ok(Math.abs(viaScene.EaModel - direct.Ea) < 0.5, `${viaScene.EaModel} vs ${direct.Ea}`);
   assert.deepEqual(viaScene.products, direct.products);
 });
 
@@ -280,6 +280,24 @@ test('A ground-state oxygen atom (a triplet) abstracts and never inserts: O + CH
   assert.ok(!m.some(x => x.products.length === 1), 'insertion counted: ' + m.map(x => x.label).join(', '));
   assert.ok(Math.abs(m[0].Ea - 40) < 12, 'O + CH₄ barrier ' + m[0].Ea.toFixed(0));
   assert.ok(run('C2H4', true).some(x => x.products.length === 1), 'O + ethene lost its addition');
+});
+
+test('Measured barriers replace the model\'s for the classes it gets wrong, whatever angle the search tried: Cl· + CH₄ 11, CH₃· + C₂H₄ 31', () => {
+  const pick = (parts, label) => { const sv = K.survey(JSON.parse(JSON.stringify(scene(parts).toJSON()))); return sv.events.find(x => x.label === label); };
+  const a = pick([['CH4', [0, 0, 0]], ['Cl', [5, 0, 0]]], 'Cl· + CH4 → CH3· + HCl');
+  assert.ok(a && Math.abs(a.Ea - 11) < 0.5 && Math.abs(a.EaModel - 11) > 5, a && a.Ea + ' / ' + a.EaModel);
+  const b = pick([['C2H4', [0, 0, 0], [[0, 1, 2]]], ['CH3', [0, 0, 5]]], 'CH3· + C2H4 → C3H7·');
+  assert.ok(b && Math.abs(b.Ea - 31) < 0.5, b && String(b.Ea));
+});
+
+test('Under the lamp the chamber is a lit flask: two Cl· meeting is a million times rarer, and Cl· adds to ethene instead', () => {
+  const build = lamp => { const e = scene([['C2H4', [-6, 0, 0], [[0, 1, 2]]], ['Cl2', [6, 0, 0]]]); e.addAtom('Cl', 15, 22, 0, { thermal: false }); e.addAtom('Cl', 15, 8, 0, { thermal: false }); e.touch(); e.refresh(); const js = JSON.parse(JSON.stringify(e.toJSON())); js.lamp = lamp; return K.survey(js); };
+  const lit = build(true), dark = build(false), share = (sv, l) => (sv.events.find(x => x.label === l) || { share: 0 }).share;
+  assert.ok(lit.dilution < 1e-4 && dark.dilution === 1, lit.dilution + ' ' + dark.dilution);
+  assert.ok(share(lit, 'Cl· + Cl· → Cl2') < 1e-4, 'lit ' + share(lit, 'Cl· + Cl· → Cl2'));
+  assert.ok(share(dark, 'Cl· + Cl· → Cl2') > 100 * share(lit, 'Cl· + Cl· → Cl2'));
+  assert.equal(lit.events[0].label, 'Cl· + C2H4 → C2H4Cl·');
+  assert.ok(lit.events.some(x => x.kind === 'photo') && !dark.events.some(x => x.kind === 'photo'));
 });
 
 console.log(count + ' kinetics checks passed.');

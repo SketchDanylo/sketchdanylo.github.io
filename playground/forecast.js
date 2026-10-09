@@ -118,7 +118,7 @@ class ForecastCard {
     const refined = await Promise.all(order.map(x => job(list[x.n], false, undefined, x.n)));
     if (key !== this.req) return;
     order.forEach((x, m) => { if (refined[m]) quick[x.n] = refined[m]; });
-    this.decide(Kn.combine(quick, T), ids);
+    this.decide(Kn.combine(quick, T, Kn.context(eng)), ids);
   }
   say(text) { this.fx = { ...(this.fx || {}), scan: null, focus: null, msg: { text, t0: performance.now() } }; }
   finish() { if (this.auto) { this.auto = false; clearInterval(this.timer); this.actions.autoChanged?.(false); } }
@@ -179,8 +179,6 @@ class ForecastCard {
   jumped(pair, wait, how) {
     const path = how && Array.isArray(how.path) && how.path.length > 1 && how.path.every(Number.isFinite) ? how.path : null;
     this.fx = { ...(this.fx || {}), scan: null, focus: null, jump: { atoms: pair, text: '+' + K().humanTime(wait), t0: performance.now(), path, Ea: how ? how.Ea : 0 } };
-    const dE = how && Number.isFinite(how.dE) ? how.dE : path ? path[path.length - 1] : 0;
-    this.story = (this.story || []).concat([{ path: path || [0, dE], dE }]).slice(-14);
   }
   watchThenNext() {
     const eng = this.actions.engine, t0 = eng.time, key = this.req, span = 3000;

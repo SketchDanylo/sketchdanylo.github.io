@@ -234,9 +234,9 @@ function scanPair(src, i, j, opts = {}) {
       const user = unit(sub(P3(src, x), P3(src, y)));
       for (const d of directions([user, ...faces(src, y)])) channels.push({ type: 'form', from: x, at: y, place: pose(src, attacker(x), x, y, d) });
       if (free[y] > 0.5) continue;
-      const atC = ELEMENTS[src.type[y]].sym === 'C';
+      if (ELEMENTS[src.type[y]].sym === 'C') continue;
       for (const k of neighbours(src, y)) {
-        if (k === x || (atC && ELEMENTS[src.type[k]].sym === 'H')) continue;
+        if (k === x) continue;
         for (const d of directions([unit(sub(P3(src, y), P3(src, k))), user])) channels.push({ type: 'transfer', at: y, k, from: x, place: pose(src, attacker(x), x, y, d) });
       }
     }
@@ -269,8 +269,8 @@ function scanPair(src, i, j, opts = {}) {
     ok: true, kind, i, j, atoms, Ea: best.Ea, dE: best.dE, barrierAtEnd: best.barrierAtEnd,
     reactants: reactants.flatMap(x => x.formula), products: best.products, path: best.path, ts: best.ts, tsDistance: best.tsDistance,
     channel: { type: best.channel.type, k: best.channel.k }, bimolecular: ci !== cj, T: opts.T,
-    event: { atoms, pos: best.event.pos, push: best.event.push, bo: best.event.bo, anchor: ci !== cj ? frag.list[frag.comp[best.event.at]] : atoms },
-    alternatives: distinct(ok.slice(1), best).map(r => ({ channel: { type: r.channel.type, k: r.channel.k }, Ea: r.Ea, dE: r.dE, products: r.products, barrierAtEnd: r.barrierAtEnd, event: { atoms, pos: r.event.pos, push: r.event.push, bo: r.event.bo, anchor: ci !== cj ? frag.list[frag.comp[r.event.at]] : atoms } }))
+    event: { atoms, pos: best.event.pos, push: best.event.push, bo: best.event.bo, anchor: ci !== cj ? frag.list[frag.comp[best.event.at]] : atoms, split: best.channel.type === 'break' },
+    alternatives: distinct(ok.slice(1), best).map(r => ({ channel: { type: r.channel.type, k: r.channel.k }, Ea: r.Ea, dE: r.dE, products: r.products, barrierAtEnd: r.barrierAtEnd, event: { atoms, pos: r.event.pos, push: r.event.push, bo: r.event.bo, anchor: ci !== cj ? frag.list[frag.comp[r.event.at]] : atoms, split: r.channel.type === 'break' } }))
   };
 }
 
@@ -333,6 +333,7 @@ function fmt(x) { return x >= 100 ? x.toFixed(0) : x >= 10 ? x.toFixed(1) : x.to
 
 function fromScene(scene) {
   const e = new Engine({ T: scene.T || 0, thermostat: false });
+  e.lamp = !!scene.lamp;
   if (scene.box) e.box = { ...scene.box };
   for (const a of scene.atoms) e.addAtom(a[0], a[1], a[2], a[3], { thermal: false, charge: a[7] || 0, V: a[8] });
   e.touch(); e.refresh();
@@ -343,12 +344,14 @@ function fromScene(scene) {
 
 function study(scene, i, j, temps) {
   const e = fromScene(scene), T = scene.T || 298;
-  const scan = scanPair(e, i, j, { T });
-  if (!scan.ok) return scan;
-  const at = t => { const f = forecast(e, scan, { T: t }); return f.ok ? { T: t, halfLife: f.halfLife, fastest: f.fastest, slowest: f.slowest } : { T: t, halfLife: Infinity }; };
-  const now = forecast(e, scan, { T });
+  const raw = scanPair(e, i, j, { T });
+  if (!raw.ok) return raw;
+  const [d, a] = measured(e, raw, raw, i, j), steric = 0.1 * a;
+  const scan = { ...raw, Ea: Math.max(0, raw.Ea + d), EaModel: raw.Ea };
+  const at = t => { const f = forecast(e, scan, { T: t, steric }); return f.ok ? { T: t, halfLife: f.halfLife, fastest: f.fastest, slowest: f.slowest } : { T: t, halfLife: Infinity }; };
+  const now = forecast(e, scan, { T, steric });
   return {
-    ok: true, kind: scan.kind, channel: scan.channel, Ea: scan.Ea, dE: scan.dE, reactants: scan.reactants, products: scan.products,
+    ok: true, kind: scan.kind, channel: scan.channel, Ea: scan.Ea, EaModel: scan.EaModel, dE: scan.dE, reactants: scan.reactants, products: scan.products,
     path: scan.path.map(p => p.E), bimolecular: scan.bimolecular, alternatives: scan.alternatives, event: scan.event,
     now, table: (temps || [200, 298, 500, 1000, 1500, 2500]).map(at), T
   };
@@ -394,6 +397,11 @@ function candidates(src, cap = 24) {
       }
     }
   }
+  if (src.lamp) for (let p = 0; p < src.nPairs; p++) {
+    const i = src.pI[p], j = src.pJ[p], a = ELEMENTS[src.type[i]].sym, b = ELEMENTS[src.type[j]].sym;
+    if (!PHOTO[a] || !PHOTO[b] || src.bondStrength(p) <= 0.4) continue;
+    add(i, j, 'photo', 'hν ' + [a, b].sort().join('–'), 0);
+  }
   for (let p = 0; p < src.nPairs; p++) {
     if (src.bondStrength(p) <= 0.25) continue;
     const i = src.pI[p], j = src.pJ[p], f = L[frag.comp[i]];
@@ -406,25 +414,76 @@ function candidates(src, cap = 24) {
 
 function chamberVolume(e) { const b = e.box; return (b.x1 - b.x0) * (b.y1 - b.y0) * (b.z1 - b.z0) * 1e-24; }
 
+function photolysis(e, c, T) {
+  const fr = e.fragments(), g = fr.list[fr.comp[c.i]], a = PHOTO[ELEMENTS[e.type[c.i]].sym], b = PHOTO[ELEMENTS[e.type[c.j]].sym];
+  const kRate = 0.5 * (a.sigma + b.sigma) * LAMP_FLUX, E = 0.5 * (a.E + b.E), name = i => ELEMENTS[e.type[i]].sym + '·';
+  const rest = g.filter(x => x !== c.i && x !== c.j);
+  if (rest.length) return null;
+  return { label: e.formulaOf(g) + ' + hν → ' + name(c.i) + ' + ' + name(c.j), i: c.i, j: c.j, Ea: 0, dE: 0, rate: kRate * c.mult, kRate, bimolecular: false, refined: true, reactants: [e.formulaOf(g)], products: [name(c.i), name(c.j)].sort(), event: { photo: true, atoms: [c.i, c.j], E, at: c.j }, kind: 'photo', path: null, also: [] };
+}
+
 function scanCandidate(e, c, T, quick, cache, store) {
+  if (c.kind === 'photo') return photolysis(e, c, T);
   const at = c.i + ',' + c.j, fr = e.fragments();
   const triplet = fr.comp[c.i] !== fr.comp[c.j] && fr.list[fr.comp[c.i]].length === 1 && SPIN_LOCKED.has(ELEMENTS[e.type[c.i]].sym) && closedShell(e, fr.list[fr.comp[c.j]]);
   const allow = c.prio === 1 || triplet ? r => r.products.length >= 2 : null;
   const scan = scanPair(e, c.i, c.j, { T, quick, cache, allow, coarseIn: !quick && store ? store.get(at) : null, coarseOut: quick && store ? r => store.set(at, r) : null });
   if (!scan.ok) return null;
-  const f = forecast(e, scan, { T, partnerPerCm3: 1 });
+  const [d0, a0] = measured(e, scan, scan, c.i, c.j);
+  const f = forecast(e, { ...scan, Ea: Math.max(0, scan.Ea + d0) }, { T, partnerPerCm3: 1, steric: 0.1 * a0 });
   if (!f.ok) return null;
   const lone = fr.list[fr.comp[c.i]].length === 1 && fr.list[fr.comp[c.j]].length === 1;
-  const V = chamberVolume(e), one = (s, k) => { const kRate = lone && scan.bimolecular && s.products.length === 1 ? k * THIRD_BODY : k; return ({ label: scan.reactants.join(' + ') + ' → ' + s.products.join(' + '), i: c.i, j: c.j, Ea: s.Ea, dE: s.dE, rate: scan.bimolecular ? kRate * c.mult / V : kRate * c.mult, kRate, bimolecular: scan.bimolecular, refined: !quick, reactants: scan.reactants, products: s.products, event: s.event, kind: scan.kind, path: s.path ? s.path.map(p => Math.round(p.E * 10) / 10) : null }); };
-  const main = one(scan, f.k);
+  const rr = scan.bimolecular && e.isRadical(fr.list[fr.comp[c.i]]) && e.isRadical(fr.list[fr.comp[c.j]]);
+  const V = chamberVolume(e), one = (s, k, d) => { const kRate = lone && scan.bimolecular && s.products.length === 1 ? k * THIRD_BODY : k; return ({ label: scan.reactants.join(' + ') + ' → ' + s.products.join(' + '), i: c.i, j: c.j, Ea: Math.max(0, s.Ea + d), EaModel: s.Ea, dE: s.dE, rate: scan.bimolecular ? kRate * c.mult / V : kRate * c.mult, kRate, bimolecular: scan.bimolecular, rr, refined: !quick, reactants: scan.reactants, products: s.products, event: s.event, kind: scan.kind, path: s.path ? s.path.map(p => Math.round(p.E * 10) / 10) : null }); };
+  const main = one(scan, f.k, d0);
   main.also = (scan.alternatives || []).filter(a => !(bare(a.products) === bare(scan.reactants))).map(a => {
-    const g = forecast(e, { ok: true, Ea: a.Ea, kind: a.channel.type === 'break' ? 'break' : scan.kind, barrierAtEnd: a.barrierAtEnd, bimolecular: scan.bimolecular, i: scan.i, j: scan.j }, { T, partnerPerCm3: 1 });
-    return g.ok ? one(a, g.k) : null;
+    const [d, x] = measured(e, scan, a, c.i, c.j);
+    const g = forecast(e, { ok: true, Ea: Math.max(0, a.Ea + d), kind: a.channel.type === 'break' ? 'break' : scan.kind, barrierAtEnd: a.barrierAtEnd, bimolecular: scan.bimolecular, i: scan.i, j: scan.j }, { T, partnerPerCm3: 1, steric: 0.1 * x });
+    return g.ok ? one(a, g.k, d) : null;
   }).filter(Boolean);
   const list = [main, ...main.also].filter(x => !allow || x.products.length >= x.reactants.length);
   if (!list.length) return null;
   list[0].also = list.slice(1);
   return list[0];
+}
+
+const ADD_PI = { H: [9, 0.2, -150], C: [31, 0.01, -93], Cl: [0, 3, -75] };
+const SHIFT_H = { 'Cl|H': ['Cl', 18, 0.45, 4], 'Cl|Cm': ['Cl', 11, 0.2, 7], 'H|O': ['H', 76, 1, 61], 'C|H': ['H', 38, 1, -13], 'Cm|H': ['H', 50, 1, 3], 'C|Cm': ['Cm', 45, 0.01, -16], 'C|O': ['O', 9, 0.2, -74], 'Cm|O': ['O', 15, 0.05, -58], 'C|Oo': ['Oo', 75, 1, 65], 'Cm|Oo': ['Oo', 90, 1, 81], 'Cc|Cl': ['Cl', 10, 1, -13] };
+const HALO = new Set(['F', 'Cl', 'Br', 'I']);
+const NONE = [0, 1];
+
+function measured(e, scan, s, i, j) {
+  const sym = a => ELEMENTS[e.type[a]].sym, free = freeValence(e), nb = a => neighbours(e, a);
+  const order = (a, b) => { const p = e.pairMap.get(Math.min(a, b) * 1048576 + Math.max(a, b)); return p === undefined ? 0 : e.pN[p]; };
+  const piC = a => sym(a) === 'C' && nb(a).some(b => sym(b) === 'C' && order(a, b) > 1.2);
+  const type = s.channel && s.channel.type;
+  const use = (Ea, a, dH) => [Math.max(Ea, dH, 0) - s.Ea, a];
+  if (!scan.bimolecular) {
+    if (type !== 'break' || s.products.length !== 2) return NONE;
+    for (const [x, y] of [[i, j], [j, i]]) if (sym(y) === 'C' && free[y] <= 0.5 && ADD_PI[sym(x)] && nb(y).some(b => b !== x && sym(b) === 'C' && free[b] > 0.5)) { const [Ea, , dH] = ADD_PI[sym(x)]; return use(Ea - dH, 1, -dH); }
+    return NONE;
+  }
+  if (s.products.length === 1) {
+    if (type !== 'form') return NONE;
+    for (const [x, y] of [[i, j], [j, i]]) if (free[x] > 0.5 && piC(y) && ADD_PI[sym(x)]) return use(...ADD_PI[sym(x)]);
+    return NONE;
+  }
+  for (const [m, f] of [[i, j], [j, i]]) {
+    const held = nb(m);
+    if (sym(m) !== 'H' || held.length !== 1 || free[f] <= 0.5) continue;
+    const fr = e.fragments();
+    if (e.isRadical(fr.list[fr.comp[m]])) return NONE;
+    const cls = a => {
+      const o = nb(a).filter(b => b !== m);
+      if (sym(a) === 'C') return o.some(b => HALO.has(sym(b))) ? 'Cc' : o.every(b => sym(b) === 'H') ? 'Cm' : 'C';
+      if (sym(a) === 'O') return o.some(b => sym(b) === 'O') ? 'Oo' : o.length === 1 && sym(o[0]) === 'H' ? 'O' : 'Ox';
+      return sym(a);
+    };
+    const cf = cls(f), ck = cls(held[0]), row = cf !== ck && SHIFT_H[[cf, ck].sort().join('|')];
+    if (!row) return NONE;
+    return row[0] === cf ? use(row[1], row[2], row[3]) : use(row[1] - row[3], row[2], -row[3]);
+  }
+  return NONE;
 }
 
 const bare = list => list.map(f => f.replace(/·/g, '')).sort().join(' + ');
@@ -437,13 +496,24 @@ function closedShell(e, frag) {
   return true;
 }
 
-function combine(results, T) {
+function context(e) { const f = e.fragments(); return { V: chamberVolume(e), nRad: f.list.filter(g => e.isRadical(g)).length }; }
+
+function dilution(flat, ctx) {
+  if (!ctx || !(ctx.nRad > 0) || !(ctx.V > 0)) return 1;
+  const photo = flat.reduce((s, r) => s + (r.kind === 'photo' ? r.rate : 0), 0);
+  if (!(photo > 0)) return 1;
+  return Math.min(1, Math.sqrt(photo / ctx.V / K_TERM) * ctx.V / ctx.nRad);
+}
+
+function combine(results, T, ctx) {
   const events = [], seen = new Map(), flat = [];
   for (const r of results) if (r) { flat.push(r); for (const a of r.also || []) flat.push({ ...a, cand: r.cand, alt: true }); }
-  for (const r of flat) {
-    if (!r) continue;
+  const f = dilution(flat, ctx);
+  for (const r0 of flat) {
+    if (!r0) continue;
+    const r = r0.rr && f < 1 ? { ...r0, rate: r0.rate * f } : r0;
     if (bare(r.reactants) === bare(r.products)) continue;
-    const key = bare(r.reactants) + ' → ' + bare(r.products);
+    const key = (r.kind === 'photo' ? 'hν ' : '') + bare(r.reactants) + ' → ' + bare(r.products);
     const prev = seen.get(key);
     if (prev) { prev.rate += r.rate; if (r.refined && !prev.refined || r.refined === prev.refined && r.Ea < prev.Ea) Object.assign(prev, { Ea: r.Ea, event: r.event, refined: r.refined, cand: r.cand, path: r.path }); continue; }
     const x = { ...r }; seen.set(key, x); events.push(x);
@@ -451,19 +521,30 @@ function combine(results, T) {
   const total = events.reduce((s, x) => s + x.rate, 0);
   for (const x of events) { x.share = total > 0 ? x.rate / total : 0; x.halfLife = LN2 / x.rate; }
   events.sort((x, y) => y.rate - x.rate);
-  return { ok: true, T, events, total };
+  return { ok: true, T, events, total, dilution: f };
 }
 
 const REFINE = 3, COOL = [80, 160, 300, 500, 800], THIRD_BODY = 1e-3;
+const LAMP_FLUX = 1e17, K_TERM = 3e-11;
+const PHOTO = { F: { sigma: 1.0e-20, E: 412 }, Cl: { sigma: 2.6e-19, E: 362 }, Br: { sigma: 6.2e-19, E: 288 }, I: { sigma: 2.6e-18, E: 239 } };
 
 function wanted(products) {
   const lists = Array.isArray(products && products[0]) ? products : [products || []];
   return new Set(lists.flat().map(f => f.replace(/·/g, '')));
 }
 function coolProducts(e, atoms, T, want, force) {
+  if (force && want.size) loosen(e, atoms, want);
   const f = e.fragments(), comps = [...new Set(atoms.filter(i => i >= 0).map(i => f.comp[i]))];
   const done = comps.filter(c => force || !want.size || want.has(e.formulaOf(f.list[c])));
   if (done.length && T > 0) e.thermalize(T, done.flatMap(c => f.list[c]));
+}
+
+function loosen(e, atoms, want) {
+  const f = e.fragments(), u = untangled(e);
+  for (const c of new Set(atoms.filter(i => i >= 0).map(i => f.comp[i]))) {
+    const g = f.list[c], parts = [...new Set(g.map(i => u.comp[i]))].map(k => u.list[k]);
+    if (parts.length === 2 && !want.has(e.formulaOf(g)) && parts.every(p => want.has(e.formulaOf(p)))) { apart(e, parts[0], parts[1]); clearAround(e, g); }
+  }
 }
 
 function reuse(cached, c, V) {
@@ -477,7 +558,7 @@ function survey(scene, opts = {}) {
   const quick = list.map((c, n) => { if (opts.onProgress) opts.onProgress(n, list.length + REFINE); return { c, r: scanCandidate(e, c, T, true, cache, store) }; });
   const best = quick.filter(q => q.r).sort((x, y) => x.r.Ea - y.r.Ea).slice(0, REFINE);
   for (const q of best) q.r = scanCandidate(e, q.c, T, false, cache, store);
-  const out = combine(quick.map(q => q.r), T);
+  const out = combine(quick.map(q => q.r), T, context(e));
   out.dropped = dropped; out.scanned = list.length;
   return out;
 }
@@ -519,6 +600,7 @@ function formed(eng, idx, products) {
 }
 
 function verifyEvent(scene, ev, products, T, seeds = 3, fs = 400, first = 1) {
+  if (ev.photo) return seeds;
   let ok = 0;
   for (let s = first; s < first + seeds; s++) {
     const e = fromScene(scene);
@@ -538,7 +620,7 @@ function verifyEvent(scene, ev, products, T, seeds = 3, fs = 400, first = 1) {
   return ok;
 }
 
-const CLEAR = 2.4;
+const CLEAR = 2.4, SPLIT = 4.0;
 function clearAround(eng, idx) {
   const mine = new Set(idx), P = eng.pos, b = eng.box, m = 0.5;
   let moved = 0;
@@ -575,6 +657,47 @@ function clearAround(eng, idx) {
   return moved + late;
 }
 
+function separate(eng, idx) {
+  const f = eng.fragments(), comps = [...new Set(idx.map(i => f.comp[i]))];
+  if (comps.length === 2) apart(eng, f.list[comps[0]], f.list[comps[1]]);
+}
+
+function apart(eng, A, B) {
+  const P = eng.pos;
+  const cen = g => { const m = g.reduce((s, a) => s + eng.mass[a], 0); return [0, 1, 2].map(d => g.reduce((s, a) => s + eng.mass[a] * P[3 * a + d], 0) / m); };
+  const ca = cen(A), cb = cen(B), u = [cb[0] - ca[0], cb[1] - ca[1], cb[2] - ca[2]], n = Math.hypot(...u) || 1;
+  let dmin = Infinity;
+  for (const a of A) for (const b of B) dmin = Math.min(dmin, Math.hypot(P[3 * a] - P[3 * b], P[3 * a + 1] - P[3 * b + 1], P[3 * a + 2] - P[3 * b + 2]));
+  const gap = SPLIT - dmin;
+  if (gap <= 0) return;
+  const ma = A.reduce((s, a) => s + eng.mass[a], 0), mb = B.reduce((s, a) => s + eng.mass[a], 0);
+  const sa = -gap * mb / (ma + mb), sb = gap * ma / (ma + mb);
+  for (const a of A) for (let d = 0; d < 3; d++) P[3 * a + d] += sa * u[d] / n;
+  for (const b of B) for (let d = 0; d < 3; d++) P[3 * b + d] += sb * u[d] / n;
+  const b = eng.box, lim = [[b.x0, b.x1], [b.y0, b.y1], [b.z0, b.z1]];
+  for (const g of [A, B]) for (let d = 0; d < 3; d++) {
+    const xs = g.map(a => P[3 * a + d]), lo = Math.min(...xs), hi = Math.max(...xs), [u0, u1] = lim[d];
+    const shift = lo < u0 + 0.6 ? u0 + 0.6 - lo : hi > u1 - 0.6 ? u1 - 0.6 - hi : 0;
+    if (shift) for (const a of g) P[3 * a + d] += shift;
+  }
+  eng.touch(); eng.refresh();
+}
+
+function flyOff(eng, b, a) {
+  const P = eng.pos, box = eng.box, N = eng.N, m = 1.2;
+  let seed = (N * 7919 + b * 104729 + Math.floor(eng.time)) % 2147483647 || 1;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  let best = null, score = -1;
+  for (let t = 0; t < 400; t++) {
+    const x = box.x0 + m + (box.x1 - box.x0 - 2 * m) * rnd(), y = box.y0 + m + (box.y1 - box.y0 - 2 * m) * rnd(), z = box.z0 + m + (box.z1 - box.z0 - 2 * m) * rnd();
+    let d = Infinity;
+    for (let i = 0; i < N; i++) if (i !== b) d = Math.min(d, Math.hypot(P[3 * i] - x, P[3 * i + 1] - y, P[3 * i + 2] - z));
+    const s = Math.min(d, 3.4) + Math.min(Math.hypot(P[3 * a] - x, P[3 * a + 1] - y, P[3 * a + 2] - z), 10);
+    if (s > score) { score = s; best = [x, y, z]; }
+  }
+  if (best) { P[3 * b] = best[0]; P[3 * b + 1] = best[1]; P[3 * b + 2] = best[2]; }
+}
+
 function relocate(eng, g) {
   const P = eng.pos, b = eng.box, N = eng.N, own = new Set(g);
   let cx = 0, cy = 0, cz = 0;
@@ -600,6 +723,19 @@ function relocate(eng, g) {
 }
 
 function applyEvent(eng, ev, idx) {
+  if (ev.photo) {
+    const [a, b] = idx, k = 3 * a, l = 3 * b;
+    let nx = eng.pos[l] - eng.pos[k], ny = eng.pos[l + 1] - eng.pos[k + 1], nz = eng.pos[l + 2] - eng.pos[k + 2];
+    const r = Math.hypot(nx, ny, nz) || 1; nx /= r; ny /= r; nz /= r;
+    const ma = eng.mass[a], mb = eng.mass[b], vrel = Math.sqrt(2 * ev.E / (ma * mb / (ma + mb) * 1e4));
+    const ua = -vrel * mb / (ma + mb), ub = vrel * ma / (ma + mb);
+    eng.vel[k] += ua * nx; eng.vel[k + 1] += ua * ny; eng.vel[k + 2] += ua * nz;
+    eng.vel[l] += ub * nx; eng.vel[l + 1] += ub * ny; eng.vel[l + 2] += ub * nz;
+    eng.sparkHold = Math.max(eng.sparkHold || 0, eng.time + 300);
+    flyOff(eng, b, a);
+    eng.touch(); eng.refresh();
+    return;
+  }
   const anchor = new Set(ev.anchor);
   let cx = 0, cy = 0, cz = 0, ix = 0, iy = 0, iz = 0, n = 0;
   ev.atoms.forEach((k, m) => {
@@ -621,6 +757,7 @@ function applyEvent(eng, ev, idx) {
     if (shift) for (const i of idx) eng.pos[3 * i + d] += shift;
   }
   eng.touch(); eng.refresh();
+  if (ev.split) separate(eng, idx);
   clearAround(eng, idx);
   for (const [a, b, o] of ev.bo) eng.setBondOrder(idx[a], idx[b], o);
   eng.thermalize(eng.T, idx);
@@ -633,5 +770,5 @@ function applyEvent(eng, ev, idx) {
   eng.refresh();
 }
 
-return { scanPair, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, verifyEvent, stillThere, candidates, scanCandidate, combine, survey, pickNext, reuse, REFINE, COOL, wanted, coolProducts, UNCERTAINTY };
+return { scanPair, measured, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, verifyEvent, stillThere, candidates, scanCandidate, combine, context, survey, pickNext, reuse, REFINE, COOL, wanted, coolProducts, UNCERTAINTY };
 });

@@ -435,6 +435,7 @@ kbd{font:500 9.5px var(--mono);padding:1px 5px;border:1px solid var(--line-hi);b
 #menuBtn:hover .gi.apps rect:nth-child(4){transform:translate(.6px,.6px)}
 #menuBtn[aria-expanded=true]{background:rgba(214,201,172,.14)}
 #menuBtn[aria-expanded=true] .gi{color:var(--sodium)}
+#lampBtn[aria-pressed=true] .gi{color:var(--sodium);filter:drop-shadow(0 0 4px rgba(255,178,63,.7))}
 
 /* ---------- console ---------- */
 /* A window on the scene, not over it: the field keeps drawing and stays clickable around it. */

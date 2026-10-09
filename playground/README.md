@@ -186,7 +186,7 @@ which the stat and the temperature void stand back. That window is part of the s
 replays exactly. It is the one place where a temperature void can be briefly exceeded, and
 deliberately so: a spark is hotter than its surroundings, which is the entire point of one.
 
-Spark, Break bond and the UV flash start the chamber running if it was paused. Reactions appear in the
+Spark and Break bond start the chamber running if it was paused. Reactions appear in the
 list at the bottom left only once the new molecules have lasted 100 fs: a freshly made bond vibrates
 through the bonding threshold a few times, and listing every crossing used to show C₂H₄ + H· → C₂H₅·
 followed at once by C₂H₅· → C₂H₄ + H·, which never happened. A cluster in which an atom holds more
@@ -396,14 +396,61 @@ Hirshfeld shares sum exactly to the molecular density and no share can exceed it
 
 ## Light
 
-**UV flash** (sun tool, or `L` from any tool): a flash of 330 nm light. Each Cl–Cl, Br–Br, I–I and F–F
-bond in the chamber absorbs with a chance of one quarter (at least one always does) and comes apart with the photon's 362 kJ/mol as
-motion along the bond (243 of it to break Cl₂, the rest as the speed of the two atoms, as measured for
-chlorine). Nothing else in the chamber absorbs at that wavelength. This is how a lamp starts a
-chlorination: ethene and Cl₂ sit unchanged in the dark (the gas-phase reaction without light is far too
-slow to see, and the ionic route through a chloronium ion needs a solvent the engine does not have
-yet); after a flash, Cl· adds to the double bond and the radical takes a chlorine from Cl₂, and
-`J` carries the chain on to 1,2-dichloroethane.
+**Lamp** (sun button in the top bar, or `L`): a condition, like temperature, that stays on until you
+turn it off. It shines 330 nm light at 10¹⁷ photons cm⁻² s⁻¹. Cl₂, Br₂, I₂ and F₂ absorb it with
+their measured cross-sections (Cl₂ 2.6·10⁻¹⁹ cm², so each Cl₂ splits about once in 40 s); nothing
+else in the chamber absorbs at that wavelength. A split bond comes apart with the photon's energy as
+motion along it (362 kJ/mol for Cl₂: 243 to break it, the rest as the speed of the two atoms). In a
+real gas the two atoms fly about 100 Å apart before they slow down, more than the chamber is wide, so
+one of them is set down in a clear spot elsewhere in the chamber. With the
+lamp on, photolysis is one more reaction the skip can pick: ethene and Cl₂ sit unchanged in the dark
+(the clean gas-phase reaction is far too slow; the fast dark addition in a flask runs through ions on
+the glass or in a solvent, which the engine does not have), and with the lamp on `J` goes Cl₂ → 2 Cl·,
+Cl· + C₂H₄ → C₂H₄Cl·, C₂H₄Cl· + Cl₂ → C₂H₄Cl₂ + Cl·, and round again.
+
+**The chamber under the lamp is a window into a lit flask.** A chamber of six molecules with two
+chlorine atoms in it has one radical for every three molecules; a real lit flask has about one in a
+million, because radicals are made slowly and destroyed as soon as two meet. That ratio is what lets a
+real chain run thousands of times before it stops, and in the small chamber the radicals would mostly
+find each other instead. So while the lamp is on, two radicals meet at the rate they would in the flask:
+the steady radical concentration √(R/k_t), from the lamp's own photolysis rate R and a typical
+radical–radical rate constant k_t = 3·10⁻¹¹ cm³ s⁻¹, instead of the chamber's own. Everything else
+(radical + molecule, molecule alone) keeps the chamber's concentrations. With the lamp off, or with
+nothing left that absorbs, radicals meet at the chamber's rate, so radicals you place yourself still
+pair up in picoseconds.
+
+## Measured barriers
+
+The force field gets most barriers within 10 kJ/mol (the scorecard below), but a few reaction classes
+are far enough off to change which reaction comes next, and the barrier the search finds for them
+also moves by ±10 kJ/mol with the angle the two molecules meet at. For those classes the skip-ahead
+turns the measured barrier into the rate instead of the one it found, and the measured prefactor
+where the model's own (a tenth of the collision rate) is far from it. The reverse of each reaction gets
+the measured barrier minus the measured reaction enthalpy, with the same prefactor, so both directions
+follow real thermochemistry. A hydrogen taken from a radical (Cl· + C₂H₄Cl· → C₂H₃Cl + HCl) is
+not in any class: radicals meeting have no barrier. The live simulation and the reaction played after a skip are unchanged.
+
+| class | measured, kJ/mol (search found) | prefactor |
+| --- | --- | --- |
+| Cl· adds to C=C | Cl· + C₂H₄: 0 (10); back: 75 (249, the scan cannot find it) | ×3 |
+| H· adds to C=C | H· + C₂H₄: 9 (0) | ×0.2 |
+| alkyl adds to C=C | CH₃· + C₂H₄: 31 (9) | ×0.01 |
+| Cl· + H–H | Cl· + H₂: 18 (36); H· + HCl: 14 (31) | ×0.45 |
+| Cl· + H–CH₃ | Cl· + CH₄: 11 (25); CH₃· + HCl: 4 (18) | ×0.2 |
+| Cl· + H–C beside a halogen | Cl· + C₂H₄Cl₂, CH₃Cl, CH₂Cl₂: 10 (8) | |
+| H· + H–O | H· + H₂O: 76 (97) | |
+| H· + H–C | H· + C₂H₆: 38 (11); H· + CH₄: 50 (41) | |
+| CH₃· + H–C | CH₃· + C₂H₆: 45 (6) | ×0.01 |
+| OH· + H–C | OH· + C₂H₆: 9 (0); OH· + CH₄: 15 (24) | ×0.2, ×0.05 |
+| ROO· + H–C | CH₃O₂· + CH₄: 90 (29) | |
+
+A radical adding to a double bond, for example, has a tight transition state and a real prefactor
+near 10⁻¹³ cm³ s⁻¹, a hundred times below a typical collision.
+
+With them the classic chains run at room temperature as they do on a bench: methane and Cl₂ under the
+lamp give CH₃Cl and then CH₂Cl₂, H₂ and Cl₂ give HCl, and ethene and Cl₂ give 1,2-dichloroethane. The
+underlying errors (ethyl C–H 41 kJ/mol too weak, peroxide O–H too strong, Cl···H complexes too deep)
+are still in the force field and in the live simulation; ROADMAP has them.
 
 ## Forecasting and skipping ahead
 
@@ -594,24 +641,16 @@ H· + ethene 72%, CH₃· + H· 26%, CH₃· + ethene 1%. Two methanes at room t
 human timescale.
 
 **Experiments** (tiles in the middle of an empty chamber, and a third tab in the add-atoms library):
-ready-made textbook chambers: radical chlorination of methane (at 500 K, as the industrial process runs
-warm: at 298 K the model's Cl· + CH₄ barrier, 31 kJ/mol against 11, lets Cl· + Cl· win often and leaves
-CH₃···HCl complexes, while at 500 K three of three runs went Cl· + CH₄ → CH₃· + HCl, CH₃· + Cl₂ → CH₃Cl +
-Cl· twice over and on to CH₂Cl·; it is still dark-stable, Cl₂ splitting by heat alone once in about two
-years), chlorine adding across ethene (C₂H₄Cl· + Cl₂ → C₂H₄Cl₂ + Cl· follows within
-picoseconds, the chain making 1,2-dichloroethane), radical polymerisation of ethene (CH₃· → C₃H₇· →
-C₅H₁₁· on its own), methyl radicals recombining, hydroxyl with methane in air (OH· + CH₄ → H₂O + CH₃·, then CH₃· + O₂ →
-CH₃O₂·, the first two steps by which the atmosphere removes methane; with one OH· there is no second
-radical for it to meet first. The first step takes 0.3–0.7 µs here, against about 0.4 µs from the
-measured rate at this density; the step after the two, CH₃O₂· + CH₄ → CH₃OOH + CH₃·, comes in
-microseconds where in reality it is 80 kJ/mol uphill and never happens, because the model's peroxide
-O–H is about 60 kJ/mol too strong),
-and hydrogen with chlorine, the classic photochemical chain (Cl· + H₂ → HCl + H·, H· + Cl₂ → HCl + Cl·),
-at 500 K because the model's Cl· + H₂ barrier is 37 kJ/mol against a real 19; there Cl· takes H₂ 97% of
-the time instead of finding another Cl·, and in four browser runs of seven skips each the chain ran to
-nothing but HCl, restarting by itself when the last radicals met (Cl₂ splitting by heat, after years).
-Loading one is undoable; pressing `J` then shows what happens next. Until you do, the button to
-press glows: ☀ first when the experiment needs light, then the double arrow.
+ready-made textbook chambers, each loading its own conditions (temperature, and the lamp for the ones
+marked ☀): radical chlorination of methane (room temperature, lamp on: CH₃Cl, then CH₂Cl₂), chlorine
+adding across ethene (lamp on: 1,2-dichloroethane by the chain), radical polymerisation of ethene
+(CH₃· → C₃H₇· → C₅H₁₁·, about one step every 0.1 ms at 350 K with the measured 31 kJ/mol barrier, against 0.3 ms from the measured rate), methyl
+radicals recombining, hydroxyl with methane in air (OH· + CH₄ → H₂O + CH₃·, then CH₃· + O₂ → CH₃O₂·,
+the first two steps by which the atmosphere removes methane; after them the model's peroxide O–H, about
+60 kJ/mol too strong, lets CH₃O₂· take a hydrogen from water within hours, which in reality is far
+uphill and never happens), and hydrogen with chlorine, the classic photochemical chain (Cl· + H₂ → HCl + H·,
+H· + Cl₂ → HCl + Cl·) at room temperature until only HCl is left. Loading one is undoable; `J` then
+skips to whatever happens next.
 
 The search also knows two-bond swaps: two atoms of one molecule joining while each lets go of a
 partner, such as H₂ leaving ethane (1,2-elimination, 400 kJ/mol; 1,1 to a carbene, 403). A route whose
