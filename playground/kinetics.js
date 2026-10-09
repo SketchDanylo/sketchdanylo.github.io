@@ -240,6 +240,7 @@ function scanPair(src, i, j, opts = {}) {
       if (ELEMENTS[src.type[y]].sym === 'C') continue;
       for (const k of neighbours(src, y)) {
         if (k === x) continue;
+        if (oneSide && ELEMENTS[src.type[y]].sym === 'O' && ELEMENTS[src.type[x]].sym !== 'H' && (ELEMENTS[src.type[k]].sym === 'O' || ELEMENTS[src.type[x]].sym === 'C')) continue;
         for (const d of directions([unit(sub(P3(src, y), P3(src, k))), user])) channels.push({ type: 'transfer', at: y, k, from: x, place: pose(src, attacker(x), x, y, d) });
       }
     }

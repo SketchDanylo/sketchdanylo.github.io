@@ -339,4 +339,18 @@ test('One ethene and one Cl₂ under the lamp: after the only Cl₂ splits, Cl·
   assert.ok(sv.events[0] && /C2H4 → C2H4Cl·|C2H4Cl·$/.test(sv.events[0].label) && sv.events[0].share > 0.5, sv.events.slice(0, 3).map(x => x.label + ' ' + x.share.toFixed(2)).join(' | '));
 });
 
+test('In the dark, Cl₂ adds across ethene on the glass as a whole 1,2-dichloroethane that stays together', () => {
+  const e = new Engine({ width: 30, height: 30, depth: 12, T: 298, thermostat: true, thermostatMode: 'kelvin' });
+  for (const [s, x, y, z] of geo('C2H4')) e.addAtom(s, 10 + x, 15 + y, z || 0, { thermal: false });
+  e.touch(); e.refresh(); e.setBondOrder(0, 1, 2);
+  for (const [s, x, y, z] of geo('Cl2')) e.addAtom(s, 20 + x, 15 + y, z || 0, { thermal: false });
+  e.touch(); e.refresh(); e.thermalize(298);
+  const sv = K.survey(JSON.parse(JSON.stringify(e.toJSON())));
+  const ev = sv.events.find(x => x.kind === 'polar');
+  assert.ok(ev && ev.label === 'Cl2 + C2H4 → C2H4Cl2', sv.events.map(x => x.label).join(' | '));
+  K.applyEvent(e, ev.event, ev.event.atoms);
+  for (let k = 0; k < 2000; k++) e.step();
+  assert.deepEqual(e.fragments().list.map(g => e.formulaOf(g)), ['C2H4Cl2']);
+});
+
 console.log(count + ' kinetics checks passed.');
