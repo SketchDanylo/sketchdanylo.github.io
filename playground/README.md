@@ -430,7 +430,9 @@ four methyls still pair up in picoseconds. When nothing is left that light or he
 radicals are coming, and the ones still in the chamber meet each other at the chamber's own rate: one
 ethene and one Cl₂ under the lamp go Cl₂ → 2 Cl·, Cl· + C₂H₄ → C₂H₄Cl·, C₂H₄Cl· + Cl· → C₂H₄Cl₂. With
 chlorine in excess, the last Cl· take a hydrogen from the product and some 1,1,2-trichloroethane
-forms, as excess chlorine under light does in a real flask. Two radicals that meet combine about ten times more often than one
+forms, as excess chlorine under light does in a real flask. With ethene in excess the last two
+C₂H₄Cl· often pair up into 1,4-dichlorobutane: in a chamber of four molecules the chain's last two
+carriers are a large share of the material, where in a flask they would be a millionth of it. Two radicals that meet combine about ten times more often than one
 takes a hydrogen from the other (Cl· + C₂H₄Cl· gives mostly C₂H₄Cl₂, little vinyl chloride + HCl), as
 measured for chlorine atoms and alkyl radicals; each hydrogen used to count as a full encounter.
 
