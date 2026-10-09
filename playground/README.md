@@ -449,6 +449,7 @@ not in any class: radicals meeting have no barrier. Neither is a hydrogen on a d
 | OH· + H–OOR | OH· + CH₃OOH: 0 (2); back, CH₃O₂· + H₂O: 139 (78) | ×0.1 |
 | OH· + H–NH₂ | OH· + NH₃: 9 (0); back, NH₂· + H₂O: 56 (65) | ×0.1 |
 | OH· + H–Cl | OH· + HCl: 2 (70); back, Cl· + H₂O: 67 (66) | ×0.05 |
+| O₂ + H–C, H–H | O₂ + CH₄: 238 (368: the model's own path ends in CH₃O· + OH·); O₂ + C₂H₆: 220; O₂ + H₂: 232 | |
 | Br· adds to C=C | Br· + C₂H₄: 0 (25), back 30 | |
 | Br· + H–H, H–C | Br· + H₂: 82 (72); Br· + CH₄: 75 (75); Br· + C₂H₆: 57 (26) | |
 
@@ -736,7 +737,10 @@ are now always the ones that attack, and it completes in 6 of 6 seeded runs and 
   least 45 kJ/mol uphill beside the addition to the same double bond); a radical bonding onto a
   halogen that already holds a bond (R–Cl–Cl·, which the model allows for ClF₃ but which is barely
   bound in reality) is not a route; and while radicals meet at a flask's rate, two radicals are only
-  searched if even their fastest possible meeting could compete. Before each search, a complex the
+  searched if even their fastest possible meeting could compete. Two closed-shell molecules meeting
+  count only as a hydrogen abstraction that gives exactly the donor less a hydrogen and the acceptor
+  plus one (O₂ + CH₄ → CH₃· + HO₂·), and its two radicals are set apart like the halves of a broken
+  bond; a reaction whose products do not hold on the trial copies is dropped and the next one drawn. Before each search, a complex the
   model holds too tightly (CH₃···HCl, Cl···H₂, R–Cl···Cl, real binding a few kJ/mol) is let fall apart
   into its two molecules, as it would within picoseconds.
 - Two closed-shell molecules reacting through their π systems (Diels–Alder, ene), and rearrangements

@@ -221,7 +221,7 @@ function scanPair(src, i, j, opts = {}) {
     return opts.cache.get(key);
   };
   const reactants = ci === cj ? [relaxed(frag.list[ci])] : [relaxed(frag.list[ci]), relaxed(frag.list[cj])];
-  const free = freeValence(src);
+  const free = freeValence(src), open = list => list.some(a => free[a] > 0.5);
   const E0 = reactants.reduce((s, x) => s + x.E, 0);
   const channels = [];
   const attacker = x => frag.list[frag.comp[x]];
@@ -230,7 +230,7 @@ function scanPair(src, i, j, opts = {}) {
     channels.push({ type: 'form' });
     if (free[i] <= 0.5 && free[j] <= 0.5) for (const ka of neighbours(src, i)) for (const kb of neighbours(src, j)) if (ka !== j && kb !== i) channels.push({ type: 'swap', from: i, at: j, ka, k: kb });
   } else {
-    const open = list => list.some(a => free[a] > 0.5), oneSide = opts.oneSided && open(frag.list[ci]) !== open(frag.list[cj]);
+    const oneSide = opts.oneSided && open(frag.list[ci]) !== open(frag.list[cj]);
     for (const [x, y] of [[i, j], [j, i]]) {
       if (oneSide && !open(frag.list[frag.comp[x]])) continue;
       const user = unit(sub(P3(src, x), P3(src, y)));
@@ -265,14 +265,15 @@ function scanPair(src, i, j, opts = {}) {
     results = refined.concat(results.filter(r => !keep.includes(r)));
   }
   const ok = results.filter(r => r.done).sort((p, q) => p.Ea - q.Ea);
+  const closed = !open(frag.list[ci]) && !open(frag.list[cj]), splits = r => r.channel.type === 'break' || (closed && r.products.filter(f => f.includes('·')).length >= 2);
   if (!ok.length) return { ok: false, reason: kind === 'break' ? 'the bond would not come apart' : 'no path forms this bond: the atoms are saturated and nothing they hold lets go', tried: results.length };
   const best = ok[0];
   return {
     ok: true, kind, i, j, atoms, Ea: best.Ea, dE: best.dE, barrierAtEnd: best.barrierAtEnd,
     reactants: reactants.flatMap(x => x.formula), products: best.products, path: best.path, ts: best.ts, tsDistance: best.tsDistance,
     channel: { type: best.channel.type, k: best.channel.k }, bimolecular: ci !== cj, T: opts.T,
-    event: { atoms, pos: best.event.pos, push: best.event.push, bo: best.event.bo, anchor: ci !== cj ? frag.list[frag.comp[best.event.at]] : atoms, split: best.channel.type === 'break' },
-    alternatives: distinct(ok.slice(1), best).map(r => ({ channel: { type: r.channel.type, k: r.channel.k }, Ea: r.Ea, dE: r.dE, products: r.products, barrierAtEnd: r.barrierAtEnd, event: { atoms, pos: r.event.pos, push: r.event.push, bo: r.event.bo, anchor: ci !== cj ? frag.list[frag.comp[r.event.at]] : atoms, split: r.channel.type === 'break' } }))
+    event: { atoms, pos: best.event.pos, push: best.event.push, bo: best.event.bo, anchor: ci !== cj ? frag.list[frag.comp[best.event.at]] : atoms, split: splits(best) },
+    alternatives: distinct(ok.slice(1), best).map(r => ({ channel: { type: r.channel.type, k: r.channel.k }, Ea: r.Ea, dE: r.dE, products: r.products, barrierAtEnd: r.barrierAtEnd, event: { atoms, pos: r.event.pos, push: r.event.push, bo: r.event.bo, anchor: ci !== cj ? frag.list[frag.comp[r.event.at]] : atoms, split: splits(r) } }))
   };
 }
 
@@ -429,7 +430,7 @@ function scanCandidate(e, c, T, quick, cache, store) {
   if (c.kind === 'photo') return photolysis(e, c, T);
   const at = c.i + ',' + c.j, fr = e.fragments();
   const triplet = fr.comp[c.i] !== fr.comp[c.j] && fr.list[fr.comp[c.i]].length === 1 && SPIN_LOCKED.has(ELEMENTS[e.type[c.i]].sym) && closedShell(e, fr.list[fr.comp[c.j]]);
-  const allow = c.prio === 1 || triplet ? r => r.products.length >= 2 : null;
+  const allow = c.prio === 1 ? abstraction(e, fr, c.i, c.j) : triplet ? r => r.products.length >= 2 : null;
   const scan = scanPair(e, c.i, c.j, { T, quick, cache, allow, oneSided: true, coarseIn: !quick && store ? store.get(at) : null, coarseOut: quick && store ? r => store.set(at, r) : null });
   if (!scan.ok) return null;
   const [d0, a0] = measured(e, scan, scan, c.i, c.j);
@@ -437,21 +438,21 @@ function scanCandidate(e, c, T, quick, cache, store) {
   if (!f.ok) return null;
   const lone = fr.list[fr.comp[c.i]].length === 1 && fr.list[fr.comp[c.j]].length === 1;
   const rr = scan.bimolecular && e.isRadical(fr.list[fr.comp[c.i]]) && e.isRadical(fr.list[fr.comp[c.j]]);
-  const V = chamberVolume(e), one = (s, k, d) => { const kRate = lone && scan.bimolecular && s.products.length === 1 ? k * THIRD_BODY : k; return ({ label: scan.reactants.join(' + ') + ' → ' + s.products.join(' + '), i: c.i, j: c.j, Ea: Math.max(0, s.Ea + d), EaModel: s.Ea, known: d !== 0, dE: s.dE, rate: scan.bimolecular ? kRate * c.mult / V : kRate * c.mult, kRate, bimolecular: scan.bimolecular, rr, refined: !quick, reactants: scan.reactants, products: s.products, event: s.event, kind: scan.kind, path: s.path ? s.path.map(p => Math.round(p.E * 10) / 10) : null }); };
+  const V = chamberVolume(e), one = (s, k, d) => { const kRate = lone && scan.bimolecular && s.products.length === 1 ? k * THIRD_BODY : k; return ({ label: scan.reactants.join(' + ') + ' → ' + s.products.join(' + '), i: c.i, j: c.j, Ea: Math.max(0, s.Ea + d), EaModel: s.Ea, known: d !== 0, dE: s.dE, rate: scan.bimolecular ? kRate * c.mult / V : kRate * c.mult, kRate, bimolecular: scan.bimolecular, rr, channel: s.channel, refined: !quick, reactants: scan.reactants, products: s.products, event: s.event, kind: scan.kind, path: s.path ? s.path.map(p => Math.round(p.E * 10) / 10) : null }); };
   const main = one(scan, f.k, d0);
   main.also = (scan.alternatives || []).filter(a => !(bare(a.products) === bare(scan.reactants))).map(a => {
     const [d, x] = measured(e, scan, a, c.i, c.j);
     const g = forecast(e, { ok: true, Ea: Math.max(0, a.Ea + d), kind: a.channel.type === 'break' ? 'break' : scan.kind, barrierAtEnd: a.barrierAtEnd, bimolecular: scan.bimolecular, i: scan.i, j: scan.j }, { T, partnerPerCm3: 1, steric: 0.1 * x });
     return g.ok ? one(a, g.k, d) : null;
   }).filter(Boolean);
-  const list = [main, ...main.also].filter(x => !allow || x.products.length >= x.reactants.length);
+  const list = [main, ...main.also].filter(x => !allow || (x.products.length >= x.reactants.length && allow(x)));
   if (!list.length) return null;
   list[0].also = list.slice(1);
   return list[0];
 }
 
 const ADD_PI = { H: [9, 0.2, -150], C: [31, 0.01, -93], Cl: [0, 3, -75], Br: [0, 1, -30] };
-const SHIFT_H = { 'Cl|H': ['Cl', 18, 0.45, 4], 'Cl|Cm': ['Cl', 11, 0.2, 7], 'H|O': ['H', 76, 1, 61], 'C|H': ['H', 38, 1, -13], 'Cm|H': ['H', 50, 1, 3], 'C|Cm': ['Cm', 45, 0.01, -16], 'C|O': ['O', 9, 0.2, -74], 'Cm|O': ['O', 15, 0.05, -58], 'C|Oo': ['Oo', 75, 1, 65], 'Cm|Oo': ['Oo', 90, 1, 81], 'Cc|Cl': ['Cl', 10, 1, -13], 'O|Oo': ['O', 0, 0.1, -139], 'Br|H': ['Br', 82, 1, 70], 'Br|Cm': ['Br', 75, 1, 73], 'Br|C': ['Br', 57, 1, 57], 'N|O': ['O', 9, 0.1, -47], 'Cl|O': ['O', 2, 0.05, -65] };
+const SHIFT_H = { 'Cl|H': ['Cl', 18, 0.45, 4], 'Cl|Cm': ['Cl', 11, 0.2, 7], 'H|O': ['H', 76, 1, 61], 'C|H': ['H', 38, 1, -13], 'Cm|H': ['H', 50, 1, 3], 'C|Cm': ['Cm', 45, 0.01, -16], 'C|O': ['O', 9, 0.2, -74], 'Cm|O': ['O', 15, 0.05, -58], 'C|Oo': ['Oo', 75, 1, 65], 'Cm|Oo': ['Oo', 90, 1, 81], 'Cc|Cl': ['Cl', 10, 1, -13], 'O|Oo': ['O', 0, 0.1, -139], 'Br|H': ['Br', 82, 1, 70], 'Br|Cm': ['Br', 75, 1, 73], 'Br|C': ['Br', 57, 1, 57], 'N|O': ['O', 9, 0.1, -47], 'Cl|O': ['O', 2, 0.05, -65], 'Cm|O2': ['O2', 238, 1, 230], 'C|O2': ['O2', 220, 1, 218], 'H|O2': ['O2', 232, 1, 231] };
 const HALO = new Set(['F', 'Cl', 'Br', 'I']);
 const NONE = [0, 1];
 
@@ -473,20 +474,31 @@ function measured(e, scan, s, i, j) {
   }
   for (const [m, f] of [[i, j], [j, i]]) {
     const held = nb(m);
-    if (sym(m) !== 'H' || held.length !== 1 || free[f] <= 0.5) continue;
-    const fr = e.fragments();
-    if (e.isRadical(fr.list[fr.comp[m]])) return NONE;
+    if (sym(m) !== 'H' || held.length !== 1) continue;
     const cls = a => {
       const o = nb(a).filter(b => b !== m);
       if (sym(a) === 'C') return o.some(b => order(a, b) > 1.2) ? 'Cv' : o.some(b => HALO.has(sym(b))) ? 'Cc' : o.every(b => sym(b) === 'H') ? 'Cm' : 'C';
-      if (sym(a) === 'O') return o.some(b => sym(b) === 'O') ? 'Oo' : o.length === 1 && sym(o[0]) === 'H' ? 'O' : 'Ox';
+      if (sym(a) === 'O') return o.some(b => sym(b) === 'O' && order(a, b) > 1.5) ? 'O2' : o.some(b => sym(b) === 'O') ? 'Oo' : o.length === 1 && sym(o[0]) === 'H' ? 'O' : 'Ox';
       return sym(a);
     };
-    const cf = cls(f), ck = cls(held[0]), row = cf !== ck && SHIFT_H[[cf, ck].sort().join('|')];
+    const cf = cls(f);
+    if (free[f] <= 0.5 && cf !== 'O2') continue;
+    const fr = e.fragments();
+    if (e.isRadical(fr.list[fr.comp[m]])) return NONE;
+    const ck = cls(held[0]), row = cf !== ck && SHIFT_H[[cf, ck].sort().join('|')];
     if (!row) return NONE;
     return row[0] === cf ? use(row[1], row[2], row[3]) : use(row[1] - row[3], row[2], -row[3]);
   }
   return NONE;
+}
+
+function counts(f) { const m = {}; for (const [, el, n] of f.replace(/·/g, '').matchAll(/([A-Z][a-z]?)(\d*)/g)) m[el] = (m[el] || 0) + (+n || 1); return m; }
+function countKey(m) { return Object.keys(m).filter(k => m[k]).sort().map(k => k + m[k]).join(''); }
+function abstraction(e, fr, i, j) {
+  const take = counts(e.formulaOf(fr.list[fr.comp[i]])), give = counts(e.formulaOf(fr.list[fr.comp[j]]));
+  take.H = (take.H || 0) + 1; give.H = (give.H || 0) - 1;
+  const want = [countKey(take), countKey(give)].sort().join('+');
+  return r => r.products.length === 2 && r.products.map(p => countKey(counts(p))).sort().join('+') === want;
 }
 
 const bare = list => list.map(f => f.replace(/·/g, '')).sort().join(' + ');
@@ -600,6 +612,11 @@ function survey(scene, opts = {}) {
 function worthRefining(results, T) {
   const all = results.filter(Boolean), total = all.reduce((s, r) => s + (r.rr ? 0 : r.rate + (r.also || []).reduce((a, x) => a + x.rate, 0)), 0), slack = Math.exp(UNCERTAINTY.Ea / (R * Math.max(T, 50)));
   return all.filter(r => !r.refined && r.Ea > 0.5 && !r.known && r.rate * slack >= 0.05 * total).sort((x, y) => x.Ea - y.Ea).slice(0, REFINE);
+}
+
+function drop(sv, ev) {
+  sv.total = Math.max(0, sv.total - ev.rate); ev.rate = 0;
+  for (const x of sv.events) x.share = sv.total > 0 ? x.rate / sv.total : 0;
 }
 
 function pickNext(sv, u1 = Math.random(), u2 = Math.random()) {
@@ -809,5 +826,5 @@ function applyEvent(eng, ev, idx) {
   eng.refresh();
 }
 
-return { scanPair, measured, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, verifyEvent, stillThere, candidates, scanCandidate, combine, context, initiates, needless, survey, pickNext, worthRefining, loosenAll, reuse, REFINE, COOL, wanted, coolProducts, UNCERTAINTY };
+return { scanPair, measured, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, verifyEvent, stillThere, candidates, scanCandidate, combine, context, initiates, needless, survey, pickNext, drop, worthRefining, loosenAll, reuse, REFINE, COOL, wanted, coolProducts, UNCERTAINTY };
 });

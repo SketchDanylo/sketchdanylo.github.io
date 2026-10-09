@@ -149,12 +149,10 @@ class ForecastCard {
   async go(sv, ids) {
     const ls = this.lastScene, key = this.req, eng0 = this.actions.engine;
     const same = (x, want) => x.products.map(f => f.replace(/·/g, '')).sort().join() === want.products.map(f => f.replace(/·/g, '')).sort().join();
-    const failed = new Set();
     let pair = null;
-    for (let tries = 0; tries < 4; tries++) {
+    for (let tries = 0; tries < 6; tries++) {
       const nx = K().pickNext(sv);
       if (!nx) return false;
-      if (failed.has(nx.pick)) break;
       let pick = nx.pick;
       pair = [ids[pick.i], ids[pick.j]];
       if (this.fx) { this.fx.scan = null; this.fx.focus = pair; }
@@ -177,7 +175,7 @@ class ForecastCard {
         good = await check(pick);
         if (key !== this.req) return false;
       }
-      if (!good) { failed.add(nx.pick); continue; }
+      if (!good) { K().drop(sv, nx.pick); continue; }
       const side = list => list.map(this.actions.pretty || (x => x)).join(' + ');
       const known = new Map(eng0.fragments().list.map(g => [eng0.formulaOf(g) + (eng0.isRadical(g) ? '·' : ''), this.nameOf(g)])), call = l => side(l.map(f => known.get(f) || f));
       const ok = this.actions.skip?.(pick.event, nx.wait, ids, side(pick.reactants) + ' → ' + side(pick.products), pick.reactants, !this.auto, [pick.products, ...outs]);
