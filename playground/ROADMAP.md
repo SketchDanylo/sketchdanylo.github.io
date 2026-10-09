@@ -125,8 +125,14 @@ Without this, the forecast and fast-forward will work well for radical and gas-p
 
 ### 4. A complete kinetics engine
 
-- Running on by itself takes about 9 s a step for a handful of molecules (barriers it has measured
-  are remembered). The hydrogen-passing complexes (item 1) are what stop long runs today.
+- Running on by itself takes a few seconds a step for a handful of molecules on an ordinary
+  multi-core machine (barriers it has measured are remembered, and hopeless routes are dropped early),
+  and up to a minute once a polymer has grown past C₉. It stops by itself at an equilibrium or a loop.
+  The hydrogen-passing complexes (item 1) are what still clutter long runs: CH₃···HCl at room
+  temperature, HCl···Cl, NH₂···HCl.
+- A ground-state O atom's abstraction from methane is placed with the oxygen swung round onto the
+  carbon (the scan's path bends that way on this spinless surface), so the CH₃· and ·OH pair up at once
+  and some trials fail; holding the path straight made the barrier worse (README, What was tried).
 - Search reactions between two closed-shell molecules (Diels–Alder, ene, [2+2]) and rearrangements
   inside one molecule.
 - Replace the fixed prefactors with ones calculated from vibrational frequencies at the barrier and in
@@ -144,9 +150,11 @@ Without this, the forecast and fast-forward will work well for radical and gas-p
 
 - Curved-arrow mechanisms drawn from the bond orders that changed during a reaction.
 - Energy diagrams for a whole sequence of steps, not only one.
-- Ready-made textbook scenarios: four radical ones exist (Experiments tab: chlorination of methane,
-  chlorine and ethene, methyl recombination, hydroxyl and methane). Next: combustion of hydrogen,
-  radical polymerisation of ethene; SN2 and E2 once item 3 exists.
+- Ready-made textbook scenarios: six radical ones exist (tiles in an empty chamber: chlorination of
+  methane, chlorine and ethene, radical polymerisation of ethene, methyl recombination, hydroxyl and
+  methane, hydrogen and chlorine). Next: combustion of hydrogen (at the chamber's 100 bar it runs
+  through HO₂· and H₂O₂, the high-pressure route, with some exotic H₂O₃ on the way); SN2 and E2 once
+  item 3 exists.
 
 ## Suggested order
 
