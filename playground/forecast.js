@@ -156,10 +156,15 @@ class ForecastCard {
     const pf = this.pf, Kn = K();
     if (!pf || this.busyNext) return;
     const memo = this.memo, inflight = this.inflight || (this.inflight = new Map());
+    const rs = () => pf.list.map(c => { const m = memo.get(pf.mk(c)); return m ? Kn.reuse(m, c, pf.V) : null; });
     if (!pf.tasks.length && !pf.live && pf.stage === 0) {
       pf.stage = 1;
-      const rs = pf.list.map(c => { const m = memo.get(pf.mk(c)); return m ? Kn.reuse(m, c, pf.V) : null; });
-      pf.tasks = Kn.worthRefining(rs, pf.T, pf.ctx).map(r => ({ c: r.cand, quick: false }));
+      const rr = pf.list.filter(c => c.rr && !memo.has(pf.mk(c)));
+      if (rr.length && !Kn.needless(rs(), rr, pf.ctx)) pf.tasks = rr.map(c => ({ c, quick: true }));
+    }
+    if (!pf.tasks.length && !pf.live && pf.stage === 1) {
+      pf.stage = 2;
+      pf.tasks = Kn.worthRefining(rs(), pf.T, pf.ctx).map(r => ({ c: r.cand, quick: false }));
     }
     const ws = this.pool();
     ws.forEach((w, n) => {
