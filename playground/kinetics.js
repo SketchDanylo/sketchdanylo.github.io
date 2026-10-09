@@ -231,10 +231,11 @@ function scanPair(src, i, j, opts = {}) {
     if (free[i] <= 0.5 && free[j] <= 0.5) for (const ka of neighbours(src, i)) for (const kb of neighbours(src, j)) if (ka !== j && kb !== i) channels.push({ type: 'swap', from: i, at: j, ka, k: kb });
   } else {
     const oneSide = opts.oneSided && open(frag.list[ci]) !== open(frag.list[cj]);
+    const full = y => { const sy = ELEMENTS[src.type[y]].sym; return (HALO.has(sy) || sy === 'O') && free[y] <= 0.5 && !neighbours(src, y).some(b => { const p = src.pairMap.get(Math.min(b, y) * 1048576 + Math.max(b, y)); return p !== undefined && src.pN[p] > 1.2; }); };
     for (const [x, y] of [[i, j], [j, i]]) {
       if (oneSide && !open(frag.list[frag.comp[x]])) continue;
       const user = unit(sub(P3(src, x), P3(src, y)));
-      if (!(oneSide && HALO.has(ELEMENTS[src.type[y]].sym) && free[y] <= 0.5)) for (const d of directions([user, ...faces(src, y)])) channels.push({ type: 'form', from: x, at: y, place: pose(src, attacker(x), x, y, d) });
+      if (!(oneSide && full(y))) for (const d of directions([user, ...faces(src, y)])) channels.push({ type: 'form', from: x, at: y, place: pose(src, attacker(x), x, y, d) });
       if (free[y] > 0.5) continue;
       if (ELEMENTS[src.type[y]].sym === 'C') continue;
       for (const k of neighbours(src, y)) {

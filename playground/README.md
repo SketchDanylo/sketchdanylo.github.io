@@ -736,7 +736,7 @@ are now always the ones that attack, and it completes in 6 of 6 seeded runs and 
   radical reaching for a hydrogen on a double-bonded carbon is not searched below 700 K (it is at
   least 45 kJ/mol uphill beside the addition to the same double bond); a radical bonding onto a
   halogen that already holds a bond (R–Cl–Cl·, which the model allows for ClF₃ but which is barely
-  bound in reality) is not a route; and while radicals meet at a flask's rate, two radicals are only
+  bound in reality), or onto an oxygen already holding two single bonds, is not a route; and while radicals meet at a flask's rate, two radicals are only
   searched if even their fastest possible meeting could compete. Two closed-shell molecules meeting
   count only as a hydrogen abstraction that gives exactly the donor less a hydrogen and the acceptor
   plus one (O₂ + CH₄ → CH₃· + HO₂·), and its two radicals are set apart like the halves of a broken
