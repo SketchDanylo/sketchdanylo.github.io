@@ -96,7 +96,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build80', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0, lightHint: () => matchMedia('(pointer: coarse)').matches ? '☀ for light' : 'L for light' });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build81', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0, lightHint: () => matchMedia('(pointer: coarse)').matches ? '☀ for light' : 'L for light' });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -702,8 +702,20 @@ function renderExperiments() {
   list.querySelectorAll('.exp').forEach(b => b.onclick = () => runExperiment(EXPERIMENTS[+b.dataset.k]));
 }
 const starters = $('starters');
+function pictogram(mix) {
+  const S = 5.2, parts = [];
+  let x = 4;
+  for (const [m, n] of mix) for (let k = 0; k < Math.min(n, 3); k++) {
+    const atoms = EXP_MOLS[m], xs = atoms.map(a => a[1]), ys = atoms.map(a => a[2]), x0 = Math.min(...xs), y0 = (Math.min(...ys) + Math.max(...ys)) / 2;
+    const at = atoms.map(a => ({ sym: a[0], x: x + 4 + (a[1] - x0) * S, y: 15 + (a[2] - y0) * S }));
+    for (let a = 0; a < at.length; a++) for (let b = a + 1; b < at.length; b++) if (Math.hypot(at[a].x - at[b].x, at[a].y - at[b].y) < 2.3 * S) parts.push('<line x1="' + at[a].x.toFixed(1) + '" y1="' + at[a].y.toFixed(1) + '" x2="' + at[b].x.toFixed(1) + '" y2="' + at[b].y.toFixed(1) + '"/>');
+    for (const a of at.slice().sort((p, q) => (p.sym === 'H') - (q.sym === 'H'))) parts.push('<circle cx="' + a.x.toFixed(1) + '" cy="' + a.y.toFixed(1) + '" r="' + (a.sym === 'H' ? 1.9 : 3.1) + '" fill="' + BY_SYM[a.sym].color + '"/>');
+    x += (Math.max(...xs) - x0) * S + 14;
+  }
+  return '<svg class="pic" viewBox="0 0 ' + Math.ceil(x) + ' 30" width="' + Math.ceil(x) + '" height="30" aria-hidden="true">' + parts.join('') + '</svg>';
+}
 function renderStarters() {
-  starters.innerHTML = '<div class="st-grid">' + EXPERIMENTS.map((x, k) => '<button class="st" data-k="' + k + '"><span class="nm">' + esc(x.name) + '</span><span class="fm">' + x.mix.map(([m, n]) => (n > 1 ? n + ' ' : '') + pretty(m)).join(' + ') + (x.light ? ' <span class="sun">☀</span>' : '') + '</span></button>').join('') + '</div><p class="st-or">or pick an element below and click to place atoms</p>';
+  starters.innerHTML = '<div class="st-grid">' + EXPERIMENTS.map((x, k) => '<button class="st" data-k="' + k + '">' + pictogram(x.mix) + '<span class="nm">' + esc(x.name) + '</span><span class="fm">' + x.mix.map(([m, n]) => (n > 1 ? n + ' ' : '') + pretty(m)).join(' + ') + (x.light ? ' <span class="sun">☀</span>' : '') + '</span></button>').join('') + '</div><p class="st-or">or pick an element below and click to place atoms</p>';
   starters.querySelectorAll('.st').forEach(b => b.onclick = () => runExperiment(EXPERIMENTS[+b.dataset.k]));
 }
 let startersAt = '';
@@ -717,6 +729,9 @@ function placeStarters(show) {
   startersAt = key;
   starters.style.left = Math.round((x0 + x1) / 2) + 'px'; starters.style.top = Math.round((y0 + y1) / 2) + 'px';
   starters.style.width = Math.max(240, Math.min(720, Math.abs(x1 - x0) - 32)) + 'px';
+  starters.style.transform = '';
+  const room = Math.abs(y1 - y0) - 20, h = starters.offsetHeight;
+  if (h > room && room > 0) starters.style.transform = 'translate(-50%,-50%) scale(' + Math.max(0.6, room / h).toFixed(3) + ')';
 }
 function runExperiment(x) {
   pushUndo(); closePop(); forecastCard.close(); setPlaying(false);

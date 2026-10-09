@@ -128,7 +128,7 @@ class ForecastCard {
     if (ok) this.misses = 0;
     else this.actions.play?.();
     if (this.auto && (ok || (this.misses = (this.misses || 0) + 1) <= 3)) this.watchThenNext();
-    else this.finish();
+    else { if (this.auto) this.say('stopped · three reactions in a row did not play out as forecast'); this.finish(); }
   }
   async go(sv, ids) {
     const ls = this.lastScene, key = this.req;
