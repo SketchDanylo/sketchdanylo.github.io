@@ -666,7 +666,16 @@ function worthRefining(results, T, ctx) {
 
 function undoing(sv, last) {
   const back = sv.events.find(x => bare(x.reactants) === bare(last.products) && bare(x.products) === bare(last.reactants));
-  return back && back.share > 0.5 && LN2 / back.rate < 3.15e16 ? back : null;
+  return back && back.rate > 0 && LN2 / back.rate < 3.15e16 ? back : null;
+}
+
+function passEquilibrium(sv, last) {
+  const back = last && undoing(sv, last);
+  if (!back) return null;
+  const here = sv.total - back.rate, there = last.exits || 0;
+  if (!(here > 1e-12 * sv.total) && !(there > 0)) { drop(sv, back); return 'stuck'; }
+  if (here >= there) { drop(sv, back); return 'passed'; }
+  return null;
 }
 
 function drop(sv, ev) {
@@ -912,5 +921,5 @@ function applyEvent(eng, ev, idx) {
   eng.refresh();
 }
 
-return { scanPair, measured, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, verifyEvent, stillThere, candidates, scanCandidate, combine, context, initiates, needless, survey, pickNext, undoing, drop, worthRefining, loosenAll, loosen, untangled, reuse, REFINE, COOL, wanted, coolProducts, UNCERTAINTY };
+return { scanPair, measured, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, verifyEvent, stillThere, candidates, scanCandidate, combine, context, initiates, needless, survey, pickNext, undoing, passEquilibrium, drop, worthRefining, loosenAll, loosen, untangled, reuse, REFINE, COOL, wanted, coolProducts, UNCERTAINTY };
 });

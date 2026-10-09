@@ -180,9 +180,8 @@ class ForecastCard {
   stop() { this.req++; this.finish(); if (this.fx) { this.fx.scan = null; this.fx.focus = null; } }
   toggleAuto() { if (this.auto) { this.stop(); return; } this.auto = true; this.misses = 0; this.trail = []; this.lastWhat = null; this.actions.autoChanged?.(true); this.next(); }
   async decide(sv, ids) {
-    const back = this.lastEv && K().undoing(sv, this.lastEv);
-    if (back) K().drop(sv, back);
-    if (back && !(sv.total > 0)) {
+    const eq = K().passEquilibrium(sv, this.lastEv);
+    if (eq === 'stuck') {
       const pretty = this.actions.pretty || (x => x), side = l => l.map(pretty).join(' + ');
       this.say('equilibrium · ' + side(this.lastEv.reactants) + ' ⇌ ' + side(this.lastEv.products) + ', nothing else happens');
       this.finish(); return;
@@ -236,7 +235,7 @@ class ForecastCard {
       const ok = this.actions.skip?.(pick.event, nx.wait, ids, side(pick.reactants) + ' → ' + side(pick.products), pick.reactants, !this.auto, [pick.products, ...outs]);
       if (ok === false) break;
       this.lastWhat = call(pick.reactants) + ' → ' + call(pick.products);
-      this.lastEv = { reactants: pick.reactants, products: pick.products };
+      this.lastEv = { reactants: pick.reactants, products: pick.products, exits: Math.max(0, sv.total - nx.pick.rate) };
       this.jumped(pair, nx.wait, pick);
       return true;
     }

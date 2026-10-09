@@ -166,6 +166,7 @@ const BOND_DATA = {
 };
 
 function pairKey(a, b) { return a < b ? a + '|' + b : b + '|' + a; }
+const Q_SCALE = { 'Cl|H': 0.7, 'Br|H': 0.6, 'H|I': 0.5 };
 
 function buildPairParams(ei, ej) {
   const canBond = ei.bonds && ej.bonds;
@@ -174,7 +175,8 @@ function buildPairParams(ei, ej) {
     re: [0, 0, 0, 0], De: [0, 0, 0, 0], a: [0, 0, 0, 0], r1: 0, r2: 0,
     ljX: Math.sqrt(ei.ljX * ej.ljX), ljD: Math.sqrt(ei.ljD * ej.ljD),
     core: 0.6 * (ei.rcov[0] + ej.rcov[0]),
-    oo: ei.sym === 'O' && ej.sym === 'O'
+    oo: ei.sym === 'O' && ej.sym === 'O',
+    qs: Q_SCALE[pairKey(ei.sym, ej.sym)] ?? 1
   };
   if (canBond) {
     const data = BOND_DATA[pairKey(ei.sym, ej.sym)] || {};
@@ -807,7 +809,7 @@ class Engine {
           pF[p] = SW; pFp[p] = SWD;
           Z[i] += SW; Z[j] += SW;
           this.cCount[i]++; this.cCount[j]++;
-          const raw = TUNE.kappa * SW * (CHI[type[j]] - CHI[type[i]]);
+          const raw = TUNE.kappa * pp.qs * SW * (CHI[type[j]] - CHI[type[i]]);
           const dq = raw / Math.pow(1 + (raw / Q_MAX) ** 4, 0.25);
           q[i] += dq; q[j] -= dq;
         }
@@ -1068,7 +1070,7 @@ class Engine {
     for (let p = 0; p < P; p++) {
       const fp = pFp[p]; if (fp === 0) continue;
       const i = pI[p], j = pJ[p];
-      const dchi = CHI[type[j]] - CHI[type[i]];
+      const dchi = (CHI[type[j]] - CHI[type[i]]) * PAIR[type[i] * NT + type[j]].qs;
       const raw = TUNE.kappa * pF[p] * dchi;
       const transferGrad = Math.pow(1 + (raw / Q_MAX) ** 4, -1.25);
       const dEdr = TUNE.kappa * fp * dchi * transferGrad * (phi[i] - phi[j]) + (Gz[i] + Gz[j]) * fp;

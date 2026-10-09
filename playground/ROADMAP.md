@@ -48,6 +48,14 @@ What it costs today: the live simulation still has the wrong barriers. The skip-
 with measured values per reaction class (README, Measured barriers), which is a patch over
 the force field, not a fix of it: a fixed force field would let the corrections go.
 
+Started (October 9, evening): the bond charges of H–Cl, H–Br and H–I are now scaled by 0.7, 0.6 and
+0.5. The one electronegativity rule had made HCl twice as polar as it is (2.2 D against 1.08), and the
+too-large charge on its hydrogen was most of the CH₃···HCl and Cl···H···C complex wells. Those wells
+are now about half as deep (Cl + CH₄: 20 → 11 kJ/mol, Cl + C₂H₆: 24 → 13) for a 2 kJ/mol higher
+Cl + CH₄ barrier; going all the way to the measured dipole (0.5) leaves 7 kJ/mol but raises that
+barrier to 41, because the barriers were tuned with the overcharged hydrogen. The rest of this item
+is still to do.
+
 First target: a hydrogen shared between Cl (or O) and C is held by about 60 kJ/mol of Coulomb
 attraction at 1.8 Å, because the charges follow the geometric bond switch rather than how much bond has
 actually formed. That makes the Cl···H···C complexes, the high Cl barriers and the stray CH₃Cl₂ /

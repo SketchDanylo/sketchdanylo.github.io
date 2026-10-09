@@ -433,10 +433,13 @@ forms, as excess chlorine under light does in a real flask. Two radicals that me
 takes a hydrogen from the other (Cl· + C₂H₄Cl· gives mostly C₂H₄Cl₂, little vinyl chloride + HCl), as
 measured for chlorine atoms and alkyl radicals; each hydrogen used to count as a full encounter.
 
-**Equilibria are passed, not replayed.** When the most likely next step is the one that just undoes the
-last (C₂H₃Cl₂· + HCl after Cl· + C₂H₄Cl₂, or Cl· + Cl· after the lamp split the last Cl₂), the two states
-are in fast equilibrium and `J` skips to the first reaction that leaves it; if there is none it says
-so ("equilibrium · …, nothing else happens").
+**Equilibria are passed, not replayed.** When a possible next step would just undo the last one
+(C₂H₃Cl₂· + HCl after Cl· + C₂H₄Cl₂, or Cl· + Cl· right after the lamp split Cl₂), going back and
+forth changes nothing, so `J` leaves the undo out and draws among the reactions that lead somewhere,
+as long as this state has at least as fast a way out as the one before it had; otherwise it goes back,
+because the way on is from there. If neither state has a way out it says so ("equilibrium · …,
+nothing else happens"). A finished product whose only possible step is falling apart over the age of
+the universe is "stable", not an equilibrium.
 
 **The search starts before you ask.** Right after a reaction plays, when an experiment loads, or when
 the chamber is edited, the workers start forecasting the new chamber in the background, one candidate
