@@ -376,11 +376,11 @@ function candidates(src, cap = 24) {
   const frag = src.fragments(), free = freeValence(src), out = [], seen = new Map(), pairSeen = new Set();
   const pi = new Set();
   for (let p = 0; p < src.nPairs; p++) if (src.bondStrength(p) > 0.25 && src.pN[p] > 1.2) { pi.add(src.pI[p]); pi.add(src.pJ[p]); }
-  const add = (i, j, kind, key, prio, rr = false) => {
+  const add = (i, j, kind, key, prio, rr = false, extra = null) => {
     const d = Math.hypot(src.pos[3 * j] - src.pos[3 * i], src.pos[3 * j + 1] - src.pos[3 * i + 1], src.pos[3 * j + 2] - src.pos[3 * i + 2]);
     const have = seen.get(key);
-    if (have) { have.mult++; if (d < have.d) { have.i = i; have.j = j; have.d = d; } return; }
-    const c = { i, j, kind, key, prio, mult: 1, d, rr };
+    if (have) { have.mult++; if (d < have.d) { have.i = i; have.j = j; have.d = d; Object.assign(have, extra); } return; }
+    const c = { i, j, kind, key, prio, mult: 1, d, rr, ...extra };
     seen.set(key, c); out.push(c);
   };
   const L = frag.list, open = L.map(f => f.some(x => free[x] > 0.5));
@@ -401,6 +401,18 @@ function candidates(src, cap = 24) {
         add(r, t, 'meet', ka < kb ? ka + '|' + kb : kb + '|' + ka, radical ? 0 : 1, radical && open[B]);
       }
     }
+  }
+  const halves = [], doubles = [];
+  for (let p = 0; p < src.nPairs; p++) {
+    if (src.bondStrength(p) <= 0.4) continue;
+    const i = src.pI[p], j = src.pJ[p], a = ELEMENTS[src.type[i]].sym, b = ELEMENTS[src.type[j]].sym, g = L[frag.comp[i]];
+    if (POLAR.has(a) && a === b && g.length === 2) halves.push([i, j]);
+    if (a === 'C' && b === 'C' && src.pN[p] > 1.5 && src.pN[p] < 2.5 && !open[frag.comp[i]]) doubles.push([i, j]);
+  }
+  for (const [x, y] of halves) for (const [c1, c2] of doubles) {
+    if (frag.comp[x] === frag.comp[c1]) continue;
+    const kc = siteKey(src, L[frag.comp[c1]], c1) + '=' + siteKey(src, L[frag.comp[c2]], c2);
+    add(x, c1, 'polar', 'polar ' + ELEMENTS[src.type[x]].sym + '2|' + kc, 0, false, { x2: [x, y], cc: [c1, c2] });
   }
   if (src.lamp) for (let p = 0; p < src.nPairs; p++) {
     const i = src.pI[p], j = src.pJ[p], a = ELEMENTS[src.type[i]].sym, b = ELEMENTS[src.type[j]].sym;
@@ -427,8 +439,15 @@ function photolysis(e, c, T) {
   return { label: e.formulaOf(g) + ' + hν → ' + name(c.i) + ' + ' + name(c.j), i: c.i, j: c.j, Ea: 0, dE: 0, rate: kRate * c.mult, kRate, bimolecular: false, refined: true, reactants: [e.formulaOf(g)], products: [name(c.i), name(c.j)].sort(), event: { photo: true, atoms: [c.i, c.j], E, at: c.j }, kind: 'photo', path: null, also: [] };
 }
 
+function polarAddition(e, c, T) {
+  const fr = e.fragments(), x2 = fr.list[fr.comp[c.x2[0]]], ene = fr.list[fr.comp[c.cc[0]]];
+  const product = e.formulaOf(ene.concat(x2)), kRate = K_WALL;
+  return { label: e.formulaOf(x2) + ' + ' + e.formulaOf(ene) + ' → ' + product, i: c.i, j: c.j, Ea: 0, dE: 0, rate: kRate * c.mult / chamberVolume(e), kRate, bimolecular: true, rr: false, refined: true, known: true, reactants: [e.formulaOf(x2), e.formulaOf(ene)], products: [product], event: { polar: true, atoms: [c.x2[0], c.x2[1], c.cc[0], c.cc[1]] }, kind: 'polar', path: null, also: [] };
+}
+
 function scanCandidate(e, c, T, quick, cache, store) {
   if (c.kind === 'photo') return photolysis(e, c, T);
+  if (c.kind === 'polar') return polarAddition(e, c, T);
   const at = c.i + ',' + c.j, fr = e.fragments();
   const triplet = fr.comp[c.i] !== fr.comp[c.j] && fr.list[fr.comp[c.i]].length === 1 && SPIN_LOCKED.has(ELEMENTS[e.type[c.i]].sym) && closedShell(e, fr.list[fr.comp[c.j]]);
   const allow = c.prio === 1 ? abstraction(e, fr, c.i, c.j) : triplet ? r => r.products.length >= 2 : null;
@@ -548,7 +567,7 @@ function combine(results, T, ctx) {
     if (!r0) continue;
     const r = r0.rr && f < 1 ? { ...r0, rate: r0.rate * f } : r0;
     if (bare(r.reactants) === bare(r.products)) continue;
-    const key = (r.kind === 'photo' ? 'hν ' : '') + bare(r.reactants) + ' → ' + bare(r.products);
+    const key = (r.kind === 'photo' ? 'hν ' : r.kind === 'polar' ? 'polar ' : '') + bare(r.reactants) + ' → ' + bare(r.products);
     const prev = seen.get(key);
     if (prev) { prev.rate += r.rate; if (r.refined && !prev.refined || r.refined === prev.refined && r.Ea < prev.Ea) Object.assign(prev, { Ea: r.Ea, event: r.event, refined: r.refined, cand: r.cand, path: r.path }); continue; }
     const x = { ...r }; seen.set(key, x); events.push(x);
@@ -560,7 +579,8 @@ function combine(results, T, ctx) {
 }
 
 const REFINE = 3, COOL = [80, 160, 300, 500, 800], THIRD_BODY = 1e-3;
-const LAMP_FLUX = 1e17, K_TERM = 3e-11, RR_MAX = 1e-9;
+const LAMP_FLUX = 1e17, K_TERM = 3e-11, RR_MAX = 1e-9, K_WALL = 1e-22;
+const POLAR = new Set(['Cl', 'Br']);
 const PHOTO = { F: { sigma: 1.0e-20, E: 412 }, Cl: { sigma: 2.6e-19, E: 362 }, Br: { sigma: 6.2e-19, E: 288 }, I: { sigma: 2.6e-18, E: 239 } };
 
 function wanted(products) {
@@ -792,7 +812,31 @@ function relocate(eng, g) {
   for (const a of g) { P[3 * a] += best[0] - cx; P[3 * a + 1] += best[1] - cy; P[3 * a + 2] += best[2] - cz; }
 }
 
+function addAcross(eng, idx) {
+  const [x1, x2, c1, c2] = idx, P = eng.pos, at = i => [P[3 * i], P[3 * i + 1], P[3 * i + 2]];
+  const f0 = eng.fragments(), group = [...new Set(f0.list[f0.comp[c1]].concat(f0.list[f0.comp[x1]]))];
+  const a = at(c1), b = at(c2), cc = unit(sub(b, a)) || [1, 0, 0];
+  const sub1 = neighbours(eng, c1).filter(k => k !== c2);
+  let n = sub1.length >= 2 ? unit(cross(sub(at(sub1[0]), a), sub(at(sub1[1]), a))) : null;
+  if (!n) { const t = Math.abs(cc[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0]; n = unit(cross(cc, t)); }
+  const r = PAIR[eng.type[c1] * NT + eng.type[x1]].re[1] || 1.8, put = (i, base, dir) => { for (let d = 0; d < 3; d++) P[3 * i + d] = base[d] + r * dir[d]; };
+  put(x1, a, unit([-n[0] - 0.35 * cc[0], -n[1] - 0.35 * cc[1], -n[2] - 0.35 * cc[2]]));
+  put(x2, b, unit([n[0] + 0.35 * cc[0], n[1] + 0.35 * cc[1], n[2] + 0.35 * cc[2]]));
+  eng.touch(); eng.refresh();
+  eng.setBondOrder(c1, c2, 1);
+  eng.refresh();
+  const { e, map } = isolate(eng, group, null, eng.T);
+  e.minimize(1500, 0.05);
+  const c0 = [0, 1, 2].map(d => group.reduce((s, i) => s + P[3 * i + d], 0) / group.length);
+  for (const i of group) { const k = map.get(i); for (let d = 0; d < 3; d++) P[3 * i + d] = c0[d] + e.pos[3 * k + d]; eng.born[i] = eng.time; }
+  eng.touch(); eng.refresh();
+  clearAround(eng, group);
+  eng.thermalize(eng.T, group);
+  eng.refresh();
+}
+
 function applyEvent(eng, ev, idx) {
+  if (ev.polar) { addAcross(eng, idx); return; }
   if (ev.photo) {
     const [a, b] = idx, k = 3 * a, l = 3 * b;
     let nx = eng.pos[l] - eng.pos[k], ny = eng.pos[l + 1] - eng.pos[k + 1], nz = eng.pos[l + 2] - eng.pos[k + 2];

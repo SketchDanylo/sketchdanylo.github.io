@@ -403,10 +403,17 @@ else in the chamber absorbs at that wavelength. A split bond comes apart with th
 motion along it (362 kJ/mol for Cl₂: 243 to break it, the rest as the speed of the two atoms). In a
 real gas the two atoms fly about 100 Å apart before they slow down, more than the chamber is wide, so
 one of them is set down in a clear spot elsewhere in the chamber. With the
-lamp on, photolysis is one more reaction the skip can pick: ethene and Cl₂ sit unchanged in the dark
-(the clean gas-phase reaction is far too slow; the fast dark addition in a flask runs through ions on
-the glass or in a solvent, which the engine does not have), and with the lamp on `J` goes Cl₂ → 2 Cl·,
+lamp on, photolysis is one more reaction the skip can pick, and with it `J` goes Cl₂ → 2 Cl·,
 Cl· + C₂H₄ → C₂H₄Cl·, C₂H₄Cl· + Cl₂ → C₂H₄Cl₂ + Cl·, and round again.
+
+**In the dark, on the glass.** Ethene and chlorine (or bromine) also react without light in a real
+flask, not in the gas but on its walls: the halogen adds across the double bond through a halonium ion,
+an ionic route that needs the polar surface of the glass and its film of water (Norrish and Jones,
+1926, for chlorine; Williams, 1932, for bromine; a wax-coated flask stops it). The engine has no ions,
+so the skip-ahead counts this route as a measured one: X₂ + C=C → the 1,2-dihalide at an effective
+k = 10⁻²² cm³ s⁻¹, a half-life of about five minutes at 1 atm of each gas, and plays it by setting the two
+halogens on opposite faces of the double bond (anti addition) and letting the product relax. Under the
+lamp both routes run; the chain, once started, is far faster.
 
 **Once radicals are made, the chamber is a window into a flask.** A chamber of six molecules with two
 chlorine atoms in it has one radical for every three molecules; a real lit or hot flask has about one in
