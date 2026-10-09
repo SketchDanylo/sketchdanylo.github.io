@@ -308,4 +308,13 @@ test('Radicals made by heat run a chain too: after CH₄ → CH₃· + H· at 15
   assert.ok(share(placed, 'CH3· + H· →') + share(placed, 'H· + CH3· →') > share(made, 'CH3· + H· →') + share(made, 'H· + CH3· →'));
 });
 
+test('Methane and O₂ at 1200 K start the way a flame does, O₂ + CH₄ → CH₃· + HO₂· at the measured 238 kJ/mol, never by inserting into a C–H', () => {
+  const e = scene([['CH4', [-5, 0, 0]], ['O2', [5, 0, 0], [[0, 1, 2]]]], 1200);
+  const sv = K.survey(JSON.parse(JSON.stringify(e.toJSON())));
+  const a = sv.events.find(x => x.label === 'O2 + CH4 → CH3· + HO2·');
+  assert.ok(a && Math.abs(a.Ea - 238) < 0.5, a ? String(a.Ea) : sv.events.map(x => x.label).join(' | '));
+  assert.ok(!sv.events.some(x => x.reactants.length === 2 && !x.reactants.some(f => f.includes('·')) && x.products.some(f => /^CH3O|^CH4O/.test(f))), sv.events.map(x => x.label).join(' | '));
+  assert.ok(sv.events[0] === a, sv.events[0].label);
+});
+
 console.log(count + ' kinetics checks passed.');
