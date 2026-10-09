@@ -646,7 +646,7 @@ function worthRefining(results, T) {
 
 function undoing(sv, last) {
   const back = sv.events.find(x => bare(x.reactants) === bare(last.products) && bare(x.products) === bare(last.reactants));
-  return back && back.share > 0.5 ? back : null;
+  return back && back.share > 0.5 && LN2 / back.rate < 3.15e16 ? back : null;
 }
 
 function drop(sv, ev) {
