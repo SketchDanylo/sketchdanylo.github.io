@@ -408,16 +408,18 @@ lamp on, photolysis is one more reaction the skip can pick: ethene and Cl₂ sit
 the glass or in a solvent, which the engine does not have), and with the lamp on `J` goes Cl₂ → 2 Cl·,
 Cl· + C₂H₄ → C₂H₄Cl·, C₂H₄Cl· + Cl₂ → C₂H₄Cl₂ + Cl·, and round again.
 
-**The chamber under the lamp is a window into a lit flask.** A chamber of six molecules with two
-chlorine atoms in it has one radical for every three molecules; a real lit flask has about one in a
-million, because radicals are made slowly and destroyed as soon as two meet. That ratio is what lets a
+**Once radicals are made, the chamber is a window into a flask.** A chamber of six molecules with two
+chlorine atoms in it has one radical for every three molecules; a real lit or hot flask has about one in
+a million, because radicals are made slowly and destroyed as soon as two meet. That ratio is what lets a
 real chain run thousands of times before it stops, and in the small chamber the radicals would mostly
-find each other instead. So while the lamp is on, two radicals meet at the rate they would in the flask:
-the steady radical concentration √(R/k_t), from the lamp's own photolysis rate R and a typical
-radical–radical rate constant k_t = 3·10⁻¹¹ cm³ s⁻¹, instead of the chamber's own. Everything else
-(radical + molecule, molecule alone) keeps the chamber's concentrations. With the lamp off, or with
-nothing left that absorbs, radicals meet at the chamber's rate, so radicals you place yourself still
-pair up in picoseconds.
+find each other instead (Cl₂ splitting and joining again, CH₄ → CH₃· + H· and back). So while the lamp
+is on, or once a skip has made radicals from closed-shell molecules (light, or heat breaking a bond),
+two radicals meet at the rate they would in the flask: the steady radical concentration √(R/k_t), from
+the current rate R at which light and heat make radicals and a typical radical–radical rate constant
+k_t = 3·10⁻¹¹ cm³ s⁻¹, instead of the chamber's own. Everything else (radical + molecule, molecule
+alone) keeps the chamber's concentrations. Radicals you place yourself meet at the chamber's rate, so
+four methyls still pair up in picoseconds. The live simulation between skips is the chamber itself, so
+at high temperature radicals in it can still find each other there.
 
 ## Measured barriers
 

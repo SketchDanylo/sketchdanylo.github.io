@@ -333,7 +333,7 @@ function fmt(x) { return x >= 100 ? x.toFixed(0) : x >= 10 ? x.toFixed(1) : x.to
 
 function fromScene(scene) {
   const e = new Engine({ T: scene.T || 0, thermostat: false });
-  e.lamp = !!scene.lamp;
+  e.lamp = !!scene.lamp; e.chain = !!scene.chain;
   if (scene.box) e.box = { ...scene.box };
   for (const a of scene.atoms) e.addAtom(a[0], a[1], a[2], a[3], { thermal: false, charge: a[7] || 0, V: a[8] });
   e.touch(); e.refresh();
@@ -496,13 +496,18 @@ function closedShell(e, frag) {
   return true;
 }
 
-function context(e) { const f = e.fragments(); return { V: chamberVolume(e), nRad: f.list.filter(g => e.isRadical(g)).length }; }
+function context(e) { const f = e.fragments(); return { V: chamberVolume(e), nRad: f.list.filter(g => e.isRadical(g)).length, chain: !!e.chain }; }
+
+const odd = f => f.includes('·');
+function initiates(r) { return r.kind === 'photo' || (!r.reactants.some(odd) && r.products.some(odd)); }
 
 function dilution(flat, ctx) {
   if (!ctx || !(ctx.nRad > 0) || !(ctx.V > 0)) return 1;
-  const photo = flat.reduce((s, r) => s + (r.kind === 'photo' ? r.rate : 0), 0);
-  if (!(photo > 0)) return 1;
-  return Math.min(1, Math.sqrt(photo / ctx.V / K_TERM) * ctx.V / ctx.nRad);
+  const lit = flat.some(r => r.kind === 'photo');
+  if (!lit && !ctx.chain) return 1;
+  const made = flat.reduce((s, r) => s + (initiates(r) ? r.rate : 0), 0);
+  if (!(made > 0)) return 1;
+  return Math.min(1, Math.sqrt(made / ctx.V / K_TERM) * ctx.V / ctx.nRad);
 }
 
 function combine(results, T, ctx) {
@@ -770,5 +775,5 @@ function applyEvent(eng, ev, idx) {
   eng.refresh();
 }
 
-return { scanPair, measured, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, verifyEvent, stillThere, candidates, scanCandidate, combine, context, survey, pickNext, reuse, REFINE, COOL, wanted, coolProducts, UNCERTAINTY };
+return { scanPair, measured, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, verifyEvent, stillThere, candidates, scanCandidate, combine, context, initiates, survey, pickNext, reuse, REFINE, COOL, wanted, coolProducts, UNCERTAINTY };
 });

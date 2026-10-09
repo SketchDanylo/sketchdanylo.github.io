@@ -300,4 +300,12 @@ test('Under the lamp the chamber is a lit flask: two Cl· meeting is a million t
   assert.ok(lit.events.some(x => x.kind === 'photo') && !dark.events.some(x => x.kind === 'photo'));
 });
 
+test('Radicals made by heat run a chain too: after CH₄ → CH₃· + H· at 1500 K the H· takes a hydrogen from methane instead of rejoining CH₃·, unless the radicals were placed by hand', () => {
+  const build = chain => { const e = scene([['CH4', [-6, 0, 0]], ['CH4', [6, 0, 0]], ['CH3', [0, 7, 0]]], 1500); e.addAtom('H', 15, 8, 0, { thermal: false }); e.touch(); e.refresh(); const js = JSON.parse(JSON.stringify(e.toJSON())); js.chain = chain; return K.survey(js); };
+  const made = build(true), placed = build(false), share = (sv, l) => sv.events.filter(x => x.label.startsWith(l)).reduce((a, x) => a + x.share, 0);
+  assert.ok(made.dilution < 1e-2 && placed.dilution === 1, made.dilution + ' ' + placed.dilution);
+  assert.ok(share(made, 'H· + CH4 → CH3· + H2') > 0.9, 'made ' + share(made, 'H· + CH4 → CH3· + H2'));
+  assert.ok(share(placed, 'CH3· + H· →') + share(placed, 'H· + CH3· →') > share(made, 'CH3· + H· →') + share(made, 'H· + CH3· →'));
+});
+
 console.log(count + ' kinetics checks passed.');
