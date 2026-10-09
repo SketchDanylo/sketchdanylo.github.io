@@ -96,7 +96,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build82', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0, lightHint: () => matchMedia('(pointer: coarse)').matches ? '☀ for light' : 'L for light' });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build83', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0, lightHint: () => matchMedia('(pointer: coarse)').matches ? '☀ for light' : 'L for light' });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -413,7 +413,7 @@ function showPop(pop, anchor, place) {
   if(consoleIsOpen())closeConsole();
   if(inspector.panel.classList.contains('open'))inspector.close();
   closePop();
-  pop.inert = false; pop.classList.add('open'); openPop = { pop, anchor };
+  pop.inert = false; pop.classList.add('open'); openPop = { pop, anchor }; placeStarters(false);
   anchor.setAttribute('aria-expanded', 'true');
   const a = anchor.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
   let x, y;
@@ -428,7 +428,7 @@ function closePop() {
   const {pop,anchor}=openPop;
   pop.classList.remove('open'); pop.inert=true; anchor.setAttribute('aria-expanded','false');
   if(pop.contains(document.activeElement))anchor.focus();
-  openPop=null;
+  openPop=null; placeStarters(startersWanted());
 }
 window.addEventListener('resize',closePop);
 document.querySelectorAll('.pop').forEach(p=>p.inert=true);
@@ -719,6 +719,7 @@ function renderStarters() {
   starters.querySelectorAll('.st').forEach(b => b.onclick = () => runExperiment(EXPERIMENTS[+b.dataset.k]));
 }
 let startersAt = '';
+function startersWanted() { return !eng.N && !armed && !placing && !gesture && !openPop; }
 function placeStarters(show) {
   if (starters.hidden === show) starters.hidden = !show;
   if (!show) return;
@@ -2216,7 +2217,7 @@ function frame(now) {
     ghost = { atoms: [{ t: BY_SYM[armed].t, x: lastMouse.wx, y: lastMouse.wy, z: 0 }], bonds: [], ok: true };
   }
   const cleaveHover = tool === 'cleave' && !armed && !placing && !gesture ? cleaveTarget(lastMouse.wx, lastMouse.wy, bonds) : null;
-  const showStarters = !eng.N && !armed && !placing && !gesture;
+  const showStarters = startersWanted();
   placeStarters(showStarters);
   R.draw({
     N: eng.N, type: eng.type, pos: rp, bonds, box: eng.box, box3: viewTilted() ? boxCorners() : null, cleave: cleaveHover,

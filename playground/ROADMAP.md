@@ -23,7 +23,11 @@ organic chemistry from, and loose enough to experiment in.
   chance, and skipped to the next one (kinetic Monte Carlo), once or over and over on its own. Each
   reaction is tried on a copy before it is played, so what the chamber shows is what was forecast.
   Radical chlorination of methane runs as a chain this way until the chlorine is used up: 20 steps,
-  24 µs of chemistry, three minutes.
+  24 µs of chemistry, three minutes. At 500 K it goes CH₄ → CH₃Cl → CH₂Cl₂ → CHCl₃ by itself in under
+  a minute. Running on stops by itself at an equilibrium or a loop and names it, so a hot chamber
+  that only comes apart and re-forms does not flicker forever.
+- **Starting.** An empty chamber shows the experiments as tiles, each with a picture of its
+  molecules; one click loads it.
 
 ## What still has to happen, most important first
 
