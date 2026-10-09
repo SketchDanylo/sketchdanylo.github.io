@@ -96,7 +96,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build86', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0, lightHint: () => matchMedia('(pointer: coarse)').matches ? '☀ for light' : 'L for light', nameOf: g => groupName(g) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build87', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0, lightHint: () => matchMedia('(pointer: coarse)').matches ? '☀ for light' : 'L for light', nameOf: g => groupName(g) });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -1179,6 +1179,8 @@ function complexLabel(g, links) {
   return [...parts.values()].sort((x, y) => y.length - x.length).map(p => eng.formulaOf(p) + (eng.isRadical(p) ? '·' : '')).join('···');
 }
 function groupName(g) {
+  const ends = g.reduce((a, i) => a + (ELEMENTS[eng.type[i]].valences[0] || 0), 0);
+  if (g.length < 3 || ends >= 2 * (g.length - 1)) return eng.formulaOf(g) + (eng.isRadical(g) ? '·' : '');
   const set = new Set(g), links = [];
   for (let p = 0; p < eng.nPairs; p++) { if (!set.has(eng.pI[p])) continue; const st = eng.bondStrength(p); if (st > 0.25) links.push([eng.pI[p], eng.pJ[p], st]); }
   return (g.length > 2 && complexLabel(g, links)) || eng.formulaOf(g) + (eng.isRadical(g) ? '·' : '');

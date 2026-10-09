@@ -2,6 +2,14 @@
 'use strict';
 const K = () => root.ChemKinetics;
 
+function oddValence(formula) {
+  const E = root.ChemEngine && root.ChemEngine.BY_SYM;
+  if (!E) return false;
+  let v = 0;
+  for (const [, sym, n] of formula.matchAll(/([A-Z][a-z]?)(\d*)/g)) v += ((E[sym] && E[sym].valences[0]) || 0) * (n ? +n : 1);
+  return v % 2 === 1;
+}
+
 class ForecastCard {
   constructor(actions) {
     this.actions = actions; this.worker = null; this.ids = []; this.req = 0; this.fx = null;
@@ -86,12 +94,12 @@ class ForecastCard {
     this.actions.pause?.();
     const scene = eng.toJSON(), ids = Array.from(eng.ids.subarray(0, eng.N)), T = scene.T || 298;
     if (this.auto) {
-      const fr = eng.fragments(), now = fr.list.map(g => this.nameOf(g)).sort();
+      const fr = eng.fragments(), raw = g => eng.formulaOf(g), now = fr.list.map(raw).sort();
       const trail = this.trail = (this.trail || []).concat([now]).slice(-6);
       const kinds = [...new Set(trail.map(x => x.join(' + ')))], twice = kinds.every(k => trail.filter(x => x.join(' + ') === k).length >= 2);
       if (trail.length === 6 && kinds.length <= 3 && twice && (kinds.length > 1 || this.lastWhat)) {
         const [a, b] = kinds.map(k => k.split(' + ')), only = (x, y) => { const rest = y.slice(); return x.filter(f => { const k = rest.indexOf(f); if (k < 0) return true; rest.splice(k, 1); return false; }); };
-        const pretty = this.actions.pretty || (x => x), side = l => l.map(pretty).join(' + ');
+        const names = new Map(fr.list.map(g => [raw(g), this.nameOf(g)])), pretty = this.actions.pretty || (x => x), side = l => l.map(f => { const n = names.get(f); return pretty(n && n.includes('···') ? n : f + (oddValence(f) ? '·' : '')); }).join(' + ');
         this.say(kinds.length === 2 ? 'equilibrium · ' + side(only(a, b)) + ' ⇌ ' + side(only(b, a)) : kinds.length === 3 ? 'going round in circles · ' + this.lastWhat + ' and back' : 'keeps undoing itself · ' + this.lastWhat);
         this.finish(); return;
       }
