@@ -492,7 +492,8 @@ is never perfectly symmetric anyway. A hand-built collinear start can still read
 forecast rate, the molecules are placed at the first point clearly past the top of the barrier with a
 thermal push along the path, and the live simulation carries out the reaction itself. The skipped time
 is shown beside the simulated time, is part of saved scenes and undo, and Ctrl+Z puts everything back.
-The skipped time floats up from the reacting pair, and the first 0.8 ps after a skip run at 0.5× (about
+The skipped time floats up from the reacting pair with the reaction's own energy curve drawn under it
+(the climb to the barrier, marked with a dot, and what the products give back), and the first 0.8 ps after a skip run at 0.5× (about
 80 fs a second), so the bond-making itself can be watched, and the speed then returns to what it was (kept-going chains stay at
 full speed).
 The reacting pair is placed where its own scan put it, in a copy that held only those two molecules;

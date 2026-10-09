@@ -415,7 +415,7 @@ function scanCandidate(e, c, T, quick, cache, store) {
   const f = forecast(e, scan, { T, partnerPerCm3: 1 });
   if (!f.ok) return null;
   const lone = fr.list[fr.comp[c.i]].length === 1 && fr.list[fr.comp[c.j]].length === 1;
-  const V = chamberVolume(e), one = (s, k) => { const kRate = lone && scan.bimolecular && s.products.length === 1 ? k * THIRD_BODY : k; return ({ label: scan.reactants.join(' + ') + ' → ' + s.products.join(' + '), i: c.i, j: c.j, Ea: s.Ea, dE: s.dE, rate: scan.bimolecular ? kRate * c.mult / V : kRate * c.mult, kRate, bimolecular: scan.bimolecular, refined: !quick, reactants: scan.reactants, products: s.products, event: s.event, kind: scan.kind }); };
+  const V = chamberVolume(e), one = (s, k) => { const kRate = lone && scan.bimolecular && s.products.length === 1 ? k * THIRD_BODY : k; return ({ label: scan.reactants.join(' + ') + ' → ' + s.products.join(' + '), i: c.i, j: c.j, Ea: s.Ea, dE: s.dE, rate: scan.bimolecular ? kRate * c.mult / V : kRate * c.mult, kRate, bimolecular: scan.bimolecular, refined: !quick, reactants: scan.reactants, products: s.products, event: s.event, kind: scan.kind, path: s.path ? s.path.map(p => Math.round(p.E * 10) / 10) : null }); };
   const main = one(scan, f.k);
   main.also = (scan.alternatives || []).filter(a => !(bare(a.products) === bare(scan.reactants))).map(a => {
     const g = forecast(e, { ok: true, Ea: a.Ea, kind: a.channel.type === 'break' ? 'break' : scan.kind, barrierAtEnd: a.barrierAtEnd, bimolecular: scan.bimolecular, i: scan.i, j: scan.j }, { T, partnerPerCm3: 1 });
@@ -445,7 +445,7 @@ function combine(results, T) {
     if (bare(r.reactants) === bare(r.products)) continue;
     const key = bare(r.reactants) + ' → ' + bare(r.products);
     const prev = seen.get(key);
-    if (prev) { prev.rate += r.rate; if (r.refined && !prev.refined || r.refined === prev.refined && r.Ea < prev.Ea) Object.assign(prev, { Ea: r.Ea, event: r.event, refined: r.refined, cand: r.cand }); continue; }
+    if (prev) { prev.rate += r.rate; if (r.refined && !prev.refined || r.refined === prev.refined && r.Ea < prev.Ea) Object.assign(prev, { Ea: r.Ea, event: r.event, refined: r.refined, cand: r.cand, path: r.path }); continue; }
     const x = { ...r }; seen.set(key, x); events.push(x);
   }
   const total = events.reduce((s, x) => s + x.rate, 0);

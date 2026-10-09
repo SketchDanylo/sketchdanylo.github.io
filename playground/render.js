@@ -460,6 +460,17 @@ class FieldRenderer {
         const hw = ctx.measureText(j.text).width / 2 + 10, lx = Math.max(hw, Math.min(this.W - hw, mx)), ly = Math.max(34, my - 22 - 28 * t);
         ctx.fillStyle = 'rgba(10,8,20,' + (0.55 * a).toFixed(3) + ')'; ctx.fillText(j.text, lx + 1, ly + 1);
         ctx.fillStyle = 'rgba(226,208,255,' + a.toFixed(3) + ')'; ctx.fillText(j.text, lx, ly);
+        const path = j.path;
+        if (path) {
+          const W = 96, Hh = 34, lo = Math.min(0, ...path), hi = Math.max(1, ...path), x0 = lx - W / 2, y0 = ly + 10;
+          const Y = e => y0 + Hh * (1 - (e - lo) / (hi - lo)), grow = Math.min(1, t * 2.2), n = Math.max(2, Math.ceil(path.length * grow));
+          ctx.fillStyle = 'rgba(10,8,20,' + (0.55 * a).toFixed(3) + ')'; ctx.beginPath(); ctx.roundRect(x0 - 8, y0 - 6, W + 16, Hh + 12, 8); ctx.fill();
+          ctx.strokeStyle = 'rgba(214,200,240,' + (0.3 * a).toFixed(3) + ')'; ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.beginPath(); ctx.moveTo(x0, Y(0)); ctx.lineTo(x0 + W, Y(0)); ctx.stroke(); ctx.setLineDash([]);
+          ctx.strokeStyle = 'rgba(201,168,255,' + a.toFixed(3) + ')'; ctx.lineWidth = 2; ctx.beginPath();
+          for (let k = 0; k < n; k++) { const x = x0 + W * k / (path.length - 1); if (k) ctx.lineTo(x, Y(path[k])); else ctx.moveTo(x, Y(path[k])); }
+          ctx.stroke();
+          if (j.Ea > 0.5) { const k = path.indexOf(Math.max(...path)); if (k < n) { ctx.fillStyle = 'rgba(226,208,255,' + a.toFixed(3) + ')'; ctx.beginPath(); ctx.arc(x0 + W * k / (path.length - 1), Y(path[k]), 2.5, 0, Math.PI * 2); ctx.fill(); } }
+        }
       }
     }
     const f = fx.fail;

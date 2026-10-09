@@ -67,7 +67,7 @@ class ForecastCard {
     if (runs.reduce((a, n) => a + (n || 0), 0) < 2) { this.fx = { ...(this.fx || {}), focus: null, fail: { atoms: pair, t0: performance.now() } }; return; }
     const side = list => list.map(this.actions.pretty || (x => x)).join(' + ');
     const wait = -Math.log(1 - Math.random()) * res.now.halfLife / Math.LN2;
-    if (this.actions.skip?.(res.event, wait, ids, side(res.reactants) + ' → ' + side(res.products), res.reactants, true, outs) !== false) this.jumped(pair, wait);
+    if (this.actions.skip?.(res.event, wait, ids, side(res.reactants) + ' → ' + side(res.products), res.reactants, true, outs) !== false) this.jumped(pair, wait, res);
     else this.fx = { ...(this.fx || {}), focus: null, fail: { atoms: pair, t0: performance.now() } };
   }
   pool() {
@@ -170,14 +170,15 @@ class ForecastCard {
       const ok = this.actions.skip?.(pick.event, nx.wait, ids, side(pick.reactants) + ' → ' + side(pick.products), pick.reactants, !this.auto, [pick.products, ...outs]);
       if (ok === false) break;
       this.lastWhat = call(pick.reactants) + ' → ' + call(pick.products);
-      this.jumped(pair, nx.wait);
+      this.jumped(pair, nx.wait, pick);
       return true;
     }
     if (pair) this.fx = { ...(this.fx || {}), scan: null, focus: null, fail: { atoms: pair, t0: performance.now() } };
     return false;
   }
-  jumped(pair, wait) {
-    this.fx = { ...(this.fx || {}), scan: null, focus: null, jump: { atoms: pair, text: '+' + K().humanTime(wait), t0: performance.now() } };
+  jumped(pair, wait, how) {
+    const path = how && Array.isArray(how.path) && how.path.length > 1 && how.path.every(Number.isFinite) ? how.path : null;
+    this.fx = { ...(this.fx || {}), scan: null, focus: null, jump: { atoms: pair, text: '+' + K().humanTime(wait), t0: performance.now(), path, Ea: how ? how.Ea : 0 } };
   }
   watchThenNext() {
     const eng = this.actions.engine, t0 = eng.time, key = this.req, span = 3000;
