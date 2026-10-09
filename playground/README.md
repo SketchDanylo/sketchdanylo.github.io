@@ -544,9 +544,11 @@ A lone oxygen or sulfur atom is a triplet in its ground state, and a triplet ato
 spin, and without this rule it made methanol from O + CH₄ at 42 kJ/mol, as easily as the real
 abstraction. Such single-product routes are not counted, so O + CH₄ → CH₃· + ·OH (38 kJ/mol, real
 about 40), O + H₂ → ·OH + H· (40, real 37) and O + H₂O → 2 ·OH; additions to π bonds and to radicals
-are untouched. A radical knocking a hydrogen off a saturated, four-bonded carbon (substitution at
-sp³ carbon, CH₄ + O· → CH₃O· + H·) is not tried either: the model put it at its bare reaction energy,
-53 kJ/mol, where the real backside attack costs far more and never competes with taking the hydrogen.
+are untouched. A radical knocking a hydrogen off a carbon in one step (substitution at carbon,
+CH₄ + O· → CH₃O· + H·) is not tried either: the model put it at its bare reaction energy, 53 kJ/mol,
+where the real backside attack costs far more and never competes with taking the hydrogen; at a double
+bond the real route is addition and then loss of the hydrogen, which the search finds as two steps.
+Leaving these out took about a third off a growing polymer's search.
 When a scan that hands an atom over ends with its two products already apart, they are relaxed apart
 too; relaxed together, CH₃· and ·OH from O + CH₄ paired up into methanol and the scan reported that
 second step as the reaction. A trial now also counts if the products were there at 40 fs or at any

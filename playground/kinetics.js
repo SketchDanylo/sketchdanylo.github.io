@@ -234,9 +234,9 @@ function scanPair(src, i, j, opts = {}) {
       const user = unit(sub(P3(src, x), P3(src, y)));
       for (const d of directions([user, ...faces(src, y)])) channels.push({ type: 'form', from: x, at: y, place: pose(src, attacker(x), x, y, d) });
       if (free[y] > 0.5) continue;
-      const sp3 = ELEMENTS[src.type[y]].sym === 'C' && neighbours(src, y).length >= 4;
+      const atC = ELEMENTS[src.type[y]].sym === 'C';
       for (const k of neighbours(src, y)) {
-        if (k === x || (sp3 && ELEMENTS[src.type[k]].sym === 'H')) continue;
+        if (k === x || (atC && ELEMENTS[src.type[k]].sym === 'H')) continue;
         for (const d of directions([unit(sub(P3(src, y), P3(src, k))), user])) channels.push({ type: 'transfer', at: y, k, from: x, place: pose(src, attacker(x), x, y, d) });
       }
     }
