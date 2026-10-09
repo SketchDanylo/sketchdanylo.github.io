@@ -85,6 +85,17 @@ class ForecastCard {
     const key = ++this.req; this.ids = [];
     this.actions.pause?.();
     const scene = eng.toJSON(), ids = Array.from(eng.ids.subarray(0, eng.N)), T = scene.T || 298;
+    if (this.auto) {
+      const fr = eng.fragments(), now = fr.list.map(g => eng.formulaOf(g) + (eng.isRadical(g) ? '·' : '')).sort();
+      const trail = this.trail = (this.trail || []).concat([now]).slice(-6);
+      const kinds = [...new Set(trail.map(x => x.join(' + ')))], twice = kinds.every(k => trail.filter(x => x.join(' + ') === k).length >= 2);
+      if (trail.length === 6 && kinds.length <= 2 && twice && (kinds.length === 2 || this.lastWhat)) {
+        const [a, b] = kinds.map(k => k.split(' + ')), only = (x, y) => { const rest = y.slice(); return x.filter(f => { const k = rest.indexOf(f); if (k < 0) return true; rest.splice(k, 1); return false; }); };
+        const pretty = this.actions.pretty || (x => x), side = l => l.map(pretty).join(' + ');
+        this.say(kinds.length === 2 ? 'equilibrium · ' + side(only(a, b)) + ' ⇌ ' + side(only(b, a)) : 'keeps undoing itself · ' + this.lastWhat);
+        this.finish(); return;
+      }
+    }
     const { list } = Kn.candidates(eng);
     const fx = this.fx = { scan: list.map(c => ({ a: ids[c.i], b: ids[c.j], done: false, Ea: null })), jump: this.fx && this.fx.jump, t0: performance.now() };
     if (!list.length) { this.say('nothing here can react'); this.finish(); return; }
@@ -104,7 +115,7 @@ class ForecastCard {
   say(text) { this.fx = { ...(this.fx || {}), scan: null, focus: null, msg: { text, t0: performance.now() } }; }
   finish() { if (this.auto) { this.auto = false; clearInterval(this.timer); this.actions.autoChanged?.(false); } }
   stop() { this.req++; this.finish(); if (this.fx) { this.fx.scan = null; this.fx.focus = null; } }
-  toggleAuto() { if (this.auto) { this.stop(); return; } this.auto = true; this.misses = 0; this.actions.autoChanged?.(true); this.next(); }
+  toggleAuto() { if (this.auto) { this.stop(); return; } this.auto = true; this.misses = 0; this.trail = []; this.lastWhat = null; this.actions.autoChanged?.(true); this.next(); }
   async decide(sv, ids) {
     const H = K().humanTime, wait = sv.total > 0 ? Math.LN2 / sv.total : Infinity;
     if (!isFinite(wait) || wait > 3.15e16 || !sv.events.length) {
@@ -148,6 +159,7 @@ class ForecastCard {
       const side = list => list.map(this.actions.pretty || (x => x)).join(' + ');
       const ok = this.actions.skip?.(pick.event, nx.wait, ids, side(pick.reactants) + ' → ' + side(pick.products), pick.reactants, !this.auto, [pick.products, ...outs]);
       if (ok === false) break;
+      this.lastWhat = side(pick.reactants) + ' → ' + side(pick.products);
       this.jumped(pair, nx.wait);
       return true;
     }

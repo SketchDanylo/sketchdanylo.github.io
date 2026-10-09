@@ -559,7 +559,11 @@ made for have changed by the time you skip, it refuses and asks for a new foreca
 **Keep going** (`Shift+J`, or double-click the double arrow, which then pulses; `J` or Esc stops it)
 repeats this: skip to the next reaction, watch it for 3 ps, search again, until nothing more can happen
 on a human timescale. A reaction that does not play out on its trial copies does not end the run: the
-chamber is left to move for 3 ps and searched again, and only three such misses in a row stop it. One Cl· in a chamber of three CH₄ and three Cl₂ at 298 K ran the textbook chain
+chamber is left to move for 3 ps and searched again, and only three such misses in a row stop it.
+It also stops when the chamber has only gone back and forth between two states over its last six
+searches, and says so in the scene ("equilibrium · CH₃Cl ⇌ CH₃· + Cl·"): at 1000 K a methyl chloride
+otherwise came apart and re-formed for as long as anyone watched, each round skipping minutes. `J`
+still steps on by hand. One Cl· in a chamber of three CH₄ and three Cl₂ at 298 K ran the textbook chain
 by itself: Cl· + CH₄ → CH₃· + HCl, CH₃· + Cl₂ → CH₃Cl + Cl·, then CH₃Cl → CH₂Cl· → CH₂Cl₂, with the
 reverse CH₃· + HCl → CH₄ + Cl· in between; 30 reactions and 323 µs of chemistry in about six minutes.
 It also produced CH₄Cl and CH₃Cl₂ complexes, which are the force field's over-coordination wells
