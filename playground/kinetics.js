@@ -598,7 +598,7 @@ function combine(results, T, ctx) {
 }
 
 const REFINE = 3, COOL = [80, 160, 300, 500, 800], THIRD_BODY = 1e-3;
-const LAMP_FLUX = 1e17, K_TERM = 3e-11, RR_MAX = 1e-9, K_WALL = 1e-22, RR_JOIN = 3, RR_SPLIT = 0.1, F_FLOOR = 1e-6, DEAD = 1e-8;
+const LAMP_FLUX = 1e17, K_TERM = 3e-11, RR_MAX = 1e-9, K_WALL = 5e-24, RR_JOIN = 3, RR_SPLIT = 0.1, F_FLOOR = 1e-6, DEAD = 1e-8;
 const POLAR = new Set(['Cl', 'Br']);
 const PHOTO = { F: { sigma: 1.0e-20, E: 412 }, Cl: { sigma: 2.6e-19, E: 362 }, Br: { sigma: 6.2e-19, E: 288 }, I: { sigma: 2.6e-18, E: 239 } };
 

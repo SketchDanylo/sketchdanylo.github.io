@@ -411,7 +411,8 @@ flask, not in the gas but on its walls: the halogen adds across the double bond 
 an ionic route that needs the polar surface of the glass and its film of water (Norrish and Jones,
 1926, for chlorine; Williams, 1932, for bromine; a wax-coated flask stops it). The engine has no ions,
 so the skip-ahead counts this route as a measured one: X₂ + C=C → the 1,2-dihalide at an effective
-k = 10⁻²² cm³ s⁻¹, a half-life of about five minutes at 1 atm of each gas, and plays it by setting the two
+k = 5·10⁻²⁴ cm³ s⁻¹, a half-life of about an hour and a half at 1 atm of each gas (the glass makes
+the real rate vary by orders of magnitude; this keeps it clearly slower than the lit chain), and plays it by setting the two
 halogens on opposite faces of the double bond (anti addition) and letting the product relax. Under the
 lamp both routes run; the chain, once started, is far faster.
 
