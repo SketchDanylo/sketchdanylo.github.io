@@ -96,7 +96,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build92', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0, lightHint: () => matchMedia('(pointer: coarse)').matches ? '☀ for light' : 'L for light', nameOf: g => groupName(g) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build93', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0, lightHint: () => matchMedia('(pointer: coarse)').matches ? '☀ for light' : 'L for light', nameOf: g => groupName(g) });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -729,9 +729,10 @@ function placeStarters(show) {
   if (key === startersAt) return;
   startersAt = key;
   starters.style.left = Math.round((x0 + x1) / 2) + 'px'; starters.style.top = Math.round((y0 + y1) / 2) + 'px';
-  starters.style.width = Math.max(240, Math.min(720, Math.abs(x1 - x0) - 32)) + 'px';
+  const bw = Math.abs(x1 - x0) - 32;
+  starters.style.width = Math.max(240, Math.min(720, bw >= 220 ? bw : Math.min(innerWidth - 32, 640))) + 'px';
   starters.style.transform = '';
-  const room = Math.abs(y1 - y0) - 20, h = starters.offsetHeight;
+  const bh = Math.abs(y1 - y0), room = bh >= 250 ? bh - 20 : innerHeight - 200, h = starters.offsetHeight;
   if (h > room && room > 0) starters.style.transform = 'translate(-50%,-50%) scale(' + Math.max(0.6, room / h).toFixed(3) + ')';
 }
 function runExperiment(x) {
