@@ -458,7 +458,7 @@ function scanCandidate(e, c, T, quick, cache, store) {
   if (!f.ok) return null;
   const lone = fr.list[fr.comp[c.i]].length === 1 && fr.list[fr.comp[c.j]].length === 1;
   const rr = scan.bimolecular && e.isRadical(fr.list[fr.comp[c.i]]) && e.isRadical(fr.list[fr.comp[c.j]]);
-  const V = chamberVolume(e), one = (s, k, d) => { const kRate = lone && scan.bimolecular && s.products.length === 1 ? k * THIRD_BODY : k; return ({ label: scan.reactants.join(' + ') + ' → ' + s.products.join(' + '), i: c.i, j: c.j, Ea: Math.max(0, s.Ea + d), EaModel: s.Ea, known: d !== 0, dE: s.dE, rate: scan.bimolecular ? kRate * c.mult / V : kRate * c.mult, kRate, bimolecular: scan.bimolecular, rr, channel: s.channel, refined: !quick, reactants: scan.reactants, products: s.products, event: s.event, kind: scan.kind, path: s.path ? s.path.map(p => Math.round(p.E * 10) / 10) : null }); };
+  const V = chamberVolume(e), one = (s, k, d) => { const kRate = (lone && scan.bimolecular && s.products.length === 1 ? k * THIRD_BODY : k) * (rr ? (s.products.length === 1 ? RR_JOIN : RR_SPLIT) : 1); return ({ label: scan.reactants.join(' + ') + ' → ' + s.products.join(' + '), i: c.i, j: c.j, Ea: Math.max(0, s.Ea + d), EaModel: s.Ea, known: d !== 0, dE: s.dE, rate: scan.bimolecular ? kRate * c.mult / V : kRate * c.mult, kRate, bimolecular: scan.bimolecular, rr, channel: s.channel, refined: !quick, reactants: scan.reactants, products: s.products, event: s.event, kind: scan.kind, path: s.path ? s.path.map(p => Math.round(p.E * 10) / 10) : null }); };
   const main = one(scan, f.k, d0);
   main.also = (scan.alternatives || []).filter(a => !(bare(a.products) === bare(scan.reactants))).map(a => {
     const [d, x] = measured(e, scan, a, c.i, c.j);
@@ -545,26 +545,29 @@ function dilutionOf(results, ctx) {
 function needless(results, rrList, ctx) {
   const f = dilutionOf(results, ctx);
   if (!(f < 1) || !rrList.length) return false;
+  if (chainState([...results.filter(Boolean), { rr: true, reactants: [], products: [] }], ctx).end) return false;
   const total = results.reduce((s, r) => s + (r ? r.rate + (r.also || []).reduce((a, x) => a + x.rate, 0) : 0), 0);
   const bound = rrList.reduce((s, c) => s + RR_MAX * c.mult / ctx.V * f, 0);
   return total > 0 && bound < 1e-3 * total;
 }
 
-function dilution(flat, ctx) {
-  if (!ctx || !(ctx.nRad > 0) || !(ctx.V > 0)) return 1;
+function chainState(flat, ctx) {
+  if (!ctx || !(ctx.nRad > 0) || !(ctx.V > 0)) return { f: 1, end: false };
   const lit = flat.some(r => r.kind === 'photo');
-  if (!lit && !ctx.chain) return 1;
+  if (!lit && !ctx.chain) return { f: 1, end: false };
   const made = flat.reduce((s, r) => s + (initiates(r) ? r.rate : 0), 0);
-  if (!(made > 0)) return 1;
-  return Math.min(1, Math.sqrt(made / ctx.V / K_TERM) * ctx.V / ctx.nRad);
+  const raw = made > 0 ? Math.sqrt(made / ctx.V / K_TERM) * ctx.V / ctx.nRad : 0;
+  if (raw < DEAD && ctx.nRad >= 2 && flat.some(r => r.rr)) return { f: 1, end: true };
+  return { f: Math.min(1, Math.max(F_FLOOR, raw)), end: false };
 }
+function dilution(flat, ctx) { return chainState(flat, ctx).f; }
 
 function combine(results, T, ctx) {
   const events = [], seen = new Map(), flat = [];
   for (const r of results) if (r) { flat.push(r); for (const a of r.also || []) flat.push({ ...a, cand: r.cand, alt: true }); }
-  const f = dilution(flat, ctx);
+  const { f, end } = chainState(flat, ctx);
   for (const r0 of flat) {
-    if (!r0) continue;
+    if (!r0 || (end && !r0.rr)) continue;
     const r = r0.rr && f < 1 ? { ...r0, rate: r0.rate * f } : r0;
     if (bare(r.reactants) === bare(r.products)) continue;
     const key = (r.kind === 'photo' ? 'hν ' : r.kind === 'polar' ? 'polar ' : '') + bare(r.reactants) + ' → ' + bare(r.products);
@@ -575,11 +578,11 @@ function combine(results, T, ctx) {
   const total = events.reduce((s, x) => s + x.rate, 0);
   for (const x of events) { x.share = total > 0 ? x.rate / total : 0; x.halfLife = LN2 / x.rate; }
   events.sort((x, y) => y.rate - x.rate);
-  return { ok: true, T, events, total, dilution: f };
+  return { ok: true, T, events, total, dilution: f, ending: end };
 }
 
 const REFINE = 3, COOL = [80, 160, 300, 500, 800], THIRD_BODY = 1e-3;
-const LAMP_FLUX = 1e17, K_TERM = 3e-11, RR_MAX = 1e-9, K_WALL = 1e-22;
+const LAMP_FLUX = 1e17, K_TERM = 3e-11, RR_MAX = 1e-9, K_WALL = 1e-22, RR_JOIN = 3, RR_SPLIT = 0.1, F_FLOOR = 1e-6, DEAD = 1e-8;
 const POLAR = new Set(['Cl', 'Br']);
 const PHOTO = { F: { sigma: 1.0e-20, E: 412 }, Cl: { sigma: 2.6e-19, E: 362 }, Br: { sigma: 6.2e-19, E: 288 }, I: { sigma: 2.6e-18, E: 239 } };
 
@@ -639,6 +642,11 @@ function survey(scene, opts = {}) {
 function worthRefining(results, T) {
   const all = results.filter(Boolean), total = all.reduce((s, r) => s + (r.rr ? 0 : r.rate + (r.also || []).reduce((a, x) => a + x.rate, 0)), 0), slack = Math.exp(UNCERTAINTY.Ea / (R * Math.max(T, 50)));
   return all.filter(r => !r.refined && r.Ea > 0.5 && !r.known && r.rate * slack >= 0.05 * total).sort((x, y) => x.Ea - y.Ea).slice(0, REFINE);
+}
+
+function undoing(sv, last) {
+  const back = sv.events.find(x => bare(x.reactants) === bare(last.products) && bare(x.products) === bare(last.reactants));
+  return back && back.share > 0.5 ? back : null;
 }
 
 function drop(sv, ev) {
@@ -884,5 +892,5 @@ function applyEvent(eng, ev, idx) {
   eng.refresh();
 }
 
-return { scanPair, measured, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, verifyEvent, stillThere, candidates, scanCandidate, combine, context, initiates, needless, survey, pickNext, drop, worthRefining, loosenAll, loosen, untangled, reuse, REFINE, COOL, wanted, coolProducts, UNCERTAINTY };
+return { scanPair, measured, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, verifyEvent, stillThere, candidates, scanCandidate, combine, context, initiates, needless, survey, pickNext, undoing, drop, worthRefining, loosenAll, loosen, untangled, reuse, REFINE, COOL, wanted, coolProducts, UNCERTAINTY };
 });

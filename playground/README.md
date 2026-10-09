@@ -425,7 +425,22 @@ two radicals meet at the rate they would in the flask: the steady radical concen
 the current rate R at which light and heat make radicals and a typical radical–radical rate constant
 k_t = 3·10⁻¹¹ cm³ s⁻¹, instead of the chamber's own. Everything else (radical + molecule, molecule
 alone) keeps the chamber's concentrations. Radicals you place yourself meet at the chamber's rate, so
-four methyls still pair up in picoseconds. The live simulation between skips is the chamber itself, so
+four methyls still pair up in picoseconds. When nothing is left that light or heat can split, the
+radicals still in the chamber are a chain's last carriers, a millionth of the material in a real flask:
+they only pair up with each other, so 2 C₂H₄ + 3 Cl₂ ends as 2 C₂H₄Cl₂ + Cl₂, as on paper, instead of the
+last two Cl· eating into the product. Two radicals that meet combine about ten times more often than one
+takes a hydrogen from the other (Cl· + C₂H₄Cl· gives mostly C₂H₄Cl₂, little vinyl chloride + HCl), as
+measured for chlorine atoms and alkyl radicals; each hydrogen used to count as a full encounter.
+
+**Equilibria are passed, not replayed.** When the most likely next step is the one that just undoes the
+last (C₂H₃Cl₂· + HCl after Cl· + C₂H₄Cl₂, or Cl· + Cl· after the lamp split the last Cl₂), the two states
+are in fast equilibrium and `J` skips to the first reaction that leaves it; if there is none it says
+so ("equilibrium · …, nothing else happens").
+
+**The search starts before you ask.** Right after a reaction plays, when an experiment loads, or when
+the chamber is edited, the workers start forecasting the new chamber in the background, one candidate
+per idle worker, and stop as soon as `J` is pressed. The next `J` then mostly reads finished forecasts:
+typically under 7 s instead of 10–50. The live simulation between skips is the chamber itself, so
 at high temperature radicals in it can still find each other there.
 
 ## Measured barriers

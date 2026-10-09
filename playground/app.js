@@ -96,7 +96,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build107', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build108', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -219,6 +219,7 @@ function edited() { // topology changed by the user: no reaction/bond events for
   editTick++; bondTrack.reset = true; species.reset = true;
   selection.forEach(i => { if (i >= eng.N) selection.delete(i); });
   scheduleSave();
+  if (typeof forecastCard !== 'undefined') { forecastCard.lastEv = null; forecastCard.prefetchSoon(1500); }
 }
 
 /* ======================= toasts ======================= */
@@ -756,6 +757,7 @@ function runExperiment(x) {
   edited(); fitBox(true);
   document.activeElement?.blur();
   setLamp(!!x.light);
+  forecastCard.prefetchSoon(800);
 }
 
 /* tooltips */
@@ -1110,7 +1112,7 @@ function showLamp() {
 function setLamp(on) {
   eng.lamp = !!on;
   showLamp();
-  forecastCard.stop?.(); scheduleSave();
+  forecastCard.stop?.(); scheduleSave(); forecastCard.prefetchSoon(800);
 }
 $('lampBtn').onclick = () => setLamp(!eng.lamp);
 function uvTargets() { return eng.bonds().filter(b => b.strength >= 0.4 && UV_ABSORB.has(ELEMENTS[eng.type[b.i]].sym) && UV_ABSORB.has(ELEMENTS[eng.type[b.j]].sym)); }

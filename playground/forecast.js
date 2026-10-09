@@ -86,7 +86,11 @@ class ForecastCard {
     w.busy++;
     return new Promise(res => { this.pending.set(id, r => { w.busy--; res(r); }); w.postMessage({ ...msg, id }); });
   }
-  async next() {
+  next() {
+    this.busyNext = true;
+    return this.search().finally(() => { this.busyNext = false; this.pump(); });
+  }
+  async search() {
     const eng = this.actions.engine, Kn = K();
     if (!eng.N) return;
     if (eng.needRebuild || eng.needForces) eng.refresh();
@@ -114,7 +118,14 @@ class ForecastCard {
     const mark = (n, r) => { if (n === undefined || !fx.scan) return; fx.scan[n].done = true; fx.scan[n].Ea = r && r.ok !== false ? r.Ea : null; };
     const job = (c, quick, n, pin) => this.dispatch({ type: 'scan', key: 'sv' + key, scene, c, T, quick }, pin).then(r => { mark(n, r); if (r && r.ok !== false) { r.cand = c; const m = memo.get(mk(c)); if (!m || !m.refined || r.refined) memo.set(mk(c), { ...r, event: null, cand: null, also: (r.also || []).map(a => ({ ...a, event: null })) }); return r; } return null; });
     const heavy = c => c.kind === 'meet' ? 2 : c.kind === 'break' ? 1 : 0, slot = new Map(list.map((c, n) => [c, n]).sort((a, c) => heavy(c[0]) - heavy(a[0])).map(([c], k) => [c, k]));
-    const one = (c, n) => { const m = memo.get(mk(c)); if (m) { mark(n, m); return Promise.resolve(Kn.reuse(m, c, V)); } return job(c, true, n, slot.get(c)); };
+    const inflight = this.inflight || (this.inflight = new Map());
+    const one = (c, n) => {
+      const m = memo.get(mk(c));
+      if (m) { mark(n, m); return Promise.resolve(Kn.reuse(m, c, V)); }
+      const f = inflight.get(mk(c));
+      if (f) return f.then(() => { const m2 = memo.get(mk(c)); if (m2) { mark(n, m2); return Kn.reuse(m2, c, V); } return job(c, true, n, slot.get(c)); });
+      return job(c, true, n, slot.get(c));
+    };
     const quick = await Promise.all(list.map((c, n) => c.rr ? null : one(c, n)));
     if (key !== this.req) return;
     const rr = list.map((c, n) => c.rr ? n : -1).filter(n => n >= 0), ctx = Kn.context(eng);
@@ -125,13 +136,57 @@ class ForecastCard {
     const refined = await Promise.all(order.map(x => job(list[x.n], false, undefined, slot.get(list[x.n]))));
     if (key !== this.req) return;
     order.forEach((x, m) => { if (refined[m]) quick[x.n] = refined[m]; });
-    this.decide(Kn.combine(quick, T, ctx), ids);
+    return this.decide(Kn.combine(quick, T, ctx), ids);
+  }
+  prefetchSoon(ms = 1500) {
+    clearTimeout(this.pfTimer);
+    this.pfTimer = setTimeout(() => this.prefetch(), ms);
+  }
+  prefetch() {
+    const eng = this.actions.engine, Kn = K();
+    if (!eng.N || this.auto) return;
+    if (eng.needRebuild || eng.needForces) eng.refresh();
+    const scene = eng.toJSON(), T = scene.T || 298, b = eng.box, V = (b.x1 - b.x0) * (b.y1 - b.y0) * (b.z1 - b.z0) * 1e-24;
+    const memo = this.memo || (this.memo = new Map()), mk = c => Math.round(T) + '|' + c.key;
+    const { list } = Kn.candidates(eng);
+    this.pf = { scene, key: 'pf' + (this.pfSeq = (this.pfSeq || 0) + 1), T, V, list, mk, tasks: list.filter(c => !c.rr && !memo.has(mk(c))).map(c => ({ c, quick: true })), stage: 0, live: 0 };
+    this.pump();
+  }
+  pump() {
+    const pf = this.pf, Kn = K();
+    if (!pf || this.busyNext) return;
+    const memo = this.memo, inflight = this.inflight || (this.inflight = new Map());
+    if (!pf.tasks.length && !pf.live && pf.stage === 0) {
+      pf.stage = 1;
+      const rs = pf.list.map(c => { const m = memo.get(pf.mk(c)); return m ? Kn.reuse(m, c, pf.V) : null; });
+      pf.tasks = Kn.worthRefining(rs, pf.T).map(r => ({ c: r.cand, quick: false }));
+    }
+    const ws = this.pool();
+    ws.forEach((w, n) => {
+      if (w.busy || !pf.tasks.length) return;
+      const { c, quick } = pf.tasks.shift(), k = pf.mk(c), m = memo.get(k);
+      if (quick ? m : m && m.refined) return;
+      pf.live++;
+      const p = this.dispatch({ type: 'scan', key: pf.key, scene: pf.scene, c, T: pf.T, quick }, n).then(r => {
+        if (r && r.ok !== false) { const old = memo.get(k); if (!old || !old.refined || r.refined) memo.set(k, { ...r, event: null, cand: null, also: (r.also || []).map(a => ({ ...a, event: null })) }); }
+        if (inflight.get(k) === p) inflight.delete(k);
+        pf.live--; if (this.pf === pf) this.pump();
+      });
+      if (quick) inflight.set(k, p);
+    });
   }
   say(text) { this.fx = { ...(this.fx || {}), scan: null, focus: null, msg: { text, t0: performance.now() } }; }
   finish() { if (this.auto) { this.auto = false; clearInterval(this.timer); this.actions.autoChanged?.(false); } }
   stop() { this.req++; this.finish(); if (this.fx) { this.fx.scan = null; this.fx.focus = null; } }
   toggleAuto() { if (this.auto) { this.stop(); return; } this.auto = true; this.misses = 0; this.trail = []; this.lastWhat = null; this.actions.autoChanged?.(true); this.next(); }
   async decide(sv, ids) {
+    const back = this.lastEv && K().undoing(sv, this.lastEv);
+    if (back) K().drop(sv, back);
+    if (back && !(sv.total > 0)) {
+      const pretty = this.actions.pretty || (x => x), side = l => l.map(pretty).join(' + ');
+      this.say('equilibrium · ' + side(this.lastEv.reactants) + ' ⇌ ' + side(this.lastEv.products) + ', nothing else happens');
+      this.finish(); return;
+    }
     const H = K().humanTime, wait = sv.total > 0 ? Math.LN2 / sv.total : Infinity;
     if (!isFinite(wait) || wait > 3.15e16 || !sv.events.length) {
       this.say((sv.events[0] ? 'stable · nothing for ' + H(sv.events[0].halfLife) : 'nothing here can react') + (this.actions.absorbs?.() ? ' · ' + (this.actions.lightHint?.() || 'L for light') : ''));
@@ -181,6 +236,7 @@ class ForecastCard {
       const ok = this.actions.skip?.(pick.event, nx.wait, ids, side(pick.reactants) + ' → ' + side(pick.products), pick.reactants, !this.auto, [pick.products, ...outs]);
       if (ok === false) break;
       this.lastWhat = call(pick.reactants) + ' → ' + call(pick.products);
+      this.lastEv = { reactants: pick.reactants, products: pick.products };
       this.jumped(pair, nx.wait, pick);
       return true;
     }
@@ -190,6 +246,7 @@ class ForecastCard {
   jumped(pair, wait, how) {
     const path = how && Array.isArray(how.path) && how.path.length > 1 && how.path.every(Number.isFinite) ? how.path : null;
     this.fx = { ...(this.fx || {}), scan: null, focus: null, jump: { atoms: pair, text: '+' + K().humanTime(wait), t0: performance.now(), path, Ea: how ? how.Ea : 0 } };
+    this.prefetchSoon(2500);
   }
   watchThenNext() {
     const eng = this.actions.engine, t0 = eng.time, key = this.req, span = 3000;

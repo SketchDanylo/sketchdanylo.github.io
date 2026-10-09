@@ -320,4 +320,15 @@ test('Methane and O₂ at 1200 K start the way a flame does, O₂ + CH₄ → CH
   assert.ok(sv.events[0] === a, sv.events[0].label);
 });
 
+test('Cl· meeting C₂H₄Cl· mostly combines to 1,2-dichloroethane; taking a hydrogen instead (vinyl chloride + HCl) is the minor channel', () => {
+  const e = new Engine({ width: 30, height: 30, depth: 12, T: 298, thermostat: false });
+  const g = [['C', 0, 0, 0], ['C', 1.5, 0, 0], ['Cl', -0.6, 1.66, 0], ['H', -0.37, -0.5, 0.89], ['H', -0.37, -0.5, -0.89], ['H', 2.05, 0.93, 0], ['H', 2.05, -0.93, 0]];
+  for (const [s, x, y, z] of g) e.addAtom(s, 12 + x, 15 + y, z, { thermal: false });
+  e.addAtom('Cl', 19, 15, 0, { thermal: false }); e.touch(); e.refresh(); e.minimize(500, 0.05);
+  const sv = K.survey(JSON.parse(JSON.stringify(e.toJSON())));
+  const share = test => sv.events.filter(x => x.reactants.length === 2 && test(x.products.join('+'))).reduce((a, x) => a + x.share, 0);
+  const join = share(p => p === 'C2H4Cl2'), split = share(p => p.includes('C2H3Cl'));
+  assert.ok(join > 0.5 && join > 3 * split, 'combine ' + join.toFixed(2) + ' vs H-transfer ' + split.toFixed(2));
+});
+
 console.log(count + ' kinetics checks passed.');
