@@ -600,8 +600,12 @@ CH₃···HCl complexes, while at 500 K three of three runs went Cl· + CH₄ �
 Cl· twice over and on to CH₂Cl·; it is still dark-stable, Cl₂ splitting by heat alone once in about two
 years), chlorine adding across ethene (C₂H₄Cl· + Cl₂ → C₂H₄Cl₂ + Cl· follows within
 picoseconds, the chain making 1,2-dichloroethane), radical polymerisation of ethene (CH₃· → C₃H₇· →
-C₅H₁₁· on its own), methyl radicals recombining, and hydroxyl radicals with
-methane (where, as in the real gas, the two OH· meet each other long before either attacks methane),
+C₅H₁₁· on its own), methyl radicals recombining, hydroxyl with methane in air (OH· + CH₄ → H₂O + CH₃·, then CH₃· + O₂ →
+CH₃O₂·, the first two steps by which the atmosphere removes methane; with one OH· there is no second
+radical for it to meet first. The first step takes 0.3–0.7 µs here, against about 0.4 µs from the
+measured rate at this density; the step after the two, CH₃O₂· + CH₄ → CH₃OOH + CH₃·, comes in
+microseconds where in reality it is 80 kJ/mol uphill and never happens, because the model's peroxide
+O–H is about 60 kJ/mol too strong),
 and hydrogen with chlorine, the classic photochemical chain (Cl· + H₂ → HCl + H·, H· + Cl₂ → HCl + Cl·),
 at 500 K because the model's Cl· + H₂ barrier is 37 kJ/mol against a real 19; there Cl· takes H₂ 97% of
 the time instead of finding another Cl·, and in four browser runs of seven skips each the chain ran to

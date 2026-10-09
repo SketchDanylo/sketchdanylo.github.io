@@ -69,6 +69,8 @@ temperature. The forecast tool now shows where the force field is wrong:
 | CH₃ + C₂H₄ barrier | 9 | 31 |
 | Cl + C₂H₄ barrier | 11 | 0 |
 | O₃, NO bond energies | 32%, 12% low | |
+| CH₃OO–H (peroxide O–H) | ≈ 418 | 357 |
+| CH₃O₂· + CH₄ → CH₃OOH + CH₃· | ΔE +21, barrier 23 | ΔE +82 |
 
 Fixed on the way: vinyl C–H (412 → 462, real 465), acetylene C–H (421 → 556, real 556) and phenyl C–H
 (351 → 472, real 473), by giving σ radicals and bent π bonds the cost they have in reality. The barrier
@@ -156,8 +158,8 @@ Without this, the forecast and fast-forward will work well for radical and gas-p
 - Energy diagrams for a whole sequence of steps: the last fourteen skips are drawn as one diagram in
   the chamber's corner. Next: label the species at each level, and include steps that happened live.
 - Ready-made textbook scenarios: six radical ones exist (tiles in an empty chamber: chlorination of
-  methane, chlorine and ethene, radical polymerisation of ethene, methyl recombination, hydroxyl and
-  methane, hydrogen and chlorine). Next: combustion of hydrogen (at the chamber's 100 bar it runs
+  methane, chlorine and ethene, radical polymerisation of ethene, methyl recombination, hydroxyl with
+  methane in air, hydrogen and chlorine). Next: combustion of hydrogen (at the chamber's 100 bar it runs
   through HO₂· and H₂O₂, the high-pressure route, with some exotic H₂O₃ on the way); SN2 and E2 once
   item 3 exists.
 
