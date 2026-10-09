@@ -840,6 +840,12 @@ What was tried, so it is not repeated:
   X···H···Y bend to about 120°, after O + CH₄ was seen to swing the oxygen round onto the carbon) left
   the benchmark where it was (12.8 kJ/mol rms) but dropped O + CH₄ from 50 to 23 kJ/mol (real about
   40) and passed fewer of its trials, so it was not kept.
+- Scanning a radical meeting a closed-shell molecule from the radical's side only (posing the radical
+  onto the molecule, not also the molecule onto the radical) takes the quick search for a growing
+  polymer from 13.4 to 8.4 s and the benchmark from 12.8 to 12.5 kJ/mol rms (CH₃ + C₂H₄ 9 → 14, CH₃ + H₂
+  35 → 39), but OH + CH₄ rises from 17 to 24 (real 15): the reverse approach is what finds that
+  crossing, and the hydroxyl experiment's first step, now at the measured rate, would come 17 times too
+  slowly. Both approaches are kept.
 - Capping π bonding by the p orbitals an atom has left (bent two-coordinate C, N, O get one) raised the
   phenyl C–H from 351 to 389 kJ/mol, but the valence kept out of π went into extra σ partners in hot,
   bending fragments: CH₄ + O₂ at 3500 K grew C₃H₁₂O₄ clumps. A narrower version (carbon only, and only
