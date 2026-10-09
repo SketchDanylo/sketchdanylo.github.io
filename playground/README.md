@@ -729,8 +729,8 @@ are now always the ones that attack, and it completes in 6 of 6 seeded runs and 
   field (ROADMAP, item 1). Whether the molecules are still the ones the search saw is judged from the
   same rebuilt copy the search used, so a borderline complex no longer reads as a change.
 
-- The search takes 2–30 s for a handful of molecules on a 4-core machine (a minute when many new
-  molecules appear at once) and is capped at 24 candidates, so a crowded chamber is only partly
+- The search takes 2–20 s for a handful of molecules on a 4-core machine, up to about 50 s when
+  several new molecules appear at once, and is capped at 24 candidates, so a crowded chamber is only partly
   searched. To get there the skip-ahead's search leaves out what cannot matter: a radical meeting a
   closed-shell molecule is posed from the radical's side only (the hourglass still tries both); a
   radical reaching for a hydrogen on a double-bonded carbon is not searched below 700 K (it is at
