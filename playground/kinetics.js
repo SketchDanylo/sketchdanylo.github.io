@@ -557,7 +557,7 @@ function chainState(flat, ctx) {
   if (!lit && !ctx.chain) return { f: 1, end: false };
   const made = flat.reduce((s, r) => s + (initiates(r) ? r.rate : 0), 0);
   const raw = made > 0 ? Math.sqrt(made / ctx.V / K_TERM) * ctx.V / ctx.nRad : 0;
-  if (raw < DEAD && ctx.nRad >= 2 && flat.some(r => r.rr)) return { f: 1, end: true };
+  if (raw < DEAD) return { f: 1, end: false };
   return { f: Math.min(1, Math.max(F_FLOOR, raw)), end: false };
 }
 function dilution(flat, ctx) { return chainState(flat, ctx).f; }

@@ -425,10 +425,11 @@ two radicals meet at the rate they would in the flask: the steady radical concen
 the current rate R at which light and heat make radicals and a typical radical–radical rate constant
 k_t = 3·10⁻¹¹ cm³ s⁻¹, instead of the chamber's own. Everything else (radical + molecule, molecule
 alone) keeps the chamber's concentrations. Radicals you place yourself meet at the chamber's rate, so
-four methyls still pair up in picoseconds. When nothing is left that light or heat can split, the
-radicals still in the chamber are a chain's last carriers, a millionth of the material in a real flask:
-they only pair up with each other, so 2 C₂H₄ + 3 Cl₂ ends as 2 C₂H₄Cl₂ + Cl₂, as on paper, instead of the
-last two Cl· eating into the product. Two radicals that meet combine about ten times more often than one
+four methyls still pair up in picoseconds. When nothing is left that light or heat can split, no new
+radicals are coming, and the ones still in the chamber meet each other at the chamber's own rate: one
+ethene and one Cl₂ under the lamp go Cl₂ → 2 Cl·, Cl· + C₂H₄ → C₂H₄Cl·, C₂H₄Cl· + Cl· → C₂H₄Cl₂. With
+chlorine in excess, the last Cl· take a hydrogen from the product and some 1,1,2-trichloroethane
+forms, as excess chlorine under light does in a real flask. Two radicals that meet combine about ten times more often than one
 takes a hydrogen from the other (Cl· + C₂H₄Cl· gives mostly C₂H₄Cl₂, little vinyl chloride + HCl), as
 measured for chlorine atoms and alkyl radicals; each hydrogen used to count as a full encounter.
 
