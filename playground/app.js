@@ -96,7 +96,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build93', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0, lightHint: () => matchMedia('(pointer: coarse)').matches ? '☀ for light' : 'L for light', nameOf: g => groupName(g) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build94', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0, lightHint: () => matchMedia('(pointer: coarse)').matches ? '☀ for light' : 'L for light', nameOf: g => groupName(g) });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -757,7 +757,7 @@ function runExperiment(x) {
   document.activeElement?.blur();
   cue(x.light ? 'light' : 'next');
   const touch = matchMedia('(pointer: coarse)').matches;
-  toast(x.name + (x.light ? (touch ? ' · ☀ for light, then » for the next reaction' : ' · ☀ L for light, then » J for the next reaction') : (touch ? ' · » for the next reaction' : ' · » J for the next reaction')));
+  toast(x.name + (touch ? '' : x.light ? ' · L, then J' : ' · J'));
 }
 
 /* tooltips */
