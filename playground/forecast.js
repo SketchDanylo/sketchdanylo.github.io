@@ -132,7 +132,7 @@ class ForecastCard {
     if (Kn.needless(quick, rr.map(n => list[n]), ctx)) rr.forEach(n => mark(n, null));
     else (await Promise.all(rr.map(n => one(list[n], n)))).forEach((r, k) => { quick[rr[k]] = r; });
     if (key !== this.req) return;
-    const order = Kn.worthRefining(quick, T).map(r => ({ r, n: quick.indexOf(r) }));
+    const order = Kn.worthRefining(quick, T, ctx).map(r => ({ r, n: quick.indexOf(r) }));
     const refined = await Promise.all(order.map(x => job(list[x.n], false, undefined, slot.get(list[x.n]))));
     if (key !== this.req) return;
     order.forEach((x, m) => { if (refined[m]) quick[x.n] = refined[m]; });
@@ -149,7 +149,7 @@ class ForecastCard {
     const scene = eng.toJSON(), T = scene.T || 298, b = eng.box, V = (b.x1 - b.x0) * (b.y1 - b.y0) * (b.z1 - b.z0) * 1e-24;
     const memo = this.memo || (this.memo = new Map()), mk = c => Math.round(T) + '|' + c.key;
     const { list } = Kn.candidates(eng);
-    this.pf = { scene, key: 'pf' + (this.pfSeq = (this.pfSeq || 0) + 1), T, V, list, mk, tasks: list.filter(c => !c.rr && !memo.has(mk(c))).map(c => ({ c, quick: true })), stage: 0, live: 0 };
+    this.pf = { scene, key: 'pf' + (this.pfSeq = (this.pfSeq || 0) + 1), T, V, list, mk, ctx: Kn.context(eng), tasks: list.filter(c => !c.rr && !memo.has(mk(c))).map(c => ({ c, quick: true })), stage: 0, live: 0 };
     this.pump();
   }
   pump() {
@@ -159,7 +159,7 @@ class ForecastCard {
     if (!pf.tasks.length && !pf.live && pf.stage === 0) {
       pf.stage = 1;
       const rs = pf.list.map(c => { const m = memo.get(pf.mk(c)); return m ? Kn.reuse(m, c, pf.V) : null; });
-      pf.tasks = Kn.worthRefining(rs, pf.T).map(r => ({ c: r.cand, quick: false }));
+      pf.tasks = Kn.worthRefining(rs, pf.T, pf.ctx).map(r => ({ c: r.cand, quick: false }));
     }
     const ws = this.pool();
     ws.forEach((w, n) => {

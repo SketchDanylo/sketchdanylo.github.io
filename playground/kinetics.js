@@ -632,16 +632,20 @@ function survey(scene, opts = {}) {
   const scanOne = (c, n) => { if (opts.onProgress) opts.onProgress(n, list.length + REFINE); return { c, r: scanCandidate(e, c, T, true, cache, store) }; };
   const quick = list.filter(c => !c.rr).map(scanOne), rrList = list.filter(c => c.rr);
   if (!needless(quick.map(q => q.r), rrList, ctx)) quick.push(...rrList.map(scanOne));
-  const pick = new Set(worthRefining(quick.map(q => q.r), T)), best = quick.filter(q => pick.has(q.r));
+  const pick = new Set(worthRefining(quick.map(q => q.r), T, ctx)), best = quick.filter(q => pick.has(q.r));
   for (const q of best) q.r = scanCandidate(e, q.c, T, false, cache, store);
   const out = combine(quick.map(q => q.r), T, ctx);
   out.dropped = dropped; out.scanned = list.length;
   return out;
 }
 
-function worthRefining(results, T) {
-  const all = results.filter(Boolean), total = all.reduce((s, r) => s + (r.rr ? 0 : r.rate + (r.also || []).reduce((a, x) => a + x.rate, 0)), 0), slack = Math.exp(UNCERTAINTY.Ea / (R * Math.max(T, 50)));
-  return all.filter(r => !r.refined && r.Ea > 0.5 && !r.known && r.rate * slack >= 0.05 * total).sort((x, y) => x.Ea - y.Ea).slice(0, REFINE);
+function worthRefining(results, T, ctx) {
+  const all = results.filter(Boolean), flat = [];
+  for (const r of all) { flat.push(r); for (const x of r.also || []) flat.push(x); }
+  const f = ctx ? chainState(flat, ctx).f : 0, slack = Math.exp(UNCERTAINTY.Ea / (R * Math.max(T, 50)));
+  const total = flat.reduce((s, r) => s + (r.rr ? r.rate * f : r.rate), 0);
+  const moves = r => [r, ...(r.also || [])].some(x => bare(x.reactants) !== bare(x.products));
+  return all.filter(r => !r.refined && r.Ea > 0.5 && !r.known && moves(r) && r.rate * (r.rr ? f || 1 : 1) * slack >= 0.05 * total).sort((x, y) => x.Ea - y.Ea).slice(0, REFINE);
 }
 
 function undoing(sv, last) {
