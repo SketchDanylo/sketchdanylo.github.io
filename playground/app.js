@@ -96,7 +96,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build83', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0, lightHint: () => matchMedia('(pointer: coarse)').matches ? '☀ for light' : 'L for light' });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build84', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0, lightHint: () => matchMedia('(pointer: coarse)').matches ? '☀ for light' : 'L for light', nameOf: g => groupName(g) });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -1175,6 +1175,11 @@ function complexLabel(g, links) {
   for (const i of g) { const r = find(i); if (!parts.has(r)) parts.set(r, []); parts.get(r).push(i); }
   if (parts.size !== 2) return null;
   return [...parts.values()].sort((x, y) => y.length - x.length).map(p => eng.formulaOf(p) + (eng.isRadical(p) ? '·' : '')).join('···');
+}
+function groupName(g) {
+  const set = new Set(g), links = [];
+  for (let p = 0; p < eng.nPairs; p++) { if (!set.has(eng.pI[p])) continue; const st = eng.bondStrength(p); if (st > 0.25) links.push([eng.pI[p], eng.pJ[p], st]); }
+  return (g.length > 2 && complexLabel(g, links)) || eng.formulaOf(g) + (eng.isRadical(g) ? '·' : '');
 }
 function speciesNow() {
   const fr = eng.fragments(), map = new Map(), frags = [], byId = new Map();

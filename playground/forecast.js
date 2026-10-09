@@ -86,7 +86,7 @@ class ForecastCard {
     this.actions.pause?.();
     const scene = eng.toJSON(), ids = Array.from(eng.ids.subarray(0, eng.N)), T = scene.T || 298;
     if (this.auto) {
-      const fr = eng.fragments(), now = fr.list.map(g => eng.formulaOf(g) + (eng.isRadical(g) ? '·' : '')).sort();
+      const fr = eng.fragments(), now = fr.list.map(g => this.nameOf(g)).sort();
       const trail = this.trail = (this.trail || []).concat([now]).slice(-6);
       const kinds = [...new Set(trail.map(x => x.join(' + ')))], twice = kinds.every(k => trail.filter(x => x.join(' + ') === k).length >= 2);
       if (trail.length === 6 && kinds.length <= 3 && twice && (kinds.length > 1 || this.lastWhat)) {
@@ -130,8 +130,9 @@ class ForecastCard {
     if (this.auto && (ok || (this.misses = (this.misses || 0) + 1) <= 3)) this.watchThenNext();
     else { if (this.auto) this.say('stopped · three reactions in a row did not play out as forecast'); this.finish(); }
   }
+  nameOf(g) { const eng = this.actions.engine; return this.actions.nameOf ? this.actions.nameOf(g) : eng.formulaOf(g) + (eng.isRadical(g) ? '·' : ''); }
   async go(sv, ids) {
-    const ls = this.lastScene, key = this.req;
+    const ls = this.lastScene, key = this.req, eng0 = this.actions.engine;
     const same = (x, want) => x.products.map(f => f.replace(/·/g, '')).sort().join() === want.products.map(f => f.replace(/·/g, '')).sort().join();
     const failed = new Set();
     let pair = null;
@@ -157,9 +158,10 @@ class ForecastCard {
       }
       if (!good) { failed.add(nx.pick); continue; }
       const side = list => list.map(this.actions.pretty || (x => x)).join(' + ');
+      const known = new Map(eng0.fragments().list.map(g => [eng0.formulaOf(g) + (eng0.isRadical(g) ? '·' : ''), this.nameOf(g)])), call = l => side(l.map(f => known.get(f) || f));
       const ok = this.actions.skip?.(pick.event, nx.wait, ids, side(pick.reactants) + ' → ' + side(pick.products), pick.reactants, !this.auto, [pick.products, ...outs]);
       if (ok === false) break;
-      this.lastWhat = side(pick.reactants) + ' → ' + side(pick.products);
+      this.lastWhat = call(pick.reactants) + ' → ' + call(pick.products);
       this.jumped(pair, nx.wait);
       return true;
     }
