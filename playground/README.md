@@ -563,6 +563,10 @@ addition, abstraction and substitution, and CH₃· + C₂H₃· both recombinat
 Reactions that only swap identical partners are left out of the list. If the molecules a forecast was
 made for have changed by the time you skip, it refuses and asks for a new forecast.
 
+After two or more skips the chamber's lower-left corner draws the last fourteen as one energy diagram,
+each step starting where the one before ended: a chlorination chain reads as small climbs and large
+drops, energy going down step by step. Loading an experiment or emptying the chamber starts it afresh.
+
 **Keep going** (`Shift+J`, or double-click the double arrow, which then pulses; `J` or Esc stops it)
 repeats this: skip to the next reaction, watch it for 3 ps, search again, until nothing more can happen
 on a human timescale. A reaction that does not play out on its trial copies does not end the run: the

@@ -482,6 +482,30 @@ class FieldRenderer {
         ctx.beginPath(); ctx.moveTo(mx - r, my - r); ctx.lineTo(mx + r, my + r); ctx.moveTo(mx + r, my - r); ctx.lineTo(mx - r, my + r); ctx.stroke();
       }
     }
+    const st = fx.story;
+    if (st && st.length >= 2 && sc.box) {
+      const b = sc.box, [bx0, by0] = this.toScreen(b.x0, b.y0), [bx1, by1] = this.toScreen(b.x1, b.y1);
+      const W = Math.min(240, Math.abs(bx1 - bx0) * 0.42), Hh = 44, x0 = Math.min(bx0, bx1) + 12, yb = Math.max(by0, by1) - 12, y0 = yb - Hh;
+      const pts = [];
+      let base = 0;
+      st.forEach((step, k) => {
+        const p = step.path, n = p.length;
+        p.forEach((e, i) => pts.push({ x: x0 + W * (k + i / (n - 1)) / st.length, e: base + e, k }));
+        base += step.dE;
+        pts.push({ x: x0 + W * (k + 1) / st.length, e: base, k });
+      });
+      const lo = Math.min(...pts.map(q => q.e)), hi = Math.max(...pts.map(q => q.e)), span = Math.max(1, hi - lo);
+      const Y = e => y0 + Hh * (1 - (e - lo) / span);
+      ctx.fillStyle = 'rgba(10,8,20,.42)'; ctx.beginPath(); ctx.roundRect(x0 - 8, y0 - 16, W + 16, Hh + 24, 8); ctx.fill();
+      ctx.font = '400 9px "Martian Mono", monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = 'rgba(214,200,240,.5)';
+      ctx.fillText('energy · last ' + st.length + ' steps', x0, y0 - 5);
+      ctx.lineWidth = 1.5;
+      for (let k = 0; k < st.length; k++) {
+        const seg = pts.filter(q => q.k === k);
+        ctx.strokeStyle = k === st.length - 1 ? 'rgba(226,208,255,.95)' : 'rgba(201,168,255,.55)';
+        ctx.beginPath(); seg.forEach((q, i) => i ? ctx.lineTo(q.x, Y(q.e)) : ctx.moveTo(q.x, Y(q.e))); ctx.stroke();
+      }
+    }
     const pr = fx.probe;
     if (pr && pr.at && pr.at.every(ok)) {
       const [mx, my] = mid(pr.at), a = Math.min(1, (now - pr.t0) / 250), W = 76, Hh = 24, top = my - 74;

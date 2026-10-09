@@ -149,7 +149,8 @@ Without this, the forecast and fast-forward will work well for radical and gas-p
 ### 5. The teaching layer
 
 - Curved-arrow mechanisms drawn from the bond orders that changed during a reaction.
-- Energy diagrams for a whole sequence of steps, not only one.
+- Energy diagrams for a whole sequence of steps: the last fourteen skips are drawn as one diagram in
+  the chamber's corner. Next: label the species at each level, and include steps that happened live.
 - Ready-made textbook scenarios: six radical ones exist (tiles in an empty chamber: chlorination of
   methane, chlorine and ethene, radical polymerisation of ethene, methyl recombination, hydroxyl and
   methane, hydrogen and chlorine). Next: combustion of hydrogen (at the chamber's 100 bar it runs

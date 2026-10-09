@@ -96,7 +96,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build89', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0, lightHint: () => matchMedia('(pointer: coarse)').matches ? '☀ for light' : 'L for light', nameOf: g => groupName(g) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build90', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => uvTargets().length > 0, lightHint: () => matchMedia('(pointer: coarse)').matches ? '☀ for light' : 'L for light', nameOf: g => groupName(g) });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -736,6 +736,7 @@ function placeStarters(show) {
 }
 function runExperiment(x) {
   pushUndo(); closePop(); forecastCard.close(); setPlaying(false);
+  forecastCard.story = [];
   eng.clear(); eng.skipped = 0;
   const W = 30, H = 30, D = 12;
   eng.box = { x0: 0, x1: W, y0: 0, y1: H, z0: -D / 2, z1: D / 2 };
@@ -2147,6 +2148,7 @@ setInterval(() => { if (time.playing) saveScene(); }, 5000);
 /* The inspector card rides with its atom: it is repositioned every frame, and the field draws
    the leader that says which atom it belongs to. */
 function fxView() {
+  if (!eng.N && forecastCard.story && forecastCard.story.length) forecastCard.story = [];
   const fx = forecastCard.fx;
   if (!fx) return null;
   const at = id => eng.indexOfId(id), pair = p => p ? p.map(at) : null;
@@ -2156,7 +2158,8 @@ function fxView() {
     jump: fx.jump ? { ...fx.jump, at: pair(fx.jump.atoms) } : null,
     fail: fx.fail ? { ...fx.fail, at: pair(fx.fail.atoms) } : null,
     msg: fx.msg,
-    probe: fx.probe ? { ...fx.probe, at: pair(fx.probe.atoms) } : null
+    probe: fx.probe ? { ...fx.probe, at: pair(fx.probe.atoms) } : null,
+    story: eng.N ? forecastCard.story : null
   };
 }
 function forecastPick() {
