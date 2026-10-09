@@ -821,6 +821,10 @@ What was tried, so it is not repeated:
   against 12.8. Same verdict as above, now with the cause measured: the fix is a hydrogen that hands
   its bond over continuously (n_XH + n_HY ≈ 1 along the path) and carries charge in proportion to the
   bond it has, refitted as a whole.
+- Keeping a hydrogen hand-over near a straight line during the scan (a one-sided restraint that lets
+  X···H···Y bend to about 120°, after O + CH₄ was seen to swing the oxygen round onto the carbon) left
+  the benchmark where it was (12.8 kJ/mol rms) but dropped O + CH₄ from 50 to 23 kJ/mol (real about
+  40) and passed fewer of its trials, so it was not kept.
 - Capping π bonding by the p orbitals an atom has left (bent two-coordinate C, N, O get one) raised the
   phenyl C–H from 351 to 389 kJ/mol, but the valence kept out of π went into extra σ partners in hot,
   bending fragments: CH₄ + O₂ at 3500 K grew C₃H₁₂O₄ clumps. A narrower version (carbon only, and only
