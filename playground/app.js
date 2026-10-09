@@ -96,7 +96,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build101', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build102', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -1101,9 +1101,14 @@ function kickApart(i, j, E) {
   eng.vel[l] += uj * nx; eng.vel[l + 1] += uj * ny; eng.vel[l + 2] += uj * nz;
 }
 const UV_ABSORB = new Set(['F', 'Cl', 'Br', 'I']);
+function showLamp() {
+  const b = $('lampBtn'), on = eng.lamp ? 'true' : 'false';
+  if (b.getAttribute('aria-pressed') === on) return;
+  b.setAttribute('aria-pressed', on); b.title = 'Lamp (L) · ' + (eng.lamp ? 'on: Cl₂, Br₂, I₂ and F₂ absorb its light and split, a Cl₂ about once in 40 s' : 'off');
+}
 function setLamp(on) {
   eng.lamp = !!on;
-  const b = $('lampBtn'); b.setAttribute('aria-pressed', eng.lamp ? 'true' : 'false'); b.title = 'Lamp (L) · ' + (eng.lamp ? 'on: Cl₂, Br₂, I₂ and F₂ absorb its light and split, a Cl₂ about once in 40 s' : 'off');
+  showLamp();
   forecastCard.stop?.(); scheduleSave();
 }
 $('lampBtn').onclick = () => setLamp(!eng.lamp);
@@ -2229,7 +2234,7 @@ function frame(now) {
   // UI text, ~10 Hz
   if (now - lastUI > 100) {
     lastUI = now;
-    updateLab();
+    updateLab(); showLamp();
     $('clock').textContent = eng.skipped > 0 ? ChemKinetics.humanTime(eng.skipped) + (innerWidth < 760 ? ' + ' : ' skipped + ') + fmtTime(eng.time) : fmtTime(eng.time);
     const rate = $('rate');
     if (time.playing) {
