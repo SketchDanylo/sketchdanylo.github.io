@@ -436,14 +436,20 @@ function candidates(src, cap = 24) {
     if (!PHOTO[a] || !PHOTO[b] || src.bondStrength(p) <= 0.4) continue;
     add(i, j, 'photo', 'hν ' + [a, b].sort().join('–'), 0);
   }
+  let hopeless = 0;
+  const RTb = R * Math.max(src.T || 298, 1);
   for (let p = 0; p < src.nPairs; p++) {
     if (src.bondStrength(p) <= 0.25) continue;
     const i = src.pI[p], j = src.pJ[p], f = L[frag.comp[i]];
+    if (!open[frag.comp[i]]) {
+      const pp = pairParams(src, i, j), De = pp.De[Math.max(1, Math.min(3, Math.round(src.pN[p])))] || pp.De[1];
+      if (LN2 / (10 ** 15.5 * Math.exp(-0.75 * De / RTb)) > HOPELESS) { hopeless++; continue; }
+    }
     const ki = siteKey(src, f, i), kj = siteKey(src, f, j);
     add(i, j, 'break', 'break ' + (ki < kj ? ki + '–' + kj : kj + '–' + ki) + ' ' + src.pN[p].toFixed(1), 2);
   }
   out.sort((x, y) => x.prio - y.prio || x.d - y.d);
-  return { list: out.slice(0, cap), dropped: Math.max(0, out.length - cap) };
+  return { list: out.slice(0, cap), dropped: Math.max(0, out.length - cap), hopeless };
 }
 
 function chamberVolume(e) { const b = e.box; return (b.x1 - b.x0) * (b.y1 - b.y0) * (b.z1 - b.z0) * 1e-24; }
@@ -599,7 +605,7 @@ function combine(results, T, ctx) {
 }
 
 const REFINE = 3, COOL = [80, 160, 300, 500, 800], THIRD_BODY = 1e-3;
-const LAMP_FLUX = 1e17, K_TERM = 3e-11, RR_MAX = 1e-9, K_WALL = 5e-24, RR_JOIN = 3, RR_SPLIT = 0.1, F_FLOOR = 1e-6, DEAD = 1e-8;
+const LAMP_FLUX = 1e17, K_TERM = 3e-11, RR_MAX = 1e-9, K_WALL = 5e-24, RR_JOIN = 3, RR_SPLIT = 0.1, F_FLOOR = 1e-6, DEAD = 1e-8, HOPELESS = 1.4e20;
 const POLAR = new Set(['Cl', 'Br']);
 const PHOTO = { F: { sigma: 1.0e-20, E: 412 }, Cl: { sigma: 2.6e-19, E: 362 }, Br: { sigma: 6.2e-19, E: 288 }, I: { sigma: 2.6e-18, E: 239 } };
 

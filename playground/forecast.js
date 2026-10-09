@@ -109,9 +109,9 @@ class ForecastCard {
         this.finish(); return;
       }
     }
-    const { list } = Kn.candidates(eng);
+    const { list, hopeless } = Kn.candidates(eng);
     const fx = this.fx = { scan: list.map(c => ({ a: ids[c.i], b: ids[c.j], done: false, Ea: null })), jump: this.fx && this.fx.jump, t0: performance.now() };
-    if (!list.length) { this.say('nothing here can react'); this.finish(); return; }
+    if (!list.length) { this.say(hopeless ? 'stable · nothing for longer than the age of the universe' + (this.actions.absorbs?.() ? ' · ' + (this.actions.lightHint?.() || 'L for light') : '') : 'nothing here can react'); this.finish(); return; }
     const b = eng.box, V = (b.x1 - b.x0) * (b.y1 - b.y0) * (b.z1 - b.z0) * 1e-24;
     const memo = this.memo || (this.memo = new Map()), mk = c => Math.round(T) + '|' + c.key;
     this.lastScene = { scene, key, T };
