@@ -89,10 +89,10 @@ class ForecastCard {
       const fr = eng.fragments(), now = fr.list.map(g => eng.formulaOf(g) + (eng.isRadical(g) ? '·' : '')).sort();
       const trail = this.trail = (this.trail || []).concat([now]).slice(-6);
       const kinds = [...new Set(trail.map(x => x.join(' + ')))], twice = kinds.every(k => trail.filter(x => x.join(' + ') === k).length >= 2);
-      if (trail.length === 6 && kinds.length <= 2 && twice && (kinds.length === 2 || this.lastWhat)) {
+      if (trail.length === 6 && kinds.length <= 3 && twice && (kinds.length > 1 || this.lastWhat)) {
         const [a, b] = kinds.map(k => k.split(' + ')), only = (x, y) => { const rest = y.slice(); return x.filter(f => { const k = rest.indexOf(f); if (k < 0) return true; rest.splice(k, 1); return false; }); };
         const pretty = this.actions.pretty || (x => x), side = l => l.map(pretty).join(' + ');
-        this.say(kinds.length === 2 ? 'equilibrium · ' + side(only(a, b)) + ' ⇌ ' + side(only(b, a)) : 'keeps undoing itself · ' + this.lastWhat);
+        this.say(kinds.length === 2 ? 'equilibrium · ' + side(only(a, b)) + ' ⇌ ' + side(only(b, a)) : kinds.length === 3 ? 'going round in circles · ' + this.lastWhat + ' and back' : 'keeps undoing itself · ' + this.lastWhat);
         this.finish(); return;
       }
     }
