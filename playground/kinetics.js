@@ -574,12 +574,18 @@ function coolProducts(e, atoms, T, want, force) {
   if (done.length && T > 0) e.thermalize(T, done.flatMap(c => f.list[c]));
 }
 
+function untie(e, parts) {
+  const [small, big] = parts.slice().sort((a, b) => a.reduce((s, i) => s + e.mass[i], 0) - b.reduce((s, i) => s + e.mass[i], 0));
+  moveAway(e, small, big);
+  e.touch(); e.refresh();
+}
+
 function loosenAll(e) {
   const f = e.fragments(), u = untangled(e);
   let n = 0;
   for (const g of f.list) {
     const parts = [...new Set(g.map(i => u.comp[i]))].map(k => u.list[k]);
-    if (parts.length === 2) { apart(e, parts[0], parts[1]); clearAround(e, g); n++; }
+    if (parts.length === 2) { untie(e, parts); n++; }
   }
   return n;
 }
@@ -588,7 +594,7 @@ function loosen(e, atoms, want) {
   const f = e.fragments(), u = untangled(e);
   for (const c of new Set(atoms.filter(i => i >= 0).map(i => f.comp[i]))) {
     const g = f.list[c], parts = [...new Set(g.map(i => u.comp[i]))].map(k => u.list[k]);
-    if (parts.length === 2 && !want.has(e.formulaOf(g)) && parts.every(p => want.has(e.formulaOf(p)))) { apart(e, parts[0], parts[1]); clearAround(e, g); }
+    if (parts.length === 2 && !want.has(e.formulaOf(g)) && parts.every(p => want.has(e.formulaOf(p)))) untie(e, parts);
   }
 }
 
@@ -740,19 +746,26 @@ function apart(eng, A, B) {
   eng.touch(); eng.refresh();
 }
 
-function flyOff(eng, b, a) {
-  const P = eng.pos, box = eng.box, N = eng.N, m = 1.2;
-  let seed = (N * 7919 + b * 104729 + Math.floor(eng.time)) % 2147483647 || 1;
+function flyOff(eng, b, a) { moveAway(eng, [b], [a]); }
+
+function moveAway(eng, g, from) {
+  const P = eng.pos, box = eng.box, N = eng.N, m = 1.2, own = new Set(g);
+  const cen = list => [0, 1, 2].map(d => list.reduce((s, i) => s + P[3 * i + d], 0) / list.length);
+  const c = cen(g), f = cen(from), rel = g.map(i => [P[3 * i] - c[0], P[3 * i + 1] - c[1], P[3 * i + 2] - c[2]]);
+  const ext = [0, 1, 2].map(d => Math.max(...rel.map(r => Math.abs(r[d]))));
+  let seed = (N * 7919 + g[0] * 104729 + Math.floor(eng.time)) % 2147483647 || 1;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const lo = [box.x0, box.y0, box.z0], hi = [box.x1, box.y1, box.z1];
   let best = null, score = -1;
   for (let t = 0; t < 400; t++) {
-    const x = box.x0 + m + (box.x1 - box.x0 - 2 * m) * rnd(), y = box.y0 + m + (box.y1 - box.y0 - 2 * m) * rnd(), z = box.z0 + m + (box.z1 - box.z0 - 2 * m) * rnd();
+    const p = [0, 1, 2].map(d => { const a = lo[d] + m + ext[d], b = hi[d] - m - ext[d]; return b > a ? a + (b - a) * rnd() : (lo[d] + hi[d]) / 2; });
     let d = Infinity;
-    for (let i = 0; i < N; i++) if (i !== b) d = Math.min(d, Math.hypot(P[3 * i] - x, P[3 * i + 1] - y, P[3 * i + 2] - z));
-    const s = Math.min(d, 3.4) + Math.min(Math.hypot(P[3 * a] - x, P[3 * a + 1] - y, P[3 * a + 2] - z), 10);
-    if (s > score) { score = s; best = [x, y, z]; }
+    for (const r of rel) { const x = p[0] + r[0], y = p[1] + r[1], z = p[2] + r[2]; for (let i = 0; i < N && d > 0; i++) if (!own.has(i)) d = Math.min(d, Math.hypot(P[3 * i] - x, P[3 * i + 1] - y, P[3 * i + 2] - z)); }
+    const s = Math.min(d, 3.4) + Math.min(Math.hypot(p[0] - f[0], p[1] - f[1], p[2] - f[2]), 10);
+    if (s > score) { score = s; best = p; }
   }
-  if (best) { P[3 * b] = best[0]; P[3 * b + 1] = best[1]; P[3 * b + 2] = best[2]; }
+  if (!best) return;
+  g.forEach((i, k) => { P[3 * i] = best[0] + rel[k][0]; P[3 * i + 1] = best[1] + rel[k][1]; P[3 * i + 2] = best[2] + rel[k][2]; });
 }
 
 function relocate(eng, g) {
@@ -827,5 +840,5 @@ function applyEvent(eng, ev, idx) {
   eng.refresh();
 }
 
-return { scanPair, measured, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, verifyEvent, stillThere, candidates, scanCandidate, combine, context, initiates, needless, survey, pickNext, drop, worthRefining, loosenAll, reuse, REFINE, COOL, wanted, coolProducts, UNCERTAINTY };
+return { scanPair, measured, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, verifyEvent, stillThere, candidates, scanCandidate, combine, context, initiates, needless, survey, pickNext, drop, worthRefining, loosenAll, loosen, reuse, REFINE, COOL, wanted, coolProducts, UNCERTAINTY };
 });

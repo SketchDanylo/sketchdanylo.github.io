@@ -96,12 +96,13 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build104', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build105', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
-    const c = cooling.shift();
-    ChemKinetics.coolProducts(eng, c.ids.map(id => eng.indexOfId(id)), eng.T, c.want, !cooling.length);
+    const c = cooling.shift(), idx = c.ids.map(id => eng.indexOfId(id));
+    if (c.loose) { ChemKinetics.loosen(eng, idx, c.want); continue; }
+    ChemKinetics.coolProducts(eng, idx, eng.T, c.want, !cooling.some(x => !x.loose));
   }
 }
 function skipToEvent(ev, wait, sceneIds, what, reactants, slow, products) {
@@ -118,7 +119,7 @@ function skipToEvent(ev, wait, sceneIds, what, reactants, slow, products) {
   scheduleSave();
   if (slow) { replay = { until: eng.time + 800, speed: time.speed, ids: idx.map(i => eng.ids[i]) }; setSpeed(0.5); }
   const want = ChemKinetics.wanted(products);
-  cooling = ChemKinetics.COOL.map(dt => ({ at: eng.time + dt, ids: idx.map(i => eng.ids[i]), want }));
+  cooling = ChemKinetics.COOL.map(dt => ({ at: eng.time + dt, ids: idx.map(i => eng.ids[i]), want })).concat([1500, 2500, 4000].map(dt => ({ at: eng.time + dt, ids: idx.map(i => eng.ids[i]), want, loose: true })));
   if (!time.playing) setPlaying(true);
   return true;
 }
