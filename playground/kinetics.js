@@ -523,6 +523,7 @@ function verifyEvent(scene, ev, products, T, seeds = 3, fs = 400, first = 1) {
   for (let s = first; s < first + seeds; s++) {
     const e = fromScene(scene);
     e.T = T; e.thermostat = true; e.thermostatMode = 'kelvin'; e.rngState = s * 7919 + 13;
+    const before = (() => { const f = e.fragments(); return bare([...new Set(ev.atoms.map(i => f.comp[i]))].map(c => e.formulaOf(f.list[c]))); })();
     applyEvent(e, ev, ev.atoms);
     const cool = COOL.slice(), want = wanted(products);
     let seen = false;
@@ -531,7 +532,8 @@ function verifyEvent(scene, ev, products, T, seeds = 3, fs = 400, first = 1) {
       if (k === 40 && formed(e, ev.atoms, products)) seen = true;
       if (cool.length && k >= cool[0]) { cool.shift(); if (!seen && formed(e, ev.atoms, products)) seen = true; coolProducts(e, ev.atoms, T, want, !cool.length); }
     }
-    if (seen || formed(e, ev.atoms, products)) ok++;
+    const f = e.fragments(), back = bare([...new Set(ev.atoms.map(i => f.comp[i]))].map(c => e.formulaOf(f.list[c]))) === before;
+    if (formed(e, ev.atoms, products) || (seen && !back)) ok++;
   }
   return ok;
 }

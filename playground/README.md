@@ -2,7 +2,10 @@
 
 A reactive molecular-dynamics sandbox at true scale. Atoms and molecules live in a 3D slab, 1.2 nm deep by default, which you view from above, so reactions cannot drift away along z. The manual view zooms from 0.05 nm to 15 nm. Chamber dimensions extend to 50 nm; Fit can zoom farther out to show the complete box. In the sandbox, bonds form and break from an experimental potential energy model.
 
-Open `playground/` on the site. Molecules come only from [Nomenclature](../nomenclature.html) → **Playground**; single atoms come from the dock.
+Open `playground/` on the site. An empty chamber shows the ready-made experiments as tiles, each
+with a picture of what goes in; one click loads it, and the button to press next glows (☀ for light,
+then the double arrow for the next reaction). Single atoms come from the dock, molecules from **+**
+or from [Nomenclature](../nomenclature.html) → **Playground**.
 
 ## Thermostats
 
@@ -546,8 +549,9 @@ sp³ carbon, CH₄ + O· → CH₃O· + H·) is not tried either: the model put 
 When a scan that hands an atom over ends with its two products already apart, they are relaxed apart
 too; relaxed together, CH₃· and ·OH from O + CH₄ paired up into methanol and the scan reported that
 second step as the reaction. A trial now also counts if the products were there at 40 fs or at any
-cooling point, since a radical pair born in contact may pair up straight afterwards; the feed then shows
-both steps.
+cooling point, since a radical pair born in contact may pair up straight afterwards (the feed then shows
+both steps), but not if it ended back where it started: a pair that crossed the barrier and came
+straight back over it did not react, and a skip that changes nothing is worse than an honest ✕.
 Two lone atoms joining into a diatomic (Cl· + Cl· → Cl₂) count at a thousandth of their meeting rate:
 on their own they fly apart again within one vibration, and in a real gas at 1 atm another molecule
 arrives to carry the energy off only about once in a thousand such meetings.
