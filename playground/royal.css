@@ -137,3 +137,4 @@ html[data-motion=reduced] *,html[data-motion=reduced] *::before,html[data-motion
 .mark,.gauges,.toasts{margin-top:env(safe-area-inset-top,0px)}
 .mark,.feed{margin-left:env(safe-area-inset-left,0px)}
 .gauges,.scale{margin-right:env(safe-area-inset-right,0px)}
+body,canvas{-webkit-touch-callout:none}
