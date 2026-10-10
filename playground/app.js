@@ -93,7 +93,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build135', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build136', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -251,7 +251,11 @@ function clampCam() {
   const b = eng.box, m = 6;
   R.cam.cx = clamp(R.cam.cx, b.x0 - m, b.x1 + m); R.cam.cy = clamp(R.cam.cy, b.y0 - m, b.y1 + m);
 }
-function resize() { R.resize(window.innerWidth, window.innerHeight); }
+function resize() {
+  const w0 = R.W, h0 = R.H;
+  R.resize(window.innerWidth, window.innerHeight);
+  if (w0 && h0 && ((w0 > h0) !== (innerWidth > innerHeight) || Math.abs(innerWidth - w0) > 0.2 * w0 || Math.abs(innerHeight - h0) > 0.25 * h0)) fitBox(false);
+}
 window.addEventListener('resize', resize);
 
 /* ======================= scrub fields =======================
