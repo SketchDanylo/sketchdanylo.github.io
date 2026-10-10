@@ -371,4 +371,14 @@ test('After a skip, a molecule left touching the fresh product drifts off, and s
   assert.ok(apart() >= 4.5, 'two bystanders stuck to each other drift apart too: ' + apart().toFixed(2));
 });
 
+test('CH₃· + O₂ → CH₃O₂·, a barrierless join through a shallow well, is replayed from the finished molecule and stays joined', () => {
+  const e = new Engine({ width: 36, height: 36, depth: 12, T: 298, thermostat: true, thermostatMode: 'kelvin' });
+  for (const [s, x, y, z] of [['C', 0, 0, 0], ['H', 1.087, 0, 0], ['H', -0.543, 0.941, 0], ['H', -0.543, -0.941, 0]]) e.addAtom(s, 7 + x, 7 + y, z, { thermal: false });
+  e.addAtom('O', 18, 18, 0, { thermal: false }); e.addAtom('O', 19.21, 18, 0, { thermal: false }); e.touch(); e.refresh(); e.setBondOrder(4, 5, 2);
+  e.thermalize(298); for (let k = 0; k < 300; k++) e.step();
+  const sc = JSON.parse(JSON.stringify(e.toJSON())), sv = K.survey(sc), ev = sv.events.find(x => x.label === 'CH3· + O2 → CH3O2·');
+  assert.ok(ev, sv.events.map(x => x.label).join(' | '));
+  assert.ok(K.verifyEvent(sc, ev.event, ev.products, 298, 3) >= 2);
+});
+
 console.log(count + ' kinetics checks passed.');

@@ -448,6 +448,18 @@ rather than one huddle; the same goes for any two bystanders stuck only to each 
 chloroethane: a gas-phase pair like that lasts picoseconds). Three or more molecules in contact are left
 alone: that is a liquid or a cluster, and breaking it up would be wrong.
 
+**A join is replayed from the finished molecule.** When a skip joins two molecules into one (CH₃· + O₂ →
+CH₃O₂·, Cl· + ethene, two radicals pairing), the new molecule is placed fully formed and relaxed, at the
+chamber's temperature, instead of from a point just past the barrier. Starting part-way left CH₃ and O₂
+in a shallow well 2.1 Å apart that the live simulation climbed back out of, so every » on CH₃· + O₂ ended
+in ✕. Starting from the end also gives the new molecule the collision with a third body that a real flask
+gives it: without one, the energy of the new bond is enough to break it again in a single vibration.
+Bystanders in the way are moved as the molecules they were before the step, whole, and one left touching
+the new molecule drifts off, in the forecast's own trial runs as on screen. A trial counts as played
+when the product appeared and the reactants did not come back: in ethene with one Cl₂ under the lamp, the
+second Cl· used to sit 2.4 Å from the fresh C₂H₄Cl· and take a hydrogen from it within 50 fs, so the
+trial saw vinyl chloride instead of C₂H₄Cl·, called the step unplayable, and » stalled.
+
 **Equilibria are passed, not replayed.** When a possible next step would just undo the last one
 (C₂H₃Cl₂· + HCl after Cl· + C₂H₄Cl₂, or Cl· + Cl· right after the lamp split Cl₂), going back and
 forth changes nothing, so `J` leaves the undo out and draws among the reactions that lead somewhere,

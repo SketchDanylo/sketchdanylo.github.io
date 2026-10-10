@@ -130,3 +130,6 @@ html[data-motion=reduced] *,html[data-motion=reduced] *::before,html[data-motion
 .library .tray-list{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:0}
 .library .mol{margin:0;padding:6px 6px 7px;gap:1px;align-items:center;text-align:center}.library .mol svg{height:40px}.library .mol .nm{font-size:10.5px;font-weight:500;max-width:100%}.library .mol .fm{display:none}
 @media(hover:none){.mol .x{opacity:1}}
+#speedPop .row .note{margin-left:auto}
+.library-tabs .tab-link{margin-left:auto;align-self:center;font:500 12px var(--sans);color:var(--dim);text-decoration:none;padding:9px 10px}.library-tabs .tab-link:hover{color:var(--bone)}
+.library .mol .nm{white-space:normal;line-height:1.2;overflow:visible}

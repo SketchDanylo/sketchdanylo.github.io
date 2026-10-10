@@ -168,6 +168,13 @@ Without this, the forecast and fast-forward will work well for radical and gas-p
   radicals pairing up. A bound from bond energies before scanning (rate ≤ collision rate × e^(−ΔH/RT))
   would drop those; the catch is that the engine's own Cl bond energies are not yet trustworthy enough
   to prune on.
+- Free-form mixtures from the molecules list that still misbehave: benzene + Cl₂ under the lamp (the Cl·
+  adducts of benzene come apart again in the live simulation, so the chain wanders instead of heading for
+  hexachlorocyclohexane); H₂ at 1000 K (each H₂ → 2 H· skip is undone at once, because the two atoms meet
+  again in a box this small and the live simulation joins them without a third body); H₂ + O₂ at 1200 K
+  (the radicals shuttle H· + H₂O ⇌ H₂ + ·OH, since in a lit or burning flask they meet each other a
+  million times less often than in the chamber, so water forms slowly); NH₃ + HCl (no ionic pairing, so
+  no ammonium chloride).
 - Large chambers: forecast once per distinct situation and reuse it, instead of rescanning every copy.
 - Large molecules: every scan point relaxes every atom of both partners, so a C₉ radical meeting ethene
   costs 25–30 s a candidate. Scanning only the atoms within two bonds of the reacting pair, capped with

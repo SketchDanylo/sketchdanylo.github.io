@@ -184,7 +184,7 @@ function committed(path, top, at, joins) {
   const last = path.length - 1, drop = Math.max(8, (joins && top === 0 ? 0.6 : 0.3) * (path[top].E - path[last].E));
   let c = top + 1;
   while (c < last && path[c].E > path[top].E - drop) c++;
-  c = Math.min(c, last);
+  c = joins ? last : Math.min(c, last);
   const from = path[Math.max(0, c - 1)].pos, to = path[c].pos;
   return { pos: Array.from(to), push: Array.from(to, (v, q) => v - from[q]), bo: path[c].bo, at };
 }
@@ -274,8 +274,8 @@ function scanPair(src, i, j, opts = {}) {
     ok: true, kind, i, j, atoms, Ea: best.Ea, dE: best.dE, barrierAtEnd: best.barrierAtEnd,
     reactants: reactants.flatMap(x => x.formula), products: best.products, path: best.path, ts: best.ts, tsDistance: best.tsDistance,
     channel: { type: best.channel.type, k: best.channel.k }, bimolecular: ci !== cj, T: opts.T,
-    event: { atoms, pos: best.event.pos, push: best.event.push, bo: best.event.bo, anchor: ci !== cj ? frag.list[frag.comp[best.event.at]] : atoms, split: splits(best) },
-    alternatives: distinct(ok.slice(1), best).map(r => ({ channel: { type: r.channel.type, k: r.channel.k }, Ea: r.Ea, dE: r.dE, products: r.products, barrierAtEnd: r.barrierAtEnd, event: { atoms, pos: r.event.pos, push: r.event.push, bo: r.event.bo, anchor: ci !== cj ? frag.list[frag.comp[r.event.at]] : atoms, split: splits(r) } }))
+    event: { atoms, pos: best.event.pos, push: best.event.push, bo: best.event.bo, anchor: ci !== cj ? frag.list[frag.comp[best.event.at]] : atoms, split: splits(best), join: ci !== cj && best.products.length === 1 },
+    alternatives: distinct(ok.slice(1), best).map(r => ({ channel: { type: r.channel.type, k: r.channel.k }, Ea: r.Ea, dE: r.dE, products: r.products, barrierAtEnd: r.barrierAtEnd, event: { atoms, pos: r.event.pos, push: r.event.push, bo: r.event.bo, anchor: ci !== cj ? frag.list[frag.comp[r.event.at]] : atoms, split: splits(r), join: ci !== cj && r.products.length === 1 } }))
   };
 }
 
@@ -737,7 +737,7 @@ function verifyEvent(scene, ev, products, T, seeds = 3, fs = 400, first = 1) {
     const before = (() => { const f = e.fragments(); return bare([...new Set(ev.atoms.map(i => f.comp[i]))].map(c => e.formulaOf(f.list[c]))); })();
     applyEvent(e, ev, ev.atoms);
     const cool = COOL.slice(), want = wanted(products);
-    let seen = false;
+    let seen = formed(e, ev.atoms, products);
     for (let k = 1; k <= fs; k++) {
       e.step();
       if (k === 40 && formed(e, ev.atoms, products)) seen = true;
@@ -750,11 +750,11 @@ function verifyEvent(scene, ev, products, T, seeds = 3, fs = 400, first = 1) {
 }
 
 const CLEAR = 2.4, SPLIT = 4.0;
-function clearAround(eng, idx) {
+function clearAround(eng, idx, groups) {
   const mine = new Set(idx), P = eng.pos, b = eng.box, m = 0.5;
   let moved = 0;
   for (let pass = 0; pass < 4; pass++) {
-    const f = eng.fragments();
+    const f = groups ? { list: groups } : eng.fragments();
     let any = false;
     for (const g of f.list) {
       if (g.some(i => mine.has(i))) continue;
@@ -779,7 +779,7 @@ function clearAround(eng, idx) {
     if (!any) break;
     eng.touch(); eng.refresh();
   }
-  const f = eng.fragments(), near = g => g.some(a => idx.some(c => Math.hypot(P[3 * a] - P[3 * c], P[3 * a + 1] - P[3 * c + 1], P[3 * a + 2] - P[3 * c + 2]) < CLEAR));
+  const f = groups ? { list: groups } : eng.fragments(), near = g => g.some(a => idx.some(c => Math.hypot(P[3 * a] - P[3 * c], P[3 * a + 1] - P[3 * c + 1], P[3 * a + 2] - P[3 * c + 2]) < CLEAR));
   let late = 0;
   for (const g of f.list) if (!g.some(i => mine.has(i)) && near(g)) { relocate(eng, g); late++; }
   if (late) { eng.touch(); eng.refresh(); }
@@ -915,6 +915,7 @@ function applyEvent(eng, ev, idx) {
     eng.touch(); eng.refresh();
     return;
   }
+  const f0 = eng.fragments(), parts = new Set(idx.map(i => f0.comp[i])).size;
   const anchor = new Set(ev.anchor);
   let cx = 0, cy = 0, cz = 0, ix = 0, iy = 0, iz = 0, n = 0;
   ev.atoms.forEach((k, m) => {
@@ -937,7 +938,8 @@ function applyEvent(eng, ev, idx) {
   }
   eng.touch(); eng.refresh();
   if (ev.split) separate(eng, idx);
-  clearAround(eng, idx);
+  const mine = new Set(idx);
+  clearAround(eng, idx, f0.list.filter(g => !g.some(i => mine.has(i))));
   for (const [a, b, o] of ev.bo) eng.setBondOrder(idx[a], idx[b], o);
   eng.thermalize(eng.T, idx);
   let mD = 0;
@@ -946,6 +948,20 @@ function applyEvent(eng, ev, idx) {
     const sc = Math.sqrt(2 * CE.KB * Math.max(eng.T, 50) / (CE.KEU * mD));
     idx.forEach((i, m) => { for (let d = 0; d < 3; d++) eng.vel[3 * i + d] += sc * ev.push[3 * m + d]; });
   }
+  eng.refresh();
+  if (parts === 2 && !ev.split && ev.join) settleJoined(eng, idx.slice());
+  spread(eng, idx);
+}
+
+function settleJoined(eng, group) {
+  const P = eng.pos, cen = list => [0, 1, 2].map(d => list.reduce((s, v) => s + v[d], 0) / list.length);
+  const c0 = cen(group.map(i => [P[3 * i], P[3 * i + 1], P[3 * i + 2]]));
+  const { e, map } = isolate(eng, group, null, eng.T);
+  settle(e, 400);
+  const c1 = cen(group.map(i => { const k = map.get(i); return [e.pos[3 * k], e.pos[3 * k + 1], e.pos[3 * k + 2]]; }));
+  for (const i of group) { const k = map.get(i); for (let d = 0; d < 3; d++) P[3 * i + d] = c0[d] + e.pos[3 * k + d] - c1[d]; }
+  eng.touch(); eng.refresh();
+  eng.thermalize(eng.T, group);
   eng.refresh();
 }
 

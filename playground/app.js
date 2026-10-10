@@ -93,7 +93,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build125', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build126', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -109,7 +109,6 @@ function skipToEvent(ev, wait, sceneIds, what, reactants, slow, products) {
   if (reactants && !ChemKinetics.stillThere(ChemKinetics.fromScene(eng.toJSON()), ev, idx, reactants)) { toast('Those molecules have already changed · forecast again'); return false; }
   pushUndo();
   ChemKinetics.applyEvent(eng, ev, idx);
-  ChemKinetics.spread(eng, idx);
   const out = products ? (Array.isArray(products[0]) ? products[0] : products) : [];
   eng.chain = !!ev.photo || (!!reactants && ChemKinetics.initiates({ reactants, products: out })) || (eng.chain && eng.fragments().list.some(g => eng.isRadical(g)));
   eng.skipped += wait;
@@ -230,7 +229,8 @@ function toast(msg, cls) {
 /* ======================= camera ======================= */
 function fitBox(animate) {
   const b = eng.box, W = R.W, H = R.H;
-  const mobile=W<=640, left=mobile?16:32, right=mobile?16:32, top=mobile?70:80, bottom=mobile?176:126;
+  const mobile=W<=640, rail=$('controlRail').getBoundingClientRect(), head=$('gauges').getBoundingClientRect();
+  const left=mobile?16:32, right=mobile?16:32, top=Math.max(mobile?70:80, Math.min(head.bottom+12, H*0.3)), bottom=rail.height?Math.min(H*0.45, H-rail.top+(mobile?44:16)):(mobile?176:126);
   const aw=Math.max(100,W-left-right), ah=Math.max(100,H-top-bottom);
   const span=clamp(Math.max((b.x1-b.x0)*W/aw,(b.y1-b.y0)*W/ah),SPAN_MIN,5000);
   camTo((b.x0+b.x1)/2-(left-right)*span/(2*W), (b.y0+b.y1)/2-(top-bottom)*span/(2*W),span,animate);
@@ -517,7 +517,7 @@ function renderSpeedPop() {
 function openSpeedPop() {
   const pop = $('speedPop');
   pop.innerHTML = '<div class="head"><b></b><span class="bar"><i></i></span></div><div class="sep"></div>' +
-    SPEEDS.map((s, i) => '<button class="row" style="--i:' + i + '" data-s="' + s[0] + '"><span class="k">' + s[0] + '×</span><span class="lbl">' + s[1] + '</span><span class="note">' + fmtRate(stepsPerSecond(s[0])) + '</span><svg class="chk" viewBox="0 0 16 16"><path d="M3 8.5l3.2 3L13 4.5"/></svg></button>').join('');
+    SPEEDS.map((s, i) => '<button class="row" style="--i:' + i + '" data-s="' + s[0] + '"><span class="k">' + s[0] + '×</span><span class="note">' + fmtRate(stepsPerSecond(s[0])) + '</span><svg class="chk" viewBox="0 0 16 16"><path d="M3 8.5l3.2 3L13 4.5"/></svg></button>').join('');
   pop.querySelectorAll('.row').forEach(r => r.onclick = () => { setSpeed(+r.dataset.s); closePop(); });
   showPop(pop, $('speed'), 'above'); renderSpeedPop();
 }
