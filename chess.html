@@ -10,7 +10,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="description" content="Learn chess openings with live book moves, a deepening engine and explanations of why a move was worse.">
 <title>Danylo's Chess Coach</title>
 <style>
@@ -129,7 +129,7 @@ b { font-weight: 650; }
 }
 .eval-fill {
   position: absolute; left: 0; right: 0; bottom: 0;
-  height: 50%;
+  height: var(--ev, 50%);
   background: linear-gradient(to top, #f1f2f4, #dfe2e8);
   transition: height 700ms var(--ease-soft), top 700ms var(--ease-soft), bottom 700ms var(--ease-soft);
 }
@@ -777,6 +777,147 @@ body.vs-engine .engine-toggle { opacity: 1; transform: none; pointer-events: aut
 .engine-toggle.paused { background: rgba(232, 200, 114, 0.18); border-color: rgba(232, 200, 114, 0.45); color: #f2dc9c; }
 .engine-toggle.paused .i-play { display: block; fill: currentColor; stroke: none; }
 .engine-toggle.paused .i-pause { display: none; }
+
+.tabbar, .more-btn, .sheet { display: none; }
+
+.solve-card { display: none; }
+body.solving .solve-card { display: block; }
+.pill.accent.on { background: rgba(127, 214, 160, 0.18); border-color: rgba(127, 214, 160, 0.5); color: #c9f2d8; }
+.solve-verdict { display: flex; align-items: center; gap: 10px; margin: 2px 0 0; font-size: 1.1rem; font-weight: 720; letter-spacing: -0.02em; line-height: 1.25; }
+.solve-verdict .score { flex: none; }
+.solve-sub { margin: 6px 0 0; color: var(--muted); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+.solve-sub:empty, .solve-verdict:empty { display: none; }
+.solve-line { margin: 12px 0 0; color: var(--muted); font-size: 0.84rem; line-height: 1.6; overflow-wrap: anywhere; }
+.solve-line:empty { display: none; }
+.solve-line b { color: var(--text); }
+.solve-actions { display: flex; align-items: center; gap: 14px; margin-top: 12px; }
+.solve-actions .pill { height: 34px; font-size: 0.82rem; }
+.solve-log-head { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--rule-soft); color: var(--faint); font-size: 0.72rem; font-weight: 650; letter-spacing: 0.14em; text-transform: uppercase; }
+.solve-log-head[hidden], .solve-log:empty { display: none; }
+.solve-log { display: grid; gap: 2px; margin: 8px 0 0; padding: 0; list-style: none; max-height: 200px; overflow-y: auto; scrollbar-width: thin; }
+.solve-log li { display: grid; grid-template-columns: 62px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 5px 8px; margin: 0 -8px; border-radius: 10px; cursor: pointer; font-size: 0.82rem; transition: background 160ms ease; }
+.solve-log li:hover { background: rgba(255, 255, 255, 0.07); }
+.solve-log li.cur { background: rgba(157, 184, 255, 0.12); }
+.solve-log .lg-san { font-weight: 700; }
+.solve-log .lg-san.auto { color: var(--muted); font-weight: 600; }
+.solve-log .lg-ev { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lg-tag { padding: 1px 9px; border-radius: 999px; font-size: 0.7rem; font-weight: 750; white-space: nowrap; }
+.lg-tag.holds { background: rgba(127, 214, 160, 0.16); color: #bdf0d0; }
+.lg-tag.shifts { background: rgba(232, 200, 114, 0.16); color: #f2dc9c; }
+.lg-tag.changed { background: rgba(240, 130, 122, 0.18); color: #f7b9b3; }
+.lg-tag.pending { background: rgba(255, 255, 255, 0.06); color: var(--faint); }
+
+@media (max-width: 720px) and (orientation: portrait) {
+  :root { --board: max(280px, min(100vw, calc(100vh - 336px))); --dock: 54px; }
+  @supports (height: 100dvh) {
+    :root { --board: max(280px, min(100vw, calc(100dvh - 336px))); }
+  }
+  html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+  body { min-height: 0; background: #0a0b0f; font-size: 14px; }
+  .space-bg, body::after { display: none; }
+
+  .page { width: 100%; height: 100vh; margin: 0; display: flex; flex-direction: column; }
+  @supports (height: 100dvh) { .page { height: 100dvh; } }
+  .title { flex: none; margin: 0; padding: calc(7px + env(safe-area-inset-top)) 14px 7px; text-align: left; font-size: 1rem; line-height: 1; letter-spacing: -0.04em; }
+
+  .layout { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 0; padding: 0; }
+  .stage { display: contents; }
+  .board-row { order: 1; flex: none; flex-direction: column; align-items: center; gap: 0; }
+  .side { order: 2; flex: 1; min-height: 0; width: 100%; max-width: none; display: flex; flex-direction: column; }
+  .controls { order: 3; }
+
+  .evalbar { width: var(--board); height: 12px; border-radius: 0; box-shadow: none; flex: none; }
+  .eval-fill, .evalbar.flipped .eval-fill { top: 0; bottom: 0; left: 0; right: auto; height: auto; width: var(--ev, 50%); background: linear-gradient(to right, #f1f2f4, #dfe2e8); transition: width 700ms var(--ease-soft); }
+  .eval-label { left: auto; right: auto; top: 0; bottom: auto; line-height: 12px; font-size: 0.62rem; }
+  .eval-label.bottom { left: 8px; }
+  .eval-label.top { right: 8px; }
+  body.flip-b .eval-label.bottom { left: auto; right: 8px; }
+  body.flip-b .eval-label.top { right: auto; left: 8px; }
+
+  .board-frame { width: var(--board); }
+  .board, .board[data-theme="sketch"] { border-radius: 0; box-shadow: none; }
+
+  .view { animation: none; }
+  .side > .view:not([hidden]) { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  #view-game:not([hidden]) { display: flex; flex-direction: column; gap: 0; overflow: hidden; }
+  #view-game > * { order: 4; }
+  #view-game > .moves-card { order: 1; }
+  #view-game > .feedback-card { order: 2; }
+  #view-game > .tabbar { order: 3; }
+
+  .card-head { margin-bottom: 6px; }
+  .solve-card .card-head { display: none; }
+  .lines { min-height: 0; }
+  .card { padding: 10px 14px; border: 0; border-radius: 0; background: transparent; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .card::before { display: none; }
+  #view-game > .card[data-panel] { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .side[data-tab="opening"] .card[data-panel]:not([data-panel="opening"]),
+  .side[data-tab="engine"] .card[data-panel]:not([data-panel="engine"]),
+  .side[data-tab="solve"] .card[data-panel]:not([data-panel="solve"]) { display: none; }
+  .side .solve-card { display: block; }
+
+  .moves-card { flex: none; padding: 0 6px; border-block: 1px solid var(--rule-soft); background: rgba(255, 255, 255, 0.025); }
+  .moves-card .card-head { display: none; }
+  .movelist { display: flex; align-items: center; gap: 0; max-height: none; overflow-x: auto; overflow-y: hidden; white-space: nowrap; scrollbar-width: none; padding: 3px 0; }
+  .movelist::-webkit-scrollbar { display: none; }
+  .movelist > li { flex: none; }
+  .movelist .num { padding: 0 2px 0 8px; font-size: 0.78rem; }
+  .movelist .empty { padding: 6px 8px; }
+  .mv { padding: 6px 7px; font-size: 0.92rem; }
+
+  .feedback-card { flex: none; padding: 6px 14px; border-bottom: 1px solid var(--rule-soft); border-color: var(--rule-soft); }
+  .feedback-card[data-kind] { box-shadow: none; }
+  .fb { grid-template-columns: 32px 1fr; gap: 10px; align-items: center; }
+  .fb-icon { width: 32px; height: 32px; border-radius: 10px; font-size: 0.85rem; }
+  .fb-main { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 8px; row-gap: 4px; }
+  .fb-title { grid-column: 1; font-size: 0.95rem; }
+  .fb-actions { grid-column: 2; grid-row: 1; margin: 0; flex-wrap: nowrap; gap: 6px; }
+  .fb-actions .pill { height: 30px; padding: 0 11px; font-size: 0.78rem; }
+  .fb-meter, .unof-badge.small, .fb-sub:not(.end) { display: none; }
+  .fb-sub.end { grid-column: 1 / -1; margin: 0; font-size: 0.78rem; }
+
+  .tabbar { display: flex; flex: none; gap: 4px; padding: 4px 12px; }
+  .tabbar button { position: relative; flex: 1; height: 28px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font-size: 0.82rem; font-weight: 650; cursor: pointer; transition: background 200ms ease, color 200ms ease; }
+  .tabbar button.on { background: rgba(255, 255, 255, 0.1); color: var(--text); }
+  body.solving .tabbar [data-tab="solve"]::after { position: absolute; top: 7px; right: 18%; width: 6px; height: 6px; border-radius: 50%; content: ""; background: var(--best); animation: breathe 1.6s ease-in-out infinite; }
+
+  .op-name { font-size: 1.15rem; }
+  .steps { max-height: none; overflow: visible; }
+  .solve-log { max-height: none; }
+  .fen-field input { font-size: 16px; }
+
+  .controls { flex: none; margin: 0; padding: 6px 14px calc(6px + env(safe-area-inset-bottom)); gap: 8px; flex-wrap: nowrap; justify-content: space-between; border-top: 1px solid var(--rule-soft); background: rgba(10, 11, 15, 0.96); }
+  .nav, .actions { gap: 8px; }
+  #nav-start, #nav-end { display: none; }
+  .nav .icon { width: 58px; height: 42px; border-radius: 14px; }
+  .actions .icon { width: 48px; height: 42px; border-radius: 14px; }
+  .actions .pill { height: 42px; padding: 0 20px; }
+  .actions .more-btn { display: grid; }
+  .icon, .pill { backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+  .toast { bottom: calc(var(--dock) + 20px + env(safe-area-inset-bottom)); }
+
+  .sheet { display: block; position: fixed; inset: 0; z-index: 70; visibility: hidden; pointer-events: none; transition: visibility 0s linear 340ms; }
+  .sheet.open { visibility: visible; pointer-events: auto; transition-delay: 0s; }
+  .sheet-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.6); opacity: 0; transition: opacity 260ms ease; }
+  .sheet.open .sheet-backdrop { opacity: 1; }
+  .sheet-panel { position: absolute; left: 0; right: 0; bottom: 0; max-height: 88%; overflow-y: auto; padding: 8px 16px calc(20px + env(safe-area-inset-bottom)); border-radius: 22px 22px 0 0; background: #14161b; border-top: 1px solid var(--rule); transform: translateY(100%); transition: transform 340ms var(--ease); }
+  .sheet.open .sheet-panel { transform: none; }
+  .sheet-grab { width: 40px; height: 4px; margin: 4px auto 16px; border-radius: 4px; background: rgba(255, 255, 255, 0.2); }
+  .sheet-sec { margin-bottom: 20px; }
+  .sheet-sec h3 { margin: 0 0 10px; font-size: 0.72rem; font-weight: 650; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); }
+  .sheet-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .sheet-actions .pill, .sheet-actions .link { height: 46px; display: grid; place-items: center; padding: 0 12px; border: 1px solid var(--rule-soft); border-radius: 999px; background: var(--glass); color: var(--text); font-size: 0.9rem; font-weight: 600; text-decoration: none; }
+  .sheet .toggles { margin: 0; padding: 0; border: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 12px; }
+  .sheet .tg { font-size: 0.92rem; }
+  .sheet .segmented button { font-size: 0.74rem; padding: 0 4px; }
+  .sheet .pp-current { display: none; }
+  .sheet .piece-pick { position: static; }
+  .sheet .pp-menu { position: static; opacity: 1; pointer-events: auto; transform: none; padding: 0; border: 0; background: none; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; gap: 8px; }
+  .sheet .pp-row { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; }
+  .sheet .pp-menu button { width: 100%; height: 44px; }
+  .sheet .credits { margin: 4px 2px 0; }
+}
 </style>
 </head>
 <body>
@@ -817,6 +958,8 @@ body.vs-engine .engine-toggle { opacity: 1; transform: none; pointer-events: aut
         </div>
         <button class="pill" id="edit-toggle">Edit position</button>
         <button class="pill" id="new-game">New game</button>
+        <button class="pill accent" id="solve-toggle" aria-pressed="false" title="Search deeper than usual and play the position out">Solve</button>
+        <button class="icon more-btn" id="more-btn" aria-label="Menu"><svg viewBox="0 0 24 24"><path d="M5 12h.01M12 12h.01M19 12h.01" stroke-width="3.2"/></svg></button>
       </div>
     </div>
   </section>
@@ -837,7 +980,7 @@ body.vs-engine .engine-toggle { opacity: 1; transform: none; pointer-events: aut
         </button>
       </div>
 
-      <section class="card opening-card" id="opening-card">
+      <section class="card opening-card" id="opening-card" data-panel="opening">
         <div class="morph" id="opening-body"></div>
       </section>
 
@@ -845,7 +988,29 @@ body.vs-engine .engine-toggle { opacity: 1; transform: none; pointer-events: aut
         <div class="morph" id="feedback-body"></div>
       </section>
 
-      <section class="card engine-card">
+      <div class="tabbar" id="tabbar" role="tablist">
+        <button class="on" role="tab" data-tab="opening">Opening</button>
+        <button role="tab" data-tab="engine">Engine</button>
+        <button role="tab" data-tab="solve">Solve</button>
+      </div>
+
+      <section class="card solve-card" id="solve-card" data-panel="solve">
+        <div class="card-head">
+          <h2>Solve <span class="engine-state" id="solve-state"><i></i><span>off</span></span></h2>
+          <span class="depth" id="solve-meta"></span>
+        </div>
+        <p class="solve-verdict" id="solve-verdict"></p>
+        <p class="solve-sub" id="solve-sub"></p>
+        <div class="solve-actions">
+          <button class="pill solid" id="solve-run">Start solving</button>
+          <button class="link" id="solve-off">Stop solving</button>
+        </div>
+        <div class="solve-line" id="solve-line"></div>
+        <div class="solve-log-head" id="solve-log-head">Moves vs the outcome</div>
+        <ol class="solve-log" id="solve-log"></ol>
+      </section>
+
+      <section class="card engine-card" data-panel="engine">
         <div class="card-head">
           <h2>Engine <span class="engine-state" id="engine-state"><i></i><span>loading</span></span></h2>
           <span class="depth" id="depth"><span class="depth-track"><span class="depth-fill" id="depth-fill"></span></span><span id="depth-text">depth –</span></span>
@@ -935,6 +1100,18 @@ body.vs-engine .engine-toggle { opacity: 1; transform: none; pointer-events: aut
     <p class="credits">Stockfish 19 · lichess + eco.json openings · lichess piece sets</p>
   </aside>
 </main>
+</div>
+
+<div class="sheet" id="sheet" aria-hidden="true">
+  <div class="sheet-backdrop" id="sheet-backdrop"></div>
+  <div class="sheet-panel" role="dialog" aria-label="Menu">
+    <div class="sheet-grab"></div>
+    <div class="sheet-sec"><h3>Play</h3><div id="slot-mode"></div></div>
+    <div class="sheet-sec"><h3>Arrows</h3><div id="slot-toggles"></div></div>
+    <div class="sheet-sec"><h3>Board</h3><div id="slot-style"></div></div>
+    <div class="sheet-sec sheet-actions" id="slot-actions"></div>
+    <div id="slot-credits"></div>
+  </div>
 </div>
 
 <div class="hovercard" id="hovercard" aria-hidden="true"><div class="hc-inner" id="hovercard-body"></div></div>
@@ -4465,7 +4642,8 @@ class Engine {
 
   receive(line) {
     if (line === 'uciok') {
-      this.send('setoption name Hash value 64');
+      const memory = navigator.deviceMemory;
+      this.send(`setoption name Hash value ${memory && memory <= 2 ? 32 : 128}`);
       this.send('setoption name UCI_ShowWDL value false');
       this.send('isready');
       return;
@@ -4485,9 +4663,18 @@ class Engine {
     if (line.startsWith('bestmove')) {
       const finished = this.current;
       this.current = null;
-      if (finished && !finished.stopped) {
+      if (finished && (!finished.stopped || finished.settled)) {
         const entry = this.cache.get(finished.fen);
-        if (entry) entry.complete = Math.max(entry.complete || 0, finished.depth);
+        if (entry) {
+          if (finished.settled) {
+            entry.solved = true;
+            entry.complete = 99;
+          } else {
+            entry.complete = Math.max(entry.complete || 0, finished.depth);
+          }
+          if (finished.multipv > 1) entry.multiDone = Math.max(entry.multiDone || 0, finished.depth);
+        }
+        if (finished.then && !this.pending) this.pending = { fen: finished.fen, kind: 'view', ...finished.then };
         this.emit({ type: 'done', fen: finished.fen, job: finished });
       }
       this.pump();
@@ -4524,17 +4711,48 @@ class Engine {
     if (multipv > job.multipv) return;
     entry.lines[multipv - 1] = { ...scored, pv: pvMatch[1].trim().split(' '), depth };
     this.emit({ type: 'info', fen: job.fen, entry, job });
+    if (job.solve && multipv === 1 && !job.settled && scored.mate !== null && depth >= 2 * Math.abs(scored.mate) + 10) {
+      job.settled = true;
+      this.send('stop');
+    }
   }
 
-  // The foreground search: whatever position is on the board right now.
-  analyze(fen, { depth = 22, multipv = 3 } = {}) {
-    const job = { fen, depth, multipv, kind: 'view' };
+  analyze(fen, { depth = 24, multipv = 1, then = null } = {}) {
+    let job = { fen, depth, multipv, kind: 'view', then };
     const entry = this.cache.get(fen);
-    if (entry && (entry.complete || 0) >= depth && entry.lines.length >= multipv) {
+    if (entry && (entry.complete || 0) >= depth) {
+      if (!then || (entry.multiDone || 0) >= then.depth) {
+        this.pending = null;
+        if (this.current && this.current.kind === 'view') this.stopCurrent();
+        this.emit({ type: 'info', fen, entry, job });
+        this.emit({ type: 'done', fen, job });
+        return;
+      }
+      job = { fen, depth: then.depth, multipv: then.multipv, kind: 'view' };
+    }
+    const cur = this.current;
+    if (cur && cur.fen === fen && cur.kind === 'view' && !cur.solve && !cur.stopped && cur.depth === job.depth && cur.multipv === job.multipv) {
+      this.pending = null;
+      return;
+    }
+    this.pending = job;
+    if (this.current) this.stopCurrent();
+    else this.pump();
+  }
+
+  solve(fen) {
+    const job = { fen, depth: 99, multipv: 1, kind: 'view', solve: true };
+    const entry = this.cache.get(fen);
+    if (entry && entry.solved) {
       this.pending = null;
       if (this.current && this.current.kind === 'view') this.stopCurrent();
       this.emit({ type: 'info', fen, entry, job });
       this.emit({ type: 'done', fen, job });
+      return;
+    }
+    const cur = this.current;
+    if (cur && cur.fen === fen && cur.solve && !cur.stopped) {
+      this.pending = null;
       return;
     }
     this.pending = job;
@@ -4562,7 +4780,7 @@ class Engine {
   }
 
   stopCurrent() {
-    if (!this.current || this.current.stopped) return;
+    if (!this.current || this.current.stopped || this.current.settled) return;
     this.current.stopped = true;
     this.send('stop');
   }
@@ -6256,7 +6474,9 @@ const { lookup, bookMoves, family, ecoGroup, BOOK_SIZE } = modules.book;
 const { unofficialMoves, unofficialFor } = modules.unofficial;
 const { classify, classLabel, explainMove, playLine, plyLabels, lineText, stepNote, pressure, other, moveFromUci } = modules.explain;
 const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-const VIEW_DEPTH = 22;
+const VIEW_DEPTH = 24;
+const ALT_DEPTH = 18;
+const phone = window.matchMedia('(max-width: 720px) and (orientation: portrait)');
 const COLORS = {
   book: '#c4955f',
   best: '#7fd6a0',
@@ -6276,7 +6496,9 @@ const state = {
   orientation: 'w',
   show: { book: true, best: true, unofficial: true, threats: false },
   explore: null,
-  editing: null
+  editing: null,
+  solving: false,
+  playout: false
 };
 
 // ---------- engine ----------
@@ -6299,17 +6521,27 @@ engine.on(message => {
     if (message.fen === viewFen()) setEngineState('thinking', 'thinking');
     scheduleSoft();
     if (state.waitingEngine === message.fen) tryEngineReply();
+    tickPlayout();
   } else if (message.type === 'done') {
-    if (message.fen === viewFen()) setEngineState('idle', 'ready');
+    if (message.fen === viewFen() && !(message.job && message.job.then)) setEngineState('idle', 'ready');
     scheduleSoft();
     if (state.waitingEngine === message.fen) tryEngineReply(true);
+    tickPlayout();
   }
 });
 
 function analyzeView() {
   const fen = viewFen();
   if (terminal(fen) || state.editing) return;
-  engine.analyze(fen, { depth: VIEW_DEPTH, multipv: 3 });
+  if (state.solving && !state.explore) {
+    if (state.solveFen !== fen) {
+      state.solveFen = fen;
+      state.solveStart = performance.now();
+    }
+    engine.solve(fen);
+    return;
+  }
+  engine.analyze(fen, { depth: VIEW_DEPTH, multipv: 1, then: { depth: ALT_DEPTH, multipv: 3 } });
 }
 
 // ---------- position helpers ----------
@@ -6369,7 +6601,7 @@ function moveLabel(fen, uci) {
 }
 
 function userColor() { return state.mode === 'both' ? null : state.mode; }
-function isUserMove(node) { return !!node.move && (state.mode === 'both' || !node.byEngine); }
+function isUserMove(node) { return !!node.move && !node.auto && (state.mode === 'both' || !node.byEngine); }
 
 // ---------- board ----------
 
@@ -6395,17 +6627,18 @@ async function handleBoardMove(from, to) {
   play(from + to + (promotion || ''));
 }
 
-function play(uci, { byEngine = false } = {}) {
+function play(uci, { byEngine = false, auto = false } = {}) {
   const before = state.nodes[state.index].fen;
   const chess = chessAt(before);
   const move = moveFromUci(chess, uci);
   if (!move) return false;
   hideCard(true);
-  // A hand-made move replaces whatever the engine was about to play.
   clearTimeout(state.engineTimer);
+  clearTimeout(state.playoutTimer);
   state.waitingEngine = null;
+  state.lastMoveAt = performance.now();
   state.nodes = state.nodes.slice(0, state.index + 1);
-  state.nodes.push({ fen: chess.fen(), move, uci: move.from + move.to + (move.promotion || ''), byEngine });
+  state.nodes.push({ fen: chess.fen(), move, uci: move.from + move.to + (move.promotion || ''), byEngine, auto });
   state.index++;
   // Feedback needs a baseline for the position the move was played from.
   engine.prioritize(before, 12);
@@ -6418,6 +6651,7 @@ function goTo(index) {
   index = Math.max(0, Math.min(state.nodes.length - 1, index));
   if (index === state.index) return;
   state.index = index;
+  if (state.playout) setPlayout(false);
   clearTimeout(state.engineTimer);
   state.waitingEngine = null;
   hideCard(true);
@@ -6474,6 +6708,7 @@ function softUpdate() {
     renderOpening();
     renderFeedback();
     updateMoveDots();
+    renderSolve();
   }
 }
 
@@ -6595,7 +6830,7 @@ function renderEvalBar() {
   evalBar.classList.toggle('flipped', state.orientation === 'b');
   setBackgroundBalance(result && !state.editing ? winPercent(result.score) : 50);
   if (!result || state.editing) {
-    fill.style.height = '50%';
+    fill.style.setProperty('--ev', '50%');
     top.textContent = bottom.textContent = '';
     return;
   }
@@ -6603,7 +6838,7 @@ function renderEvalBar() {
   const shown = result.score.mate !== null && result.score.mate !== undefined
     ? (scoreWhiteWins(result.score) ? 100 : 0)
     : Math.max(4, Math.min(96, white));
-  fill.style.height = `${shown}%`;
+  fill.style.setProperty('--ev', `${shown}%`);
   const text = formatScore(result.score, { signed: false }).replace('−', '').replace('-', '');
   const whiteBetter = scoreWhiteWins(result.score) || (result.score.mate == null && result.score.cp >= 0);
   // The label sits at the end of the side that is better.
@@ -6654,7 +6889,8 @@ function renderLines() {
     const [first, ...rest] = text.split(' ');
     const score = { cp: line.cp, mate: line.mate };
     const negative = (score.mate != null ? score.mate < 0 : score.cp < 0);
-    rows.push(`<li data-uci="${line.pv[0]}" class="${line.depth < entry.depth - 2 ? 'stale' : ''}"><span class="score ${negative ? 'neg' : ''}">${formatScore(score)}</span><span class="pv"><b>${first}</b> ${rest.join(' ')}</span></li>`);
+    const floor = rows.length === 0 ? entry.depth : Math.min(entry.depth, ALT_DEPTH);
+    rows.push(`<li data-uci="${line.pv[0]}" class="${line.depth < floor - 2 ? 'stale' : ''}"><span class="score ${negative ? 'neg' : ''}">${formatScore(score)}</span><span class="pv"><b>${first}</b> ${rest.join(' ')}</span></li>`);
   }
   const html = rows.join('');
   if (list._html !== html) { list.innerHTML = html; list._html = html; }
@@ -6972,7 +7208,7 @@ function renderFeedback() {
     </div>`;
   }
   const title = kind === 'pending' ? label : `${label} <span class="fb-kind t-${kind}">${classLabel(kind)}</span>`;
-  const endText = end ? `<p class="fb-sub">${end.text}</p>` : '';
+  const endText = end ? `<p class="fb-sub end">${end.text}</p>` : '';
   const icon = kind === 'pending' ? '' : CLASS_ICON[kind];
   const html = `<div class="fb"><div class="fb-icon k-${kind}">${icon}</div><div class="fb-main">
     <p class="fb-title">${title}</p>${sub}${meter}${actions}${endText}</div></div>`;
@@ -6998,6 +7234,7 @@ $('feedback-body').addEventListener('click', event => {
 });
 
 function retry(i) {
+  if (state.playout) setPlayout(false);
   state.nodes = state.nodes.slice(0, i);
   state.index = i - 1;
   closeExplore(false);
@@ -7219,7 +7456,7 @@ setupSegmented($('explore-tabs'), value => {
 function maybeEngineMove() {
   clearTimeout(state.engineTimer);
   state.waitingEngine = null;
-  if (state.mode === 'both' || state.enginePaused || state.explore || state.editing) return;
+  if (state.mode === 'both' || state.enginePaused || state.explore || state.editing || state.playout) return;
   if (state.index !== state.nodes.length - 1) return;
   const fen = state.nodes[state.index].fen;
   if (turnOf(fen) === state.mode || terminal(fen)) return;
@@ -7257,6 +7494,7 @@ function tryEngineReply(force = false) {
 // ---------- editor ----------
 
 function openEditor() {
+  if (state.playout) setPlayout(false);
   closeExplore(false);
   hideCard(true);
   clearTimeout(state.engineTimer);
@@ -7497,6 +7735,7 @@ $('engine-toggle').addEventListener('click', () => setEnginePaused(!state.engine
 
 function setOrientation(color) {
   state.orientation = color;
+  document.body.classList.toggle('flip-b', color === 'b');
   board.setOrientation(color);
   renderEvalBar();
 }
@@ -7507,6 +7746,7 @@ $('nav-back').addEventListener('click', () => navigate('back'));
 $('nav-forward').addEventListener('click', () => navigate('forward'));
 $('nav-end').addEventListener('click', () => navigate('end'));
 $('new-game').addEventListener('click', () => {
+  if (state.playout) setPlayout(false);
   closeExplore(false);
   if (state.editing) closeEditor();
   state.nodes = [{ fen: START }];
@@ -7620,7 +7860,8 @@ document.addEventListener('keydown', event => {
   else if (event.key === 'End') navigate('end');
   else if (event.key === 'f' || event.key === 'F') setOrientation(state.orientation === 'w' ? 'b' : 'w');
   else if (event.key === 'Escape') {
-    if (state.explore) closeExplore();
+    if ($('sheet').classList.contains('open')) closeSheet();
+    else if (state.explore) closeExplore();
     else if (state.editing) { closeEditor(); refresh(); }
   }
 });
@@ -7677,6 +7918,13 @@ function glideHeight(el, from) {
 // Keep a row visible inside its own scroll box without moving the page.
 function scrollWithin(box, row) {
   if (!row) return;
+  if (getComputedStyle(box).display === 'flex') {
+    const b = box.getBoundingClientRect();
+    const r = row.getBoundingClientRect();
+    const left = r.left - b.left + box.scrollLeft;
+    box.scrollTo({ left: Math.max(0, left - (b.width - r.width) / 2), behavior: 'smooth' });
+    return;
+  }
   const top = row.offsetTop - box.offsetTop;
   if (top < box.scrollTop) box.scrollTo({ top: top - 4, behavior: 'smooth' });
   else if (top + row.offsetHeight > box.scrollTop + box.clientHeight) box.scrollTo({ top: top + row.offsetHeight - box.clientHeight + 4, behavior: 'smooth' });
@@ -7801,7 +8049,7 @@ function setupBackground() {
       context.fill();
     }
 
-    if (!reduceMotion && !document.hidden) frame = requestAnimationFrame(draw);
+    if (!reduceMotion && !document.hidden && !phone.matches) frame = requestAnimationFrame(draw);
     else frame = 0;
   }
 
@@ -7811,10 +8059,13 @@ function setupBackground() {
     pointer.ty = (event.clientY / Math.max(height, 1) - 0.5) * 2;
   }, { passive: true });
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && !frame && !reduceMotion) frame = requestAnimationFrame(draw);
+    if (!document.hidden && !frame && !reduceMotion && !phone.matches) frame = requestAnimationFrame(draw);
+  });
+  phone.addEventListener('change', () => {
+    if (!phone.matches && !frame && !reduceMotion) frame = requestAnimationFrame(draw);
   });
   resize();
-  frame = requestAnimationFrame(draw);
+  if (!phone.matches) frame = requestAnimationFrame(draw);
   if (reduceMotion) setTimeout(() => draw(0), 50);
 }
 
@@ -7964,10 +8215,297 @@ function setupHeadingAnimation() {
   requestAnimationFrame(tick);
 }
 
+// ---------- solve ----------
+
+const SIDE_NAME = { w: 'White', b: 'Black' };
+const PLAYOUT_MIN_DEPTH = 26;
+const PLAYOUT_MIN_MS = 2500;
+const PLAYOUT_MAX_MS = 12000;
+const PLAYOUT_PACE_MS = 900;
+const PLAYOUT_MAX_PLIES = 240;
+
+function outcomeOf(score) {
+  if (score.text && score.mate == null) return { group: 'level', text: score.text };
+  if (score.mate === 0) {
+    const winner = score.mated === 'w' ? 'b' : 'w';
+    return { group: winner, text: `${SIDE_NAME[winner]} wins by checkmate` };
+  }
+  if (score.mate != null) {
+    const winner = score.mate > 0 ? 'w' : 'b';
+    return { group: winner, text: `${SIDE_NAME[winner]} mates in ${Math.abs(score.mate)}` };
+  }
+  const winner = score.cp >= 0 ? 'w' : 'b';
+  const size = Math.abs(score.cp);
+  if (size >= 1000) return { group: winner, text: `${SIDE_NAME[winner]} is winning decisively` };
+  if (size >= 300) return { group: winner, text: `${SIDE_NAME[winner]} is winning` };
+  if (size >= 100) return { group: `edge${winner}`, text: `${SIDE_NAME[winner]} is better` };
+  return { group: 'level', text: 'Equal' };
+}
+
+function pliesToMate(mate, turn) {
+  const n = Math.abs(mate);
+  const winner = mate > 0 ? 'w' : 'b';
+  return turn === winner ? 2 * n - 1 : 2 * n;
+}
+
+function compareOutcome(before, after, mover, turnBefore) {
+  const usable = result => result && (result.final || result.depth >= 12);
+  if (!usable(before) || !usable(after)) return { cls: 'pending', text: '…', title: '' };
+  const ob = outcomeOf(before.score);
+  const oa = outcomeOf(after.score);
+  const title = `${ob.text} → ${oa.text}`;
+  if (ob.group !== oa.group) return { cls: 'changed', text: 'Outcome changed', title };
+  const mb = before.score.mate;
+  const ma = after.score.mate;
+  if (mb && ma && Math.sign(mb) === Math.sign(ma)) {
+    const winner = mb > 0 ? 'w' : 'b';
+    const diff = pliesToMate(ma, other(turnBefore)) - (pliesToMate(mb, turnBefore) - 1);
+    const moves = Math.max(1, Math.round(Math.abs(diff) / 2));
+    if (diff === 0) return { cls: 'holds', text: mover === winner ? 'Fastest win' : 'Best defence', title };
+    if (mover === winner && diff > 0) return { cls: 'shifts', text: `Slower by ${moves}`, title };
+    if (mover !== winner && diff < 0) return { cls: 'shifts', text: `Mate ${moves} sooner`, title };
+    return { cls: 'holds', text: 'Outcome holds', title };
+  }
+  const mine = result => (mover === 'w' ? winPercent(result.score) : 100 - winPercent(result.score));
+  if (mine(before) - mine(after) > 8) return { cls: 'shifts', text: 'Edge slipping', title };
+  return { cls: 'holds', text: 'Outcome holds', title };
+}
+
+function setHtml(el, html) {
+  if (el._html === html) return;
+  el._html = html;
+  el.innerHTML = html;
+}
+
+function renderSolve() {
+  const stateEl = $('solve-state');
+  const log = $('solve-log');
+  $('solve-run').textContent = !state.solving ? 'Start solving' : state.playout ? 'Pause' : 'Play it out';
+  $('solve-off').hidden = !state.solving;
+  if (!state.solving) {
+    stateEl.className = 'engine-state';
+    stateEl.querySelector('span').textContent = 'off';
+    setHtml($('solve-verdict'), '<span>Find the forced win</span>');
+    setHtml($('solve-sub'), 'Searches far past the normal depth until a forced mate shows up, then plays the line out. Make your own moves at any time and it tracks whether they change the outcome.');
+    setHtml($('solve-meta'), '');
+    setHtml($('solve-line'), '');
+    $('solve-log-head').hidden = true;
+    setHtml(log, '');
+    return;
+  }
+  const index = state.index;
+  const fen = state.nodes[index].fen;
+  const end = terminal(fen);
+  const result = evalOf(fen);
+  const entry = engine.entry(fen);
+
+  let verdictHtml = '<span>Searching…</span>';
+  if (end) {
+    verdictHtml = `<span>${end.text}</span>`;
+  } else if (result) {
+    const outcome = outcomeOf(result.score);
+    const negative = result.score.mate != null ? result.score.mate < 0 : result.score.cp < 0;
+    verdictHtml = `<span class="score ${negative ? 'neg' : ''}">${formatScore(result.score)}</span><span>${outcome.text}</span>`;
+  }
+  setHtml($('solve-verdict'), verdictHtml);
+
+  const seconds = Math.max(0, Math.round((performance.now() - (state.solveStart || performance.now())) / 1000));
+  let sub = '';
+  if (!end) {
+    if (entry && entry.solved) {
+      sub = `Mate confirmed at depth ${entry.depth}`;
+    } else if (entry) {
+      const found = result && result.score.mate != null;
+      sub = `Searching · depth ${entry.depth} · ${seconds}s`;
+      if (found) sub += ' · refining the mate length';
+      else if (entry.depth >= 30) sub += ' · no forced mate found yet';
+    } else {
+      sub = `Searching · ${seconds}s`;
+    }
+  }
+  setHtml($('solve-sub'), sub);
+  setHtml($('solve-meta'), state.playout ? 'playing out' : '');
+
+  const settled = end || (entry && entry.solved);
+  stateEl.className = `engine-state ${settled ? 'idle' : 'thinking'}`;
+  stateEl.querySelector('span').textContent = end ? 'final' : settled ? 'confirmed' : 'searching';
+
+  let lineHtml = '';
+  if (result && result.pv && result.pv.length) {
+    const steps = playLine(fen, result.pv, 14);
+    if (steps.length > 1) {
+      const [first, ...rest] = lineText(fen, steps.slice(1)).split(' ');
+      lineHtml = `<b>${first}</b> ${rest.join(' ')}${result.pv.length > 14 ? ' …' : ''}`;
+    }
+  }
+  setHtml($('solve-line'), lineHtml);
+
+  const rows = [];
+  for (let i = Math.max(1, index - 7); i <= index; i++) {
+    const node = state.nodes[i];
+    const prev = state.nodes[i - 1];
+    const before = evalOf(prev.fen);
+    const after = evalOf(node.fen);
+    const verdict = compareOutcome(before, after, node.move.color, turnOf(prev.fen));
+    if (verdict.cls === 'changed' && !node.auto && !node.notified) {
+      node.notified = true;
+      toast(`Outcome changed: ${verdict.title}`);
+    }
+    const ev = before && after ? `${formatScore(before.score)} → ${formatScore(after.score)}` : '…';
+    rows.push(`<li data-i="${i}" class="${i === index ? 'cur' : ''}" title="${verdict.title}"><span class="lg-san ${node.auto ? 'auto' : ''}">${moveLabel(prev.fen, node.uci)}</span><span class="lg-ev">${ev}</span><span class="lg-tag ${verdict.cls}">${verdict.text}</span></li>`);
+  }
+  $('solve-log-head').hidden = rows.length === 0;
+  const previous = log._html;
+  setHtml(log, rows.join(''));
+  if (previous !== log._html) scrollWithin(log, log.querySelector('li.cur'));
+}
+
+function setSolving(on) {
+  if (state.solving === on) return;
+  state.solving = on;
+  state.solveFen = null;
+  document.body.classList.toggle('solving', on);
+  const button = $('solve-toggle');
+  button.classList.toggle('on', on);
+  button.setAttribute('aria-pressed', on ? 'true' : 'false');
+  if (!on && state.playout) setPlayout(false);
+  if (on) {
+    setTab('solve');
+    toast('Solving · searching past the normal depth');
+  }
+  analyzeView();
+  softUpdate();
+}
+
+function setPlayout(on) {
+  if (state.playout === on) return;
+  if (on && !state.solving) return;
+  clearTimeout(state.playoutTimer);
+  state.playoutFor = null;
+  if (on) {
+    if (state.index !== state.nodes.length - 1) goTo(state.nodes.length - 1);
+    clearTimeout(state.engineTimer);
+    state.waitingEngine = null;
+    state.playoutPlies = 0;
+    state.playout = true;
+    tickPlayout();
+  } else {
+    state.playout = false;
+  }
+  renderSolve();
+}
+
+function stopPlayoutWith(text) {
+  setPlayout(false);
+  toast(text);
+}
+
+function tickPlayout() {
+  if (!state.playout || state.explore || state.editing) return;
+  if (state.index !== state.nodes.length - 1) return;
+  const fen = state.nodes[state.index].fen;
+  if (state.playoutFor === fen) return;
+  clearTimeout(state.playoutTimer);
+  const end = terminal(fen);
+  if (end) { stopPlayoutWith(end.text); return; }
+  const key = value => value.split(' ').slice(0, 4).join(' ');
+  if (state.nodes.filter(node => key(node.fen) === key(fen)).length >= 3) { stopPlayoutWith('Draw by repetition'); return; }
+  if (Number(fen.split(' ')[4]) >= 100) { stopPlayoutWith('Draw by the 50-move rule'); return; }
+  if (state.playoutPlies >= PLAYOUT_MAX_PLIES) { stopPlayoutWith(`Stopped after ${PLAYOUT_MAX_PLIES} moves`); return; }
+  const entry = engine.entry(fen);
+  const best = entry && entry.lines[0];
+  if (!best) { state.playoutTimer = setTimeout(tickPlayout, 500); return; }
+  const elapsed = performance.now() - (state.solveStart || 0);
+  const found = best.mate !== null && best.mate !== undefined;
+  const decisive = !found && Math.abs(best.cp) >= 1000;
+  const due = entry.solved
+    || (found && entry.depth >= 12)
+    || entry.depth >= (decisive ? 64 : PLAYOUT_MIN_DEPTH + 8)
+    || (!decisive && entry.depth >= PLAYOUT_MIN_DEPTH && elapsed >= PLAYOUT_MIN_MS)
+    || (entry.depth >= 14 && elapsed >= PLAYOUT_MAX_MS);
+  if (!due) { state.playoutTimer = setTimeout(tickPlayout, 400); return; }
+  state.playoutFor = fen;
+  const wait = Math.max(0, PLAYOUT_PACE_MS - (performance.now() - (state.lastMoveAt || 0)));
+  state.playoutTimer = setTimeout(() => {
+    state.playoutFor = null;
+    if (!state.playout || state.index !== state.nodes.length - 1 || state.nodes[state.index].fen !== fen) return;
+    const latest = engine.entry(fen);
+    const uci = latest && latest.lines[0] ? latest.lines[0].pv[0] : best.pv[0];
+    state.playoutPlies++;
+    play(uci, { byEngine: true, auto: true });
+  }, wait);
+}
+
+$('solve-toggle').addEventListener('click', () => setSolving(!state.solving));
+$('solve-off').addEventListener('click', () => setSolving(false));
+$('solve-run').addEventListener('click', () => {
+  if (!state.solving) setSolving(true);
+  else setPlayout(!state.playout);
+});
+$('solve-log').addEventListener('click', event => {
+  const row = event.target.closest('li[data-i]');
+  if (row) goTo(Number(row.dataset.i));
+});
+setInterval(() => { if (state.solving && !state.explore && !state.editing) renderSolve(); }, 1000);
+
+// ---------- phone layout ----------
+
+function setTab(name) {
+  $('side').dataset.tab = name;
+  document.querySelectorAll('#tabbar button').forEach(button => button.classList.toggle('on', button.dataset.tab === name));
+}
+$('tabbar').addEventListener('click', event => {
+  const button = event.target.closest('button[data-tab]');
+  if (button) setTab(button.dataset.tab);
+});
+
+const relocations = [
+  ['slot-mode', document.querySelector('.mode-row')],
+  ['slot-toggles', document.querySelector('.toggles')],
+  ['slot-style', $('piece-pick')],
+  ['slot-actions', $('edit-toggle')],
+  ['slot-actions', $('new-game')],
+  ['slot-actions', $('copy-pgn')],
+  ['slot-credits', document.querySelector('.credits')]
+].map(([slot, el]) => ({ slot, el, marker: document.createComment(''), moved: false }));
+
+function applyLayout() {
+  for (const item of relocations) {
+    if (phone.matches && !item.moved) {
+      item.el.replaceWith(item.marker);
+      $(item.slot).appendChild(item.el);
+      item.moved = true;
+    } else if (!phone.matches && item.moved) {
+      item.marker.replaceWith(item.el);
+      item.moved = false;
+    }
+  }
+  if (!phone.matches) closeSheet();
+  document.querySelectorAll('.segmented').forEach(placeGlider);
+}
+
+function openSheet() {
+  $('sheet').classList.add('open');
+  $('sheet').setAttribute('aria-hidden', 'false');
+  document.querySelectorAll('.segmented').forEach(placeGlider);
+}
+function closeSheet() {
+  $('sheet').classList.remove('open');
+  $('sheet').setAttribute('aria-hidden', 'true');
+}
+$('more-btn').addEventListener('click', openSheet);
+$('sheet-backdrop').addEventListener('click', closeSheet);
+$('slot-actions').addEventListener('click', event => {
+  if (event.target.closest('button')) closeSheet();
+});
+phone.addEventListener('change', applyLayout);
+
 // ---------- start ----------
 
 buildPalette();
 setupBackground();
+applyLayout();
+setTab('opening');
 setupHeadingAnimation();
 setupPiecePicker();
 board.setPosition(START, { instant: true });
