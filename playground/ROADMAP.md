@@ -26,7 +26,10 @@ organic chemistry from, and loose enough to experiment in.
   1,2-dichloroethane (or 1,2-dibromoethane with Br₂), and H₂ + Cl₂ to HCl: one photon starts a chain
   that runs until the chlorine or the ethene is used up. In the dark, ethene and Cl₂ or Br₂ still add on
   the glass, slowly, as in a real flask. The search for the next step starts in the background while
-  the last one plays, so most skips take 0.2–8 s. Methane and O₂ at 1200 K start with O₂ + CH₄ → CH₃· + HO₂·. Once radicals are made, they
+  the last one plays, so most skips take 0.2–8 s (an occasional one still takes 15–30 s). After a
+  skip, molecules left stuck to each other drift apart, as hours or nanoseconds of gas motion would make
+  them; with chlorine in excess, the leftover Cl· goes on to 1,1,2-trichloroethane, as it does under a
+  real lamp. Methane and O₂ at 1200 K start with O₂ + CH₄ → CH₃· + HO₂·. Once radicals are made, they
   meet at a real flask's rate, so chains are not cut short by the chamber's crowding. Running on stops
   by itself at an equilibrium or a loop and names it.
 - **Starting.** An empty chamber shows the experiments as tiles, each with a picture of its
@@ -142,6 +145,8 @@ Without this, the forecast and fast-forward will work well for radical and gas-p
   and up to a minute once a polymer has grown past C₉. It stops by itself at an equilibrium or a loop.
   The hydrogen-passing complexes (item 1) are what still clutter long runs: CH₃···HCl at room
   temperature, HCl···Cl, NH₂···HCl.
+  A freshly made CH₃O₂· sometimes falls apart again in the live simulation within a picosecond of
+  its skip (the CH₃–OO bond is too weak while the product is still hot), and is remade on the next one.
 - A ground-state O atom's abstraction from methane is placed with the oxygen swung round onto the
   carbon (the scan's path bends that way on this spinless surface), so the CH₃· and ·OH pair up at once
   and some trials fail; holding the path straight made the barrier worse (README, What was tried).
