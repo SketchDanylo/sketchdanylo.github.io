@@ -778,6 +778,31 @@ body.vs-engine .engine-toggle { opacity: 1; transform: none; pointer-events: aut
 .engine-toggle.paused .i-play { display: block; fill: currentColor; stroke: none; }
 .engine-toggle.paused .i-pause { display: none; }
 
+
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+.ic { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.pill, button.link, .segmented button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.pill .ic { width: 16px; height: 16px; }
+button.link .ic { width: 15px; height: 15px; }
+.icon, .pill, .tabbar button { touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.icon[hidden], .pill[hidden], button.link[hidden] { display: none; }
+.icon.sm { width: 34px; height: 34px; border-radius: 11px; }
+.icon.sm .ic { width: 16px; height: 16px; }
+.icon.on { background: rgba(127, 214, 160, 0.18); border-color: rgba(127, 214, 160, 0.5); color: #c9f2d8; }
+.i-pause { display: none; }
+.playing .i-play { display: none; }
+.playing .i-pause { display: block; }
+.dot { display: inline-block; flex: none; width: 11px; height: 11px; border-radius: 50%; }
+.dot.w { background: #f1f2f4; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3); }
+.dot.b { background: #1b1d22; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.45); }
+.lbl-short { display: none; }
+.engine-state:not(.error) span { display: none; }
+.engine-state { margin-left: 10px; }
+.board.scrubbing .pc { transition-duration: 70ms; }
+.card { backdrop-filter: blur(26px) saturate(1.4); -webkit-backdrop-filter: blur(26px) saturate(1.4); background: rgba(20, 21, 26, 0.5); }
+#step-play { width: 44px; padding: 0; }
+#solve-run .i-play, #solve-run .i-pause { width: 15px; height: 15px; }
+
 .tabbar, .more-btn, .sheet { display: none; }
 
 .solve-card { display: none; }
@@ -907,7 +932,7 @@ body.solving .solve-card { display: block; }
   .sheet-sec { margin-bottom: 20px; }
   .sheet-sec h3 { margin: 0 0 10px; font-size: 0.72rem; font-weight: 650; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); }
   .sheet-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .sheet-actions .pill, .sheet-actions .link { height: 46px; display: grid; place-items: center; padding: 0 12px; border: 1px solid var(--rule-soft); border-radius: 999px; background: var(--glass); color: var(--text); font-size: 0.9rem; font-weight: 600; text-decoration: none; }
+  .sheet-actions .pill, .sheet-actions .link { height: 46px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 12px; border: 1px solid var(--rule-soft); border-radius: 999px; background: var(--glass); color: var(--text); font-size: 0.9rem; font-weight: 600; text-decoration: none; }
   .sheet .toggles { margin: 0; padding: 0; border: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 12px; }
   .sheet .tg { font-size: 0.92rem; }
   .sheet .segmented button { font-size: 0.74rem; padding: 0 4px; }
@@ -918,10 +943,64 @@ body.solving .solve-card { display: block; }
   .sheet .pp-menu button { width: 100%; height: 44px; }
   .sheet .credits { margin: 4px 2px 0; }
 }
+
+@media (max-width: 720px) and (orientation: portrait) {
+  :root { --tabs: 36px; }
+  body {
+    background:
+      radial-gradient(120% 55% at 50% 22%, rgba(88, 112, 190, 0.28), transparent 62%),
+      radial-gradient(90% 45% at 0% 85%, rgba(128, 96, 210, 0.2), transparent 65%),
+      radial-gradient(80% 40% at 100% 70%, rgba(70, 150, 140, 0.14), transparent 65%),
+      #08090d;
+    background-attachment: fixed;
+  }
+  .layout { position: relative; }
+  .title { background: transparent; }
+
+  .moves-card, .feedback-card { background: rgba(18, 20, 28, 0.5); backdrop-filter: blur(22px) saturate(1.5); -webkit-backdrop-filter: blur(22px) saturate(1.5); }
+  .tabbar { position: relative; z-index: 4; height: var(--tabs); background: rgba(16, 18, 26, 0.5); backdrop-filter: blur(24px) saturate(1.6); -webkit-backdrop-filter: blur(24px) saturate(1.6); }
+  .controls { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; border-top: 1px solid var(--rule-soft); background: rgba(14, 16, 24, 0.5); backdrop-filter: blur(26px) saturate(1.6); -webkit-backdrop-filter: blur(26px) saturate(1.6); }
+  #view-game > .card[data-panel] { margin-top: calc(var(--tabs) * -1); padding-top: calc(var(--tabs) + 10px); padding-bottom: calc(var(--dock) + 16px + env(safe-area-inset-bottom)); }
+  .side > .view:not([hidden]) { padding-bottom: calc(var(--dock) + 16px + env(safe-area-inset-bottom)); }
+
+  .tabbar button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+  .tabbar .ic { width: 17px; height: 17px; }
+  .tabbar button span { display: none; }
+  .tabbar button.on span { display: inline; }
+  body.solving .tabbar [data-tab="solve"]::after { top: 5px; right: 12px; }
+
+  .actions #solve-toggle { width: 48px; padding: 0; }
+  .actions #solve-toggle span { display: none; }
+  .actions #solve-toggle .ic { width: 20px; height: 20px; }
+  .fb-actions .lbl { display: none; }
+  .fb-actions .pill { padding: 0 11px; }
+  .lbl-long { display: none; }
+  .lbl-short { display: inline; }
+  .hint { display: none; }
+
+  .sheet-backdrop { background: rgba(0, 0, 0, 0.42); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  .sheet-panel { background: rgba(22, 24, 32, 0.72); backdrop-filter: blur(30px) saturate(1.6); -webkit-backdrop-filter: blur(30px) saturate(1.6); }
+}
 </style>
 </head>
 <body>
 <canvas class="space-bg" id="space-bg" aria-hidden="true"></canvas>
+<svg class="sprite" width="0" height="0" aria-hidden="true"><defs>
+<symbol id="i-book" viewBox="0 0 24 24"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/></symbol>
+<symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2.5"/><rect x="10" y="10" width="4" height="4" rx="1"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></symbol>
+<symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></symbol>
+<symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19z"/><path d="M14.5 6.5l3 3"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8"/></symbol>
+<symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1.1.9-1.1 1.7M12 16.8h.01"/></symbol>
+<symbol id="i-undo" viewBox="0 0 24 24"><path d="M8 5L4 9l4 4"/><path d="M4 9h9.5a5.5 5.5 0 0 1 0 11H9"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10-6.5z"/></symbol>
+<symbol id="i-pause" viewBox="0 0 24 24"><path d="M9 6v12M15 6v12"/></symbol>
+<symbol id="i-stop" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2.2"/></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 21a2 2 0 0 0 4 0"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="12" r="5"/><circle cx="15" cy="12" r="5"/></symbol>
+<symbol id="i-back" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+</defs></svg>
 
 <div class="page">
 <h1 class="title">
@@ -956,9 +1035,9 @@ body.solving .solve-card { display: block; }
           <button class="icon pp-current" id="pp-current" title="Style" aria-label="Choose pieces and board"></button>
           <div class="pp-menu" id="pp-menu"><div class="pp-row" id="pp-pieces"></div><div class="pp-row" id="pp-boards"></div></div>
         </div>
-        <button class="pill" id="edit-toggle">Edit position</button>
-        <button class="pill" id="new-game">New game</button>
-        <button class="pill accent" id="solve-toggle" aria-pressed="false" title="Search deeper than usual and play the position out">Solve</button>
+        <button class="pill" id="edit-toggle" title="Edit position"><svg class="ic"><use href="#i-pencil"/></svg><span>Edit position</span></button>
+        <button class="pill" id="new-game" title="New game"><svg class="ic"><use href="#i-plus"/></svg><span>New game</span></button>
+        <button class="pill accent" id="solve-toggle" aria-pressed="false" title="Solve — search deeper and play the position out"><svg class="ic"><use href="#i-target"/></svg><span>Solve</span></button>
         <button class="icon more-btn" id="more-btn" aria-label="Menu"><svg viewBox="0 0 24 24"><path d="M5 12h.01M12 12h.01M19 12h.01" stroke-width="3.2"/></svg></button>
       </div>
     </div>
@@ -970,9 +1049,9 @@ body.solving .solve-card { display: block; }
       <div class="mode-row">
         <div class="segmented" id="mode" role="radiogroup" aria-label="Opponent">
           <span class="seg-glider"></span>
-          <button data-mode="both" class="on" role="radio">Both sides</button>
-          <button data-mode="w" role="radio">vs engine · White</button>
-          <button data-mode="b" role="radio">vs engine · Black</button>
+          <button data-mode="both" class="on" role="radio" title="Move both sides"><svg class="ic"><use href="#i-users"/></svg><span class="lbl-long">Both sides</span><span class="lbl-short">Both</span></button>
+          <button data-mode="w" role="radio" title="You play White against the engine"><i class="dot w"></i><span class="lbl-long">vs engine · White</span><span class="lbl-short">White</span></button>
+          <button data-mode="b" role="radio" title="You play Black against the engine"><i class="dot b"></i><span class="lbl-long">vs engine · Black</span><span class="lbl-short">Black</span></button>
         </div>
         <button class="icon engine-toggle" id="engine-toggle" title="Pause the engine — you move for it" aria-label="Pause engine" aria-pressed="false">
           <svg class="i-pause" viewBox="0 0 24 24"><path d="M9 6v12M15 6v12"/></svg>
@@ -989,9 +1068,9 @@ body.solving .solve-card { display: block; }
       </section>
 
       <div class="tabbar" id="tabbar" role="tablist">
-        <button class="on" role="tab" data-tab="opening">Opening</button>
-        <button role="tab" data-tab="engine">Engine</button>
-        <button role="tab" data-tab="solve">Solve</button>
+        <button class="on" role="tab" data-tab="opening" aria-label="Opening"><svg class="ic"><use href="#i-book"/></svg><span>Opening</span></button>
+        <button role="tab" data-tab="engine" aria-label="Engine"><svg class="ic"><use href="#i-cpu"/></svg><span>Engine</span></button>
+        <button role="tab" data-tab="solve" aria-label="Solve"><svg class="ic"><use href="#i-target"/></svg><span>Solve</span></button>
       </div>
 
       <section class="card solve-card" id="solve-card" data-panel="solve">
@@ -1002,8 +1081,9 @@ body.solving .solve-card { display: block; }
         <p class="solve-verdict" id="solve-verdict"></p>
         <p class="solve-sub" id="solve-sub"></p>
         <div class="solve-actions">
-          <button class="pill solid" id="solve-run">Start solving</button>
-          <button class="link" id="solve-off">Stop solving</button>
+          <button class="pill solid" id="solve-run" title="Start solving"><svg class="ic i-play"><use href="#i-play"/></svg><svg class="ic i-pause"><use href="#i-pause"/></svg><span>Start solving</span></button>
+          <button class="icon sm" id="solve-off" title="Stop solving" aria-label="Stop solving"><svg class="ic"><use href="#i-stop"/></svg></button>
+          <button class="icon sm" id="solve-bell" title="Notify me when it finishes" aria-label="Notify me when it finishes" aria-pressed="false"><svg class="ic"><use href="#i-bell"/></svg></button>
         </div>
         <div class="solve-line" id="solve-line"></div>
         <div class="solve-log-head" id="solve-log-head">Moves vs the outcome</div>
@@ -1013,7 +1093,7 @@ body.solving .solve-card { display: block; }
       <section class="card engine-card" data-panel="engine">
         <div class="card-head">
           <h2>Engine <span class="engine-state" id="engine-state"><i></i><span>loading</span></span></h2>
-          <span class="depth" id="depth"><span class="depth-track"><span class="depth-fill" id="depth-fill"></span></span><span id="depth-text">depth –</span></span>
+          <span class="depth" id="depth"><span class="depth-track"><span class="depth-fill" id="depth-fill"></span></span><span id="depth-text" title="Search depth">–</span></span>
         </div>
         <ol class="lines" id="lines"></ol>
         <div class="toggles">
@@ -1025,7 +1105,7 @@ body.solving .solve-card { display: block; }
       </section>
 
       <section class="card moves-card">
-        <div class="card-head"><h2>Moves</h2><button class="link" id="copy-pgn">Copy PGN</button></div>
+        <div class="card-head"><h2>Moves</h2><button class="link" id="copy-pgn" title="Copy PGN"><svg class="ic"><use href="#i-copy"/></svg><span>Copy PGN</span></button></div>
         <ol class="movelist" id="movelist"></ol>
       </section>
     </div>
@@ -1034,7 +1114,7 @@ body.solving .solve-card { display: block; }
     <div class="view" id="view-explore" hidden>
       <section class="card explore-card">
         <div class="card-head">
-          <button class="link back-link" id="explore-exit">← Back to game</button>
+          <button class="link back-link" id="explore-exit" title="Back to game"><svg class="ic"><use href="#i-back"/></svg><span>Back to game</span></button>
           <span class="chip" id="explore-chip"></span>
         </div>
         <h2 class="explore-title" id="explore-title"></h2>
@@ -1048,13 +1128,13 @@ body.solving .solve-card { display: block; }
         <ol class="steps" id="steps"></ol>
         <div class="stepper">
           <button class="icon" id="step-back" aria-label="Previous step"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
-          <button class="pill" id="step-play">Play line</button>
+          <button class="pill" id="step-play" title="Play line" aria-label="Play line"><svg class="ic i-play"><use href="#i-play"/></svg><svg class="ic i-pause"><use href="#i-pause"/></svg></button>
           <button class="icon" id="step-forward" aria-label="Next step"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
         </div>
         <p class="legend">
-          <span><i class="lg attack"></i>attacks on your pieces</span>
+          <span><i class="lg attack"></i>attacked</span>
           <span><i class="lg shield"></i>defended</span>
-          <span><i class="lg target"></i>loose enemy piece</span>
+          <span><i class="lg target"></i>loose</span>
         </p>
       </section>
     </div>
@@ -1063,7 +1143,7 @@ body.solving .solve-card { display: block; }
     <div class="view" id="view-edit" hidden>
       <section class="card edit-card">
         <div class="card-head"><h2>Set up a position</h2></div>
-        <p class="hint">Drag pieces onto the board, or pick one and paint. Drag a piece off the board (or right-click it) to remove it.</p>
+        <p class="hint">Drag pieces on · drag off to remove</p>
         <div class="palette" id="palette"></div>
         <div class="edit-row">
           <span class="label">To move</span>
@@ -1076,10 +1156,10 @@ body.solving .solve-card { display: block; }
         <div class="edit-row castles">
           <span class="label">Castling</span>
           <div class="castle-grid">
-            <label class="tg"><input type="checkbox" data-castle="K" checked><span class="sw"></span>White O-O</label>
-            <label class="tg"><input type="checkbox" data-castle="Q" checked><span class="sw"></span>White O-O-O</label>
-            <label class="tg"><input type="checkbox" data-castle="k" checked><span class="sw"></span>Black O-O</label>
-            <label class="tg"><input type="checkbox" data-castle="q" checked><span class="sw"></span>Black O-O-O</label>
+            <label class="tg"><input type="checkbox" data-castle="K" checked><span class="sw"></span><i class="dot w"></i>O-O</label>
+            <label class="tg"><input type="checkbox" data-castle="Q" checked><span class="sw"></span><i class="dot w"></i>O-O-O</label>
+            <label class="tg"><input type="checkbox" data-castle="k" checked><span class="sw"></span><i class="dot b"></i>O-O</label>
+            <label class="tg"><input type="checkbox" data-castle="q" checked><span class="sw"></span><i class="dot b"></i>O-O-O</label>
           </div>
         </div>
         <label class="fen-field">
@@ -4740,6 +4820,24 @@ class Engine {
     else this.pump();
   }
 
+  exportCache(limit = 250) {
+    const rows = [];
+    for (const [fen, entry] of this.cache) {
+      if (!entry.solved && (entry.complete || 0) < 24) continue;
+      const lines = entry.lines.filter(Boolean).slice(0, 3).map(line => [line.cp, line.mate, line.pv.slice(0, 40).join(' '), line.depth]);
+      rows.push([fen, { d: entry.depth, c: entry.complete || 0, s: entry.solved ? 1 : 0, m: entry.multiDone || 0, l: lines }]);
+    }
+    return rows.slice(-limit);
+  }
+
+  importCache(rows) {
+    for (const [fen, data] of rows) {
+      if (this.cache.has(fen)) continue;
+      const lines = data.l.map(([cp, mate, pv, depth]) => ({ cp, mate, pv: pv.split(' '), depth }));
+      this.cache.set(fen, { depth: data.d, complete: data.c, solved: !!data.s, multiDone: data.m, lines });
+    }
+  }
+
   solve(fen) {
     const job = { fen, depth: 99, multipv: 1, kind: 'view', solve: true };
     const entry = this.cache.get(fen);
@@ -6508,6 +6606,7 @@ const engineState = $('engine-state');
 function setEngineState(kind, text) {
   engineState.className = `engine-state ${kind}`;
   engineState.querySelector('span').textContent = text;
+  engineState.title = text;
 }
 if (engine.failed) setEngineState('error', 'unavailable');
 
@@ -6527,6 +6626,13 @@ engine.on(message => {
     scheduleSoft();
     if (state.waitingEngine === message.fen) tryEngineReply(true);
     tickPlayout();
+    if (state.solving) {
+      saveCacheSoon();
+      if (message.job && message.job.settled && message.fen === state.nodes[state.index].fen) {
+        const result = evalOf(message.fen);
+        if (result) notifyDone(outcomeOf(result.score).text);
+      }
+    }
   }
 });
 
@@ -6672,10 +6778,18 @@ function refresh() {
   }
   board.setHighlights({ lastMove, check });
   board.setMovable(canMove(fen) ? legalMap(fen) : null);
+  if (state.scrubbing) {
+    board.setArrows([]);
+    board.setMarks([]);
+    renderMoveList();
+    updateNavButtons();
+    return;
+  }
   analyzeView();
   softUpdate();
   renderMoveList();
   updateNavButtons();
+  if (state.solving) saveSession();
 }
 
 function canMove(fen) {
@@ -6866,17 +6980,17 @@ function renderLines() {
   const depthFill = $('depth-fill');
   if (end) {
     list.innerHTML = `<li class="placeholder">${end.text}.</li>`;
-    depthText.textContent = 'final';
+    depthText.textContent = '✓';
     depthFill.style.width = '100%';
     return;
   }
   if (!entry || !entry.lines.length) {
     list.innerHTML = `<li class="placeholder">${engine.failed ? 'The engine could not start in this browser.' : 'Analysing…'}</li>`;
-    depthText.textContent = 'depth –';
+    depthText.textContent = '–';
     depthFill.style.width = '0%';
     return;
   }
-  depthText.textContent = `depth ${entry.depth}`;
+  depthText.textContent = String(entry.depth);
   depthFill.style.width = `${Math.min(100, (entry.depth / VIEW_DEPTH) * 100)}%`;
   const seen = new Set();
   const rows = [];
@@ -6893,7 +7007,7 @@ function renderLines() {
     rows.push(`<li data-uci="${line.pv[0]}" class="${line.depth < floor - 2 ? 'stale' : ''}"><span class="score ${negative ? 'neg' : ''}">${formatScore(score)}</span><span class="pv"><b>${first}</b> ${rest.join(' ')}</span></li>`);
   }
   const html = rows.join('');
-  if (list._html !== html) { list.innerHTML = html; list._html = html; }
+  if (list._html !== html) { patchHtml(list, html); list._html = html; }
 }
 
 $('lines').addEventListener('click', event => {
@@ -7084,7 +7198,7 @@ function refreshCard() {
   if (!html || html === cardHtml) return;
   cardHtml = html;
   const content = cardBody.firstElementChild;
-  if (content && !content.classList.contains('swap')) content.innerHTML = html;
+  if (content && !content.classList.contains('swap')) patchHtml(content, html);
 }
 
 function swapCardContent(html, animate) {
@@ -7203,8 +7317,8 @@ function renderFeedback() {
     const serious = ['inaccuracy', 'mistake', 'blunder'].includes(kind);
     actions = `<div class="fb-actions">
       ${bestSan ? `<button class="pill best-chip" data-act="best" data-uci="${bestUci}" data-index="${i}" title="Engine's choice">${bestSan}</button>` : ''}
-      <button class="pill why" data-act="why" data-index="${i}">${serious ? 'Why?' : 'Compare'}</button>
-      ${serious ? `<button class="pill" data-act="retry" data-index="${i}" title="Take it back">↺</button>` : ''}
+      <button class="pill why" data-act="why" data-index="${i}" title="${serious ? 'Why was it worse?' : 'Compare with the best move'}" aria-label="${serious ? 'Why' : 'Compare'}"><svg class="ic"><use href="#i-help"/></svg><span class="lbl">${serious ? 'Why?' : 'Compare'}</span></button>
+      ${serious ? `<button class="pill" data-act="retry" data-index="${i}" title="Take it back" aria-label="Take it back"><svg class="ic"><use href="#i-undo"/></svg></button>` : ''}
     </div>`;
   }
   const title = kind === 'pending' ? label : `${label} <span class="fb-kind t-${kind}">${classLabel(kind)}</span>`;
@@ -7265,9 +7379,7 @@ function renderMoveList() {
         color = other(color);
       }
       // Keep existing rows still; only the new ones animate in.
-      const old = list.querySelectorAll('.mv').length;
-      list.innerHTML = html;
-      list.querySelectorAll('.mv').forEach((el, k) => { if (k < old) el.style.animation = 'none'; });
+      patchHtml(list, html);
     }
   }
   list.querySelectorAll('.mv').forEach(el => el.classList.toggle('cur', Number(el.dataset.i) === state.index));
@@ -7364,7 +7476,7 @@ function renderExplore() {
   }).join('');
   const steps = $('steps');
   if (steps._html !== rows) {
-    steps.innerHTML = rows;
+    patchHtml(steps, rows);
     steps._html = rows;
     scrollWithin(steps, steps.querySelector('li.cur'));
   }
@@ -7422,8 +7534,8 @@ $('steps').addEventListener('click', event => {
   const row = event.target.closest('li[data-step]');
   if (row) { stopAutoplay(); setStep(Number(row.dataset.step)); }
 });
-$('step-back').addEventListener('click', () => { stopAutoplay(); setStep(state.explore.step - 1); });
-$('step-forward').addEventListener('click', () => { stopAutoplay(); setStep(state.explore.step + 1); });
+holdRepeat($('step-back'), 'back');
+holdRepeat($('step-forward'), 'forward');
 $('explore-exit').addEventListener('click', () => closeExplore());
 
 let autoplay = 0;
@@ -7431,7 +7543,7 @@ $('step-play').addEventListener('click', () => {
   if (autoplay) { stopAutoplay(); return; }
   const line = currentLine();
   if (state.explore.step >= line.length - 1) setStep(0);
-  $('step-play').textContent = 'Pause';
+  $('step-play').classList.add('playing');
   autoplay = setInterval(() => {
     if (!state.explore || state.explore.step >= currentLine().length - 1) { stopAutoplay(); return; }
     setStep(state.explore.step + 1);
@@ -7440,7 +7552,7 @@ $('step-play').addEventListener('click', () => {
 function stopAutoplay() {
   clearInterval(autoplay);
   autoplay = 0;
-  $('step-play').textContent = 'Play line';
+  $('step-play').classList.remove('playing');
 }
 
 setupSegmented($('explore-tabs'), value => {
@@ -7742,8 +7854,8 @@ function setOrientation(color) {
 
 $('flip').addEventListener('click', () => setOrientation(state.orientation === 'w' ? 'b' : 'w'));
 $('nav-start').addEventListener('click', () => navigate('start'));
-$('nav-back').addEventListener('click', () => navigate('back'));
-$('nav-forward').addEventListener('click', () => navigate('forward'));
+holdRepeat($('nav-back'), 'back');
+holdRepeat($('nav-forward'), 'forward');
 $('nav-end').addEventListener('click', () => navigate('end'));
 $('new-game').addEventListener('click', () => {
   if (state.playout) setPlayout(false);
@@ -7836,13 +7948,51 @@ function navigate(where) {
   if (state.explore) {
     const line = currentLine();
     stopAutoplay();
-    const step = { start: 0, back: state.explore.step - 1, forward: state.explore.step + 1, end: line.length - 1 }[where];
+    const before = state.explore.step;
+    const step = { start: 0, back: before - 1, forward: before + 1, end: line.length - 1 }[where];
     setStep(step);
-    return;
+    return state.explore.step !== before;
   }
-  if (state.editing) return;
-  const index = { start: 0, back: state.index - 1, forward: state.index + 1, end: state.nodes.length - 1 }[where];
+  if (state.editing) return false;
+  const before = state.index;
+  const index = { start: 0, back: before - 1, forward: before + 1, end: state.nodes.length - 1 }[where];
   goTo(index);
+  return state.index !== before;
+}
+
+function holdRepeat(button, where) {
+  let timer = 0;
+  let pressed = false;
+  const stop = () => {
+    clearTimeout(timer);
+    timer = 0;
+    if (!pressed) return;
+    pressed = false;
+    if (state.scrubbing) {
+      state.scrubbing = false;
+      $('board').classList.remove('scrubbing');
+      refresh();
+    }
+  };
+  button.addEventListener('pointerdown', event => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    event.preventDefault();
+    pressed = true;
+    try { button.setPointerCapture(event.pointerId); } catch (error) { pressed = true; }
+    if (!navigate(where)) return;
+    let ticks = 0;
+    const loop = () => {
+      state.scrubbing = true;
+      $('board').classList.add('scrubbing');
+      if (!navigate(where)) { stop(); return; }
+      ticks++;
+      timer = setTimeout(loop, Math.max(40, 120 - ticks * 6));
+    };
+    timer = setTimeout(loop, 380);
+  });
+  for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) button.addEventListener(type, stop);
+  button.addEventListener('click', event => { if (event.detail === 0) navigate(where); });
+  button.addEventListener('contextmenu', event => event.preventDefault());
 }
 
 function updateNavButtons() {
@@ -7883,7 +8033,7 @@ function morph(el, html, key) {
   if (el.dataset.key === key) {
     if (el._html === html || el._pending) return;
     const from = el.offsetHeight;
-    inner.innerHTML = html;
+    patchHtml(inner, html);
     el._html = html;
     glideHeight(el, from);
     return;
@@ -7905,6 +8055,41 @@ function morph(el, html, key) {
   }, 170);
 }
 
+function patchNode(current, next) {
+  if (current.nodeType !== next.nodeType || current.nodeName !== next.nodeName) {
+    current.replaceWith(next.cloneNode(true));
+    return;
+  }
+  if (current.nodeType === 3) {
+    if (current.nodeValue !== next.nodeValue) current.nodeValue = next.nodeValue;
+    return;
+  }
+  if (current.nodeType !== 1) return;
+  for (const attr of [...current.attributes]) {
+    if (!next.hasAttribute(attr.name) && attr.name !== 'style' && attr.name !== 'title') current.removeAttribute(attr.name);
+  }
+  for (const attr of next.attributes) {
+    if (current.getAttribute(attr.name) !== attr.value) current.setAttribute(attr.name, attr.value);
+  }
+  patchChildren(current, next);
+}
+
+function patchChildren(current, next) {
+  const have = current.childNodes;
+  const want = next.childNodes;
+  for (let i = 0; i < want.length; i++) {
+    if (i < have.length) patchNode(have[i], want[i]);
+    else current.appendChild(want[i].cloneNode(true));
+  }
+  while (have.length > want.length) current.removeChild(have[have.length - 1]);
+}
+
+function patchHtml(el, html) {
+  const template = document.createElement('template');
+  template.innerHTML = html;
+  patchChildren(el, template.content);
+}
+
 function glideHeight(el, from) {
   const to = el.firstElementChild.offsetHeight;
   if (Math.abs(to - from) < 1) return;
@@ -7922,7 +8107,7 @@ function scrollWithin(box, row) {
     const b = box.getBoundingClientRect();
     const r = row.getBoundingClientRect();
     const left = r.left - b.left + box.scrollLeft;
-    box.scrollTo({ left: Math.max(0, left - (b.width - r.width) / 2), behavior: 'smooth' });
+    box.scrollTo({ left: Math.max(0, left - (b.width - r.width) / 2), behavior: state.scrubbing ? 'auto' : 'smooth' });
     return;
   }
   const top = row.offsetTop - box.offsetTop;
@@ -8274,19 +8459,23 @@ function compareOutcome(before, after, mover, turnBefore) {
 function setHtml(el, html) {
   if (el._html === html) return;
   el._html = html;
-  el.innerHTML = html;
+  patchHtml(el, html);
 }
 
 function renderSolve() {
   const stateEl = $('solve-state');
   const log = $('solve-log');
-  $('solve-run').textContent = !state.solving ? 'Start solving' : state.playout ? 'Pause' : 'Play it out';
+  const run = $('solve-run');
+  run.classList.toggle('playing', state.playout);
+  const runLabel = !state.solving ? 'Start solving' : state.playout ? 'Pause' : 'Play it out';
+  run.title = runLabel;
+  run.querySelector('span').textContent = runLabel;
   $('solve-off').hidden = !state.solving;
   if (!state.solving) {
     stateEl.className = 'engine-state';
     stateEl.querySelector('span').textContent = 'off';
     setHtml($('solve-verdict'), '<span>Find the forced win</span>');
-    setHtml($('solve-sub'), 'Searches far past the normal depth until a forced mate shows up, then plays the line out. Make your own moves at any time and it tracks whether they change the outcome.');
+    setHtml($('solve-sub'), 'Searches past the normal depth for a forced mate, then plays it out. Move any time to see if you change the outcome.');
     setHtml($('solve-meta'), '');
     setHtml($('solve-line'), '');
     $('solve-log-head').hidden = true;
@@ -8313,22 +8502,23 @@ function renderSolve() {
   let sub = '';
   if (!end) {
     if (entry && entry.solved) {
-      sub = `Mate confirmed at depth ${entry.depth}`;
+      sub = `Confirmed · depth ${entry.depth}`;
     } else if (entry) {
       const found = result && result.score.mate != null;
-      sub = `Searching · depth ${entry.depth} · ${seconds}s`;
-      if (found) sub += ' · refining the mate length';
-      else if (entry.depth >= 30) sub += ' · no forced mate found yet';
+      sub = `Depth ${entry.depth} · ${seconds}s`;
+      if (found) sub += ' · refining';
+      else if (entry.depth >= 30) sub += ' · no mate yet';
     } else {
-      sub = `Searching · ${seconds}s`;
+      sub = `${seconds}s`;
     }
   }
   setHtml($('solve-sub'), sub);
-  setHtml($('solve-meta'), state.playout ? 'playing out' : '');
+  setHtml($('solve-meta'), state.playout ? 'playing' : '');
 
   const settled = end || (entry && entry.solved);
   stateEl.className = `engine-state ${settled ? 'idle' : 'thinking'}`;
   stateEl.querySelector('span').textContent = end ? 'final' : settled ? 'confirmed' : 'searching';
+  stateEl.title = stateEl.querySelector('span').textContent;
 
   let lineHtml = '';
   if (result && result.pv && result.pv.length) {
@@ -8371,8 +8561,10 @@ function setSolving(on) {
   if (!on && state.playout) setPlayout(false);
   if (on) {
     setTab('solve');
-    toast('Solving · searching past the normal depth');
+    toast('Solving · keeps going in the background');
   }
+  syncWakeLock();
+  saveSession();
   analyzeView();
   softUpdate();
 }
@@ -8392,20 +8584,20 @@ function setPlayout(on) {
   } else {
     state.playout = false;
   }
+  saveSession();
   renderSolve();
 }
 
 function stopPlayoutWith(text) {
   setPlayout(false);
   toast(text);
+  notifyDone(text);
 }
 
 function tickPlayout() {
   if (!state.playout || state.explore || state.editing) return;
   if (state.index !== state.nodes.length - 1) return;
   const fen = state.nodes[state.index].fen;
-  if (state.playoutFor === fen) return;
-  clearTimeout(state.playoutTimer);
   const end = terminal(fen);
   if (end) { stopPlayoutWith(end.text); return; }
   const key = value => value.split(' ').slice(0, 4).join(' ');
@@ -8414,8 +8606,9 @@ function tickPlayout() {
   if (state.playoutPlies >= PLAYOUT_MAX_PLIES) { stopPlayoutWith(`Stopped after ${PLAYOUT_MAX_PLIES} moves`); return; }
   const entry = engine.entry(fen);
   const best = entry && entry.lines[0];
-  if (!best) { state.playoutTimer = setTimeout(tickPlayout, 500); return; }
-  const elapsed = performance.now() - (state.solveStart || 0);
+  if (!best) return;
+  const now = performance.now();
+  const elapsed = now - (state.solveStart || 0);
   const found = best.mate !== null && best.mate !== undefined;
   const decisive = !found && Math.abs(best.cp) >= 1000;
   const due = entry.solved
@@ -8423,17 +8616,15 @@ function tickPlayout() {
     || entry.depth >= (decisive ? 64 : PLAYOUT_MIN_DEPTH + 8)
     || (!decisive && entry.depth >= PLAYOUT_MIN_DEPTH && elapsed >= PLAYOUT_MIN_MS)
     || (entry.depth >= 14 && elapsed >= PLAYOUT_MAX_MS);
-  if (!due) { state.playoutTimer = setTimeout(tickPlayout, 400); return; }
-  state.playoutFor = fen;
-  const wait = Math.max(0, PLAYOUT_PACE_MS - (performance.now() - (state.lastMoveAt || 0)));
-  state.playoutTimer = setTimeout(() => {
-    state.playoutFor = null;
-    if (!state.playout || state.index !== state.nodes.length - 1 || state.nodes[state.index].fen !== fen) return;
-    const latest = engine.entry(fen);
-    const uci = latest && latest.lines[0] ? latest.lines[0].pv[0] : best.pv[0];
-    state.playoutPlies++;
-    play(uci, { byEngine: true, auto: true });
-  }, wait);
+  if (!due) { state.playoutDue = 0; return; }
+  if (!state.playoutDue || state.playoutFen !== fen) {
+    state.playoutFen = fen;
+    state.playoutDue = now + Math.max(0, PLAYOUT_PACE_MS - (now - (state.lastMoveAt || 0)));
+  }
+  if (now < state.playoutDue) return;
+  state.playoutDue = 0;
+  state.playoutPlies++;
+  play(entry.lines[0].pv[0], { byEngine: true, auto: true });
 }
 
 $('solve-toggle').addEventListener('click', () => setSolving(!state.solving));
@@ -8446,7 +8637,154 @@ $('solve-log').addEventListener('click', event => {
   const row = event.target.closest('li[data-i]');
   if (row) goTo(Number(row.dataset.i));
 });
-setInterval(() => { if (state.solving && !state.explore && !state.editing) renderSolve(); }, 1000);
+function onTick() {
+  if (state.playout) tickPlayout();
+  if (!document.hidden && state.solving && !state.explore && !state.editing) renderSolve();
+}
+
+function startTicker() {
+  try {
+    const url = URL.createObjectURL(new Blob(['setInterval(() => postMessage(0), 500);'], { type: 'text/javascript' }));
+    const worker = new Worker(url);
+    worker.onmessage = onTick;
+  } catch (error) {
+    setInterval(onTick, 500);
+  }
+}
+
+const SESSION_KEY = 'chess-coach-session';
+const CACHE_KEY = 'chess-coach-cache';
+const NOTIFY_KEY = 'chess-coach-notify';
+
+function saveSession() {
+  try {
+    if (!state.solving) { localStorage.removeItem(SESSION_KEY); return; }
+    localStorage.setItem(SESSION_KEY, JSON.stringify({
+      start: state.nodes[0].fen,
+      moves: state.nodes.slice(1).map(node => node.uci + (node.auto ? '*' : '')),
+      index: state.index,
+      mode: state.mode,
+      orientation: state.orientation,
+      playout: state.playout
+    }));
+  } catch (error) {
+    return;
+  }
+}
+
+function saveCacheNow() {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(engine.exportCache())); } catch (error) { return; }
+}
+
+let cacheTimer = 0;
+function saveCacheSoon() {
+  if (cacheTimer) return;
+  cacheTimer = setTimeout(() => { cacheTimer = 0; saveCacheNow(); }, 3000);
+}
+
+function loadCache() {
+  try {
+    const rows = JSON.parse(localStorage.getItem(CACHE_KEY) || '[]');
+    if (Array.isArray(rows)) engine.importCache(rows);
+  } catch (error) {
+    return;
+  }
+}
+
+function restoreSession() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch (error) { return null; }
+  if (!saved || typeof saved.start !== 'string' || !Array.isArray(saved.moves)) return null;
+  try {
+    const nodes = [{ fen: saved.start }];
+    let fen = saved.start;
+    for (const entry of saved.moves) {
+      const auto = entry.endsWith('*');
+      const uci = auto ? entry.slice(0, -1) : entry;
+      const chess = chessAt(fen);
+      const move = moveFromUci(chess, uci);
+      if (!move) break;
+      fen = chess.fen();
+      nodes.push({ fen, move, uci, byEngine: auto, auto });
+    }
+    state.nodes = nodes;
+    state.index = Math.max(0, Math.min(Number(saved.index) || 0, nodes.length - 1));
+    if (['both', 'w', 'b'].includes(saved.mode)) {
+      state.mode = saved.mode;
+      setSegmented($('mode'), saved.mode);
+      document.body.classList.toggle('vs-engine', saved.mode !== 'both');
+    }
+    if (saved.orientation === 'b' || saved.orientation === 'w') setOrientation(saved.orientation);
+    return saved;
+  } catch (error) {
+    return null;
+  }
+}
+
+function persistAll() {
+  saveSession();
+  saveCacheNow();
+}
+
+let wakeLock = null;
+async function syncWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  try {
+    if (state.solving && !document.hidden) {
+      if (!wakeLock) {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => { wakeLock = null; });
+      }
+    } else if (wakeLock) {
+      await wakeLock.release();
+      wakeLock = null;
+    }
+  } catch (error) {
+    wakeLock = null;
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  syncWakeLock();
+  if (document.hidden) persistAll();
+  else if (state.solving) analyzeView();
+});
+window.addEventListener('pagehide', persistAll);
+
+function paintBell() {
+  const bell = $('solve-bell');
+  bell.classList.toggle('on', state.notify);
+  bell.setAttribute('aria-pressed', state.notify ? 'true' : 'false');
+}
+
+async function setNotify(on) {
+  if (on) {
+    if (!('Notification' in window)) { toast('Notifications aren’t supported here'); return; }
+    let permission = Notification.permission;
+    if (permission === 'default') permission = await Notification.requestPermission();
+    if (permission !== 'granted') { toast('Notifications are blocked'); return; }
+    if ('serviceWorker' in navigator) {
+      try { await navigator.serviceWorker.register('chess-sw.js'); } catch (error) { return; }
+    }
+  }
+  state.notify = on;
+  try { localStorage.setItem(NOTIFY_KEY, on ? '1' : '0'); } catch (error) { state.notify = on; }
+  paintBell();
+  toast(on ? 'You’ll be notified when it finishes' : 'Notifications off');
+}
+
+async function notifyDone(text) {
+  if (!state.notify || !document.hidden) return;
+  try {
+    const registration = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
+    if (registration) await registration.showNotification('Chess Coach', { body: text, tag: 'solve' });
+    else new Notification('Chess Coach', { body: text, tag: 'solve' });
+  } catch (error) {
+    return;
+  }
+}
+
+$('solve-bell').addEventListener('click', () => setNotify(!state.notify));
 
 // ---------- phone layout ----------
 
@@ -8506,6 +8844,11 @@ buildPalette();
 setupBackground();
 applyLayout();
 setTab('opening');
+startTicker();
+loadCache();
+try { state.notify = localStorage.getItem(NOTIFY_KEY) === '1' && 'Notification' in window && Notification.permission === 'granted'; } catch (error) { state.notify = false; }
+paintBell();
+const restored = restoreSession();
 setupHeadingAnimation();
 setupPiecePicker();
 board.setPosition(START, { instant: true });
@@ -8513,6 +8856,11 @@ refresh();
 const placeAllGliders = () => document.querySelectorAll('.segmented').forEach(placeGlider);
 setTimeout(placeAllGliders, 0);
 if (document.fonts) document.fonts.ready.then(placeAllGliders);
+if (restored) {
+  setSolving(true);
+  if (restored.playout) setPlayout(true);
+  toast('Picked up where you left off');
+}
 
 })();
 </script>
