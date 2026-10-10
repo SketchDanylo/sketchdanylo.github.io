@@ -320,7 +320,7 @@ test('Methane and O₂ at 1200 K start the way a flame does, O₂ + CH₄ → CH
   assert.ok(sv.events[0] === a, sv.events[0].label);
 });
 
-test('Cl· meeting C₂H₄Cl· mostly combines to 1,2-dichloroethane; taking a hydrogen instead (vinyl chloride + HCl) is the minor channel', () => {
+test('Cl· meeting C₂H₄Cl· mostly combines to 1,2-dichloroethane; taking a hydrogen instead (vinyl chloride + HCl) is the minor channel, and that hydrogen is the one beside the radical carbon, not on it', () => {
   const e = new Engine({ width: 30, height: 30, depth: 12, T: 298, thermostat: false });
   const g = [['C', 0, 0, 0], ['C', 1.5, 0, 0], ['Cl', -0.6, 1.66, 0], ['H', -0.37, -0.5, 0.89], ['H', -0.37, -0.5, -0.89], ['H', 2.05, 0.93, 0], ['H', 2.05, -0.93, 0]];
   for (const [s, x, y, z] of g) e.addAtom(s, 12 + x, 15 + y, z, { thermal: false });
@@ -329,6 +329,8 @@ test('Cl· meeting C₂H₄Cl· mostly combines to 1,2-dichloroethane; taking a 
   const share = test => sv.events.filter(x => x.reactants.length === 2 && test(x.products.join('+'))).reduce((a, x) => a + x.share, 0);
   const join = share(p => p === 'C2H4Cl2'), split = share(p => p.includes('C2H3Cl'));
   assert.ok(join > 0.5 && join > 3 * split, 'combine ' + join.toFixed(2) + ' vs H-transfer ' + split.toFixed(2));
+  assert.ok(sv.events.every(x => !x.products.includes('C2H3Cl·')), 'the hydrogen comes from the CH₂Cl end, giving vinyl chloride, never from the radical carbon (a carbene): ' + sv.events.map(x => x.label).join(' | '));
+  assert.ok(split > 0, 'vinyl chloride + HCl still possible');
 });
 
 test('One ethene and one Cl₂ under the lamp: after the only Cl₂ splits, Cl· still adds to ethene rather than only rejoining', () => {

@@ -411,6 +411,7 @@ function candidates(src, cap = 24) {
         if (!pp || !pp.bond) continue;
         if (!radical && ELEMENTS[src.type[t]].sym !== 'H') continue;
         if (radical && (src.T || 298) < 700 && ELEMENTS[src.type[t]].sym === 'H' && neighbours(src, t).some(a => pi.has(a) && ELEMENTS[src.type[a]].sym === 'C')) continue;
+        if (radical && src.val[t] === 1 && neighbours(src, t).some(a => free[a] > 0.5)) continue;
         const pk = Math.min(r, t) + ',' + Math.max(r, t);
         if (pairSeen.has(pk)) continue;
         pairSeen.add(pk);

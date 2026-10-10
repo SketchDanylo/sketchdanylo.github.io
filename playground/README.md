@@ -769,7 +769,10 @@ are now always the ones that attack, and it completes in 6 of 6 seeded runs and 
   searched. To get there the skip-ahead's search leaves out what cannot matter: a radical meeting a
   closed-shell molecule is posed from the radical's side only (the hourglass still tries both); a
   radical reaching for a hydrogen on a double-bonded carbon is not searched below 700 K (it is at
-  least 45 kJ/mol uphill beside the addition to the same double bond); a radical bonding onto a
+  least 45 kJ/mol uphill beside the addition to the same double bond); nor for a hydrogen or halogen
+  sitting on another radical's own unpaired carbon (Cl· + ·CH₂CH₂Cl takes the hydrogen from the CH₂Cl
+  end, giving vinyl chloride; taking it from the radical carbon made the carbene ClCH₂CH:, which then
+  swallowed the HCl whole in picoseconds); a radical bonding onto a
   halogen that already holds a bond (R–Cl–Cl·, which the model allows for ClF₃ but which is barely
   bound in reality), or onto an oxygen already holding two single bonds, is not a route; nor is a
   carbon radical knocking a group off an oxygen (CH₃· + HOOCH₃ → CH₃OOCH₃ + H·, 80–90 kJ/mol uphill in
