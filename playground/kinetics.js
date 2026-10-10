@@ -832,7 +832,17 @@ function moveAway(eng, g, from) {
   g.forEach((i, k) => { P[3 * i] = best[0] + rel[k][0]; P[3 * i + 1] = best[1] + rel[k][1]; P[3 * i + 2] = best[2] + rel[k][2]; });
 }
 
-function relocate(eng, g) {
+function spread(eng, keep, room = 6) {
+  const own = new Set(keep), P = eng.pos, f = eng.fragments(), near = room - 1.5;
+  const gap = (g, h) => { let m = Infinity; for (const a of g) for (const c of h) m = Math.min(m, Math.hypot(P[3 * a] - P[3 * c], P[3 * a + 1] - P[3 * c + 1], P[3 * a + 2] - P[3 * c + 2])); return m; };
+  const hot = f.list.filter(g => g.some(i => own.has(i)));
+  const touching = f.list.filter(g => !hot.includes(g) && hot.some(h => gap(g, h) < near));
+  if (touching.length !== 1 || f.list.some(h => h !== touching[0] && !hot.includes(h) && gap(touching[0], h) < near)) return 0;
+  relocate(eng, touching[0], room); eng.touch(); eng.refresh();
+  return 1;
+}
+
+function relocate(eng, g, want = 3.4) {
   const P = eng.pos, b = eng.box, N = eng.N, own = new Set(g);
   let cx = 0, cy = 0, cz = 0;
   for (const a of g) { cx += P[3 * a]; cy += P[3 * a + 1]; cz += P[3 * a + 2]; }
@@ -843,7 +853,7 @@ function relocate(eng, g) {
   const lo = (u0, u1) => [Math.min(u0 + rad, (u0 + u1) / 2), Math.max(u1 - rad, (u0 + u1) / 2)];
   const [xa, xb] = lo(b.x0, b.x1), [ya, yb] = lo(b.y0, b.y1), [za, zb] = lo(b.z0, b.z1);
   let best = null, bestD = -1;
-  for (let t = 0; t < 400 && bestD < 3.4; t++) {
+  for (let t = 0; t < 400 && bestD < want; t++) {
     const x = xa + (xb - xa) * rnd(), y = ya + (yb - ya) * rnd(), z = za + (zb - za) * rnd();
     let d = Infinity;
     for (const a of g) {
@@ -929,5 +939,5 @@ function applyEvent(eng, ev, idx) {
   eng.refresh();
 }
 
-return { scanPair, measured, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, verifyEvent, stillThere, candidates, scanCandidate, combine, context, initiates, needless, survey, pickNext, undoing, passEquilibrium, drop, worthRefining, loosenAll, loosen, untangled, reuse, REFINE, COOL, wanted, coolProducts, UNCERTAINTY };
+return { scanPair, measured, forecast, humanTime, isolate, settle, fromScene, study, applyEvent, verifyEvent, stillThere, candidates, scanCandidate, combine, context, initiates, needless, survey, pickNext, undoing, passEquilibrium, drop, worthRefining, loosenAll, loosen, spread, untangled, reuse, REFINE, COOL, wanted, coolProducts, UNCERTAINTY };
 });
