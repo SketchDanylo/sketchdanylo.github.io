@@ -23,8 +23,10 @@ organic chemistry from, and loose enough to experiment in.
   chance, and skipped to the next one (kinetic Monte Carlo), once or over and over on its own. Each
   reaction is tried on a copy before it is played, so what the chamber shows is what was forecast.
   Under the lamp at room temperature methane goes CH₄ → CH₃Cl → CH₂Cl₂, ethene to
-  1,2-dichloroethane (or 1,2-dibromoethane with Br₂), and H₂ + Cl₂ to HCl, each step 2–50 s of
-  searching. Methane and O₂ at 1200 K start with O₂ + CH₄ → CH₃· + HO₂·. Once radicals are made, they
+  1,2-dichloroethane (or 1,2-dibromoethane with Br₂), and H₂ + Cl₂ to HCl: one photon starts a chain
+  that runs until the chlorine or the ethene is used up. In the dark, ethene and Cl₂ or Br₂ still add on
+  the glass, slowly, as in a real flask. The search for the next step starts in the background while
+  the last one plays, so most skips take 0.2–8 s. Methane and O₂ at 1200 K start with O₂ + CH₄ → CH₃· + HO₂·. Once radicals are made, they
   meet at a real flask's rate, so chains are not cut short by the chamber's crowding. Running on stops
   by itself at an equilibrium or a loop and names it.
 - **Starting.** An empty chamber shows the experiments as tiles, each with a picture of its
