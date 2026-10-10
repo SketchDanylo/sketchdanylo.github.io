@@ -178,6 +178,12 @@ Without this, the forecast and fast-forward will work well for radical and gas-p
   the spark's heat away within a few hundred femtoseconds, so the chain never branches; a real flame heats
   itself. A spark that heats a small region and holds the bath back there for a while would let a flame
   front run).
+- Live speed. A step of ethene + Cl₂ (16 atoms) costs about 230 µs: two force evaluations (every O–H,
+  H–H and C–H stretch asks for two sub-steps) of about 110 µs each, so the chamber plays about 4 ps a
+  second on a desktop and 0.2–2 ps on a phone, against the 20 ps a second that 1× stands for. The time
+  goes evenly into the many passes of the force field (angle screening, insertion screening, bond orders,
+  pair energies); no single loop dominates. Worth trying: one pass over the pairs that computes what
+  several passes now recompute, and holding the angle and insertion screens for a few sub-steps.
 - Large chambers: forecast once per distinct situation and reuse it, instead of rescanning every copy.
 - Large molecules: every scan point relaxes every atom of both partners, so a C₉ radical meeting ethene
   costs 25–30 s a candidate. Scanning only the atoms within two bonds of the reacting pair, capped with
