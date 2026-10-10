@@ -93,7 +93,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build136', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build137', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -254,7 +254,8 @@ function clampCam() {
 function resize() {
   const w0 = R.W, h0 = R.H;
   R.resize(window.innerWidth, window.innerHeight);
-  if (w0 && h0 && ((w0 > h0) !== (innerWidth > innerHeight) || Math.abs(innerWidth - w0) > 0.2 * w0 || Math.abs(innerHeight - h0) > 0.25 * h0)) fitBox(false);
+  const typing = document.activeElement && document.activeElement.closest('input,textarea,[contenteditable="true"]');
+  if (!typing && w0 && h0 && ((w0 > h0) !== (innerWidth > innerHeight) || Math.abs(innerWidth - w0) > 0.2 * w0 || Math.abs(innerHeight - h0) > 0.25 * h0)) fitBox(false);
 }
 window.addEventListener('resize', resize);
 
@@ -439,7 +440,7 @@ function closePop() {
   if(pop.contains(document.activeElement))anchor.focus();
   openPop=null;
 }
-window.addEventListener('resize',closePop);
+window.addEventListener('resize',()=>{if(!document.activeElement?.closest('input,textarea,[contenteditable="true"]'))closePop();});
 document.querySelectorAll('.pop').forEach(p=>p.inert=true);
 document.addEventListener('pointerdown', e => {
   if (openPop && !openPop.pop.contains(e.target) && !openPop.anchor.contains(e.target)) closePop();
