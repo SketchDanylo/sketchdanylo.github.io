@@ -792,9 +792,9 @@ button.link .ic { width: 15px; height: 15px; }
 .i-pause { display: none; }
 .playing .i-play { display: none; }
 .playing .i-pause { display: block; }
-.dot { display: inline-block; flex: none; width: 11px; height: 11px; border-radius: 50%; }
-.dot.w { background: #f1f2f4; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3); }
-.dot.b { background: #1b1d22; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.45); }
+.disc { display: inline-block; flex: none; width: 11px; height: 11px; border-radius: 50%; }
+.disc.w { background: #f1f2f4; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3); }
+.disc.b { background: #1b1d22; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.45); }
 .lbl-short { display: none; }
 .engine-state:not(.error) span { display: none; }
 .engine-state { margin-left: 10px; }
@@ -1050,8 +1050,8 @@ body.solving .solve-card { display: block; }
         <div class="segmented" id="mode" role="radiogroup" aria-label="Opponent">
           <span class="seg-glider"></span>
           <button data-mode="both" class="on" role="radio" title="Move both sides"><svg class="ic"><use href="#i-users"/></svg><span class="lbl-long">Both sides</span><span class="lbl-short">Both</span></button>
-          <button data-mode="w" role="radio" title="You play White against the engine"><i class="dot w"></i><span class="lbl-long">vs engine · White</span><span class="lbl-short">White</span></button>
-          <button data-mode="b" role="radio" title="You play Black against the engine"><i class="dot b"></i><span class="lbl-long">vs engine · Black</span><span class="lbl-short">Black</span></button>
+          <button data-mode="w" role="radio" title="You play White against the engine"><i class="disc w"></i><span class="lbl-long">vs engine · White</span><span class="lbl-short">White</span></button>
+          <button data-mode="b" role="radio" title="You play Black against the engine"><i class="disc b"></i><span class="lbl-long">vs engine · Black</span><span class="lbl-short">Black</span></button>
         </div>
         <button class="icon engine-toggle" id="engine-toggle" title="Pause the engine — you move for it" aria-label="Pause engine" aria-pressed="false">
           <svg class="i-pause" viewBox="0 0 24 24"><path d="M9 6v12M15 6v12"/></svg>
@@ -1156,10 +1156,10 @@ body.solving .solve-card { display: block; }
         <div class="edit-row castles">
           <span class="label">Castling</span>
           <div class="castle-grid">
-            <label class="tg"><input type="checkbox" data-castle="K" checked><span class="sw"></span><i class="dot w"></i>O-O</label>
-            <label class="tg"><input type="checkbox" data-castle="Q" checked><span class="sw"></span><i class="dot w"></i>O-O-O</label>
-            <label class="tg"><input type="checkbox" data-castle="k" checked><span class="sw"></span><i class="dot b"></i>O-O</label>
-            <label class="tg"><input type="checkbox" data-castle="q" checked><span class="sw"></span><i class="dot b"></i>O-O-O</label>
+            <label class="tg"><input type="checkbox" data-castle="K" checked><span class="sw"></span><i class="disc w"></i>O-O</label>
+            <label class="tg"><input type="checkbox" data-castle="Q" checked><span class="sw"></span><i class="disc w"></i>O-O-O</label>
+            <label class="tg"><input type="checkbox" data-castle="k" checked><span class="sw"></span><i class="disc b"></i>O-O</label>
+            <label class="tg"><input type="checkbox" data-castle="q" checked><span class="sw"></span><i class="disc b"></i>O-O-O</label>
           </div>
         </div>
         <label class="fen-field">
