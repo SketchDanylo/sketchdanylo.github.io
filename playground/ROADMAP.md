@@ -190,6 +190,10 @@ Without this, the forecast and fast-forward will work well for radical and gas-p
   goes evenly into the many passes of the force field (angle screening, insertion screening, bond orders,
   pair energies); no single loop dominates. Worth trying: one pass over the pairs that computes what
   several passes now recompute, and holding the angle and insertion screens for a few sub-steps.
+  Moving the helpers' return values from closure variables onto one object took 10–18 % off a step
+  (V8 boxed every double written to a closure slot: about 20 kB of garbage a step) with bit-identical
+  trajectories. A step still allocates about 75 kB, most of it inside computeForces and the closures
+  that _torsions, _angScreen and _updateBondOrders create on every call; those are the next place to look.
 - Large chambers: forecast once per distinct situation and reuse it, instead of rescanning every copy.
 - Large molecules: every scan point relaxes every atom of both partners, so a C₉ radical meeting ethene
   costs 25–30 s a candidate. Scanning only the atoms within two bonds of the reacting pair, capped with

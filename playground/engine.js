@@ -223,79 +223,73 @@ function mulberry(state) { // returns [value, newState]
   x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
   return [((x ^ (x >>> 14)) >>> 0) / 4294967296, t];
 }
-// Hot helpers return through module scratch variables (no allocation in the force loop).
-let SW = 0, SWD = 0;          // smoothSwitch value, derivative
+// Hot helpers return through the fields of one object: a double written to a closure variable is boxed on every write in V8, a double field is updated in place.
+const Rg = { SW: 0, SWD: 0, SF: 0, SFD: 0, SS: 0, SSD: 0, PG: 0, PGD: 0, AH: 0, AHD: 0, GX: 0, GXD: 0, HW: 0, HWD: 0, GW: 0, GWD: 0, RD_E: 0, RD_EX: 0, RD_EZ: 0, RD_C4: 0, RD_C4X: 0, VS: 0, VSD: 0, OB: 0, OBD: 0, CW: 0, CWD: 0, UW: 0, UWD: 0, QW: 0, QWD: 0, EW: 0, EWD: 0, SP: 0, SPD: 0, XS: 0, XA: 1, XB: 0, LR: 0, LDR: 0, LA: 0, LDA: 0, LXR: 0, LXA: 0 };
 function smoothSwitch(x, x1, x2) { // 1 → 0 between x1 and x2
-  if (x <= x1) { SW = 1; SWD = 0; return; }
-  if (x >= x2) { SW = 0; SWD = 0; return; }
+  if (x <= x1) { Rg.SW = 1; Rg.SWD = 0; return; }
+  if (x >= x2) { Rg.SW = 0; Rg.SWD = 0; return; }
   const w = x2 - x1, t = (x - x1) / w;
-  SW = 0.5 * (1 + Math.cos(Math.PI * t)); SWD = -0.5 * Math.PI * Math.sin(Math.PI * t) / w;
+  Rg.SW = 0.5 * (1 + Math.cos(Math.PI * t)); Rg.SWD = -0.5 * Math.PI * Math.sin(Math.PI * t) / w;
 }
 /* Pauling-type bond order used for valence saturation: 1 near the bond length, exp(−β·Δr)
    when stretched, exactly zero BO_OFF Å past it. Longer-ranged than the structural switch so a
    partner that is half-way into a bond already competes for valence. Output in SF, SFD. */
-let SF = 0, SFD = 0;
-let SS = 0, SSD = 0;
-function ss(t, d) { if (t <= 0) { SS = 0; SSD = 0; return; } if (t >= 1) { SS = 1; SSD = 0; return; } SS = t * t * (3 - 2 * t); SSD = 6 * t * (1 - t) / d; }
-let PG = 0, PGD = 0;
+function ss(t, d) { if (t <= 0) { Rg.SS = 0; Rg.SSD = 0; return; } if (t >= 1) { Rg.SS = 1; Rg.SSD = 0; return; } Rg.SS = t * t * (3 - 2 * t); Rg.SSD = 6 * t * (1 - t) / d; }
 const PI_REACH = 1.3, PI_REF = (() => { const t = 1 / PI_REACH; return t * t * t * (10 + t * (6 * t - 15)); })();
 function piGeo(r, pp) {
-  if (pp.maxOrder < 2) { PG = 0; PGD = 0; return; }
+  if (pp.maxOrder < 2) { Rg.PG = 0; Rg.PGD = 0; return; }
   const w = PI_REACH * (pp.re[1] - pp.re[2]), t = (pp.re[1] - r) / w;
-  if (t <= 0) { PG = 0; PGD = 0; return; }
-  if (t >= 1) { PG = 1 / PI_REF; PGD = 0; return; }
-  PG = t * t * t * (10 + t * (6 * t - 15)) / PI_REF; PGD = -30 * t * t * (1 - t) * (1 - t) / (w * PI_REF);
+  if (t <= 0) { Rg.PG = 0; Rg.PGD = 0; return; }
+  if (t >= 1) { Rg.PG = 1 / PI_REF; Rg.PGD = 0; return; }
+  Rg.PG = t * t * t * (10 + t * (6 * t - 15)) / PI_REF; Rg.PGD = -30 * t * t * (1 - t) * (1 - t) / (w * PI_REF);
 }
-let AH = 0, AHD = 0, GX = 0, GXD = 0;
 function angGateOf(v) {
   const t = (v - ANG_O0) / (ANG_O1 - ANG_O0);
-  if (t <= 0) { GX = 1; GXD = 0; } else if (t >= 1) { GX = 0; GXD = 0; } else { GX = 1 - t * t * (3 - 2 * t); GXD = -6 * t * (1 - t) / (ANG_O1 - ANG_O0); }
+  if (t <= 0) { Rg.GX = 1; Rg.GXD = 0; } else if (t >= 1) { Rg.GX = 0; Rg.GXD = 0; } else { Rg.GX = 1 - t * t * (3 - 2 * t); Rg.GXD = -6 * t * (1 - t) / (ANG_O1 - ANG_O0); }
 }
 function angWindow(c) {
   let r = 0, dr = 0, f = 1, df = 0;
   const t = (c - ANG_C0) / (ANG_C1 - ANG_C0);
-  if (t <= 0) { AH = 0; AHD = 0; return; }
+  if (t <= 0) { Rg.AH = 0; Rg.AHD = 0; return; }
   if (t >= 1) r = 1; else { r = t * t * (3 - 2 * t); dr = 6 * t * (1 - t) / (ANG_C1 - ANG_C0); }
   const u = (c - ANG_C2) / (ANG_C3 - ANG_C2);
-  if (u >= 1) { AH = 0; AHD = 0; return; }
+  if (u >= 1) { Rg.AH = 0; Rg.AHD = 0; return; }
   if (u > 0) { f = 1 - u * u * (3 - 2 * u); df = -6 * u * (1 - u) / (ANG_C3 - ANG_C2); }
-  AH = r * f; AHD = dr * f + r * df;
+  Rg.AH = r * f; Rg.AHD = dr * f + r * df;
 }
 function satF(r, pp) {
   const d = r - pp.s1;
   const cap = TUNE.cap;
-  if (d <= cap) { SF = 1; SFD = 0; return; }
-  if (d >= pp.sOff) { SF = 0; SFD = 0; return; }
+  if (d <= cap) { Rg.SF = 1; Rg.SFD = 0; return; }
+  if (d >= pp.sOff) { Rg.SF = 0; Rg.SFD = 0; return; }
   const x = d - cap, beta = pp.sBeta;
   let s, ds;
   if (x < BO_W) { s = x * x / (2 * BO_W); ds = x / BO_W; } else { s = x - BO_W / 2; ds = 1; }
   const e = Math.exp(-beta * s), de = -beta * ds * e;
   smoothSwitch(d, pp.sOn, pp.sOff);
-  SF = e * SW; SFD = de * SW + e * SWD;
+  Rg.SF = e * Rg.SW; Rg.SFD = de * Rg.SW + e * Rg.SWD;
 }
 /* The multiplicity a pair counts with in coordination: sigma plus a partial pi, as Pass A does. */
 function nEffOf(ti, tj, n) { return 1 + (PAIR[ti * NT + tj].oo ? TUNE.wpiOO : TUNE.wpi) * (n - 1); }
 /* How much of a carbene an atom is: 1 with two spare valences or more, fading to 0 by 1.5, so a
    radical with one (CH3) is out while CH2, CH and a bare carbon atom are in. Smooth, so the forces
    are too. */
-let HW = 0, HWD = 0;
 function carbeneWeight(spare) {
   // two free valences or more once the two new bonds are set aside: CH2, CH, a bare C
   const lo = (spare - 1.5) / 0.5;
-  if (lo <= 0) { HW = 0; HWD = 0; return 0; }
-  if (lo >= 1) { HW = 1; HWD = 0; return 1; }
-  HW = lo * lo * (3 - 2 * lo); HWD = 6 * lo * (1 - lo) / 0.5; return HW;
+  if (lo <= 0) { Rg.HW = 0; Rg.HWD = 0; return 0; }
+  if (lo >= 1) { Rg.HW = 1; Rg.HWD = 0; return 1; }
+  Rg.HW = lo * lo * (3 - 2 * lo); Rg.HWD = 6 * lo * (1 - lo) / 0.5; return Rg.HW;
 }
 /* ...and carries no multiple bond. CO relaxes to C=O here, which also leaves carbon two spare
    valences, but beside a double bond — and CO does not insert into H2 (the barrier is some
    330 kJ/mol). CH2, CH and a bare carbon atom carry none, and all three insert. */
-let GW = 0, GWD = 0;
 function piWindow(pi) {
   // no multiple bond: full up to 0.2 of a π bond, gone by 0.5
   const t = (0.5 - pi) / 0.3;
-  if (t >= 1) { GW = 1; GWD = 0; return 1; }
-  if (t <= 0) { GW = 0; GWD = 0; return 0; }
-  GW = t * t * (3 - 2 * t); GWD = -6 * t * (1 - t) / 0.3; return GW;
+  if (t >= 1) { Rg.GW = 1; Rg.GWD = 0; return 1; }
+  if (t <= 0) { Rg.GW = 0; Rg.GWD = 0; return 0; }
+  Rg.GW = t * t * (3 - 2 * t); Rg.GWD = -6 * t * (1 - t) / 0.3; return Rg.GW;
 }
 /* How much room a radical's unpaired electrons take around it, as extra steric number.
    Counting them as nothing — which is what the angles did — is right for CH3 and wrong for almost
@@ -310,28 +304,27 @@ function piWindow(pi) {
      without one:         0.85 of a domain for each unpaired electron, up to the room left in the
                           plane (3 − bonds) — so CH3, with three bonds, gets none and stays flat.
    A closed shell has no free valence and is exactly as before. Smooth throughout, so the forces
-   are the exact gradient. RD_E is the extra steric number, RD_EX its derivative in the free
-   valence x = V − Zs, RD_EZ in the structural coordination Z; RD_C4 the tetrahedral-limit cos θ,
-   RD_C4X its derivative in x. */
-let RD_E = 0, RD_EX = 0, RD_EZ = 0, RD_C4 = 0, RD_C4X = 0;
+   are the exact gradient. Rg.RD_E is the extra steric number, Rg.RD_EX its derivative in the free
+   valence x = V − Zs, Rg.RD_EZ in the structural coordination Z; Rg.RD_C4 the tetrahedral-limit cos θ,
+   Rg.RD_C4X its derivative in x. */
 const RD_W = 0.2, RD_SIGMA = 0.85, RD_P = 4;
 function rdRamp(x) { if (x <= 0) return [0, 0]; if (x < RD_W) return [x * x / (2 * RD_W), x / RD_W]; return [x - RD_W / 2, 1]; }
 function radicalDomains(x, Z, lp) {
   const [u, du] = rdRamp(x);
   if (lp >= 1) {
-    RD_E = u; RD_EX = du; RD_EZ = 0;
+    Rg.RD_E = u; Rg.RD_EX = du; Rg.RD_EZ = 0;
     const L = lp + u;
-    if (L >= 3) { RD_C4 = TETRA[3]; RD_C4X = 0; }
-    else { const k = Math.floor(L), f = L - k, d = TETRA[k + 1] - TETRA[k]; RD_C4 = TETRA[k] + d * f; RD_C4X = d * du; }
+    if (L >= 3) { Rg.RD_C4 = TETRA[3]; Rg.RD_C4X = 0; }
+    else { const k = Math.floor(L), f = L - k, d = TETRA[k + 1] - TETRA[k]; Rg.RD_C4 = TETRA[k] + d * f; Rg.RD_C4X = d * du; }
     return;
   }
-  RD_C4 = TETRA[0]; RD_C4X = 0;
+  Rg.RD_C4 = TETRA[0]; Rg.RD_C4X = 0;
   const [m, dm] = rdRamp(3 - Z);                     // the room left in the plane
-  if (u <= 0 || m <= 0) { RD_E = 0; RD_EX = 0; RD_EZ = 0; return; }
+  if (u <= 0 || m <= 0) { Rg.RD_E = 0; Rg.RD_EX = 0; Rg.RD_EZ = 0; return; }
   // a smooth min(u, m)
   const g = Math.pow(Math.pow(u, -RD_P) + Math.pow(m, -RD_P), -1 / RD_P);
   const gu = Math.pow(g / u, RD_P + 1), gm = Math.pow(g / m, RD_P + 1);
-  RD_E = RD_SIGMA * g; RD_EX = RD_SIGMA * gu * du; RD_EZ = -RD_SIGMA * gm * dm;
+  Rg.RD_E = RD_SIGMA * g; Rg.RD_EX = RD_SIGMA * gu * du; Rg.RD_EZ = -RD_SIGMA * gm * dm;
 }
 /* Valence-state energy. A bond's energy is not the same whichever bond of the atom it is: carbon's
    four C–H bonds cost 439, 462, 424 and 338 kJ/mol to break in turn (CH4 → CH3 → CH2 → CH → C),
@@ -346,15 +339,14 @@ function radicalDomains(x, Z, lp) {
 const VSTATE = { C: [0, 73, 59, 18, 0], N: [0, 51, 55, 0], O: [0, 32, 0], S: [0, 17, 0] };
 const VS_TAB = new Array(ELEMENT_ROWS.length).fill(null);
 for (const [sym, tab] of Object.entries(VSTATE)) { const k = ELEMENT_ROWS.findIndex(r => r[0] === sym); if (k >= 0) VS_TAB[k] = tab; }
-let VS = 0, VSD = 0;
 function valenceState(tab, z) {
   const V = tab.length - 1;
-  if (z <= 0 || z >= V) { VS = 0; VSD = 0; return; }
+  if (z <= 0 || z >= V) { Rg.VS = 0; Rg.VSD = 0; return; }
   const k = Math.floor(z), t = z - k, p0 = tab[k], p1 = tab[k + 1];
   const m0 = k === 0 ? 0 : (tab[k + 1] - tab[k - 1]) / 2, m1 = k + 1 === V ? 0 : (tab[k + 2] - tab[k]) / 2;
   const t2 = t * t, t3 = t2 * t;
-  VS = (2 * t3 - 3 * t2 + 1) * p0 + (t3 - 2 * t2 + t) * m0 + (-2 * t3 + 3 * t2) * p1 + (t3 - t2) * m1;
-  VSD = (6 * t2 - 6 * t) * p0 + (3 * t2 - 4 * t + 1) * m0 + (-6 * t2 + 6 * t) * p1 + (3 * t2 - 2 * t) * m1;
+  Rg.VS = (2 * t3 - 3 * t2 + 1) * p0 + (t3 - 2 * t2 + t) * m0 + (-2 * t3 + 3 * t2) * p1 + (t3 - t2) * m1;
+  Rg.VSD = (6 * t2 - 6 * t) * p0 + (3 * t2 - 4 * t + 1) * m0 + (-6 * t2 + 6 * t) * p1 + (3 * t2 - 2 * t) * m1;
 }
 /* Electronic degeneracy. A free atom has several electronic states at (nearly) the same energy — a
    halogen atom 4 (²P3/2, and 2 more ²P1/2 when hot), oxygen 9 (³P), hydrogen 2 — while the molecule
@@ -377,11 +369,10 @@ const GEL = {
   I: T => [Math.log(4), 0],
 };
 // 1 for an oxygen whose bonding is O2's own (Z = 2), fading to 0 by Z = 1 (coming apart) and Z = 2.6 (a third partner)
-let OB = 0, OBD = 0;
 function o2Bump(z) {
-  if (z <= 1 || z >= 2.6) { OB = 0; OBD = 0; return; }
-  if (z <= 2) { const t = z - 1; OB = t * t * (3 - 2 * t); OBD = 6 * t * (1 - t); return; }
-  const t = (2.6 - z) / 0.6; OB = t * t * (3 - 2 * t); OBD = -6 * t * (1 - t) / 0.6;
+  if (z <= 1 || z >= 2.6) { Rg.OB = 0; Rg.OBD = 0; return; }
+  if (z <= 2) { const t = z - 1; Rg.OB = t * t * (3 - 2 * t); Rg.OBD = 6 * t * (1 - t); return; }
+  const t = (2.6 - z) / 0.6; Rg.OB = t * t * (3 - 2 * t); Rg.OBD = -6 * t * (1 - t) / 0.6;
 }
 const GEL_TAB = new Array(ELEMENT_ROWS.length).fill(null);
 for (const [sym, f] of Object.entries(GEL)) { const k = ELEMENT_ROWS.findIndex(r => r[0] === sym); if (k >= 0) GEL_TAB[k] = f; }
@@ -391,12 +382,11 @@ for (const [sym, f] of Object.entries(GEL)) { const k = ELEMENT_ROWS.findIndex(r
    the carbene may take it over; past that it would be holding two bonds at once. Without this the
    screen let a hydrogen keep its H–H bond at full strength *and* bond to carbon, and CH2 + H2
    stuck as a CH2·H2 complex 550 kJ/mol more stable than it has any right to be. */
-let CW = 0, CWD = 0;
 function conserveWindow(T) {
   const t = (INS_T2 - T) / (INS_T2 - INS_T1);
-  if (t >= 1) { CW = 1; CWD = 0; return; }
-  if (t <= 0) { CW = 0; CWD = 0; return; }
-  CW = t * t * (3 - 2 * t); CWD = -6 * t * (1 - t) / (INS_T2 - INS_T1);
+  if (t >= 1) { Rg.CW = 1; Rg.CWD = 0; return; }
+  if (t <= 0) { Rg.CW = 0; Rg.CWD = 0; return; }
+  Rg.CW = t * t * (3 - 2 * t); Rg.CWD = -6 * t * (1 - t) / (INS_T2 - INS_T1);
 }
 /* Whether the two ends share a bond at all, by its saturation reach rather than its structural
    switch: the switch is gone by 1.1 Å of H–H while the bond still competes out to 1.6, and a screen
@@ -405,34 +395,30 @@ function conserveWindow(T) {
 /* ...and only while the new bonds are still forming. Once both are whole the job is done, and a
    settled carbon — whose two bonds, set aside, would leave it two spare valences like any carbene —
    is exactly untouched however hot its neighbours get. */
-let UW = 0, UWD = 0;
 function formingWindow(x) {
   const t = (INS_U1 - x) / (INS_U1 - INS_U0);
-  if (t >= 1) { UW = 1; UWD = 0; return; }
-  if (t <= 0) { UW = 0; UWD = 0; return; }
-  UW = t * t * (3 - 2 * t); UWD = -6 * t * (1 - t) / (INS_U1 - INS_U0);
+  if (t >= 1) { Rg.UW = 1; Rg.UWD = 0; return; }
+  if (t <= 0) { Rg.UW = 0; Rg.UWD = 0; return; }
+  Rg.UW = t * t * (3 - 2 * t); Rg.UWD = -6 * t * (1 - t) / (INS_U1 - INS_U0);
 }
-let QW = 0, QWD = 0;
 function bondGate(x) {
   const t = (x - INS_Q0) / (INS_Q1 - INS_Q0);
-  if (t >= 1) { QW = 1; QWD = 0; return; }
-  if (t <= 0) { QW = 0; QWD = 0; return; }
-  QW = t * t * (3 - 2 * t); QWD = 6 * t * (1 - t) / (INS_Q1 - INS_Q0);
+  if (t >= 1) { Rg.QW = 1; Rg.QWD = 0; return; }
+  if (t <= 0) { Rg.QW = 0; Rg.QWD = 0; return; }
+  Rg.QW = t * t * (3 - 2 * t); Rg.QWD = 6 * t * (1 - t) / (INS_Q1 - INS_Q0);
 }
-let EW = 0, EWD = 0;
 function endWindow(se) {
   const t = (0.75 - se) / 0.4;
-  if (t >= 1) { EW = 1; EWD = 0; return; }
-  if (t <= 0) { EW = 0; EWD = 0; return; }
-  EW = t * t * (3 - 2 * t); EWD = -6 * t * (1 - t) / 0.4;
+  if (t >= 1) { Rg.EW = 1; Rg.EWD = 0; return; }
+  if (t <= 0) { Rg.EW = 0; Rg.EWD = 0; return; }
+  Rg.EW = t * t * (3 - 2 * t); Rg.EWD = -6 * t * (1 - t) / 0.4;
 }
-let SP = 0, SPD = 0;          // saturation p(x), dp/dx
 function sat(x) { // p(x) = 1 / (1 + c1·r + c4·r⁴), r = smooth ramp(x)
-  if (x <= 0) { SP = 1; SPD = 0; return; }
+  if (x <= 0) { Rg.SP = 1; Rg.SPD = 0; return; }
   let r, dr;
   if (x < RAMP_W) { r = x * x / (2 * RAMP_W); dr = x / RAMP_W; } else { r = x - RAMP_W / 2; dr = 1; }
   const c1 = TUNE.c1, c4 = TUNE.c4, k = TUNE.k, r2 = r * r, rk1 = k === 6 ? r2 * r2 * r : Math.pow(r, k - 1), den = 1 + c1 * r + c4 * rk1 * r;
-  SP = 1 / den; SPD = -(c1 + k * c4 * rk1) * dr / (den * den);
+  Rg.SP = 1 / den; Rg.SPD = -(c1 + k * c4 * rk1) * dr / (den * den);
 }
 /* Bond-strength weight of a pair at bond order n: (De(n)/400)^μ. */
 function bondWeight(pp, n, mu) {
@@ -441,18 +427,16 @@ function bondWeight(pp, n, mu) {
   return mu === 0.5 ? Math.sqrt(De / 400) : mu === 1 ? De / 400 : Math.pow(De / 400, mu);
 }
 /* Strength-weighted excess valence: x = (C + 1 − V)·ratio, ratio = (W + εD)/((C + ε)·D), where C and W
-   are the plain and strength-weighted valence used by the *other* bonds. XA = ∂x/∂u_k − D_k·XB, XB = ∂x/∂(D_k·u_k). */
-let XS = 0, XA = 1, XB = 0;
+   are the plain and strength-weighted valence used by the *other* bonds. Rg.XA = ∂x/∂u_k − D_k·Rg.XB, Rg.XB = ∂x/∂(D_k·u_k). */
 const EX_EPS = 0.05;
 function excess(C, W, V, D, mu) {
   const base = C + 1 - V;
-  if (mu === 0) { XS = base; XA = 1; XB = 0; return; }
+  if (mu === 0) { Rg.XS = base; Rg.XA = 1; Rg.XB = 0; return; }
   const den = (C + EX_EPS) * D, ratio = (W + EX_EPS * D) / den;
-  XS = base * ratio; XA = ratio - base * ratio / (C + EX_EPS); XB = base / den;
+  Rg.XS = base * ratio; Rg.XA = ratio - base * ratio / (C + EX_EPS); Rg.XB = base / den;
 }
 /* Shielded Lennard-Jones split into Pauli (LR) and shifted-force attraction (LA), each with d/dr.
    Shielding: r_s⁶ = r⁶ + s⁶, so the Pauli wall stays finite at contact. x2 = r_min², eps = depth. */
-let LR = 0, LDR = 0, LA = 0, LDA = 0, LXR = 0, LXA = 0;
 const S6 = Math.pow(LJ_SHIELD, 6);
 /* Lennard-Jones, split into its Pauli wall (inside r_min) and its attraction, switched smoothly to
    zero over the last LJ_SW Å before the cutoff. It used to be force-shifted all the way in instead,
@@ -468,18 +452,18 @@ function lj(r, x2, eps, epsA, rc) {
   const ux = 3 * x2 * x2 * r6 / (d6 * d6);
   if (u6 > 1) {
     const w = u6 - 1;
-    LR = eps * w * w; LDR = 2 * eps * w * du6; LXR = 2 * eps * w * ux;
-    LA = -epsA; LDA = 0; LXA = 0;
+    Rg.LR = eps * w * w; Rg.LDR = 2 * eps * w * du6; Rg.LXR = 2 * eps * w * ux;
+    Rg.LA = -epsA; Rg.LDA = 0; Rg.LXA = 0;
     return;
   }
-  LR = 0; LDR = 0; LXR = 0;
+  Rg.LR = 0; Rg.LDR = 0; Rg.LXR = 0;
   const v = epsA * (u6 * u6 - 2 * u6), dv = epsA * (2 * u6 - 2) * du6, vx = epsA * (2 * u6 - 2) * ux;
   const ron = rc - LJ_SW;
-  if (r <= ron) { LA = v; LDA = dv; LXA = vx; return; }
-  if (r >= rc) { LA = 0; LDA = 0; LXA = 0; return; }
+  if (r <= ron) { Rg.LA = v; Rg.LDA = dv; Rg.LXA = vx; return; }
+  if (r >= rc) { Rg.LA = 0; Rg.LDA = 0; Rg.LXA = 0; return; }
   const rc2 = rc * rc, ro2 = ron * ron, den = (rc2 - ro2) * (rc2 - ro2) * (rc2 - ro2), a = rc2 - r2;
   const S = a * a * (rc2 + 2 * r2 - 3 * ro2) / den, dS = 12 * r * a * (ro2 - r2) / den;
-  LA = v * S; LDA = dv * S + v * dS; LXA = vx * S;
+  Rg.LA = v * S; Rg.LDA = dv * S + v * dS; Rg.LXA = vx * S;
 }
 
 /* Effective valence and lone pairs for an element carrying a formal charge. */
@@ -801,15 +785,15 @@ class Engine {
       const pp = PAIR[type[i] * NT + type[j]];
       if (pp.bond && r < pp.s2) {
         satF(r, pp);
-        if (SF > 0) { pS[p] = SF; pSp[p] = SFD; this.pSpRaw[p] = SFD; }
+        if (Rg.SF > 0) { pS[p] = Rg.SF; pSp[p] = Rg.SFD; this.pSpRaw[p] = Rg.SFD; }
       }
       if (pp.bond && r < pp.r2) {
         smoothSwitch(r, pp.r1, pp.r2);
-        if (SW > 0) {
-          pF[p] = SW; pFp[p] = SWD;
-          Z[i] += SW; Z[j] += SW;
+        if (Rg.SW > 0) {
+          pF[p] = Rg.SW; pFp[p] = Rg.SWD;
+          Z[i] += Rg.SW; Z[j] += Rg.SW;
           this.cCount[i]++; this.cCount[j]++;
-          const raw = TUNE.kappa * pp.qs * SW * (CHI[type[j]] - CHI[type[i]]);
+          const raw = TUNE.kappa * pp.qs * Rg.SW * (CHI[type[j]] - CHI[type[i]]);
           const dq = raw / Math.pow(1 + (raw / Q_MAX) ** 4, 0.25);
           q[i] += dq; q[j] -= dq;
         }
@@ -880,8 +864,8 @@ class Engine {
       const tab = VS_TAB[type[i]];
       if (!tab || val[i] !== tab.length - 1) continue;      // a charged atom has another ladder
       valenceState(tab, Zf[i]);
-      if (VS === 0 && VSD === 0) continue;
-      E += TUNE.vstate * VS; Gf[i] = TUNE.vstate * VSD;
+      if (Rg.VS === 0 && Rg.VSD === 0) continue;
+      E += TUNE.vstate * Rg.VS; Gf[i] = TUNE.vstate * Rg.VSD;
     }
     if (TUNE.gel && this.T > 0) {
       const kT = KB * this.T;
@@ -891,7 +875,7 @@ class Engine {
         const tab = tabs[type[i]];
         if (!tab || val[i] !== tab.length - 1) continue;
         valenceState(tab, Zf[i]);
-        let L = VS, dL = VSD;
+        let L = Rg.VS, dL = Rg.VSD;
         if (Zf[i] <= 0) { L = tab[0]; dL = 0; }                 // the free atom itself
         if (L === 0 && dL === 0) continue;
         E -= TUNE.gel * kT * L; Gf[i] -= TUNE.gel * kT * dL;
@@ -903,8 +887,8 @@ class Engine {
       for (let p = 0; p < P; p++) {
         const i = pI[p], j = pJ[p];
         if (type[i] !== tO || type[j] !== tO || !(this.pN[p] > 1) || pSraw[p] <= 0) continue;
-        o2Bump(Zf[i]); const bi = OB, dbi = OBD; if (bi === 0) continue;
-        o2Bump(Zf[j]); const bj = OB, dbj = OBD; if (bj === 0) continue;
+        o2Bump(Zf[i]); const bi = Rg.OB, dbi = Rg.OBD; if (bi === 0) continue;
+        o2Bump(Zf[j]); const bj = Rg.OB, dbj = Rg.OBD; if (bj === 0) continue;
         const c = TUNE.gel * kT * Math.log(3) * Math.min(1, this.pN[p] - 1);
         E -= c * bi * bj; Gf[i] -= c * dbi * bj; Gf[j] -= c * bi * dbj;
       }
@@ -963,7 +947,7 @@ class Engine {
         const De = pp.De[lo] + (pp.De[Math.min(hi, 3)] - pp.De[lo]) * t;
         const a = pp.a[lo] + (pp.a[Math.min(hi, 3)] - pp.a[lo]) * t;
         const y = a * (r - re);
-        if (y < Y_OFF || LR !== 0) { // b only matters inside Morse range or the Pauli wall
+        if (y < Y_OFF || Rg.LR !== 0) { // b only matters inside Morse range or the Pauli wall
           // Excess valence x = (used − this pair + 1 − V), scaled when over-crowded by the strength of the
           // competing bonds relative to this one (weights D = (De/400)^μ): a stronger incoming bond
           // displaces a weaker one more easily (Evans–Polanyi); an atom at its normal valence is unaffected.
@@ -971,17 +955,17 @@ class Engine {
           // C = (Z − this pair)·k(Z): ∂C/∂Z = k + (Z − f)·k′, while the pair's own explicit
           // appearance contributes −k. The two differ once k varies, so they are carried apart.
           /* C = c·k(Z) and W = w·k(Z) both carry k, and k varies with Z, so the Zs channel picks
-             up ∂/∂Z through both: XA·(k + c·k′) + XB·w·k′. The Zw channel sees only ∂W/∂Zw = k.
+             up ∂/∂Z through both: Rg.XA·(k + c·k′) + Rg.XB·w·k′. The Zw channel sees only ∂W/∂Zw = k.
              The pair's own explicit appearance contributes −k to each. */
           if (val[i] > 0) {
             const ki = kSh[i], kp = kShP[i], ci = Zs[i] - fs, wi = Zw[i] - fs * Dj;
-            excess(ci * ki, wi * ki, val[i], Dj, mu); sat(XS); pi = SP; dpi = SPD;
-            ai = XA * (ki + ci * kp) + XB * wi * kp; bi = XB * ki; asi = XA * ki; bsi = XB * ki;
+            excess(ci * ki, wi * ki, val[i], Dj, mu); sat(Rg.XS); pi = Rg.SP; dpi = Rg.SPD;
+            ai = Rg.XA * (ki + ci * kp) + Rg.XB * wi * kp; bi = Rg.XB * ki; asi = Rg.XA * ki; bsi = Rg.XB * ki;
           }
           if (val[j] > 0) {
             const kj = kSh[j], kp = kShP[j], cj = Zs[j] - fs, wj = Zw[j] - fs * Dj;
-            excess(cj * kj, wj * kj, val[j], Dj, mu); sat(XS); pj = SP; dpj = SPD;
-            aj = XA * (kj + cj * kp) + XB * wj * kp; bj = XB * kj; asj = XA * kj; bsj = XB * kj;
+            excess(cj * kj, wj * kj, val[j], Dj, mu); sat(Rg.XS); pj = Rg.SP; dpj = Rg.SPD;
+            aj = Rg.XA * (kj + cj * kp) + Rg.XB * wj * kp; bj = Rg.XB * kj; asj = Rg.XA * kj; bsj = Rg.XB * kj;
           }
           b = pi * pj;
         }
@@ -990,10 +974,10 @@ class Engine {
           const ey = Math.exp(-y), VR = De * ey * ey, VA = 2 * De * ey;
           const sA = angA[p], ub = b / ANG_B0, hb = 1 / (1 + ub * ub), keep = sA + (1 - sA) * hb;
           const bE = b * keep, dkeep = (1 - sA) * (-2 * ub * hb * hb / ANG_B0);
-          e += SW * (VR - bE * VA);
-          dEdr += SWD * a * (VR - bE * VA) + SW * (-2 * a * VR + bE * a * VA);
-          lam -= SW * VA * (keep + b * dkeep);
-          angLam[p] = -SW * VA * b * (1 - hb);
+          e += Rg.SW * (VR - bE * VA);
+          dEdr += Rg.SWD * a * (VR - bE * VA) + Rg.SW * (-2 * a * VR + bE * a * VA);
+          lam -= Rg.SW * VA * (keep + b * dkeep);
+          angLam[p] = -Rg.SW * VA * b * (1 - hb);
         }
       }
       pB[p] = b;
@@ -1014,17 +998,17 @@ class Engine {
         }
       }
       const wP = (1 - b) * (1 - sr) * openF;
-      e += wP * LR; dEdr += wP * LDR - (1 - b) * openF * LR * srp; lam -= (1 - sr) * openF * LR;
+      e += wP * Rg.LR; dEdr += wP * Rg.LDR - (1 - b) * openF * Rg.LR * srp; lam -= (1 - sr) * openF * Rg.LR;
       // dE/dZs through the open-shell factor (dopen/dZs = −1 inside the ramp)
-      if (dOpenI !== 0) G[i] -= dOpenI * (1 - b) * (1 - sr) * LR;
-      if (dOpenJ !== 0) G[j] -= dOpenJ * (1 - b) * (1 - sr) * LR;
+      if (dOpenI !== 0) G[i] -= dOpenI * (1 - b) * (1 - sr) * Rg.LR;
+      if (dOpenJ !== 0) G[j] -= dOpenJ * (1 - b) * (1 - sr) * Rg.LR;
       // excluded (1-2) dispersion + electrostatics
       const qq = q[i] * q[j];
       let h = 0, dh = 0;
       if (qq !== 0 || q[i] !== 0 || q[j] !== 0) { const g = 1 / Math.sqrt(r * r + COUL_D2); h = g - gc - dgc * (r - rc); dh = -r * g * g * g - dgc; }
-      const ex = LA + COUL * qq * h, dex = LDA + COUL * qq * dh;
+      const ex = Rg.LA + COUL * qq * h, dex = Rg.LDA + COUL * qq * dh;
       e += (1 - f) * ex; dEdr += (1 - f) * dex - fp * ex;
-      const radiusGrad = wP * LXR + (1 - f) * LXA;
+      const radiusGrad = wP * Rg.LXR + (1 - f) * Rg.LXA;
       phi[i] += radiusGrad * ljx[j] * this.ljq[i];
       phi[j] += radiusGrad * ljx[i] * this.ljq[j];
       if (h !== 0) { const c = (1 - f) * COUL * h; phi[i] += c * q[j]; phi[j] += c * q[i]; }
@@ -1302,7 +1286,7 @@ class Engine {
       // pairs + whatever room the atom's unpaired electrons take (radicalDomains, below)
       const lp = this.lp[i];
       radicalDomains(this.val[i] - this.Zs[i], Z[i], lp);
-      const sn = Z[i] + lp + RD_E, c4 = RD_C4;
+      const sn = Z[i] + lp + Rg.RD_E, c4 = Rg.RD_C4;
       let c0v, dc0, dc0c4 = 0;
       if (sn <= 2) { c0v = -1; dc0 = 0; }
       else if (sn < 3) { const t = sn - 2; c0v = -1 + 0.5 * (3 * t * t - 2 * t * t * t); dc0 = 0.5 * (6 * t - 6 * t * t); }
@@ -1354,9 +1338,9 @@ class Engine {
           E += this._exclude13(j, k, w, fpj * fk, fj * fpk, ux, uy, uz, ru, vx, vy, vz, rv, i);
         }
       }
-      Gz[i] = dEdc0sum * dc0 * (1 + RD_EZ);                  // dE/dZ_i through θ0
+      Gz[i] = dEdc0sum * dc0 * (1 + Rg.RD_EZ);                  // dE/dZ_i through θ0
       // and through the free valence x = V − Zs, which sets how much room the unpaired electrons take
-      const dEdx = dEdc0sum * (dc0 * RD_EX + dc0c4 * RD_C4X);
+      const dEdx = dEdc0sum * (dc0 * Rg.RD_EX + dc0c4 * Rg.RD_C4X);
       if (dEdx !== 0) this.G[i] -= dEdx;
     }
     return E;
@@ -1375,10 +1359,10 @@ class Engine {
       if (ELEMENTS[type[i]].Z !== 6 || Pi[i] <= 0.3 || Zc[i] >= 2.8) continue;
       const Z = Zc[i], pi = Pi[i], x = val[i] - Z - pi;
       if (x <= 0.3) continue;
-      ss((x - 0.3) / 0.6, 0.6); const q = SS, dq = SSD;
-      ss((Z - 2.2) / 0.6, 0.6); const h = 1 - SS, dh = -SSD;
-      ss((pi - 0.3) / 0.5, 0.5); const w = SS, dw = SSD;
-      ss((Z - 1.2) / 0.6, 0.6); const K = TUNE.sigK1 - (TUNE.sigK1 - TUNE.sigK2) * SS, dK = -(TUNE.sigK1 - TUNE.sigK2) * SSD;
+      ss((x - 0.3) / 0.6, 0.6); const q = Rg.SS, dq = Rg.SSD;
+      ss((Z - 2.2) / 0.6, 0.6); const h = 1 - Rg.SS, dh = -Rg.SSD;
+      ss((pi - 0.3) / 0.5, 0.5); const w = Rg.SS, dw = Rg.SSD;
+      ss((Z - 1.2) / 0.6, 0.6); const K = TUNE.sigK1 - (TUNE.sigK1 - TUNE.sigK2) * Rg.SS, dK = -(TUNE.sigK1 - TUNE.sigK2) * Rg.SSD;
       const e = K * q * h * w;
       if (e === 0) continue;
       E += e; any = true;
@@ -1410,7 +1394,7 @@ class Engine {
       let Z = 0, pi = 0;
       for (let a = c0; a < c1; a++) { const p = cList[a]; Z += pF[p]; pi += pF[p] * (pN[p] - 1); }
       if (pi <= 1 || Z >= 2.8) continue;
-      ss((Z - 2.2) / 0.6, 0.6); const h = 1 - SS, dh = -SSD;
+      ss((Z - 2.2) / 0.6, 0.6); const h = 1 - Rg.SS, dh = -Rg.SSD;
       if (h === 0) continue;
       const xs = pi - 1, base = TUNE.bentPi * xs * xs;
       let bend = 0;
@@ -1422,8 +1406,8 @@ class Engine {
         const ru = Math.sqrt(ux * ux + uy * uy + uz * uz), rv = Math.sqrt(vx * vx + vy * vy + vz * vz), c = (ux * vx + uy * vy + uz * vz) / (ru * rv);
         ss((c + 0.95) / 0.15, 0.15);
         const w = pF[pa] * pF[pb];
-        bend += w * SS;
-        terms.push({ pa, pb, j, k, w, g: SS, dg: SSD, c, ru, rv, ux, uy, uz, vx, vy, vz });
+        bend += w * Rg.SS;
+        terms.push({ pa, pb, j, k, w, g: Rg.SS, dg: Rg.SSD, c, ru, rv, ux, uy, uz, vx, vy, vz });
       }
       if (bend <= 0) continue;
       const bc = Math.min(1, bend);
@@ -1540,17 +1524,17 @@ class Engine {
           if (Gq <= 0) continue;
           const Om = 1 - (1 - Q[n]) * (1 - Q[c]);
           if (Om <= 0) continue;
-          angWindow(ux * AU[3 * x] + uy * AU[3 * x + 1] + uz * AU[3 * x + 2]); const H = AH, dH = AHD;
+          angWindow(ux * AU[3 * x] + uy * AU[3 * x + 1] + uz * AU[3 * x + 2]); const H = Rg.AH, dH = Rg.AHD;
           if (H <= 0) continue;
           piGeo(pR[q], PAIR[type[pI[q]] * NT + type[pJ[q]]]);
-          const sq = 1 - PG * PI_REF, dsq = -PGD * PI_REF, Y = 1 - sq * (1 - R[c]), S = 1 - R[n] * Y;
+          const sq = 1 - Rg.PG * PI_REF, dsq = -Rg.PGD * PI_REF, Y = 1 - sq * (1 - R[c]), S = 1 - R[n] * Y;
           if (S <= 0) continue;
           let zr = 0;
           for (let y = start[n]; y < start[n + 1]; y++) { const t = list[y]; if ((pI[t] === n ? pJ[t] : pI[t]) === k) { zr = g[t] * pN[t]; break; } }
           const zp = g[p] * pN[p], zq = g[q] * pN[q];
-          angGateOf(val[n] - Zm[n] + zp + zr); const xn = GX, dxn = GXD; if (xn === 0) continue;
-          angGateOf(val[c] - Zm[c] + zp + zq); const xc = GX, dxc = GXD; if (xc === 0) continue;
-          angGateOf(val[k] - Zm[k] + zq + zr); const xk = GX, dxk = GXD; if (xk === 0) continue;
+          angGateOf(val[n] - Zm[n] + zp + zr); const xn = Rg.GX, dxn = Rg.GXD; if (xn === 0) continue;
+          angGateOf(val[c] - Zm[c] + zp + zq); const xc = Rg.GX, dxc = Rg.GXD; if (xc === 0) continue;
+          angGateOf(val[k] - Zm[k] + zq + zr); const xk = Rg.GX, dxk = Rg.GXD; if (xk === 0) continue;
           let q2 = -1;
           if (pF[p] !== 0 || this.pFp[p] !== 0) for (let y = cStart[n]; y < cStart[n + 1]; y++) { const t = cList[y]; if ((pI[t] === n ? pJ[t] : pI[t]) === k) { q2 = t; break; } }
           const mnk = q2 < 0 ? 1 : 1 - pF[p] * pF[q2];
@@ -1796,23 +1780,23 @@ class Engine {
           if (a === b) continue;
           const q = this.pairMap.get(a < b ? a * 1048576 + b : b * 1048576 + a);
           if (q === undefined || sr[q] <= INS_Q0) continue;      // the two ends must share a bond
-          bondGate(sr[q]); const Q = QW, dQ = QWD;
+          bondGate(sr[q]); const Q = Rg.QW, dQ = Rg.QWD;
           // Only the σ part of each arm is a new bond. Setting an arm's π part aside too made an
           // ethylene carbon — two H and its own C=C — look like it had two free valences, and it
           // was treated as a carbene inserting into its neighbour's C–H: pyramidal, C=C at 1.24 Å.
           const na = 1, nb = 1;
           const spare = val[c] - (zr[c] - sr[pa] - sr[pb]);
-          carbeneWeight(spare); if (HW <= 0) continue;
+          carbeneWeight(spare); if (Rg.HW <= 0) continue;
           // and no multiple bond on the centre: CH2, CH and a bare C atom insert, C=O and C=C do not.
           // pi = the π part of the centre's other bonds, V − Zs counted with and without multiplicity
           const nfa = nEffOf(type[c], type[a], pN[pa]), nfb = nEffOf(type[c], type[b], pN[pb]);
           const pi = (zr[c] - zs[c]) - sr[pa] * (nfa - 1) - sr[pb] * (nfb - 1);
-          piWindow(pi); if (GW <= 0) continue;
-          const hw = HW * GW, hwd = HWD * GW, hgd = HW * GWD;
+          piWindow(pi); if (Rg.GW <= 0) continue;
+          const hw = Rg.HW * Rg.GW, hwd = Rg.HWD * Rg.GW, hgd = Rg.HW * Rg.GWD;
           // how far the carbene has reached each end, on its own reach rather than the bond's
           const ppa = PAIR[type[c] * NT + type[a]], ppb = PAIR[type[c] * NT + type[b]];
-          smoothSwitch(pR[pa], ppa.re[1] + INS_ON, ppa.re[1] + INS_OFF); const Sa = SW, dSa = SWD;
-          smoothSwitch(pR[pb], ppb.re[1] + INS_ON, ppb.re[1] + INS_OFF); const Sb = SW, dSb = SWD;
+          smoothSwitch(pR[pa], ppa.re[1] + INS_ON, ppa.re[1] + INS_OFF); const Sa = Rg.SW, dSa = Rg.SWD;
+          smoothSwitch(pR[pb], ppb.re[1] + INS_ON, ppb.re[1] + INS_OFF); const Sb = Rg.SW, dSb = Rg.SWD;
           const u = Sa * Sb, om = 1 - u, A = 1 - om * om * om;
           // and the bond's two ends have nothing to spare without it: H2's hydrogens, a C-H.
           // A ring bond seen from the third atom of a three-membered ring has ends with a free
@@ -1824,18 +1808,18 @@ class Engine {
           // had to climb out of a pit the screen itself had dug.
           const nq = nEffOf(type[a], type[b], pN[q]), gap = nq * (1 - sr[q]);
           const sea = val[a] - (zr[a] - sr[pa]) - gap, seb = val[b] - (zr[b] - sr[pb]) - gap;
-          endWindow(sea); const Ea = EW, dEa = EWD; if (Ea <= 0) continue;
-          endWindow(seb); const Eb = EW, dEb = EWD; if (Eb <= 0) continue;
+          endWindow(sea); const Ea = Rg.EW, dEa = Rg.EWD; if (Ea <= 0) continue;
+          endWindow(seb); const Eb = Rg.EW, dEb = Rg.EWD; if (Eb <= 0) continue;
           // the bond's order, Pauling-style, starting to fall the moment it stretches: the saturation
           // reach sits flat at 1 until 0.82 Å of H–H, and the carbene had nothing to pull on until then
           const ppq = PAIR[type[a] * NT + type[b]], xq = pR[q] - (ppq.re[1] - 0.1);
           let rq = 0, drq = 0;
           if (xq > 0.2) { rq = xq - 0.1; drq = 1; } else if (xq > 0) { rq = xq * xq / 0.4; drq = xq / 0.2; }
           const mq = Math.exp(-rq / INS_QC), dmq = -mq * drq / INS_QC;
-          formingWindow(sr[pa]); const Ua = UW, dUa = UWD; if (Ua <= 0) continue;
-          formingWindow(sr[pb]); const Ub = UW, dUb = UWD; if (Ub <= 0) continue;
-          conserveWindow(sr[pa] + mq); const Ca = CW * Ua, dCa = CWD * Ua, dUCa = CW * dUa; if (Ca <= 0) continue;
-          conserveWindow(sr[pb] + mq); const Cb = CW * Ub, dCb = CWD * Ub, dUCb = CW * dUb; if (Cb <= 0) continue;
+          formingWindow(sr[pa]); const Ua = Rg.UW, dUa = Rg.UWD; if (Ua <= 0) continue;
+          formingWindow(sr[pb]); const Ub = Rg.UW, dUb = Rg.UWD; if (Ub <= 0) continue;
+          conserveWindow(sr[pa] + mq); const Ca = Rg.CW * Ua, dCa = Rg.CWD * Ua, dUCa = Rg.CW * dUa; if (Ca <= 0) continue;
+          conserveWindow(sr[pb] + mq); const Cb = Rg.CW * Ub, dCb = Rg.CWD * Ub, dUCb = Rg.CW * dUb; if (Cb <= 0) continue;
           const w = INS_MAX * hw * A * Q * Ea * Eb * Ca * Cb;
           if (w <= 0) continue;
           scr[q] *= 1 - w;
@@ -1971,28 +1955,28 @@ class Engine {
     // b for (j,k) with current coordination (held fixed for the exclusion)
     let b = 0, fjk = 0, fpjk = 0, X = 0, dX = 0, dpj = 0, dpk = 0, bpj = 0, bpk = 0, sr = 0, srp = 0;
     if (pp.bond) {
-      if (r < pp.s2) { satF(r, pp); sr = SF; srp = SFD; }
-      smoothSwitch(r, pp.r1, pp.r2); fjk = SW; fpjk = SWD;
+      if (r < pp.s2) { satF(r, pp); sr = Rg.SF; srp = Rg.SFD; }
+      smoothSwitch(r, pp.r1, pp.r2); fjk = Rg.SW; fpjk = Rg.SWD;
       const sjk = 0; // a 1-3 pair is screened by the shared neighbour
       let pj = 0, pk = 0;
-      if (this.val[j] > 0) { sat(this.Zs[j] - sjk + 1 - this.val[j]); pj = SP; dpj = SPD; }
-      if (this.val[k] > 0) { sat(this.Zs[k] - sjk + 1 - this.val[k]); pk = SP; dpk = SPD; }
+      if (this.val[j] > 0) { sat(this.Zs[j] - sjk + 1 - this.val[j]); pj = Rg.SP; dpj = Rg.SPD; }
+      if (this.val[k] > 0) { sat(this.Zs[k] - sjk + 1 - this.val[k]); pk = Rg.SP; dpk = Rg.SPD; }
       b = pj * pk; bpj = pj; bpk = pk;
       const re = pp.re[1], De = pp.De[1], a = pp.a[1], y = a * (r - re);
-      if (y < Y_OFF) { smoothSwitch(y, Y_ON, Y_OFF); const ey = Math.exp(-y), VR = De * ey * ey; X += SW * VR; dX += SWD * a * VR - 2 * a * SW * VR; }
+      if (y < Y_OFF) { smoothSwitch(y, Y_ON, Y_OFF); const ey = Math.exp(-y), VR = De * ey * ey; X += Rg.SW * VR; dX += Rg.SWD * a * VR - 2 * a * Rg.SW * VR; }
     }
     lj(r, this.ljx[j] * this.ljx[k], this.lje[j] * this.lje[k], this.ljeA[j] * this.ljeA[k], this.rc);
     const qq = this.q[j] * this.q[k], h = this._coulH(r);
     const wP = (1 - b) * (1 - sr);
-    X += wP * LR + LA + COUL * qq * h;
-    dX += wP * LDR - (1 - b) * LR * srp + LDA + this._dcoul(r, qq);
+    X += wP * Rg.LR + Rg.LA + COUL * qq * h;
+    dX += wP * Rg.LDR - (1 - b) * Rg.LR * srp + Rg.LDA + this._dcoul(r, qq);
     const m = 1 - fjk; // do not double-exclude a pair that is itself bonded (3-rings)
-    const radiusGrad = -w * m * (wP * LXR + LXA);
+    const radiusGrad = -w * m * (wP * Rg.LXR + Rg.LXA);
     this.phi[j] += radiusGrad * this.ljx[k] * this.ljq[j];
     this.phi[k] += radiusGrad * this.ljx[j] * this.ljq[k];
     const Esub = -w * m * X;
     // Esub depends on b = p_j·p_k through the Pauli term: dEsub/db = w·m·LR → saturation coefficients
-    if (LR !== 0 && (dpj !== 0 || dpk !== 0)) { const c = w * m * (1 - sr) * LR; this.G[j] += c * bpk * dpj; this.G[k] += c * bpj * dpk; }
+    if (Rg.LR !== 0 && (dpj !== 0 || dpk !== 0)) { const c = w * m * (1 - sr) * Rg.LR; this.G[j] += c * bpk * dpj; this.G[k] += c * bpj * dpk; }
     if (h !== 0) { const c = w * m * COUL * h; this.phi[j] -= c * this.q[k]; this.phi[k] -= c * this.q[j]; }
     // gradient wrt r_jk
     const dEdr = -w * (m * dX - fpjk * X);
