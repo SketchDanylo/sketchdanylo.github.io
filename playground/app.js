@@ -93,7 +93,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build129', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build130', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -1870,9 +1870,9 @@ function renderDisplayApp(stage){
 function renderAboutApp(stage) {
   appRefresh = null;
   stage.appendChild(el('p', 'app-lede',
-    'An experimental reactive force field with fitted molecular examples. The structures and energies below are checked; rates and mechanisms are qualitative.'));
+    'An experimental reactive force field fitted to real molecules. The live view is qualitative; » uses measured rates where they exist.'));
   const facts = [
-    ['Time', 'Each step is 1 fs; at 1× the chamber plays 20 ps per second. » skips ahead to the next reaction, at measured rates where they exist.'],
+    ['Time', 'Each step is 1 fs; 1× aims at 20 ps a second, and a phone manages less. » skips ahead to the next reaction.'],
     ['Known to be wrong', 'Spin is absent (O₂ is patched to act as the triplet diradical it is). Cl + H₂ and OH + H₂ have barriers that are too high, H + O₂ → OH + O too low. CO gets a double bond instead of a triple. No tunnelling, excited states or solvent.'],
     ['What you see', 'Contours show tabulated atomic sizes. Hold an atom (right-click on a computer) for a real Hartree–Fock calculation of it.']
   ];
