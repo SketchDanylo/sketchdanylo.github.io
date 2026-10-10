@@ -93,7 +93,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build131', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build132', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -415,15 +415,18 @@ function showPop(pop, anchor, place) {
   if(consoleIsOpen())closeConsole();
   if(inspector.panel.classList.contains('open'))inspector.close();
   closePop();
-  pop.inert = false; pop.classList.add('open'); openPop = { pop, anchor };
+  pop.inert = false; pop.classList.add('open'); openPop = { pop, anchor, place };
   anchor.setAttribute('aria-expanded', 'true');
+  placePop(pop, anchor, place);
+  (pop.querySelector('button:not(:disabled),select,[tabindex="0"]')||pop).focus();
+}
+function placePop(pop, anchor, place) {
   const a = anchor.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
   let x, y;
   if (place === 'below') { x = clamp(a.right - w, 8, innerWidth - w - 8); y = a.bottom + 8; pop.style.setProperty('--oy', '0%'); }
   else if (place === 'right') { x = a.right + 10; y = clamp(a.top + a.height / 2 - h / 2, 8, innerHeight - h - 8); pop.style.setProperty('--ox', '0%'); pop.style.setProperty('--oy', '50%'); }
   else { x = clamp(a.left + a.width / 2 - w / 2, 8, innerWidth - w - 8); y = a.top - h - 10; pop.style.setProperty('--oy', '100%'); }
   pop.style.left = clamp(x, 8, Math.max(8, innerWidth - w - 8)) + 'px'; pop.style.top = clamp(y, 8, Math.max(8, innerHeight - h - 8)) + 'px';
-  (pop.querySelector('button:not(:disabled),select,[tabindex="0"]')||pop).focus();
 }
 function closePop() {
   if (!openPop) return;
@@ -642,7 +645,7 @@ let libraryTab = 'atoms';
 const LIBRARY_TABS = [['atoms', 'atomsTab', 'atomsPanel'], ['molecules', 'trayPill', 'tray']];
 function selectLibrary(tab) {
   const changed=libraryTab!==tab; libraryTab=tab;
-  const render=()=>{ for (const [t, , panel] of LIBRARY_TABS) $(panel).hidden = t !== tab; };
+  const render=()=>{ for (const [t, , panel] of LIBRARY_TABS) $(panel).hidden = t !== tab; if (openPop?.pop === $('elPop')) placePop(openPop.pop, openPop.anchor, openPop.place); };
   if(changed && openPop?.pop===$('elPop'))crossfadeSurface($('elPop').querySelector('.library-content'),render,$('elPop'));else render();
   for (const [t, btn] of LIBRARY_TABS) { $(btn).setAttribute('aria-selected', t === tab); $(btn).tabIndex = t === tab ? 0 : -1; }
 }
