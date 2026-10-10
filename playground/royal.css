@@ -124,7 +124,6 @@ html[data-motion=reduced] *,html[data-motion=reduced] *::before,html[data-motion
 @media(prefers-reduced-motion:reduce){*,*::before,*::after,select::picker(select),details::details-content{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 
 .word{display:none}
-.gauge[hidden]{display:none}
 @media(max-width:640px){.gauges{top:12px;left:auto;right:10px}.mark{top:22px}}
 .library .tray-head{justify-content:flex-end;padding:0 2px 8px}
 .library .tray-list{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:0}
@@ -138,3 +137,4 @@ html[data-motion=reduced] *,html[data-motion=reduced] *::before,html[data-motion
 .mark,.feed{margin-left:env(safe-area-inset-left,0px)}
 .gauges,.scale{margin-right:env(safe-area-inset-right,0px)}
 body,canvas{-webkit-touch-callout:none}
+@media(max-width:760px){.app-tab span{display:block}.console-rail{width:auto}}
