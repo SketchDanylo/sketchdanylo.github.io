@@ -9,13 +9,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Hanken+Grotesk:wght@400;500;600&family=Martian+Mono:wdth,wght@87.5,300;87.5,400;100,500;100,600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20261009-build122">
-<link rel="stylesheet" href="royal.css?v=20261009-build122">
+<link rel="stylesheet" href="style.css?v=20261009-build123">
+<link rel="stylesheet" href="royal.css?v=20261009-build123">
 </head>
 <body>
 <canvas id="field" aria-label="Simulation field with schematic atomic contours. Choose an element, then click to place; right-click an atom for calculated orbitals. Drag empty space to pan; scroll to zoom."></canvas>
 <div class="top-line" aria-hidden="true"></div>
-<div class="starters" id="starters" hidden></div>
 
 <!-- wordmark + live inventory -->
 <header class="mark" id="mark">
@@ -60,9 +59,7 @@
   <div class="inventory" id="inventory" aria-live="polite"></div>
   <div><span>Kinetic temperature</span><strong id="liveTemperature">—</strong></div>
   <div><span>Total energy</span><strong id="liveEnergy">—</strong></div>
-  <div><span>Bath</span><button id="bathBtn" aria-pressed="true">298 K · on</button></div>
   <button id="resampleBtn" class="resample" title="Sample fresh thermal velocities at the target temperature (Shift+T)">Resample thermal motion ↗</button>
-  <div class="readout-foot">Playback <span id="rateDetail">paused</span></div>
   <p id="physicsNotice" class="physics-notice" role="status" hidden></p>
 </aside>
 
@@ -111,30 +108,6 @@
 <!-- scale bar -->
 <button class="scale" id="fitBtn" title="Fit chamber · right-click for display settings" aria-label="Fit chamber"><span id="scale"><i></i><span></span></span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3v3m7-3h3v3M3 10v3h3m7-3v3h-3"/></svg></button>
 
-<!-- conditioning sheet -->
-<section class="sheet" id="sheet" aria-label="Condition molecule" hidden>
-  <canvas id="sheetCanvas" width="300" height="220"></canvas>
-  <div class="sheet-body">
-    <div class="sheet-title"><span id="sheetName"></span><small id="sheetFormula"></small></div>
-    <div class="seg" id="condSeg" role="radiogroup">
-      <button data-v="normal" role="radio">Room<small>298 K</small></button>
-      <button data-v="zero" role="radio">Zero K<small>classical minimum</small></button>
-      <button data-v="custom" role="radio">Custom<small id="customSmall">set below</small></button>
-    </div>
-    <div class="custom" id="customRow">
-      <label>T <span class="scrub" id="cT" data-unit="K"></span></label>
-      <label title="Ideal-gas pressure used only to estimate the confinement size; no barostat">P estimate <span class="scrub" id="cP" data-unit="bar"></span></label>
-    </div>
-    <label class="placement-rest"><input type="checkbox" id="placeAtRest"> Place with zero initial velocity</label>
-    <details class="condition-note"><summary>Preview assumptions</summary><p>Isolated molecule. Pressure sets a nominal cell size, not an equilibrated bulk sample.</p></details>
-    <div class="cond-status" id="condStatus"><i id="condBar"></i><span id="condText"></span></div>
-    <div class="sheet-actions">
-      <button class="ghost" id="condCancel">Cancel <kbd>Esc</kbd></button>
-      <button class="primary" id="condPlace">Place <kbd>↵</kbd></button>
-    </div>
-  </div>
-</section>
-
 <!-- popovers -->
 <div class="pop" id="speedPop" role="menu"></div>
 <div class="pop" id="tPop"></div>
@@ -143,18 +116,15 @@
   <div class="library-tabs" role="tablist" aria-label="Materials">
     <button id="atomsTab" role="tab" aria-selected="true" aria-controls="atomsPanel">Atoms</button>
     <button id="trayPill" role="tab" aria-selected="false" aria-controls="tray" tabindex="-1">Molecules <b id="trayCount">0</b></button>
-    <button id="expTab" role="tab" aria-selected="false" aria-controls="expPanel" tabindex="-1">Experiments</button>
   </div>
   <div class="library-content">
     <div id="atomsPanel" role="tabpanel" aria-labelledby="atomsTab"><div class="grid" id="periodicGrid"></div></div>
     <section id="tray" role="tabpanel" aria-labelledby="trayPill" hidden>  <div class="tray-panel" id="trayPanel">
     <div class="tray-head">
-      <span>From Nomenclature</span>
-      <a id="openNom" href="../nomenclature.html" target="_blank" rel="noopener">Draw one ↗</a>
+      <a id="openNom" href="../nomenclature.html" target="_blank" rel="noopener">Draw ↗</a>
     </div>
     <div class="tray-list" id="trayList"></div>
   </div></section>
-    <section id="expPanel" role="tabpanel" aria-labelledby="expTab" hidden><div class="exp-list" id="expList"></div></section>
   </div>
 </div>
 <div class="tip" id="tip"></div>
@@ -187,12 +157,12 @@
 
 <div class="toasts" id="toasts"></div>
 
-<script src="engine.js?v=20261009-build122"></script>
-<script src="protocol.js?v=20261009-build122"></script>
-<script src="render.js?v=20261009-build122"></script>
-<script src="inspector.js?v=20261009-build122"></script>
-<script src="kinetics.js?v=20261009-build122"></script>
-<script src="forecast.js?v=20261009-build122"></script>
-<script src="app.js?v=20261009-build122"></script>
+<script src="engine.js?v=20261009-build123"></script>
+<script src="protocol.js?v=20261009-build123"></script>
+<script src="render.js?v=20261009-build123"></script>
+<script src="inspector.js?v=20261009-build123"></script>
+<script src="kinetics.js?v=20261009-build123"></script>
+<script src="forecast.js?v=20261009-build123"></script>
+<script src="app.js?v=20261009-build123"></script>
 </body>
 </html>
