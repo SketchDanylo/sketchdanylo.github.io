@@ -60,7 +60,6 @@ class FieldRenderer {
     if (sc.ghost) this._ghost(sc.ghost);
     this._flashes(sc);
     this._uv(sc);
-    this._empty(sc);
     this._fx(sc);
     this._overlay(sc);
     if (sc.inspect) this._leader(sc.inspect, sc.now);
@@ -165,7 +164,7 @@ class FieldRenderer {
       if (hot.includes('y')) { ctx.moveTo(x0, y1); ctx.lineTo(x1, y1); }
       ctx.stroke();
     }
-    // dimension lines, drawn like a technical drawing: width over the top edge, height beside the right edge
+    if (!hot) { ctx.restore(); return; }
     ctx.font = '400 10px "Martian Mono", monospace';
     const dimCol = 'rgba(162,162,167,0.8)', hotCol = '#ffb23f';
     const wl = ((b.x1 - b.x0) / 10).toFixed(2) + ' nm', hl = ((b.y1 - b.y0) / 10).toFixed(2) + ' nm';
@@ -412,15 +411,6 @@ class FieldRenderer {
       ctx.restore();
     }
   }
-  _empty(sc) {
-    if (sc.N || !sc.box || !sc.emptyHint) return;
-    const b = sc.box, [x0, y0] = this.toScreen(b.x0, b.y0), [x1, y1] = this.toScreen(b.x1, b.y1), ctx = this.ctx;
-    ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const w = Math.abs(x1 - x0), lines = w > 520 ? [sc.emptyHint.join(' · ')] : sc.emptyHint;
-    ctx.font = '400 ' + (w > 520 ? 13 : 11) + 'px "Martian Mono", monospace'; ctx.fillStyle = 'rgba(200,200,210,.42)';
-    lines.forEach((l, k) => ctx.fillText(l, (x0 + x1) / 2, (y0 + y1) / 2 + (k - (lines.length - 1) / 2) * 20));
-    ctx.restore();
-  }
   _fx(sc) {
     const fx = sc.fx;
     if (!fx) return;
@@ -456,8 +446,8 @@ class FieldRenderer {
         ctx.strokeStyle = 'rgba(214,190,255,' + (0.9 * (1 - e)).toFixed(3) + ')'; ctx.lineWidth = 2.5;
         ctx.beginPath(); ctx.arc(mx, my, 12 + 60 * e, 0, Math.PI * 2); ctx.stroke();
         const a = t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4;
-        ctx.font = '600 22px "Martian Mono", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-        const hw = ctx.measureText(j.text).width / 2 + 10, lx = Math.max(hw, Math.min(this.W - hw, mx)), ly = Math.max(34, my - 22 - 28 * t);
+        ctx.font = '600 ' + (this.W < 560 ? 17 : 22) + 'px "Martian Mono", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+        const hw = ctx.measureText(j.text).width / 2 + 18, lx = Math.max(hw, Math.min(this.W - hw, mx)), ly = Math.max(34, my - 22 - 28 * t);
         ctx.fillStyle = 'rgba(10,8,20,' + (0.55 * a).toFixed(3) + ')'; ctx.fillText(j.text, lx + 1, ly + 1);
         ctx.fillStyle = 'rgba(226,208,255,' + a.toFixed(3) + ')'; ctx.fillText(j.text, lx, ly);
       }
@@ -473,7 +463,7 @@ class FieldRenderer {
     }
     const pr = fx.probe;
     if (pr && pr.at && pr.at.every(ok)) {
-      const [mx, my] = mid(pr.at), a = Math.min(1, (now - pr.t0) / 250), W = 76, Hh = 24, top = my - 74;
+      const [px, py] = mid(pr.at), mx = Math.max(70, Math.min(this.W - 70, px)), my = py, a = Math.min(1, (now - pr.t0) / 250), W = 76, Hh = 24, top = Math.max(40, my - 74);
       ctx.globalAlpha = a; ctx.textAlign = 'center';
       ctx.font = '600 19px "Martian Mono", monospace'; ctx.textBaseline = 'bottom';
       ctx.fillStyle = 'rgba(10,8,20,.6)'; ctx.fillText(pr.text, mx + 1, top + 1);

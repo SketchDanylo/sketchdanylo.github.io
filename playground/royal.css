@@ -122,3 +122,11 @@ input[type=checkbox]:checked{background:#dadad8;border-color:#e9e9e6}input[type=
 @media(max-height:600px){.console-win{top:72px!important;max-height:calc(100dvh - 174px)}.pop{max-height:calc(100dvh - 110px)}.atom-inspector{max-height:calc(100dvh - 24px)}}
 html[data-motion=reduced] *,html[data-motion=reduced] *::before,html[data-motion=reduced] *::after,html[data-motion=reduced] select::picker(select),html[data-motion=reduced] details::details-content{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after,select::picker(select),details::details-content{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+.word{display:none}
+.gauge[hidden]{display:none}
+@media(max-width:640px){.gauges{top:12px;left:auto;right:10px}.mark{top:22px}}
+.library .tray-head{justify-content:flex-end;padding:0 2px 8px}
+.library .tray-list{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:0}
+.library .mol{margin:0;padding:6px 6px 7px;gap:1px;align-items:center;text-align:center}.library .mol svg{height:40px}.library .mol .nm{font-size:10.5px;font-weight:500;max-width:100%}.library .mol .fm{display:none}
+@media(hover:none){.mol .x{opacity:1}}

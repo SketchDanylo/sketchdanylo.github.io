@@ -2,10 +2,9 @@
 
 A reactive molecular-dynamics sandbox at true scale. Atoms and molecules live in a 3D slab, 1.2 nm deep by default, which you view from above, so reactions cannot drift away along z. The manual view zooms from 0.05 nm to 15 nm. Chamber dimensions extend to 50 nm; Fit can zoom farther out to show the complete box. In the sandbox, bonds form and break from an experimental potential energy model.
 
-Open `playground/` on the site. An empty chamber shows the ready-made experiments as tiles, each
-with a picture of what goes in; one click loads it, and the button to press next glows (☀ for light,
-then the double arrow for the next reaction). Single atoms come from the dock, molecules from **+**
-or from [Nomenclature](../nomenclature.html) → **Playground**.
+Open `playground/` on the site. The chamber starts empty: tap it and a hydrogen appears. Single atoms come
+from the dock, molecules from **+** (a built-in set: water, methane, ethene, ethane, benzene, H₂, O₂, N₂, Cl₂,
+Br₂, HCl, NH₃, CO₂, CH₃·, OH·), or from [Nomenclature](../nomenclature.html) → **Playground**.
 
 ## Thermostats
 
@@ -451,7 +450,7 @@ because the way on is from there. If neither state has a way out it says so ("eq
 nothing else happens"). A finished product whose only possible step is falling apart over the age of
 the universe is "stable", not an equilibrium.
 
-**The search starts before you ask.** Right after a reaction plays, when an experiment loads, or when
+**The search starts before you ask.** Right after a reaction plays, or when
 the chamber is edited, the workers start forecasting the new chamber in the background, one candidate
 per idle worker, and stop as soon as `J` is pressed. The next `J` then mostly reads finished forecasts:
 typically under 7 s instead of 10–50. The live simulation between skips is the chamber itself, so
@@ -665,7 +664,7 @@ made for have changed by the time you skip, it refuses and asks for a new foreca
 
 After two or more skips the chamber's lower-left corner draws the last fourteen as one energy diagram,
 each step starting where the one before ended: a chlorination chain reads as small climbs and large
-drops, energy going down step by step. Loading an experiment or emptying the chamber starts it afresh.
+drops, energy going down step by step. Emptying the chamber starts it afresh.
 
 **Keep going** (`Shift+J`, or double-click the double arrow, which then pulses; `J` or Esc stops it)
 repeats this: skip to the next reaction, watch it for 3 ps, search again, until nothing more can happen
@@ -689,9 +688,8 @@ term, a vinyl C–H 50 kJ/mol too weak made that abstraction look downhill and i
 H· + ethene 72%, CH₃· + H· 26%, CH₃· + ethene 1%. Two methanes at room temperature: nothing on any
 human timescale.
 
-**Experiments** (tiles in the middle of an empty chamber, and a third tab in the add-atoms library):
-ready-made textbook chambers, each loading its own conditions (temperature, and the lamp for the ones
-marked ☀): radical chlorination of methane (room temperature, lamp on: CH₃Cl, then CH₂Cl₂), chlorine
+**Textbook chambers** (once tiles in an empty chamber; now built by hand from the molecules list):
+what these mixtures do, at the conditions given: radical chlorination of methane (room temperature, lamp on: CH₃Cl, then CH₂Cl₂), chlorine
 adding across ethene (lamp on: 1,2-dichloroethane by the chain), radical polymerisation of ethene
 (CH₃· → C₃H₇· → C₅H₁₁·, about one step every 0.1 ms at 350 K with the measured 31 kJ/mol barrier, against 0.3 ms from the measured rate), methyl
 radicals recombining, hydroxyl with methane in air (OH· + CH₄ → H₂O + CH₃·, then CH₃· + O₂ → CH₃O₂·,

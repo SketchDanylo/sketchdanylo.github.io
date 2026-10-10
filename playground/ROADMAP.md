@@ -32,8 +32,9 @@ organic chemistry from, and loose enough to experiment in.
   real lamp. Methane and O₂ at 1200 K start with O₂ + CH₄ → CH₃· + HO₂·. Once radicals are made, they
   meet at a real flask's rate, so chains are not cut short by the chamber's crowding. Running on stops
   by itself at an equilibrium or a loop and names it.
-- **Starting.** An empty chamber shows the experiments as tiles, each with a picture of its
-  molecules; one click loads it.
+- **Starting.** The chamber starts empty, with no text: a tap places a hydrogen, + opens the atoms and a
+  built-in set of molecules. On a phone everything works by touch: hold an atom to inspect it, pinch to
+  zoom, drag to pan or move.
 
 ## What still has to happen, most important first
 
@@ -178,7 +179,7 @@ Without this, the forecast and fast-forward will work well for radical and gas-p
 - Curved-arrow mechanisms drawn from the bond orders that changed during a reaction.
 - Energy diagrams for a whole sequence of steps: the last fourteen skips are drawn as one diagram in
   the chamber's corner. Next: label the species at each level, and include steps that happened live.
-- Ready-made textbook scenarios: six radical ones exist (tiles in an empty chamber: chlorination of
+- Ready-made textbook scenarios: six radical ones are verified (built by hand from the molecules list: chlorination of
   methane, chlorine and ethene, radical polymerisation of ethene, methyl recombination, hydroxyl with
   methane in air, hydrogen and chlorine). Next: combustion of hydrogen (at the chamber's 100 bar it runs
   through HO₂· and H₂O₂, the high-pressure route, with some exotic H₂O₃ on the way); SN2 and E2 once
