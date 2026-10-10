@@ -858,7 +858,8 @@ function relocate(eng, g) {
 
 function addAcross(eng, idx) {
   const [x1, x2, c1, c2] = idx, P = eng.pos, at = i => [P[3 * i], P[3 * i + 1], P[3 * i + 2]];
-  const f0 = eng.fragments(), group = [...new Set(f0.list[f0.comp[c1]].concat(f0.list[f0.comp[x1]]))];
+  const f0 = eng.fragments(), ene = f0.list[f0.comp[c1]], hal = f0.list[f0.comp[x1]], group = [...new Set(ene.concat(hal))];
+  const mid = [0, 1, 2].map(d => 0.5 * (ene.reduce((s, i) => s + P[3 * i + d], 0) / ene.length + hal.reduce((s, i) => s + P[3 * i + d], 0) / hal.length));
   const a = at(c1), b = at(c2), cc = unit(sub(b, a)) || [1, 0, 0];
   const sub1 = neighbours(eng, c1).filter(k => k !== c2);
   let n = sub1.length >= 2 ? unit(cross(sub(at(sub1[0]), a), sub(at(sub1[1]), a))) : null;
@@ -871,7 +872,7 @@ function addAcross(eng, idx) {
   eng.refresh();
   const { e, map } = isolate(eng, group, null, eng.T);
   e.minimize(1500, 0.05);
-  const c0 = [0, 1, 2].map(d => group.reduce((s, i) => s + P[3 * i + d], 0) / group.length);
+  const c0 = mid;
   for (const i of group) { const k = map.get(i); for (let d = 0; d < 3; d++) P[3 * i + d] = c0[d] + e.pos[3 * k + d]; eng.born[i] = eng.time; }
   eng.touch(); eng.refresh();
   clearAround(eng, group);
