@@ -4782,6 +4782,11 @@ class Engine {
       entry = { depth: 0, lines: [], complete: 0 };
       this.cache.set(job.fen, entry);
     }
+    const held = entry.lines[0];
+    if (multipv === 1 && held && held.seeded) {
+      const confirms = scored.mate !== null && Math.sign(scored.mate) === Math.sign(held.mate) && Math.abs(scored.mate) <= Math.abs(held.mate);
+      if (!confirms) return;
+    }
     // Keep a deeper result from an earlier search rather than overwrite it with a shallow one.
     if (depth < entry.depth && multipv === 1 && !job.fresh) return;
     if (multipv === 1) {
@@ -4818,6 +4823,16 @@ class Engine {
     this.pending = job;
     if (this.current) this.stopCurrent();
     else this.pump();
+  }
+
+  seed(fen, line) {
+    let entry = this.cache.get(fen);
+    if (!entry) {
+      entry = { depth: 0, lines: [], complete: 0 };
+      this.cache.set(fen, entry);
+    }
+    entry.depth = Math.max(entry.depth, line.depth);
+    entry.lines[0] = { ...line, seeded: true };
   }
 
   exportCache(limit = 250) {
@@ -4936,7 +4951,7 @@ function formatScore(score, { signed = true } = {}) {
   if (!score) return '…';
   if (score.mate !== null && score.mate !== undefined) {
     if (score.mate === 0) return '#';
-    return `${score.mate > 0 ? '' : '−'}M${Math.abs(score.mate)}`;
+    return `${score.mate > 0 ? '' : '−'}M${score.bound ? '≤' : ''}${Math.abs(score.mate)}`;
   }
   const pawns = score.cp / 100;
   const text = Math.abs(pawns) >= 10 ? Math.abs(pawns).toFixed(0) : Math.abs(pawns).toFixed(1);
@@ -6676,7 +6691,7 @@ function evalOf(fen) {
   const entry = engine.entry(fen);
   if (!entry || !entry.lines[0]) return null;
   const line = entry.lines[0];
-  return { score: { cp: line.cp, mate: line.mate }, pv: line.pv, depth: entry.depth };
+  return { score: { cp: line.cp, mate: line.mate, bound: line.bound }, pv: line.pv, depth: entry.depth };
 }
 
 function viewFen() {
@@ -6745,12 +6760,34 @@ function play(uci, { byEngine = false, auto = false } = {}) {
   state.lastMoveAt = performance.now();
   state.nodes = state.nodes.slice(0, state.index + 1);
   state.nodes.push({ fen: chess.fen(), move, uci: move.from + move.to + (move.promotion || ''), byEngine, auto });
+  carryMate(before, move.from + move.to + (move.promotion || ''), chess.fen());
   state.index++;
   // Feedback needs a baseline for the position the move was played from.
   engine.prioritize(before, 12);
   refresh();
   maybeEngineMove();
   return true;
+}
+
+function carryMate(beforeFen, uci, afterFen) {
+  const parent = engine.entry(beforeFen);
+  const line = parent && parent.lines[0];
+  if (!line || line.mate == null || line.mate === 0 || !line.pv || !line.pv.length || line.bound) return;
+  const child = engine.entry(afterFen);
+  if (child && child.lines[0] && child.depth >= parent.depth - 1) return;
+  const winner = line.mate > 0 ? 'w' : 'b';
+  const mover = turnOf(beforeFen);
+  const onLine = line.pv[0] === uci;
+  if (!onLine && mover === winner) return;
+  const remaining = Math.abs(line.mate) - (onLine && mover === winner ? 1 : 0);
+  if (remaining < 1) return;
+  engine.seed(afterFen, {
+    cp: null,
+    mate: Math.sign(line.mate) * remaining,
+    pv: onLine ? line.pv.slice(1) : [],
+    depth: onLine ? Math.max(1, line.depth - 1) : 1,
+    bound: !onLine
+  });
 }
 
 function goTo(index) {
@@ -7001,7 +7038,7 @@ function renderLines() {
     if (steps.length < 2) continue;
     const text = lineText(fen, steps.slice(1));
     const [first, ...rest] = text.split(' ');
-    const score = { cp: line.cp, mate: line.mate };
+    const score = { cp: line.cp, mate: line.mate, bound: line.bound };
     const negative = (score.mate != null ? score.mate < 0 : score.cp < 0);
     const floor = rows.length === 0 ? entry.depth : Math.min(entry.depth, ALT_DEPTH);
     rows.push(`<li data-uci="${line.pv[0]}" class="${line.depth < floor - 2 ? 'stale' : ''}"><span class="score ${negative ? 'neg' : ''}">${formatScore(score)}</span><span class="pv"><b>${first}</b> ${rest.join(' ')}</span></li>`);
@@ -7594,7 +7631,7 @@ function tryEngineReply(force = false) {
   const fen = state.waitingEngine;
   if (!fen || fen !== state.nodes[state.index].fen) return;
   const entry = engine.entry(fen);
-  if (!entry || !entry.lines[0]) return;
+  if (!entry || !entry.lines[0] || !entry.lines[0].pv.length) return;
   if (entry.depth < 14 && !force) return;
   state.waitingEngine = null;
   const wait = Math.max(0, 600 - (performance.now() - state.engineAsked));
@@ -8417,7 +8454,7 @@ function outcomeOf(score) {
   }
   if (score.mate != null) {
     const winner = score.mate > 0 ? 'w' : 'b';
-    return { group: winner, text: `${SIDE_NAME[winner]} mates in ${Math.abs(score.mate)}` };
+    return { group: winner, text: `${SIDE_NAME[winner]} mates in ${score.bound ? '≤' : ''}${Math.abs(score.mate)}` };
   }
   const winner = score.cp >= 0 ? 'w' : 'b';
   const size = Math.abs(score.cp);
@@ -8606,7 +8643,7 @@ function tickPlayout() {
   if (state.playoutPlies >= PLAYOUT_MAX_PLIES) { stopPlayoutWith(`Stopped after ${PLAYOUT_MAX_PLIES} moves`); return; }
   const entry = engine.entry(fen);
   const best = entry && entry.lines[0];
-  if (!best) return;
+  if (!best || !best.pv.length) return;
   const now = performance.now();
   const elapsed = now - (state.solveStart || 0);
   const found = best.mate !== null && best.mate !== undefined;
