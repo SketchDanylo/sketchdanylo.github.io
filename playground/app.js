@@ -93,7 +93,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build126', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build127', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -785,7 +785,7 @@ function hitAtom(wx, wy, extra = 0) {
   const k = 0.5;
   for (let i = 0; i < eng.N; i++) {
     const dx = rp[3 * i] - wx, dy = rp[3 * i + 1] - wy, d = dx * dx + dy * dy;
-    const r = Math.max(ELEMENTS[eng.type[i]].rvdw * k, 7 / R.scale) + extra;
+    const r = Math.max(ELEMENTS[eng.type[i]].rvdw * k, (touchOnly ? 16 : 7) / R.scale) + extra;
     if (d < r * r && d < bd) { bd = d; best = i; }
   }
   return best;
@@ -811,7 +811,8 @@ canvas.addEventListener('pointerdown', e => {
   closePop(); hideTip();
   if (pointers.size === 2) { // pinch
     const [a, b] = [...pointers.values()];
-    if (gesture && ((gesture.type === 'move' && !gesture.moved) || (gesture.type === 'erase' && eng.N === gesture.n0))) undoStack.pop();
+    if (gesture && gesture.type === 'erase' && eng.N !== gesture.n0 && undoStack.length) applySnap(undoStack.pop());
+    else if (gesture && ((gesture.type === 'move' && !gesture.moved) || gesture.type === 'erase')) undoStack.pop();
     if (gesture && gesture.type === 'tweezer') { eng.tweezer = null; eng.touch(); }
     clearTimeout(holdTimer);
     gesture = { type: 'pinch', d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, d0: Math.hypot(a.x - b.x, a.y - b.y), m0: [(a.x + b.x) / 2, (a.y + b.y) / 2], t0: performance.now() };

@@ -133,3 +133,7 @@ html[data-motion=reduced] *,html[data-motion=reduced] *::before,html[data-motion
 #speedPop .row .note{margin-left:auto}
 .library-tabs .tab-link{margin-left:auto;align-self:center;font:500 12px var(--sans);color:var(--dim);text-decoration:none;padding:9px 10px}.library-tabs .tab-link:hover{color:var(--bone)}
 .library .mol .nm{white-space:normal;line-height:1.2;overflow:visible}
+.control-rail,.scale,.feed,.tool-context{margin-bottom:env(safe-area-inset-bottom,0px)}
+.mark,.gauges,.toasts{margin-top:env(safe-area-inset-top,0px)}
+.mark,.feed{margin-left:env(safe-area-inset-left,0px)}
+.gauges,.scale{margin-right:env(safe-area-inset-right,0px)}
