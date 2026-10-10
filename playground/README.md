@@ -5,6 +5,12 @@ A reactive molecular-dynamics sandbox at true scale. Atoms and molecules live in
 Open `playground/` on the site. The chamber starts empty: tap it and a hydrogen appears. Single atoms come
 from the dock, molecules from **+** (a built-in set: water, methane, ethene, ethane, benzene, H₂, O₂, N₂, Cl₂,
 Br₂, HCl, NH₃, CO₂, CH₃·, OH·), or from [Nomenclature](../nomenclature.html) → **Playground**.
+A molecule goes straight to your finger or cursor at the chamber's temperature; tap or click to drop it,
+drag to throw it.
+
+On a phone: tap to place, drag an atom to move it (or to pull it while the clock runs), hold an atom to
+inspect it, drag empty space to pan, pinch to zoom, and tap with two fingers, or the ↶ that appears at the
+top, to undo.
 
 ## Thermostats
 
@@ -771,7 +777,8 @@ are now always the ones that attack, and it completes in 6 of 6 seeded runs and 
   least 45 kJ/mol uphill beside the addition to the same double bond); nor for a hydrogen or halogen
   sitting on another radical's own unpaired carbon (Cl· + ·CH₂CH₂Cl takes the hydrogen from the CH₂Cl
   end, giving vinyl chloride; taking it from the radical carbon made the carbene ClCH₂CH:, which then
-  swallowed the HCl whole in picoseconds); a radical bonding onto a
+  swallowed the HCl whole in picoseconds); nor a radical meeting a saturated, four-bonded carbon
+  (substitution at an sp³ carbon by a radical, S_H2, is far too slow to ever compete in the gas phase); a radical bonding onto a
   halogen that already holds a bond (R–Cl–Cl·, which the model allows for ClF₃ but which is barely
   bound in reality), or onto an oxygen already holding two single bonds, is not a route; nor is a
   carbon radical knocking a group off an oxygen (CH₃· + HOOCH₃ → CH₃OOCH₃ + H·, 80–90 kJ/mol uphill in

@@ -38,7 +38,7 @@ function toggleBath() { setBathMode(eng.thermostat ? 'off' : (store.get('bathMod
 function resampleMotion() {
   if (!eng.N) return toast('Place atoms or molecules first');
   pushUndo(); eng.thermalize(eng.T); edited();
-  toast('Fresh thermal velocities at ' + fmtT(eng.T) + ' K · press play to run');
+  toast('Fresh motion at ' + fmtT(eng.T) + ' K');
 }
 function stopMotion() {
   if (!eng.N) return toast('Nothing to stop');
@@ -93,7 +93,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build124', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build125', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -209,6 +209,7 @@ function applySnap(o) {
   edited();
 }
 function undo() { if (!undoStack.length) return toast('Nothing to undo'); redoStack.push({ s: eng.snapshot(), box: { ...eng.box } }); applySnap(undoStack.pop()); }
+$('undoBtn').onclick = () => undo();
 function redo() { if (!redoStack.length) return; undoStack.push({ s: eng.snapshot(), box: { ...eng.box } }); applySnap(redoStack.pop()); }
 let editTick = 0;
 function edited() { // topology changed by the user: no reaction/bond events for this change
@@ -810,7 +811,10 @@ canvas.addEventListener('pointerdown', e => {
   closePop(); hideTip();
   if (pointers.size === 2) { // pinch
     const [a, b] = [...pointers.values()];
-    gesture = { type: 'pinch', d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+    if (gesture && ((gesture.type === 'move' && !gesture.moved) || (gesture.type === 'erase' && eng.N === gesture.n0))) undoStack.pop();
+    if (gesture && gesture.type === 'tweezer') { eng.tweezer = null; eng.touch(); }
+    clearTimeout(holdTimer);
+    gesture = { type: 'pinch', d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, d0: Math.hypot(a.x - b.x, a.y - b.y), m0: [(a.x + b.x) / 2, (a.y + b.y) / 2], t0: performance.now() };
     return;
   }
   const [wx, wy] = R.toWorld(e.clientX, e.clientY);
@@ -836,7 +840,7 @@ canvas.addEventListener('pointerdown', e => {
   if (tool === 'spark') { ignite(wx, wy); gesture = { type: 'spark' }; return; }
   if (tool === 'cleave') { cleave(wx, wy); gesture = { type: 'cleave' }; return; }
   if (tool === 'forecast') { if (hit >= 0) forecastCard.choose(hit); else forecastCard.close(); return; }
-  if (tool === 'erase') { pushUndo(); gesture = { type: 'erase', alt: e.altKey }; eraseAt(wx, wy, e.altKey); return; }
+  if (tool === 'erase') { pushUndo(); gesture = { type: 'erase', alt: e.altKey, n0: eng.N }; eraseAt(wx, wy, e.altKey); return; }
   if (tool === 'heat') { brush.active = true; brush.cool = e.shiftKey; gesture = { type: 'brush' }; return; }
   const edge = boxEdgeAt(e.clientX, e.clientY);
   if (edge && hit < 0) { pushUndo(); gesture = { type: 'box', edge }; return; }
@@ -899,7 +903,7 @@ function endPointer(e) {
   clearTimeout(holdTimer);
   pointers.delete(e.pointerId);
   const g = gesture; if (!g) return;
-  if (g.type === 'pinch') { if (pointers.size < 2) gesture = null; return; }
+  if (g.type === 'pinch') { if (pointers.size < 2) { gesture = null; if (e.pointerType === 'touch' && performance.now() - g.t0 < 300 && Math.abs(g.d - g.d0) < 14 && Math.hypot(g.mx - g.m0[0], g.my - g.m0[1]) < 14) undo(); } return; }
   gesture = null;
   const [wx, wy] = R.toWorld(e.clientX, e.clientY);
   if (g.type === 'tweezer') { eng.tweezer = null; eng.touch(); }
@@ -913,7 +917,7 @@ function endPointer(e) {
     const x0 = Math.min(g.x0, g.x1), x1 = Math.max(g.x0, g.x1), y0 = Math.min(g.y0, g.y1), y1 = Math.max(g.y0, g.y1);
     if (!e.ctrlKey && !e.metaKey) selection.clear();
     for (let i = 0; i < eng.N; i++) if (rp[3 * i] >= x0 && rp[3 * i] <= x1 && rp[3 * i + 1] >= y0 && rp[3 * i + 1] <= y1) selection.add(i);
-    if (selection.size) toast(selection.size + ' atoms selected — Delete removes, drag moves (paused)');
+    if (selection.size) toast(selection.size + ' selected');
   } else if (g.type === 'placeAtom') {
     const dragPx = Math.hypot(e.clientX - g.sx, e.clientY - g.sy);
     placeAtom(armed, g.wx, g.wy, dragPx > 8 ? flingVel(wx - g.wx, wy - g.wy) : null);
@@ -966,11 +970,10 @@ function ignite(wx, wy) {
     const dx = v[0] - wx, dy = v[1] - wy;
     if (dx * dx + dy * dy < r2) list.push(i);
   }
-  if (!list.length) return toast('Nothing within the spark — click closer to a molecule');
+  if (!list.length) return;
   pushUndo();
   // give the struck atoms the speed of a very hot gas, directed outward so a bond is pulled apart
   const SPARK_T = 25000, HOLD = 2000;   // K of directed motion, and fs of ignition window
-  let added = 0;
   for (const i of list) {
     const k = 3 * i;
     const v = viewTilted() ? toView(eng.pos[k], eng.pos[k + 1], eng.pos[k + 2]) : [eng.pos[k], eng.pos[k + 1], eng.pos[k + 2]];
@@ -978,14 +981,11 @@ function ignite(wx, wy) {
     if (on < 1e-6) { ox = eng.gauss(); oy = eng.gauss(); on = Math.hypot(ox, oy) || 1; }
     const speed = Math.sqrt(3 * KB * SPARK_T / (eng.mass[i] * 1e4));
     const dir = viewTilted() ? viewDelta(ox / on, oy / on) : [ox / on, oy / on, 0];
-    const before = eng.vel[k] ** 2 + eng.vel[k + 1] ** 2 + eng.vel[k + 2] ** 2;
     for (let d = 0; d < 3; d++) eng.vel[k + d] += dir[d] * speed;
-    added += 0.5 * 1e4 * eng.mass[i] * (eng.vel[k] ** 2 + eng.vel[k + 1] ** 2 + eng.vel[k + 2] ** 2 - before);
   }
   eng.sparkHold = eng.time + HOLD;      // the stat stands back while the spark does its work
   eng.checkpoints.length = 0; eng.touch();
   bondTrack.pending.push({ x: wx, y: wy, t0: performance.now(), dur: 520, kind: 'form', big: true });
-  toast('Spark · ' + added.toFixed(0) + ' kJ/mol into ' + list.length + ' atom' + (list.length === 1 ? '' : 's'));
   if (!time.playing) setPlaying(true);
   edited();
 }
@@ -1034,7 +1034,7 @@ $('lampBtn').onclick = () => setLamp(!eng.lamp);
 function uvTargets() { return eng.bonds().filter(b => b.strength >= 0.4 && UV_ABSORB.has(ELEMENTS[eng.type[b.i]].sym) && UV_ABSORB.has(ELEMENTS[eng.type[b.j]].sym)); }
 function cleave(wx, wy) {
   const b = cleaveTarget(wx, wy);
-  if (!b) return toast(eng.N ? 'Point at a bond, between two atoms' : 'Place a molecule first');
+  if (!b) return;
   pushUndo();
   const i = b.i, j = b.j, k = 3 * i, l = 3 * j;
   const pp = PAIR[eng.type[i] * ELEMENTS.length + eng.type[j]];
@@ -1295,7 +1295,7 @@ function ghostOK(g) {
 }
 function dropMolecule(x, y, fling, keep) {
   const g = ghostAtoms(x, y);
-  if (!ghostOK(g)) { toast('No room here — move the ghost to a free spot inside the box'); return; }
+  if (!ghostOK(g)) { toast('No room here'); return; }
   pushUndo();
   const c = Math.cos(placing.rot), s = Math.sin(placing.rot), base = eng.N;
   // Conditioning removes center-of-mass motion. Restore thermal translation
@@ -1870,15 +1870,9 @@ function renderAboutApp(stage) {
   stage.appendChild(el('p', 'app-lede',
     'An experimental reactive force field with fitted molecular examples. The structures and energies below are checked; rates and mechanisms are qualitative.'));
   const facts = [
-    ['Physical clock', 'Each step advances 1 fs. At 1×, the target is 20,000 steps/s: <b>20 ps per real second</b>. At 0.1×, one step takes one second. × is a playback setting, never a change to the physics.'],
-    ['Why a mixture may look inert', 'A second at the target rate covers 20 picoseconds. A reaction may need activation, a solvent, or chemistry this model cannot represent. For stationary imports, use <b>Resample thermal motion</b>.'],
-    ['What is checked', 'H₂ 0.741 Å / 436 kJ/mol, water 104.2°, the water dimer at −26 kJ/mol, 2 H₂ + O₂ → 2 H₂O at −486 (lit. −484), H + H₂ barrier 43 (lit. 40), ethene + Cl· barrierless. Na + Cl₂ → NaCl runs at 300 K; CH₄ + O₂ at 3500 K passes through CH₂O and OH·.'],
-    ['Known to be wrong', 'Spin is absent (O₂ is patched to act as the triplet diradical it is). Cl + H₂ and OH + H₂ have barriers that are too high, H + O₂ → OH + O too low. CO gets a double bond instead of a triple. Water needs below ~150 K to freeze, because lone pairs have no direction. No tunnelling, excited states or solvent.'],
-    ['Three dimensions', 'A 3D chamber seen face on. Solid walls reflect atomic centres at all six faces; the optional soft field allows penetration. Electron contours can extend past a face. Right-drag empty space to tilt the view; zoom changes the view, never atom sizes or the chamber volume.'],
-    ['Temperature', 'Wall mode exchanges heat at the boundary. Kelvin mode is a bath touching every atom (Langevin): the Boltzmann spread of energies is kept, and reaction heat leaves in a few hundred femtoseconds. Off leaves motion unthermostatted.'],
-    ['Energy &amp; pressure', 'Force checks hold internal bond orders fixed; changing those heuristic orders can cause drift, and extreme-collision speed clamps remove energy. Wall pressure is averaged normal stress. Optional pressure control adjusts chamber width and height; it is a heuristic controller, not validated NPT sampling.'],
-    ['What you see', 'Field contours show tabulated atomic sizes through Gaussian surfaces. The atom inspector runs a real Hartree–Fock calculation; the chamber view does not.'],
-    ['Zero kelvin', 'A classical geometry minimum with zero initial velocities. Quantum zero-point motion is not represented.']
+    ['Time', 'Each step is 1 fs; at 1× the chamber plays 20 ps per second. » skips ahead to the next reaction, at measured rates where they exist.'],
+    ['Known to be wrong', 'Spin is absent (O₂ is patched to act as the triplet diradical it is). Cl + H₂ and OH + H₂ have barriers that are too high, H + O₂ → OH + O too low. CO gets a double bond instead of a triple. No tunnelling, excited states or solvent.'],
+    ['What you see', 'Contours show tabulated atomic sizes. Hold an atom (right-click on a computer) for a real Hartree–Fock calculation of it.']
   ];
   stage.appendChild(el('dl', 'app-facts', facts.map(f => '<div><dt>' + f[0] + '</dt><dd>' + f[1] + '</dd></div>').join('')));
   stage.appendChild(el('p', 'app-source',
@@ -2078,6 +2072,7 @@ function frame(now) {
     const hasP = !!eng.N && eng.pressureEMA > 1e-4;
     $('pVal').textContent = hasP ? fmtP(eng.pressureEMA) : '';
     $('gP').hidden = !hasP;
+    $('undoBtn').hidden = !(touchOnly && undoStack.length);
     $('backBtn').disabled = !eng.canStepBack();
     // scale bar
     const s = R.scale, cands = [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50], nm = cands.find(v => v * 10 * s >= 60) || 2;

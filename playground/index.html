@@ -9,8 +9,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Hanken+Grotesk:wght@400;500;600&family=Martian+Mono:wdth,wght@87.5,300;87.5,400;100,500;100,600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20261009-build124">
-<link rel="stylesheet" href="royal.css?v=20261009-build124">
+<link rel="stylesheet" href="style.css?v=20261009-build125">
+<link rel="stylesheet" href="royal.css?v=20261009-build125">
 </head>
 <body>
 <canvas id="field" aria-label="Simulation field with schematic atomic contours. Choose an element, then click to place; right-click an atom for calculated orbitals. Drag empty space to pan; scroll to zoom."></canvas>
@@ -46,6 +46,9 @@
     <svg class="gi" viewBox="0 0 16 16"><path d="M2.5 11.5a5.5 5.5 0 1 1 11 0"/><path d="M8 11.5l2.8-3.6"/></svg>
     <span class="val" id="pVal">—</span>
   </div>
+  <button class="gauge icon" id="undoBtn" aria-label="Undo" title="Undo" hidden>
+    <svg class="gi" viewBox="0 0 16 16"><path d="M5.5 3.5L2.5 6.5l3 3"/><path d="M2.8 6.5h6.4a3.8 3.8 0 0 1 0 7.6H7"/></svg>
+  </button>
   <button class="gauge icon lamp" id="lampBtn" aria-pressed="false" aria-label="Lamp" title="Lamp (L) · off">
     <svg class="gi" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.6"/><path d="M8 1.6v1.8M8 12.6v1.8M1.6 8h1.8M12.6 8h1.8M3.5 3.5l1.3 1.3M11.2 11.2l1.3 1.3M12.5 3.5l-1.3 1.3M4.8 11.2l-1.3 1.3"/></svg>
   </button>
@@ -157,12 +160,12 @@
 
 <div class="toasts" id="toasts"></div>
 
-<script src="engine.js?v=20261009-build124"></script>
-<script src="protocol.js?v=20261009-build124"></script>
-<script src="render.js?v=20261009-build124"></script>
-<script src="inspector.js?v=20261009-build124"></script>
-<script src="kinetics.js?v=20261009-build124"></script>
-<script src="forecast.js?v=20261009-build124"></script>
-<script src="app.js?v=20261009-build124"></script>
+<script src="engine.js?v=20261009-build125"></script>
+<script src="protocol.js?v=20261009-build125"></script>
+<script src="render.js?v=20261009-build125"></script>
+<script src="inspector.js?v=20261009-build125"></script>
+<script src="kinetics.js?v=20261009-build125"></script>
+<script src="forecast.js?v=20261009-build125"></script>
+<script src="app.js?v=20261009-build125"></script>
 </body>
 </html>
