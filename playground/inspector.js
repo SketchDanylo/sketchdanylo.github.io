@@ -143,12 +143,12 @@ class AtomInspector {
       if(data.grid){if(data.requestId===this.viewRequest&&this.cloudMode==='orbital'){status.hidden=true;this.drawDensity(data.grid);}return;}
       status.hidden=true;
       this.slices={atom:data.result.atomSlice,total:data.result.totalSlice};
-      const {scf,method,electronTrace}=data.result;
+      const {scf,method}=data.result;
       this.scf=scf;this.el('orbitalSpin').disabled=!scf.uhf;this.el('orbitalSpin').value='alpha';
       this.populateOrbitals();this.updateView();
       this.el('quantumMethod').textContent=method;
       const q=scf.mulliken[this.selected];
-      this.el('quantumResults').textContent=`${scf.nelec} electrons · ${scf.iterations} iterations · E = ${scf.E.toFixed(6)} Eh\nMulliken charge here: ${q>=0?'+':''}${q.toFixed(3)} e${scf.uhf?' · ⟨S²⟩ '+scf.S2.toFixed(3):''}\nElectron-count check: ${electronTrace.toFixed(6)}`;
+      this.el('quantumResults').textContent=`${scf.nelec} electrons · E = ${scf.E.toFixed(4)} Eh\nCharge here: ${q>=0?'+':''}${q.toFixed(2)} e${scf.uhf?' · ⟨S²⟩ '+scf.S2.toFixed(2):''}`;
     };
     worker.onerror=event=>{console.error('Quantum worker:',event.message,event.filename,event.lineno);status.className='';status.textContent='Quantum worker failed. Recalculate to retry.';worker.terminate();this.worker=null;};
     worker.postMessage({input:{...this.input,mult:Number(this.el('quantumSpin').value)},selected:this.selected});

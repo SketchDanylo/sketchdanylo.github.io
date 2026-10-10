@@ -93,7 +93,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build123', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build124', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -1163,7 +1163,7 @@ function logReaction(lhs, rhs, loc) {
   li.onclick = () => { if (loc) camTo(loc[0], loc[1], Math.min(R.cam.span, 16), true); };
   $('feed').appendChild(li);
   feedItems.push({ li, t: performance.now() });
-  while (feedItems.length > 5) { const o = feedItems.shift(); o.li.remove(); }
+  while (feedItems.length > (innerWidth < 640 ? 2 : 5)) { const o = feedItems.shift(); o.li.remove(); }
   if (loc) flashes.push({ x: loc[0], y: loc[1], t0: performance.now(), dur: 900, kind: 'form', big: true });
 }
 function ageFeed(now) {
@@ -2066,7 +2066,8 @@ function frame(now) {
   if (now - lastUI > 100) {
     lastUI = now;
     updateLab(); showLamp();
-    $('clock').textContent = eng.skipped > 0 ? ChemKinetics.humanTime(eng.skipped) + (innerWidth < 760 ? ' + ' : ' skipped + ') + fmtTime(eng.time) : fmtTime(eng.time);
+    $('clock').textContent = eng.skipped > 0 ? ChemKinetics.humanTime(eng.skipped + eng.time * 1e-15) : fmtTime(eng.time);
+    $('clock').title = eng.skipped > 0 ? ChemKinetics.humanTime(eng.skipped) + ' skipped + ' + fmtTime(eng.time) + ' played' : '';
     const rate = $('rate');
     if (time.playing) {
       rate.textContent = (time.limited ? 'CPU-bound · ' : '') + fmtRate(time.rateEMA) + (time.limited ? ' · ' + Math.round(time.rateEMA / stepsPerSecond(time.speed) * 100) + '% target' : '');
