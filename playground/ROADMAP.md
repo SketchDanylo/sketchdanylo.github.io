@@ -156,6 +156,12 @@ Without this, the forecast and fast-forward will work well for radical and gas-p
   molecules adding in one step through a four-centre ring), and for a ground-state (triplet) O or S
   atom inserting into a σ bond. The search already refuses to count both; the live simulation can
   still do them, because the model carries no spin.
+- Skip each scan whose best possible rate cannot matter. In ethene + Cl₂ under the lamp, the state
+  C₂H₄Cl· + C₂H₄Cl₂ + Cl· costs ten quick scans of 1.6–5 s each (about 7 s of waiting on four cores),
+  though Cl· taking Cl from C₂H₄Cl₂ is about 100 kJ/mol uphill and could never compete with the two
+  radicals pairing up. A bound from bond energies before scanning (rate ≤ collision rate × e^(−ΔH/RT))
+  would drop those; the catch is that the engine's own Cl bond energies are not yet trustworthy enough
+  to prune on.
 - Large chambers: forecast once per distinct situation and reuse it, instead of rescanning every copy.
 - Large molecules: every scan point relaxes every atom of both partners, so a C₉ radical meeting ethene
   costs 25–30 s a candidate. Scanning only the atoms within two bonds of the reacting pair, capped with
