@@ -93,7 +93,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build138', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build139', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -613,7 +613,7 @@ function buildDock() {
       b._last = now; setTool(b.dataset.tool);
       if (again && eng.N) { pushUndo(); eng.clear(); selection.clear(); edited(); toast(touchOnly ? 'Emptied · ↶ brings it back' : 'Emptied · Ctrl+Z brings it back'); }
     };
-    tipOn(b, () => { const t = TOOLS.find(x => x[0] === b.dataset.tool); return '<b>' + t[1] + '</b> <span class="m">' + keyHint('tool.' + t[0]) + '</span><div style="margin-top:4px">' + t[2] + '</div>'; }, 'above');
+    tipOn(b, () => { const t = TOOLS.find(x => x[0] === b.dataset.tool); return touchOnly ? '<b>' + t[1] + '</b>' : '<b>' + t[1] + '</b> <span class="m">' + keyHint('tool.' + t[0]) + '</span><div style="margin-top:4px">' + t[2] + '</div>'; }, 'above');
   });
   $('elements').querySelectorAll('.el').forEach(b => {
     b.onclick = () => arm(armed === b.dataset.el ? null : b.dataset.el);
@@ -687,8 +687,10 @@ for(const [, id] of LIBRARY_TABS)$(id).addEventListener('keydown',e=>{
 /* tooltips */
 const tip = $('tip'); let tipTimer = 0;
 function tipOn(el, html, place) {
-  el.addEventListener('pointerenter', () => { clearTimeout(tipTimer); tipTimer = setTimeout(() => showTip(el, html(), place), 380); });
-  el.addEventListener('pointerleave', hideTip); el.addEventListener('pointerdown', hideTip);
+  el.addEventListener('pointerenter', e => { if (e.pointerType === 'touch') return; clearTimeout(tipTimer); tipTimer = setTimeout(() => showTip(el, html(), place), 380); });
+  el.addEventListener('pointerleave', e => { if (e.pointerType !== 'touch') hideTip(); });
+  el.addEventListener('pointerdown', e => { hideTip(); if (e.pointerType === 'touch') tipTimer = setTimeout(() => { showTip(el, html(), place); tipTimer = setTimeout(hideTip, 2200); }, 450); });
+  el.addEventListener('pointerup', e => { if (e.pointerType === 'touch' && !tip.classList.contains('show')) clearTimeout(tipTimer); });
 }
 function showTip(el, html, place) {
   tip.innerHTML = html; tip.classList.add('show');
