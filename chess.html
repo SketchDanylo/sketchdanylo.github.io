@@ -791,9 +791,9 @@ button.link .ic { width: 15px; height: 15px; }
 .icon.sm { width: 34px; height: 34px; border-radius: 11px; }
 .icon.sm .ic { width: 16px; height: 16px; }
 .icon.on { background: rgba(127, 214, 160, 0.18); border-color: rgba(127, 214, 160, 0.5); color: #c9f2d8; }
-.i-pause { display: none; }
-.playing .i-play { display: none; }
-.playing .i-pause { display: block; }
+.pill .i-pause { display: none; }
+.pill.playing .i-play { display: none; }
+.pill.playing .i-pause { display: block; }
 .disc { display: inline-block; flex: none; width: 11px; height: 11px; border-radius: 50%; }
 .disc.w { background: #f1f2f4; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3); }
 .disc.b { background: #1b1d22; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.45); }
@@ -804,6 +804,18 @@ button.link .ic { width: 15px; height: 15px; }
 .card { backdrop-filter: blur(26px) saturate(1.4); -webkit-backdrop-filter: blur(26px) saturate(1.4); background: rgba(20, 21, 26, 0.5); }
 #step-play { width: 44px; padding: 0; }
 #solve-run .i-play, #solve-run .i-pause { width: 15px; height: 15px; }
+
+
+.tr-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; color: var(--muted); font-size: 0.8rem; }
+.tr-score { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px 2px 7px; border-radius: 999px; background: rgba(255, 255, 255, 0.07); color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
+.tr-score .ic { width: 14px; height: 14px; }
+.tr-res { padding: 2px 9px; border-radius: 999px; font-weight: 700; }
+.tr-res.ok { background: rgba(127, 214, 160, 0.16); color: #bdf0d0; }
+.tr-res.miss { background: rgba(240, 130, 122, 0.16); color: #f7b9b3; }
+.tr-cur b { color: var(--text); }
+.icon.sm.tr-hint { width: 28px; height: 28px; border-radius: 9px; }
+.icon.sm.tr-hint .ic { width: 15px; height: 15px; color: #f2dc9c; }
+#trainer-toggle .ic { width: 19px; height: 19px; }
 
 .tabbar, .more-btn, .sheet { display: none; }
 
@@ -856,6 +868,7 @@ body.solving .solve-card { display: block; }
   .evalbar { width: var(--board); height: 12px; border-radius: 0; box-shadow: none; flex: none; }
   .eval-fill, .evalbar.flipped .eval-fill { top: 0; bottom: 0; left: 0; right: auto; height: auto; width: var(--ev, 50%); background: linear-gradient(to right, #f1f2f4, #dfe2e8); transition: width 700ms var(--ease-soft); }
   .eval-label { left: auto; right: auto; top: 0; bottom: auto; line-height: 12px; font-size: 0.62rem; }
+  .eval-label.top, .eval-label.bottom { top: 0; bottom: auto; }
   .eval-label.bottom { left: 8px; }
   .eval-label.top { right: 8px; }
   body.flip-b .eval-label.bottom { left: auto; right: 8px; }
@@ -902,6 +915,7 @@ body.solving .solve-card { display: block; }
   .fb-actions .pill { height: 30px; padding: 0 11px; font-size: 0.78rem; }
   .fb-meter, .unof-badge.small, .fb-sub:not(.end) { display: none; }
   .fb-sub.end { grid-column: 1 / -1; margin: 0; font-size: 0.78rem; }
+  .fb-main .tr-row { grid-column: 1 / -1; margin: 0; }
 
   .tabbar { display: flex; flex: none; gap: 4px; padding: 4px 12px; }
   .tabbar button { position: relative; flex: 1; height: 28px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font-size: 0.82rem; font-weight: 650; cursor: pointer; transition: background 200ms ease, color 200ms ease; }
@@ -1002,6 +1016,8 @@ body.solving .solve-card { display: block; }
 <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 21a2 2 0 0 0 4 0"/></symbol>
 <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="12" r="5"/><circle cx="15" cy="12" r="5"/></symbol>
 <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+<symbol id="i-cap" viewBox="0 0 24 24"><path d="M2.5 9.5L12 5l9.5 4.5L12 14z"/><path d="M6.5 11.7v4.3c0 1.4 2.5 2.8 5.5 2.8s5.5-1.4 5.5-2.8v-4.3"/><path d="M21.5 9.5v5"/></symbol>
+<symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.3 1.1 2.2h5c0-.9.4-1.6 1.1-2.2A6 6 0 0 0 12 3z"/></symbol>
 </defs></svg>
 
 <div class="page">
@@ -1059,6 +1075,7 @@ body.solving .solve-card { display: block; }
           <svg class="i-pause" viewBox="0 0 24 24"><path d="M9 6v12M15 6v12"/></svg>
           <svg class="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10-6.5z"/></svg>
         </button>
+        <button class="icon engine-toggle" id="trainer-toggle" title="Trainer — the engine slips up on purpose so you learn to punish it" aria-label="Trainer" aria-pressed="false"><svg class="ic"><use href="#i-cap"/></svg></button>
       </div>
 
       <section class="card opening-card" id="opening-card" data-panel="opening">
@@ -4754,7 +4771,11 @@ class Engine {
           } else {
             entry.complete = Math.max(entry.complete || 0, finished.depth);
           }
-          if (finished.multipv > 1) entry.multiDone = Math.max(entry.multiDone || 0, finished.depth);
+          if (finished.multipv > 1) {
+            entry.multiDone = Math.max(entry.multiDone || 0, finished.depth);
+            entry.wide = entry.wide || {};
+            entry.wide[finished.multipv] = Math.max(entry.wide[finished.multipv] || 0, finished.depth);
+          }
         }
         if (finished.then && !this.pending) this.pending = { fen: finished.fen, kind: 'view', ...finished.then };
         this.emit({ type: 'done', fen: finished.fen, job: finished });
@@ -4807,8 +4828,9 @@ class Engine {
   analyze(fen, { depth = 24, multipv = 1, then = null } = {}) {
     let job = { fen, depth, multipv, kind: 'view', then };
     const entry = this.cache.get(fen);
-    if (entry && (entry.complete || 0) >= depth) {
-      if (!then || (entry.multiDone || 0) >= then.depth) {
+    const reached = multipv > 1 ? this.wideDepth(fen, multipv) : (entry && entry.complete) || 0;
+    if (entry && reached >= depth) {
+      if (!then || this.wideDepth(fen, then.multipv) >= then.depth) {
         this.pending = null;
         if (this.current && this.current.kind === 'view') this.stopCurrent();
         this.emit({ type: 'info', fen, entry, job });
@@ -4827,6 +4849,16 @@ class Engine {
     else this.pump();
   }
 
+  wideDepth(fen, width) {
+    const entry = this.cache.get(fen);
+    if (!entry || !entry.wide) return 0;
+    let reached = 0;
+    for (const [key, value] of Object.entries(entry.wide)) {
+      if (Number(key) >= width) reached = Math.max(reached, value);
+    }
+    return reached;
+  }
+
   seed(fen, line) {
     let entry = this.cache.get(fen);
     if (!entry) {
@@ -4842,7 +4874,7 @@ class Engine {
     for (const [fen, entry] of this.cache) {
       if (!entry.solved && (entry.complete || 0) < 24) continue;
       const lines = entry.lines.filter(Boolean).slice(0, 3).map(line => [line.cp, line.mate, line.pv.slice(0, 40).join(' '), line.depth]);
-      rows.push([fen, { d: entry.depth, c: entry.complete || 0, s: entry.solved ? 1 : 0, m: entry.multiDone || 0, l: lines }]);
+      rows.push([fen, { d: entry.depth, c: entry.complete || 0, s: entry.solved ? 1 : 0, m: entry.multiDone || 0, w: entry.wide && entry.wide[3] ? { 3: entry.wide[3] } : null, l: lines }]);
     }
     return rows.slice(-limit);
   }
@@ -4851,7 +4883,7 @@ class Engine {
     for (const [fen, data] of rows) {
       if (this.cache.has(fen)) continue;
       const lines = data.l.map(([cp, mate, pv, depth]) => ({ cp, mate, pv: pv.split(' '), depth }));
-      this.cache.set(fen, { depth: data.d, complete: data.c, solved: !!data.s, multiDone: data.m, lines });
+      this.cache.set(fen, { depth: data.d, complete: data.c, solved: !!data.s, multiDone: data.m, wide: data.w || (data.m ? { 3: data.m } : undefined), lines });
     }
   }
 
@@ -6613,7 +6645,8 @@ const state = {
   explore: null,
   editing: null,
   solving: false,
-  playout: false
+  playout: false,
+  trainer: false
 };
 
 // ---------- engine ----------
@@ -6656,6 +6689,10 @@ engine.on(message => {
 function analyzeView() {
   const fen = viewFen();
   if (terminal(fen) || state.editing) return;
+  if (trainerTurn()) {
+    engine.analyze(fen, { depth: TRAIN_DEPTH, multipv: TRAIN_WIDTH });
+    return;
+  }
   if (state.solving && !state.explore) {
     if (state.solveFen !== fen) {
       state.solveFen = fen;
@@ -6750,7 +6787,7 @@ async function handleBoardMove(from, to) {
   play(from + to + (promotion || ''));
 }
 
-function play(uci, { byEngine = false, auto = false } = {}) {
+function play(uci, { byEngine = false, auto = false, trainer = null } = {}) {
   const before = state.nodes[state.index].fen;
   const chess = chessAt(before);
   const move = moveFromUci(chess, uci);
@@ -6761,7 +6798,7 @@ function play(uci, { byEngine = false, auto = false } = {}) {
   state.waitingEngine = null;
   state.lastMoveAt = performance.now();
   state.nodes = state.nodes.slice(0, state.index + 1);
-  state.nodes.push({ fen: chess.fen(), move, uci: move.from + move.to + (move.promotion || ''), byEngine, auto });
+  state.nodes.push({ fen: chess.fen(), move, uci: move.from + move.to + (move.promotion || ''), byEngine, auto, trainer });
   carryMate(before, move.from + move.to + (move.promotion || ''), chess.fen());
   state.index++;
   // Feedback needs a baseline for the position the move was played from.
@@ -6883,7 +6920,7 @@ function renderArrows() {
     marks = overlay.marks;
   } else {
     const entry = engine.entry(fen);
-    const best = state.show.best && !terminal(fen) && entry && entry.lines[0] ? entry.lines[0].pv[0] : null;
+    const best = state.show.best && !trainerHiding() && !terminal(fen) && entry && entry.lines[0] ? entry.lines[0].pv[0] : null;
     const unofficial = state.show.unofficial ? unofficialMoves(fen) : [];
     const purple = new Set(unofficial.map(move => move.uci));
     if (state.show.book) {
@@ -6975,7 +7012,7 @@ function threatOverlay(fen, color, withTargets) {
 
 const evalBar = $('evalbar');
 function renderEvalBar() {
-  const fen = viewFen();
+  const fen = trainerHiding() ? state.nodes[state.index - 1].fen : viewFen();
   const result = evalOf(fen);
   const fill = $('eval-fill');
   const top = $('eval-top');
@@ -7023,6 +7060,13 @@ function renderLines() {
     depthFill.style.width = '100%';
     return;
   }
+  if (trainerHiding()) {
+    const hidden = '<li class="placeholder">Hidden while you find the reply · tap the bulb for a hint</li>';
+    if (list._html !== hidden) { list.innerHTML = hidden; list._html = hidden; }
+    depthText.textContent = '–';
+    depthFill.style.width = '0%';
+    return;
+  }
   if (!entry || !entry.lines.length) {
     list.innerHTML = `<li class="placeholder">${engine.failed ? 'The engine could not start in this browser.' : 'Analysing…'}</li>`;
     depthText.textContent = '–';
@@ -7034,6 +7078,7 @@ function renderLines() {
   const seen = new Set();
   const rows = [];
   for (const line of entry.lines) {
+    if (rows.length >= 3) break;
     if (!line || seen.has(line.pv[0])) continue;
     seen.add(line.pv[0]);
     const steps = playLine(fen, line.pv, 9);
@@ -7312,7 +7357,7 @@ function judge(i) {
   // A named line is only "book" while it is also sound: the database names plenty of dubious tries.
   const engineVerdict = classify({ inBook: false, playedUci: node.uci, before, after, color: node.move.color });
   const extra = { before: beforeEval, after: afterEval, inBook };
-  if (inBook && (!engineVerdict || engineVerdict.drop < 8)) return { kind: 'book', drop: 0, ...extra };
+  if (inBook && (!engineVerdict || engineVerdict.drop < 8)) return { kind: 'book', drop: 0, engineDrop: engineVerdict ? engineVerdict.drop : null, ...extra };
   return engineVerdict ? { ...engineVerdict, ...extra } : { kind: 'pending', ...extra };
 }
 
@@ -7330,7 +7375,7 @@ function renderFeedback() {
   const end = terminal(state.nodes[state.index].fen);
   if (i === 0) {
     cardEl.dataset.kind = '';
-    morph(body, `<div class="fb idle"><div class="fb-icon k-idle">♞</div><div class="fb-main"><p class="fb-title">Your move</p></div></div>`, 'intro');
+    morph(body, `<div class="fb idle"><div class="fb-icon k-idle">♞</div><div class="fb-main"><p class="fb-title">Your move</p>${trainerRow()}</div></div>`, 'intro');
     return;
   }
   const node = state.nodes[i];
@@ -7373,7 +7418,7 @@ function renderFeedback() {
   const endText = end ? `<p class="fb-sub end">${end.text}</p>` : '';
   const icon = kind === 'pending' ? '' : CLASS_ICON[kind];
   const html = `<div class="fb"><div class="fb-icon k-${kind}">${icon}</div><div class="fb-main">
-    <p class="fb-title">${title}</p>${sub}${meter}${actions}${endText}</div></div>`;
+    <p class="fb-title">${title}</p>${sub}${meter}${actions}${endText}${trainerRow()}</div></div>`;
   morph(body, html, `fb:${i}:${kind}`);
 }
 
@@ -7386,6 +7431,12 @@ function flip(score) {
 $('feedback-body').addEventListener('click', event => {
   const button = event.target.closest('button[data-act]');
   if (!button) return;
+  if (button.dataset.act === 'hint') {
+    const node = state.nodes[state.index];
+    node.hint = (node.hint || 0) + 1;
+    softUpdate();
+    return;
+  }
   const i = Number(button.dataset.index);
   if (button.dataset.act === 'why') openExplore(i);
   if (button.dataset.act === 'retry') retry(i);
@@ -7440,9 +7491,10 @@ function updateMoveDots() {
     const i = Number(el.dataset.i);
     const dot = el.querySelector('.dot');
     const node = state.nodes[i];
-    if (!node || !isUserMove(node)) { dot.classList.remove('shown'); return; }
-    const verdict = judge(i);
-    const kind = verdict && verdict.kind !== 'pending' ? verdict.kind : null;
+    const revealed = node && node.trainer && i < state.nodes.length - 1;
+    if (!node || (!isUserMove(node) && !revealed)) { dot.classList.remove('shown'); return; }
+    const verdict = revealed ? null : judge(i);
+    const kind = revealed ? node.trainer.kind : verdict && verdict.kind !== 'pending' ? verdict.kind : null;
     dot.classList.toggle('shown', !!kind);
     dot.style.background = kind ? `var(--${kind})` : '';
     el.title = kind ? classLabel(kind) : '';
@@ -7620,6 +7672,12 @@ function maybeEngineMove() {
   if (state.index !== state.nodes.length - 1) return;
   const fen = state.nodes[state.index].fen;
   if (turnOf(fen) === state.mode || terminal(fen)) return;
+  if (trainerOn()) {
+    state.waitingEngine = fen;
+    state.engineAsked = performance.now();
+    tryEngineReply();
+    return;
+  }
   const all = bookMoves(fen);
   // Stay in mainstream theory so the user meets real lines: skip the rare sidelines,
   // and favour moves with more theory behind them.
@@ -7643,6 +7701,17 @@ function tryEngineReply(force = false) {
   if (!fen || fen !== state.nodes[state.index].fen) return;
   const entry = engine.entry(fen);
   if (!entry || !entry.lines[0] || !entry.lines[0].pv.length) return;
+  if (trainerOn()) {
+    if (engine.wideDepth(fen, TRAIN_WIDTH) < TRAIN_DEPTH) return;
+    const choice = pickTrainerMove(fen, entry);
+    if (!choice) return;
+    state.waitingEngine = null;
+    const pause = Math.max(0, 700 - (performance.now() - state.engineAsked));
+    state.engineTimer = setTimeout(() => {
+      if (state.nodes[state.index].fen === fen) play(choice.uci, { byEngine: true, trainer: { kind: choice.kind, drop: choice.drop } });
+    }, pause);
+    return;
+  }
   if (entry.depth < 14 && !force) return;
   state.waitingEngine = null;
   const wait = Math.max(0, 600 - (performance.now() - state.engineAsked));
@@ -8448,6 +8517,134 @@ function setupHeadingAnimation() {
   requestAnimationFrame(tick);
 }
 
+// ---------- trainer ----------
+
+const TRAIN_DEPTH = 12;
+const TRAIN_WIDTH = 14;
+const TRAINER_KINDS = ['best', 'good', 'inaccuracy', 'mistake', 'blunder'];
+const TRAINER_ERRORS = ['inaccuracy', 'mistake', 'blunder'];
+const TRAINER_MIX = { best: 40, good: 24, inaccuracy: 18, mistake: 12, blunder: 6 };
+const TRAINER_KEY = 'chess-coach-trainer';
+
+function trainerOn() {
+  return state.trainer && state.mode !== 'both' && !state.enginePaused && !state.solving;
+}
+
+function trainerTurn() {
+  if (!trainerOn() || state.explore || state.editing) return false;
+  if (state.index !== state.nodes.length - 1) return false;
+  const fen = state.nodes[state.index].fen;
+  return turnOf(fen) !== state.mode && !terminal(fen);
+}
+
+function trainerHiding() {
+  if (!trainerOn() || state.explore || state.editing) return false;
+  if (state.index !== state.nodes.length - 1 || state.index < 1) return false;
+  const node = state.nodes[state.index];
+  return !!node.trainer && turnOf(node.fen) === state.mode && (node.hint || 0) < 2;
+}
+
+function dropKind(drop) {
+  if (drop < 2) return 'best';
+  if (drop < 5) return 'good';
+  if (drop < 10) return 'inaccuracy';
+  if (drop < 20) return 'mistake';
+  return 'blunder';
+}
+
+function pickTrainerMove(fen, entry) {
+  const color = turnOf(fen);
+  const mine = line => (color === 'w' ? winPercent(line) : 100 - winPercent(line));
+  const seen = new Set();
+  const lines = entry.lines.filter(line => line && line.pv && line.pv.length && !seen.has(line.pv[0]) && seen.add(line.pv[0]));
+  if (!lines.length) return null;
+  const top = Math.max(...lines.map(mine));
+  const popularity = new Map(bookMoves(fen).map(move => [move.uci, move.count]));
+  const candidates = lines.map(line => {
+    const drop = Math.max(0, top - mine(line));
+    return { uci: line.pv[0], drop, kind: dropKind(drop), book: popularity.get(line.pv[0]) || 0 };
+  });
+  const previous = state.nodes[state.index].move ? state.nodes[state.index - 1] : null;
+  const lastSlip = previous && previous.trainer && TRAINER_ERRORS.includes(previous.trainer.kind);
+  let target = 'best';
+  if (top >= 5 && !lastSlip) {
+    let roll = Math.random() * Object.values(TRAINER_MIX).reduce((sum, weight) => sum + weight, 0);
+    target = TRAINER_KINDS.find(kind => (roll -= TRAINER_MIX[kind]) < 0) || 'best';
+    if (top < 25 && (target === 'mistake' || target === 'blunder')) target = 'inaccuracy';
+  }
+  const fallback = {
+    best: ['best', 'good'],
+    good: ['good', 'best'],
+    inaccuracy: ['inaccuracy', 'mistake', 'good', 'best'],
+    mistake: ['mistake', 'inaccuracy', 'blunder', 'good', 'best'],
+    blunder: ['blunder', 'mistake', 'inaccuracy', 'good', 'best']
+  }[target];
+  for (const kind of fallback) {
+    let pool = candidates.filter(candidate => candidate.kind === kind);
+    if (!pool.length) continue;
+    const clean = kind === 'best' || kind === 'good';
+    const inBook = candidates.filter(candidate => candidate.book && candidate.drop < 5);
+    if (clean && inBook.length) pool = inBook;
+    const weight = candidate => (candidate.book ? (clean ? Math.pow(candidate.book, 0.8) : 4 + Math.log(1 + candidate.book)) : 1);
+    let roll = Math.random() * pool.reduce((sum, candidate) => sum + weight(candidate), 0);
+    return pool.find(candidate => (roll -= weight(candidate)) < 0) || pool[0];
+  }
+  return candidates[0];
+}
+
+function punished(verdict) {
+  if (!verdict) return false;
+  if (verdict.kind === 'best' || verdict.kind === 'excellent') return true;
+  return verdict.kind === 'book' && verdict.engineDrop != null && verdict.engineDrop < 2;
+}
+
+function trainerRow() {
+  if (!trainerOn()) return '';
+  let chances = 0;
+  let hits = 0;
+  let last = null;
+  for (let i = 2; i <= state.index; i++) {
+    const prev = state.nodes[i - 1];
+    const node = state.nodes[i];
+    if (!prev.trainer || !TRAINER_ERRORS.includes(prev.trainer.kind) || node.byEngine) continue;
+    const verdict = judge(i);
+    if (!verdict || verdict.kind === 'pending') { last = { i, pending: true }; continue; }
+    chances++;
+    const ok = punished(verdict);
+    if (ok) hits++;
+    const bestUci = verdict.before && verdict.before.pv && verdict.before.pv[0];
+    last = { i, ok, theirs: moveLabel(state.nodes[i - 2].fen, prev.uci), kind: prev.trainer.kind, best: bestUci ? sanOf(prev.fen, bestUci) : null };
+  }
+  const parts = chances ? [`<span class="tr-score" title="Slips you punished"><svg class="ic"><use href="#i-cap"/></svg>${hits}/${chances}</span>`] : [];
+  const recent = last && last.i >= state.index - 1 && !last.pending;
+  if (recent) {
+    parts.push(last.ok
+      ? `<span class="tr-res ok" title="Their ${last.theirs} was ${classLabel(last.kind).toLowerCase()}">Punished ${last.theirs}</span>`
+      : `<span class="tr-res miss" title="Their ${last.theirs} was ${classLabel(last.kind).toLowerCase()}">${last.best ? `Missed ${last.best}` : 'Missed it'}</span>`);
+  }
+  const node = state.nodes[state.index];
+  if (state.index === state.nodes.length - 1 && node.trainer && turnOf(node.fen) === state.mode) {
+    const hint = node.hint || 0;
+    const kind = node.trainer.kind;
+    const chip = hint >= 1 ? `<span class="fb-kind t-${kind}">${TRAINER_ERRORS.includes(kind) ? classLabel(kind) : 'Solid'}</span>` : '';
+    const button = hint < 2 ? `<button class="icon sm tr-hint" data-act="hint" title="${hint ? 'Show the best reply' : 'Was their move a slip?'}" aria-label="Hint"><svg class="ic"><use href="#i-bulb"/></svg></button>` : '';
+    parts.push(`<span class="tr-cur">Their <b>${moveLabel(state.nodes[state.index - 1].fen, node.uci)}</b></span>${chip}${button}`);
+  }
+  return parts.length ? `<div class="tr-row">${parts.join('')}</div>` : '';
+}
+
+function setTrainer(on) {
+  state.trainer = on;
+  try { localStorage.setItem(TRAINER_KEY, on ? '1' : '0'); } catch (error) { state.trainer = on; }
+  const button = $('trainer-toggle');
+  button.classList.toggle('on', on);
+  button.setAttribute('aria-pressed', on ? 'true' : 'false');
+  toast(on ? 'Trainer on · the engine will slip up, punish it' : 'Trainer off');
+  refresh();
+  maybeEngineMove();
+}
+$('trainer-toggle').addEventListener('click', () => setTrainer(!state.trainer));
+
 // ---------- solve ----------
 
 const SIDE_NAME = { w: 'White', b: 'Black' };
@@ -8897,6 +9094,13 @@ loadCache();
 try { state.notify = localStorage.getItem(NOTIFY_KEY) === '1' && 'Notification' in window && Notification.permission === 'granted'; } catch (error) { state.notify = false; }
 paintBell();
 const restored = restoreSession();
+try {
+  state.trainer = localStorage.getItem(TRAINER_KEY) === '1';
+} catch (error) {
+  state.trainer = false;
+}
+$('trainer-toggle').classList.toggle('on', state.trainer);
+$('trainer-toggle').setAttribute('aria-pressed', state.trainer ? 'true' : 'false');
 setupHeadingAnimation();
 setupPiecePicker();
 board.setPosition(START, { instant: true });
