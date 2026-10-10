@@ -561,7 +561,7 @@ class Engine {
        chamber of a dozen atoms a thermostat is instantaneous and global, so it would erase a
        spark on the step it landed and nothing could ever be lit. While this window is open the
        stat and the temperature void stand back and let the spark do its work. */
-    this.sparkHold = 0;
+    this.sparkHold = 0; this.burnUntil = 0;
     this.lamp = false;
     this.chain = false;
     this.skipped = 0;
@@ -2415,7 +2415,7 @@ class Engine {
     }
     this.clamped += clamped;
     this._voidWalls();
-    const igniting = this.time < this.sparkHold;
+    const igniting = this.time < this.sparkHold || (this.time < this.burnUntil && this.temperature() > Math.max(1.6 * this.T, this.T + 600));
     if (this.thermostat && !igniting) {
       if (this.thermostatMode === 'csvr') this._csvr();
       else if (this.thermostatMode === 'kelvin') this._kelvin();
@@ -2833,7 +2833,7 @@ class Engine {
     return {
       N, time: this.time, stepCount: this.stepCount, rng: this.rngState, nextId: this.nextId,
       box: { ...this.box }, sphere: this.sphere && { ...this.sphere }, T: this.T, tau: this.tau, thermostat: this.thermostat,
-      thermostatMode: this.thermostatMode, kelvinWork: this.kelvinWork, sparkHold: this.sparkHold, lamp: this.lamp, chain: this.chain, wallT: this.wallT, wallTarget: this.wallTarget,
+      thermostatMode: this.thermostatMode, kelvinWork: this.kelvinWork, sparkHold: this.sparkHold, burnUntil: this.burnUntil, lamp: this.lamp, chain: this.chain, wallT: this.wallT, wallTarget: this.wallTarget,
       wallMeasured: this.wallMeasured, wallContact: this.wallContact,
       boundsMode: this.boundsMode, fieldK: this.fieldK, fieldRange: this.fieldRange,
       voidTemperature: this.voidTemperature, voidPressure: this.voidPressure, voidVelocity: this.voidVelocity, voidTau: this.voidTau, voidSkin: this.voidSkin,
@@ -2856,7 +2856,7 @@ class Engine {
     this.N = s.N; this.time = s.time; this.stepCount = s.stepCount; this.rngState = s.rng; this.nextId = s.nextId;
     if (s.box) this.box = { ...s.box };
     this.sphere = s.sphere ? { ...s.sphere } : null;
-    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'kelvinWork', 'sparkHold', 'lamp', 'chain', 'wallMeasured', 'wallContact', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidVelocity', 'voidTau', 'voidSkin', 'voidHeat', 'voidForce', 'servoWork', 'servoWorkTotal', 'skipped', 'pressureControl', 'pressureTarget', 'pressureTau', 'heatToSample', 'heaterWork', 'nextSub', 'subHold', 'subPeak', 'lastSub', 'redone', 'clamped', 'bondOrderDeficit', 'bondOrderHeld']) if (s[key] !== undefined) this[key] = s[key];
+    for (const key of ['T', 'tau', 'thermostat', 'thermostatMode', 'kelvinWork', 'sparkHold', 'burnUntil', 'lamp', 'chain', 'wallMeasured', 'wallContact', 'wallT', 'wallTarget', 'wallTau', 'wallCapacity', 'wallSkin', 'wallCoupling', 'boundsMode', 'fieldK', 'fieldRange', 'voidTemperature', 'voidPressure', 'voidVelocity', 'voidTau', 'voidSkin', 'voidHeat', 'voidForce', 'servoWork', 'servoWorkTotal', 'skipped', 'pressureControl', 'pressureTarget', 'pressureTau', 'heatToSample', 'heaterWork', 'nextSub', 'subHold', 'subPeak', 'lastSub', 'redone', 'clamped', 'bondOrderDeficit', 'bondOrderHeld']) if (s[key] !== undefined) this[key] = s[key];
     this.tweezer = null;
     this.pos.set(s.pos); this.vel.set(s.vel); this.frc.set(s.frc); this.prev.set(s.pos);
     this.type.set(s.type); this.formal.set(s.formal); this.val.set(s.val); this.lp.set(s.lp); this.pinned.set(s.pinned); this.ids.set(s.ids); this.cos0.set(s.cos0); if (s.born) this.born.set(s.born); else this.born.fill(-Infinity, 0, this.N);

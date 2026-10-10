@@ -190,6 +190,12 @@ and would erase a spark on the step it landed. So a spark opens a 2 ps **ignitio
 which the stat and the temperature void stand back. That window is part of the saved state and
 replays exactly. It is the one place where a temperature void can be briefly exceeded, and
 deliberately so: a spark is hotter than its surroundings, which is the entire point of one.
+After the window the stat keeps standing back for up to 30 ps as long as the chamber stays well above its
+set temperature (1.6 times it, or 600 K over), which is what a burning mixture is: on the time scale of its
+reactions a flame heats itself. When a spark does start a chain, 2 H₂ + O₂ then burns through to water at
+5–6000 K before the stat cools the products. Most sparks in H₂ + O₂ still fizzle, as the H atoms find each
+other again before an O₂: ignition at 1 bar takes microseconds, a million times longer than the window;
+» reaches it by skipping.
 
 Spark and Break bond start the chamber running if it was paused. Reactions appear in the
 list at the bottom left only once the new molecules have lasted 100 fs: a freshly made bond vibrates
