@@ -93,7 +93,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build139', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build140', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -456,7 +456,7 @@ function renderTPop() {
 function openTPop() {
   const pop = $('tPop');
   const presets = wallHeater() ? [[288.15, 'Cool', '15 °C'], [298.15, 'Room', '25 °C'], [373.15, 'Warm', '100 °C'], [473.15, 'Hot', '200 °C'], [623.15, 'Maximum', '350 °C']] : T_PRESETS;
-  pop.innerHTML = '<div class="head">Measured <b></b></div><canvas class="spark" id="tSpark"></canvas><div class="sep"></div>' +
+  pop.innerHTML = '<div class="head">Measured <b></b></div><canvas class="spark" id="tSpark" hidden></canvas><div class="sep"></div>' +
     presets.map((p, i) => '<button class="row" style="--i:' + i + '" data-t="' + p[0] + '"><span class="sw" style="background:' + blackbody(p[0]) + '"></span><span class="k">' + (wallHeater() ? (p[0] - 273.15).toFixed(0) + ' °C' : fmtT(p[0]) + ' K') + '</span><span class="lbl">' + p[1] + '</span></button>').join('') +
     '<div class="sep"></div><div class="seg-mini bath-seg" id="tPopBath"><button data-v="wall">Wall</button><button data-v="kelvin">Kelvin</button><button data-v="off">Off</button></div>' +
     (wallHeater() ? '<div class="kv"><span>Wall now</span><span id="wallNow"></span></div><div class="kv"><span>Heater response τ</span><span class="scrub" id="wallTau"></span></div>' : '');
@@ -473,7 +473,7 @@ $('bbDot').title = 'Temperature presets';
 
 function openPPop() {
   const pop = $('pPop');
-  pop.innerHTML = '<div class="head">Wall pressure <b id="pNow"></b></div><canvas class="spark" id="pSpark"></canvas>' +
+  pop.innerHTML = '<div class="head">Wall pressure <b id="pNow"></b></div><canvas class="spark" id="pSpark" hidden></canvas>' +
     '<div class="kv"><span>Volume</span><span id="pVol"></span></div>';
   showPop(pop, $('gP'), 'below'); renderPPop();
 }
@@ -495,6 +495,7 @@ $('gP').addEventListener('click', () => { openPop && openPop.pop.id === 'pPop' ?
 $('gP').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); $('gP').click(); } });
 function spark(id, data, color, lo) {
   const c = $(id); if (!c) return;
+  c.hidden = data.length < 2; if (c.hidden) return;
   const w = c.clientWidth, h = c.clientHeight, dpr = Math.min(2, devicePixelRatio || 1);
   if (c.width !== w * dpr) { c.width = w * dpr; c.height = h * dpr; }
   const x = c.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, h);
