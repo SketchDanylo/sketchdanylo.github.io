@@ -174,7 +174,10 @@ Without this, the forecast and fast-forward will work well for radical and gas-p
   again in a box this small and the live simulation joins them without a third body); H₂ + O₂ at 1200 K
   (the radicals shuttle H· + H₂O ⇌ H₂ + ·OH, since in a lit or burning flask they meet each other a
   million times less often than in the chamber, so water forms slowly); NH₃ + HCl (no ionic pairing, so
-  no ammonium chloride).
+  no ammonium chloride); a spark in H₂ + O₂ at room temperature (the Kelvin bath touching every atom takes
+  the spark's heat away within a few hundred femtoseconds, so the chain never branches; a real flame heats
+  itself. A spark that heats a small region and holds the bath back there for a while would let a flame
+  front run).
 - Large chambers: forecast once per distinct situation and reuse it, instead of rescanning every copy.
 - Large molecules: every scan point relaxes every atom of both partners, so a C₉ radical meeting ethene
   costs 25–30 s a candidate. Scanning only the atoms within two bonds of the reacting pair, capped with

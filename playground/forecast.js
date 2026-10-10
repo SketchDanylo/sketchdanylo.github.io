@@ -72,7 +72,8 @@ class ForecastCard {
   }
   pool() {
     if (this.workers) return this.workers;
-    const n = Math.max(1, Math.min(6, (navigator.hardwareConcurrency || 2) - 1));
+    const touch = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
+    const n = Math.max(1, Math.min(touch ? 6 : 10, (navigator.hardwareConcurrency || 2) - (touch ? 2 : 1)));
     this.pending = new Map(); this.seq = 0;
     this.workers = Array.from({ length: n }, () => {
       const w = new Worker('kinetics-worker.js?v=' + (this.actions.version || ''));
