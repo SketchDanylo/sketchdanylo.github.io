@@ -439,8 +439,9 @@ measured for chlorine atoms and alkyl radicals; each hydrogen used to count as a
 **Skipped time moves the bystanders.** A skip covers picoseconds to hours, long enough for every
 molecule to have crossed the chamber many times. When the fresh product lands touching a single
 bystander, that bystander is moved to an open spot, so two 1,2-dichloroethanes end as two molecules
-rather than one huddle. A product touching two or more neighbours is left alone: that is a liquid or a
-cluster, and breaking it up would be wrong.
+rather than one huddle; the same goes for any two bystanders stuck only to each other (HCl on a
+chloroethane: a gas-phase pair like that lasts picoseconds). Three or more molecules in contact are left
+alone: that is a liquid or a cluster, and breaking it up would be wrong.
 
 **Equilibria are passed, not replayed.** When a possible next step would just undo the last one
 (C₂H₃Cl₂· + HCl after Cl· + C₂H₄Cl₂, or Cl· + Cl· right after the lamp split Cl₂), going back and

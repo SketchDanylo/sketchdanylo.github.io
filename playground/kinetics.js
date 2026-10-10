@@ -834,13 +834,21 @@ function moveAway(eng, g, from) {
 }
 
 function spread(eng, keep, room = 6) {
-  const own = new Set(keep), P = eng.pos, f = eng.fragments(), near = room - 1.5;
+  const own = new Set(keep), P = eng.pos, f = eng.fragments(), near = room - 1.5, L = f.list;
   const gap = (g, h) => { let m = Infinity; for (const a of g) for (const c of h) m = Math.min(m, Math.hypot(P[3 * a] - P[3 * c], P[3 * a + 1] - P[3 * c + 1], P[3 * a + 2] - P[3 * c + 2])); return m; };
-  const hot = f.list.filter(g => g.some(i => own.has(i)));
-  const touching = f.list.filter(g => !hot.includes(g) && hot.some(h => gap(g, h) < near));
-  if (touching.length !== 1 || f.list.some(h => h !== touching[0] && !hot.includes(h) && gap(touching[0], h) < near)) return 0;
-  relocate(eng, touching[0], room); eng.touch(); eng.refresh();
-  return 1;
+  const hot = L.map(g => g.some(i => own.has(i))), mass = g => g.reduce((s, i) => s + eng.mass[i], 0);
+  const touch = L.map((g, k) => L.map((h, m) => m !== k && gap(g, h) < near ? m : -1).filter(m => m >= 0));
+  let n = 0;
+  L.forEach((g, k) => {
+    if (touch[k].length !== 1) return;
+    const m = touch[k][0];
+    if (touch[m].length !== 1 || m < k) return;
+    const mover = hot[k] ? m : hot[m] ? k : mass(g) <= mass(L[m]) ? k : m;
+    if (hot[mover]) return;
+    relocate(eng, L[mover], room); n++;
+  });
+  if (n) { eng.touch(); eng.refresh(); }
+  return n;
 }
 
 function relocate(eng, g, want = 3.4) {

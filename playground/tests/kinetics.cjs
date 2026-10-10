@@ -355,7 +355,7 @@ test('In the dark, Cl₂ adds across ethene on the glass as a whole 1,2-dichloro
   assert.deepEqual(e.fragments().list.map(g => e.formulaOf(g)), ['C2H4Cl2']);
 });
 
-test('After a skip, a molecule left touching the fresh product drifts off, while molecules clustered together stay put', () => {
+test('After a skip, a molecule left touching the fresh product drifts off, and so does one of two bystanders stuck to each other, while three or more clustered together stay put', () => {
   const e = scene([['CH4', [0, 0, 0]], ['CH4', [3.6, 0, 0]], ['H2O', [-9, 0, 0]], ['H2O', [-9, 2.9, 0]], ['H2O', [-9, -2.9, 0]]]);
   const P = e.pos, gap = (g, h) => Math.min(...g.flatMap(a => h.map(c => Math.hypot(P[3 * a] - P[3 * c], P[3 * a + 1] - P[3 * c + 1], P[3 * a + 2] - P[3 * c + 2]))));
   const at = i => [P[3 * i], P[3 * i + 1], P[3 * i + 2]].join(), water = [10, 13, 16].map(at);
@@ -364,6 +364,11 @@ test('After a skip, a molecule left touching the fresh product drifts off, while
   assert.ok(gap([0, 1, 2, 3, 4], [5, 6, 7, 8, 9]) >= 4.5, 'gap ' + gap([0, 1, 2, 3, 4], [5, 6, 7, 8, 9]).toFixed(2));
   assert.deepEqual([10, 13, 16].map(at), water);
   assert.equal(K.spread(e, [10]), 0);
+  const d = scene([['CH4', [-8, -8, 0]], ['HCl', [8, 8, 0]], ['CH4', [8, 10.6, 0]]]), Q = d.pos;
+  const apart = () => Math.min(...[5, 6].flatMap(a => [7, 8, 9, 10, 11].map(c => Math.hypot(Q[3 * a] - Q[3 * c], Q[3 * a + 1] - Q[3 * c + 1], Q[3 * a + 2] - Q[3 * c + 2]))));
+  assert.ok(apart() < 3);
+  assert.equal(K.spread(d, [0]), 1);
+  assert.ok(apart() >= 4.5, 'two bystanders stuck to each other drift apart too: ' + apart().toFixed(2));
 });
 
 console.log(count + ' kinetics checks passed.');
