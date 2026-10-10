@@ -93,7 +93,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build134', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build135', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -589,7 +589,7 @@ const TOOL_ICONS = {
   forecast: '<svg viewBox="0 0 20 20"><path d="M5.5 2.8h9M5.5 17.2h9M6.5 2.8c0 4 3.5 5 3.5 7.2S6.5 13.2 6.5 17.2M13.5 2.8c0 4-3.5 5-3.5 7.2s3.5 3.2 3.5 7.2"/><path d="M8.2 15.6h3.6"/></svg>'
 };
 const TOOLS = [['grab', 'Grab & pan', 'Drag atoms (pulls while running, moves the molecule while paused). Drag empty space to pan. Shift-drag to select.'],
-  ['erase', 'Erase', 'Click or drag over atoms to remove them. Alt removes whole molecules.'],
+  ['erase', 'Erase', 'Click or drag over atoms to remove them. Alt removes whole molecules. Double-click this button to empty the chamber.'],
   ['heat', 'Heat brush', 'Drag to heat atoms under the brush; Shift or right-drag cools. Alt+scroll resizes.'],
   ['spark', 'Spark', 'Click to ignite. A stable mixture needs a starter, the same as it does on a bench: this breaks a bond where you click and lets the radicals begin the chain.'],
   ['cleave', 'Break bond', 'Click a bond to split it into two radicals, the way light breaks one on a bench: it gets just enough energy to come apart, and what the two halves do next is chemistry.'],
@@ -602,7 +602,11 @@ function buildDock() {
   $('tools').innerHTML = TOOLS.map(t => '<button class="tool" data-tool="' + t[0] + '" aria-label="' + t[1] + '">' + TOOL_ICONS[t[0]] + '<sup></sup></button>').join('');
   $('elements').innerHTML = dockEls.map(s => '<button class="el" data-el="' + s + '" style="--c:' + BY_SYM[s].color + '" aria-label="' + BY_SYM[s].name + '">' + s + '<i></i><sup></sup></button>').join('');
   $('tools').querySelectorAll('.tool').forEach(b => {
-    b.onclick = () => setTool(b.dataset.tool);
+    b.onclick = () => {
+      const now = performance.now(), again = b.dataset.tool === 'erase' && tool === 'erase' && now - (b._last || 0) < 400;
+      b._last = now; setTool(b.dataset.tool);
+      if (again && eng.N) { pushUndo(); eng.clear(); selection.clear(); edited(); toast(touchOnly ? 'Emptied · ↶ brings it back' : 'Emptied · Ctrl+Z brings it back'); }
+    };
     tipOn(b, () => { const t = TOOLS.find(x => x[0] === b.dataset.tool); return '<b>' + t[1] + '</b> <span class="m">' + keyHint('tool.' + t[0]) + '</span><div style="margin-top:4px">' + t[2] + '</div>'; }, 'above');
   });
   $('elements').querySelectorAll('.el').forEach(b => {
@@ -1367,7 +1371,7 @@ act('edit.redo', 'Edit', 'Redo', ['Ctrl+Shift+Z', 'Ctrl+Y'], redo);
 act('edit.delete', 'Edit', 'Delete selection', ['Delete', 'Backspace'], deleteSelection);
 act('edit.all', 'Edit', 'Select all', ['Ctrl+A'], () => { for (let i = 0; i < eng.N; i++) selection.add(i); });
 act('edit.pin', 'Edit', 'Pin / unpin selection', ['K'], pinSelection);
-act('edit.clear', 'Edit', 'Clear the field', ['Shift+Delete'], () => { if (!eng.N) return; pushUndo(); eng.clear(); selection.clear(); edited(); toast('Field cleared — Ctrl+Z brings it back'); });
+act('edit.clear', 'Edit', 'Clear the field', ['Shift+Delete'], () => { if (!eng.N) return; pushUndo(); eng.clear(); selection.clear(); edited(); toast(touchOnly ? 'Emptied · ↶ brings it back' : 'Emptied · Ctrl+Z brings it back'); });
 act('edit.stopMotion', 'Edit', 'Stop all motion now', [], stopMotion);
 act('ui.molecules', 'Panels', 'Molecules', ['M'], toggleTray);
 act('ui.keys', 'Panels', 'Shortcuts', ['?'], () => openConsole('keys'));
