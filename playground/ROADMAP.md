@@ -178,6 +178,12 @@ Without this, the forecast and fast-forward will work well for radical and gas-p
   the spark's heat away within a few hundred femtoseconds, so the chain never branches; a real flame heats
   itself. A spark that heats a small region and holds the bath back there for a while would let a flame
   front run).
+- Ethene + O₂ when hot has no first step: the scan of a vinyl hydrogen meeting O₂ ends in a concerted
+  C₂H₃O· + ·OH (256 kJ/mol) instead of the clean transfer to C₂H₃· + HO₂·, and two closed-shell molecules
+  may only meet as a clean abstraction, so the pair is dropped and the forecast falls back on splitting O₂
+  or ethene, 10⁴ years at 900 K where the real first step takes hours. The transfer channel needs to be
+  held to its products along the path itself (the C₂H₃ end already bonds to the far oxygen while the
+  hydrogen moves, so relaxing the end state is not enough), and given the measured 237 kJ/mol.
 - Live speed. A step of ethene + Cl₂ (16 atoms) costs about 230 µs: two force evaluations (every O–H,
   H–H and C–H stretch asks for two sub-steps) of about 110 µs each, so the chamber plays about 4 ps a
   second on a desktop and 0.2–2 ps on a phone, against the 20 ps a second that 1× stands for. The time

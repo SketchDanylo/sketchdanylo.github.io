@@ -368,13 +368,9 @@ represented.
 
 **Playground** in Nomenclature exports `chem-playground/molecule@1`. It contains atoms in Å with every implicit hydrogen made explicit, bonds and orders, and formal charges. Wedge and dash bonds lift the wide end to ±0.9 Å in z. The molecule is delivered through a same-origin `BroadcastChannel` and a shared `localStorage` inbox. If no Playground tab is open, it opens one with the molecule in the URL hash. You can also paste the JSON into the Playground.
 
-In the Playground, a molecule is first **conditioned** in a spherical cell:
-
-- **Room**: a 298 K sampling bath; nominal confinement size estimated from 1 atm.
-- **Zero K**: classical geometry minimisation and zero initial velocity; no quantum zero-point motion.
-- **Custom**: temperature and a nominal pressure used to estimate confinement size. This cell has no barostat and does not establish bulk pressure. A 2 ps preview is sampling, not proof of equilibration.
-
-Then click to place, drag to throw, Q/E to rotate, or Shift-click to place several. **Place with zero initial velocity** disables both internal and translational velocities, including a drag launch; forces can still accelerate the molecule after placement. Otherwise conditioned internal motion and Maxwell molecular translation are retained.
+In the Playground a molecule, from Nomenclature or from the built-in list, is relaxed on its own and
+given thermal motion at the chamber's temperature (none at 0 K), then follows the finger or cursor: tap or
+click to place it, drag to throw it, Q/E to rotate it, Shift-click to place several.
 
 ## The console
 

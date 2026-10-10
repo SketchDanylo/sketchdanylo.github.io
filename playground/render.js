@@ -463,7 +463,7 @@ class FieldRenderer {
     }
     const pr = fx.probe;
     if (pr && pr.at && pr.at.every(ok)) {
-      const [px, py] = mid(pr.at), mx = Math.max(70, Math.min(this.W - 70, px)), my = py, a = Math.min(1, (now - pr.t0) / 250), W = 76, Hh = 24, top = Math.max(40, my - 74);
+      const [px] = mid(pr.at), ys = pr.at.map(i => xy(i)[1]), up = Math.min(...ys) - 96, mx = Math.max(70, Math.min(this.W - 70, px)), a = Math.min(1, (now - pr.t0) / 250), W = 76, Hh = 24, top = up >= 40 ? up : Math.max(...ys) + 48;
       ctx.globalAlpha = a; ctx.textAlign = 'center';
       ctx.font = '600 19px "Martian Mono", monospace'; ctx.textBaseline = 'bottom';
       ctx.fillStyle = 'rgba(10,8,20,.6)'; ctx.fillText(pr.text, mx + 1, top + 1);
