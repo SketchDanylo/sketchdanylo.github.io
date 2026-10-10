@@ -65,7 +65,7 @@ function updateLab() {
   $('physicsNotice').hidden = !eng.clamped;
   $('physicsNotice').textContent = eng.clamped ? eng.clamped + ' safety speed clamps · energy affected' : '';
   const tap = touchOnly ? 'Tap' : 'Click';
-  const hint = placing ? tap + ' to place' : armed ? '' : tool === 'heat' ? (touchOnly ? 'Drag to heat' : 'Drag to heat · Shift to cool') : tool === 'spark' ? tap + ' to ignite' : tool === 'cleave' ? tap + ' a bond to split it' : tool === 'forecast' ? (forecastCard.result ? tap + ' again to skip ahead' : forecastCard.ids.length === 1 ? 'And a second atom' : tap + ' two atoms') : tool === 'erase' ? tap + ' an atom to erase' : '';
+  const hint = placing ? tap + ' to place' : armed ? '' : tool === 'heat' ? (brush.coolMode ? 'Drag to cool' : touchOnly ? 'Drag to heat · tap again to cool' : 'Drag to heat · Shift to cool') : tool === 'spark' ? tap + ' to ignite' : tool === 'cleave' ? tap + ' a bond to split it' : tool === 'forecast' ? (forecastCard.result ? tap + ' again to skip ahead' : forecastCard.ids.length === 1 ? 'And a second atom' : tap + ' two atoms') : tool === 'erase' ? tap + ' an atom to erase' : '';
   const ctx = $('toolContext');
   if (ctx.textContent !== hint) {
     ctx.textContent = hint; ctx.classList.toggle('show',!!hint);
@@ -93,7 +93,7 @@ if (savedBounds) {
 eng.recording = true;
 
 const canvas = $('field');
-const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build137', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
+const forecastCard = new ForecastCard({ engine: eng, pretty: f => pretty(f), version: '20261009-build138', focus: () => canvas.focus(), skip: (ev, wait, ids, what, reactants, slow, products) => skipToEvent(ev, wait, ids, what, reactants, slow, products), pause: () => setPlaying(false), play: () => setPlaying(true), autoChanged: on => $('nextRxBtn').classList.toggle('on', on), absorbs: () => !eng.lamp && uvTargets().length > 0, lightHint: () => 'lamp off', nameOf: g => groupName(g) });
 let replay = null, cooling = [];
 function coolProducts() {
   while (cooling.length && eng.time >= cooling[0].at) {
@@ -595,7 +595,7 @@ const TOOL_ICONS = {
 };
 const TOOLS = [['grab', 'Grab & pan', 'Drag atoms (pulls while running, moves the molecule while paused). Drag empty space to pan. Shift-drag to select.'],
   ['erase', 'Erase', 'Click or drag over atoms to remove them. Alt removes whole molecules. Double-click this button to empty the chamber.'],
-  ['heat', 'Heat brush', 'Drag to heat atoms under the brush; Shift or right-drag cools. Alt+scroll resizes.'],
+  ['heat', 'Heat brush', 'Drag to heat atoms under the brush; Shift or right-drag cools, and clicking this button again turns it into a cooling brush. Alt+scroll resizes.'],
   ['spark', 'Spark', 'Click to ignite. A stable mixture needs a starter, the same as it does on a bench: this breaks a bond where you click and lets the radicals begin the chain.'],
   ['cleave', 'Break bond', 'Click a bond to split it into two radicals, the way light breaks one on a bench: it gets just enough energy to come apart, and what the two halves do next is chemistry.'],
   ['forecast', 'Forecast', 'Click two atoms: how long until they react appears between them, with the energy along the way. Click one of them again to skip ahead to it. Two bonded atoms ask when their bond breaks.']];
@@ -609,6 +609,7 @@ function buildDock() {
   $('tools').querySelectorAll('.tool').forEach(b => {
     b.onclick = () => {
       const now = performance.now(), again = b.dataset.tool === 'erase' && tool === 'erase' && now - (b._last || 0) < 400;
+      if (b.dataset.tool === 'heat' && tool === 'heat') { brush.coolMode = !brush.coolMode; }
       b._last = now; setTool(b.dataset.tool);
       if (again && eng.N) { pushUndo(); eng.clear(); selection.clear(); edited(); toast(touchOnly ? 'Emptied · ↶ brings it back' : 'Emptied · Ctrl+Z brings it back'); }
     };
@@ -632,7 +633,7 @@ function elTip(sym) {
     '<div style="margin-top:5px">Click the field to place · drag to throw</div>';
 }
 function refreshDock() {
-  document.querySelectorAll('.tool').forEach(b => (b.classList.toggle('on', !armed && !placing && tool === b.dataset.tool), b.setAttribute('aria-pressed', !armed && !placing && tool === b.dataset.tool)));
+  document.querySelectorAll('.tool').forEach(b => (b.classList.toggle('on', !armed && !placing && tool === b.dataset.tool), b.classList.toggle('cool', b.dataset.tool === 'heat' && !!brush.coolMode), b.setAttribute('aria-pressed', !armed && !placing && tool === b.dataset.tool)));
   document.querySelectorAll('.el').forEach(b => (b.classList.toggle('on', armed === b.dataset.el), b.setAttribute('aria-pressed', armed === b.dataset.el)));
   canvas.className = tool === 'erase' && !armed ? 'erase' : (tool === 'grab' && !armed && !placing) ? 'grab' : '';
 }
@@ -854,7 +855,7 @@ canvas.addEventListener('pointerdown', e => {
   if (tool === 'cleave') { cleave(wx, wy); gesture = { type: 'cleave' }; return; }
   if (tool === 'forecast') { if (hit >= 0) forecastCard.choose(hit); else forecastCard.close(); return; }
   if (tool === 'erase') { pushUndo(); gesture = { type: 'erase', alt: e.altKey, n0: eng.N }; eraseAt(wx, wy, e.altKey); return; }
-  if (tool === 'heat') { brush.active = true; brush.cool = e.shiftKey; gesture = { type: 'brush' }; return; }
+  if (tool === 'heat') { brush.active = true; brush.cool = e.shiftKey !== !!brush.coolMode; gesture = { type: 'brush' }; return; }
   const edge = boxEdgeAt(e.clientX, e.clientY);
   if (edge && hit < 0) { pushUndo(); gesture = { type: 'box', edge }; return; }
   if (e.shiftKey) { gesture = { type: 'marquee', x0: wx, y0: wy, x1: wx, y1: wy }; return; }

@@ -10,7 +10,7 @@ drag to throw it.
 
 On a phone: tap to place, drag an atom to move it (or to pull it while the clock runs), hold an atom to
 inspect it, drag empty space to pan, pinch to zoom, and tap with two fingers, or the ↶ that appears at the
-top, to undo. Double-tap the eraser (double-click on a computer) to empty the chamber.
+top, to undo. Double-tap the eraser (double-click on a computer) to empty the chamber. Tap the heat brush again to turn it into a cooling brush.
 
 ## Thermostats
 

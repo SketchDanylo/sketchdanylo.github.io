@@ -138,3 +138,4 @@ html[data-motion=reduced] *,html[data-motion=reduced] *::before,html[data-motion
 .gauges,.scale{margin-right:env(safe-area-inset-right,0px)}
 body,canvas{-webkit-touch-callout:none}
 @media(max-width:760px){.app-tab span{display:block}.console-rail{width:auto}}
+.tool.cool{color:#7fb6ff}
