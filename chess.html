@@ -642,6 +642,8 @@ h2 { margin: 0; font-size: 0.78rem; font-weight: 650; letter-spacing: 0.14em; te
 .nb-fill { display: block; height: 100%; width: var(--w); border-radius: 6px; background: linear-gradient(90deg, #8f6338, var(--book)); animation: bar-in 700ms var(--ease) both; }
 .nb-pct { justify-self: end; font-size: 0.74rem; color: var(--faint); font-variant-numeric: tabular-nums; }
 .nb.unof { grid-template-columns: 52px 1fr; }
+.nb-more { justify-self: start; margin: 2px 0 0; padding: 4px 12px; border: 1px solid var(--rule-soft); border-radius: 999px; background: none; color: var(--muted); font-size: 0.78rem; font-weight: 650; cursor: pointer; transition: background 160ms ease, color 160ms ease; }
+.nb-more:hover { background: rgba(255, 255, 255, 0.07); color: var(--text); }
 .nb.unof .nb-san { color: #d6c3ff; }
 .nb-name { font-size: 0.8rem; font-weight: 650; color: #cbb6ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @keyframes bar-in { from { width: 0; } }
@@ -6888,7 +6890,7 @@ function renderArrows() {
       const all = bookMoves(fen);
       const total = all.reduce((sum, move) => sum + move.count, 0) || 1;
       // Every move with a real share of theory, not just the top few.
-      const moves = all.filter((move, i) => i < 3 || move.count / total >= 0.012).slice(0, 10);
+      const moves = all.slice(0, 24);
       moves.forEach(move => {
         const share = move.count / total;
         const halo = best === move.uci || purple.has(move.uci);
@@ -7111,10 +7113,14 @@ function renderOpening() {
 function nextMovesHtml(fen, here) {
   const all = here ? here.moves : [];
   const total = all.reduce((sum, move) => sum + move.count, 0) || 1;
-  const rows = all.slice(0, 5).map(move => {
+  const limit = state.bookExpanded ? all.length : 8;
+  const rows = all.slice(0, limit).map(move => {
     const share = Math.round((move.count / total) * 100);
     return `<button class="nb" data-uci="${move.uci}" data-kind="book"><span class="nb-san">${sanOf(fen, move.uci)}</span><span class="nb-track"><span class="nb-fill" style="--w:${Math.max(2, share)}%"></span></span><span class="nb-pct">${share < 1 ? '<1' : share}%</span></button>`;
   });
+  if (all.length > 8) {
+    rows.push(`<button class="nb-more" data-act="more">${state.bookExpanded ? 'Show fewer' : `+${all.length - 8} more`}</button>`);
+  }
   const purple = state.show.unofficial ? unofficialMoves(fen) : [];
   purple.forEach(move => {
     rows.push(`<button class="nb unof" data-uci="${move.uci}" data-kind="unofficial"><span class="nb-san">${sanOf(fen, move.uci)}</span><span class="nb-name">${[...new Set(move.lines.map(line => line.name))].join(' · ')}</span></button>`);
@@ -7123,6 +7129,11 @@ function nextMovesHtml(fen, here) {
 }
 
 $('opening-body').addEventListener('click', event => {
+  if (event.target.closest('.nb-more')) {
+    state.bookExpanded = !state.bookExpanded;
+    renderOpening();
+    return;
+  }
   const chip = event.target.closest('.nb');
   if (!chip) return;
   hideCard(true);
