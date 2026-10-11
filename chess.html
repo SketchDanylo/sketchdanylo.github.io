@@ -817,6 +817,38 @@ button.link .ic { width: 15px; height: 15px; }
 .icon.sm.tr-hint .ic { width: 15px; height: 15px; color: #f2dc9c; }
 #trainer-toggle .ic { width: 19px; height: 19px; }
 
+
+.op-browse { margin-left: auto; font-size: 0.8rem; }
+.learn-card { min-width: 0; }
+.learn-card .card-head { margin-bottom: 12px; }
+.learn-card .segmented { width: 190px; }
+.learn-search { width: 100%; padding: 9px 12px; border: 1px solid var(--rule-soft); border-radius: 12px; background: rgba(255, 255, 255, 0.04); color: var(--text); font: inherit; font-size: 0.88rem; outline: none; transition: border-color 140ms ease; }
+.learn-search:focus { border-color: rgba(255, 255, 255, 0.35); }
+.learn-search[hidden], .learn-save[hidden] { display: none; }
+.learn-save { display: grid; gap: 8px; }
+.learn-save .pill { justify-self: start; }
+.learn-save .pill:disabled { opacity: 0.4; cursor: default; }
+.learn-note { margin: 0; color: var(--faint); font-size: 0.78rem; }
+.learn-crumb { display: flex; align-items: center; gap: 8px; min-height: 18px; margin: 12px 0 6px; color: var(--faint); font-size: 0.78rem; }
+.learn-crumb b { color: var(--text); font-weight: 650; }
+.learn-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 0; padding: 0; list-style: none; max-height: 560px; overflow-y: auto; scrollbar-width: thin; }
+.lr { min-width: 0; padding: 8px 10px; margin: 0 -10px; border-radius: 12px; cursor: pointer; transition: background 160ms ease; }
+.lr:hover { background: rgba(255, 255, 255, 0.06); }
+.lr.fam { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.lr-name { font-weight: 650; font-size: 0.9rem; }
+.lr-meta, .lr-len { color: var(--faint); font-size: 0.74rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lr-top { display: flex; align-items: baseline; gap: 8px; }
+.lr-top .lr-name { flex: 1; min-width: 0; }
+.lr-eco { padding: 1px 7px; border-radius: 999px; background: rgba(196, 149, 95, 0.16); color: var(--book); font-size: 0.68rem; font-weight: 750; }
+.lr-moves { margin-top: 3px; color: var(--muted); font-size: 0.78rem; line-height: 1.5; }
+.lr.line:not(.open) .lr-moves { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lr.open { background: rgba(157, 184, 255, 0.1); }
+.lr-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.lr-actions .pill { height: 32px; padding: 0 12px; font-size: 0.8rem; }
+.lr-empty { padding: 10px 0; color: var(--faint); font-size: 0.84rem; }
+.tr-res.warn { background: rgba(232, 200, 114, 0.16); color: #f2dc9c; }
+.tr-score.drill { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .tabbar, .more-btn, .sheet { display: none; }
 
 .solve-card { display: none; }
@@ -916,6 +948,9 @@ body.solving .solve-card { display: block; }
   .fb-meter, .unof-badge.small, .fb-sub:not(.end) { display: none; }
   .fb-sub.end { grid-column: 1 / -1; margin: 0; font-size: 0.78rem; }
   .fb-main .tr-row { grid-column: 1 / -1; margin: 0; }
+  .learn-list { max-height: none; overflow: visible; }
+  .learn-search { font-size: 16px; }
+  .op-browse span { display: none; }
 
   .tabbar { display: flex; flex: none; gap: 4px; padding: 4px 12px; }
   .tabbar button { position: relative; flex: 1; height: 28px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font-size: 0.82rem; font-weight: 650; cursor: pointer; transition: background 200ms ease, color 200ms ease; }
@@ -1196,6 +1231,27 @@ body.solving .solve-card { display: block; }
       </section>
     </div>
 
+    <div class="view" id="view-learn" hidden>
+      <section class="card learn-card">
+        <div class="card-head">
+          <button class="link back-link" id="learn-exit" title="Back to game"><svg class="ic"><use href="#i-back"/></svg><span>Back</span></button>
+          <div class="segmented small" id="learn-tabs">
+            <span class="seg-glider"></span>
+            <button data-src="catalog" class="on">Catalog</button>
+            <button data-src="mine">Mine</button>
+          </div>
+        </div>
+        <input class="learn-search" id="learn-search" type="search" placeholder="Search name or ECO" autocomplete="off" spellcheck="false">
+        <div class="learn-save" id="learn-save" hidden>
+          <input class="learn-search" id="learn-name" placeholder="Name this line" autocomplete="off" spellcheck="false">
+          <button class="pill solid" id="learn-save-btn"><svg class="ic"><use href="#i-plus"/></svg><span>Save moves on the board</span></button>
+          <p class="learn-note" id="learn-note"></p>
+        </div>
+        <div class="learn-crumb" id="learn-crumb"></div>
+        <ol class="learn-list" id="learn-list"></ol>
+      </section>
+    </div>
+
     <p class="credits">Stockfish 19 · lichess + eco.json openings · lichess piece sets</p>
   </aside>
 </main>
@@ -1208,7 +1264,7 @@ body.solving .solve-card { display: block; }
     <div class="sheet-sec"><h3>Play</h3><div id="slot-mode"></div></div>
     <div class="sheet-sec"><h3>Arrows</h3><div id="slot-toggles"></div></div>
     <div class="sheet-sec"><h3>Board</h3><div id="slot-style"></div></div>
-    <div class="sheet-sec sheet-actions" id="slot-actions"></div>
+    <div class="sheet-sec sheet-actions" id="slot-actions"><button class="pill" id="learn-open-sheet" title="Openings"><svg class="ic"><use href="#i-book"/></svg><span>Openings</span></button></div>
     <div id="slot-credits"></div>
   </div>
 </div>
@@ -5473,7 +5529,7 @@ const FAMILIES = {
     black: 'Take the center.'
   }
 };
-return { BOOK_SIZE, bookKey, lookup, bookMoves, family, ecoGroup };
+return { BOOK_SIZE, bookKey, lookup, bookMoves, family, ecoGroup, lineAt: line };
 })();
 // ===== unofficial =====
 modules.unofficial = (() => {
@@ -5985,7 +6041,7 @@ class Board {
       for (const file of FILES) {
         const square = file + rank;
         const el = document.createElement('div');
-        el.className = `sq ${(FILES.indexOf(file) + rank) % 2 === 0 ? 'dark' : 'light'}`;
+        el.className = `sq ${(FILES.indexOf(file) + rank) % 2 === 0 ? 'light' : 'dark'}`;
         el.dataset.square = square;
         this.squaresEl.appendChild(el);
         this.squareEls.set(square, el);
@@ -6617,7 +6673,7 @@ modules.app = (() => {
 const { Chess, validateFen } = modules.chess;
 const { Board, parseFen, pieceImage, setPieceSet, PIECE_SET_NAMES } = modules.board;
 const { Engine, winPercent, formatScore } = modules.engine;
-const { lookup, bookMoves, family, ecoGroup, BOOK_SIZE } = modules.book;
+const { lookup, bookMoves, family, ecoGroup, BOOK_SIZE, lineAt } = modules.book;
 const { unofficialMoves, unofficialFor } = modules.unofficial;
 const { classify, classLabel, explainMove, playLine, plyLabels, lineText, stepNote, pressure, other, moveFromUci } = modules.explain;
 const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -7134,7 +7190,7 @@ function renderOpening() {
   if (!named) {
     const fresh = state.index === 0 && fen === START;
     key = fresh ? 'start' : `custom:${unofficialLine ? unofficialLine.index : ''}`;
-    html = `<div class="op-top"><span class="eco">—</span><span class="op-status ${fresh || here ? 'inbook' : ''}"><i></i>${fresh ? `${BOOK_SIZE.toLocaleString('en-US')} lines` : here ? 'Book' : 'Custom'}</span></div>
+    html = `<div class="op-top"><span class="eco">—</span><span class="op-status ${fresh || here ? 'inbook' : ''}"><i></i>${fresh ? `${BOOK_SIZE.toLocaleString('en-US')} lines` : here ? 'Book' : 'Custom'}</span>${BROWSE}</div>
       ${badge}
       <p class="op-name">${fresh ? 'Choose an opening' : here ? 'Known position' : 'Off the map'}</p>
       ${fresh ? legend : ''}${next}`;
@@ -7144,7 +7200,7 @@ function renderOpening() {
       ? '<span class="op-status inbook"><i></i>Book</span>'
       : `<span class="op-status"><i></i>Left book ${leftAt ? moveLabel(state.nodes[leftAt - 1].fen, state.nodes[leftAt].uci) : ''}</span>`;
     key = `op:${named.index}:${unofficialLine ? unofficialLine.index : ''}`;
-    html = `<div class="op-top"><span class="eco">${named.eco}</span>${status}</div>
+    html = `<div class="op-top"><span class="eco">${named.eco}</span>${status}${BROWSE}</div>
       ${badge}
       <p class="op-name" title="${info ? info.summary.replace(/"/g, '&quot;') : ''}">${named.family}</p>
       ${named.variation ? `<p class="op-var">${named.variation}</p>` : ''}
@@ -7174,6 +7230,10 @@ function nextMovesHtml(fen, here) {
 }
 
 $('opening-body').addEventListener('click', event => {
+  if (event.target.closest('[data-act="learn"]')) {
+    openLearn();
+    return;
+  }
   if (event.target.closest('.nb-more')) {
     state.bookExpanded = !state.bookExpanded;
     renderOpening();
@@ -7375,7 +7435,7 @@ function renderFeedback() {
   const end = terminal(state.nodes[state.index].fen);
   if (i === 0) {
     cardEl.dataset.kind = '';
-    morph(body, `<div class="fb idle"><div class="fb-icon k-idle">♞</div><div class="fb-main"><p class="fb-title">Your move</p>${trainerRow()}</div></div>`, 'intro');
+    morph(body, `<div class="fb idle"><div class="fb-icon k-idle">♞</div><div class="fb-main"><p class="fb-title">Your move</p>${drillRow()}${trainerRow()}</div></div>`, 'intro');
     return;
   }
   const node = state.nodes[i];
@@ -7418,7 +7478,7 @@ function renderFeedback() {
   const endText = end ? `<p class="fb-sub end">${end.text}</p>` : '';
   const icon = kind === 'pending' ? '' : CLASS_ICON[kind];
   const html = `<div class="fb"><div class="fb-icon k-${kind}">${icon}</div><div class="fb-main">
-    <p class="fb-title">${title}</p>${sub}${meter}${actions}${endText}${trainerRow()}</div></div>`;
+    <p class="fb-title">${title}</p>${sub}${meter}${actions}${endText}${drillRow()}${trainerRow()}</div></div>`;
   morph(body, html, `fb:${i}:${kind}`);
 }
 
@@ -7431,6 +7491,12 @@ function flip(score) {
 $('feedback-body').addEventListener('click', event => {
   const button = event.target.closest('button[data-act]');
   if (!button) return;
+  if (button.dataset.act === 'drill-end') {
+    state.drill = null;
+    toast('Line training stopped');
+    refresh();
+    return;
+  }
   if (button.dataset.act === 'hint') {
     const node = state.nodes[state.index];
     node.hint = (node.hint || 0) + 1;
@@ -7672,6 +7738,13 @@ function maybeEngineMove() {
   if (state.index !== state.nodes.length - 1) return;
   const fen = state.nodes[state.index].fen;
   if (turnOf(fen) === state.mode || terminal(fen)) return;
+  const drill = drillState();
+  if (drill && drill.inLine && drill.ply !== state.drill.deviateAt) {
+    state.engineTimer = setTimeout(() => {
+      if (state.nodes[state.index].fen === fen) play(drill.expected, { byEngine: true, trainer: { kind: 'book', line: true } });
+    }, 650);
+    return;
+  }
   if (trainerOn()) {
     state.waitingEngine = fen;
     state.engineAsked = performance.now();
@@ -7703,12 +7776,16 @@ function tryEngineReply(force = false) {
   if (!entry || !entry.lines[0] || !entry.lines[0].pv.length) return;
   if (trainerOn()) {
     if (engine.wideDepth(fen, TRAIN_WIDTH) < TRAIN_DEPTH) return;
-    const choice = pickTrainerMove(fen, entry);
+    const drill = drillState();
+    const deviation = !!(drill && drill.inLine && drill.ply === state.drill.deviateAt);
+    const choice = deviation
+      ? pickTrainerMove(fen, entry, { avoid: drill.expected, mix: DEVIATE_MIX }) || { uci: drill.expected, kind: 'book', drop: 0 }
+      : pickTrainerMove(fen, entry);
     if (!choice) return;
     state.waitingEngine = null;
     const pause = Math.max(0, 700 - (performance.now() - state.engineAsked));
     state.engineTimer = setTimeout(() => {
-      if (state.nodes[state.index].fen === fen) play(choice.uci, { byEngine: true, trainer: { kind: choice.kind, drop: choice.drop } });
+      if (state.nodes[state.index].fen === fen) play(choice.uci, { byEngine: true, trainer: { kind: choice.kind, drop: choice.drop, deviation } });
     }, pause);
     return;
   }
@@ -7724,6 +7801,7 @@ function tryEngineReply(force = false) {
 
 function openEditor() {
   if (state.playout) setPlayout(false);
+  state.drill = null;
   closeExplore(false);
   hideCard(true);
   clearTimeout(state.engineTimer);
@@ -7901,7 +7979,7 @@ $('edit-toggle').addEventListener('click', () => {
 // ---------- views, controls, segmented ----------
 
 function showView(name) {
-  for (const view of ['game', 'explore', 'edit']) {
+  for (const view of ['game', 'explore', 'edit', 'learn']) {
     $(`view-${view}`).hidden = view !== name;
   }
   document.querySelectorAll('.segmented').forEach(placeGlider);
@@ -7938,6 +8016,7 @@ const gliderObserver = new ResizeObserver(entries => entries.forEach(entry => pl
 document.querySelectorAll('.segmented').forEach(el => gliderObserver.observe(el));
 
 setupSegmented($('mode'), value => {
+  if (state.drill && value !== state.drill.color) state.drill = null;
   state.mode = value;
   document.body.classList.toggle('vs-engine', value !== 'both');
   if (value !== 'both') setOrientation(value);
@@ -7976,6 +8055,7 @@ holdRepeat($('nav-forward'), 'forward');
 $('nav-end').addEventListener('click', () => navigate('end'));
 $('new-game').addEventListener('click', () => {
   if (state.playout) setPlayout(false);
+  state.drill = null;
   closeExplore(false);
   if (state.editing) closeEditor();
   state.nodes = [{ fen: START }];
@@ -8128,6 +8208,7 @@ document.addEventListener('keydown', event => {
   else if (event.key === 'f' || event.key === 'F') setOrientation(state.orientation === 'w' ? 'b' : 'w');
   else if (event.key === 'Escape') {
     if ($('sheet').classList.contains('open')) closeSheet();
+    else if (!$('view-learn').hidden) closeLearn();
     else if (state.explore) closeExplore();
     else if (state.editing) { closeEditor(); refresh(); }
   }
@@ -8527,7 +8608,7 @@ const TRAINER_MIX = { best: 40, good: 24, inaccuracy: 18, mistake: 12, blunder: 
 const TRAINER_KEY = 'chess-coach-trainer';
 
 function trainerOn() {
-  return state.trainer && state.mode !== 'both' && !state.enginePaused && !state.solving;
+  return (state.trainer || !!state.drill) && state.mode !== 'both' && !state.enginePaused && !state.solving;
 }
 
 function trainerTurn() {
@@ -8552,11 +8633,11 @@ function dropKind(drop) {
   return 'blunder';
 }
 
-function pickTrainerMove(fen, entry) {
+function pickTrainerMove(fen, entry, { avoid = null, mix = null } = {}) {
   const color = turnOf(fen);
   const mine = line => (color === 'w' ? winPercent(line) : 100 - winPercent(line));
   const seen = new Set();
-  const lines = entry.lines.filter(line => line && line.pv && line.pv.length && !seen.has(line.pv[0]) && seen.add(line.pv[0]));
+  const lines = entry.lines.filter(line => line && line.pv && line.pv.length && line.pv[0] !== avoid && !seen.has(line.pv[0]) && seen.add(line.pv[0]));
   if (!lines.length) return null;
   const top = Math.max(...lines.map(mine));
   const popularity = new Map(bookMoves(fen).map(move => [move.uci, move.count]));
@@ -8567,7 +8648,10 @@ function pickTrainerMove(fen, entry) {
   const previous = state.nodes[state.index].move ? state.nodes[state.index - 1] : null;
   const lastSlip = previous && previous.trainer && TRAINER_ERRORS.includes(previous.trainer.kind);
   let target = 'best';
-  if (top >= 5 && !lastSlip) {
+  if (mix) {
+    let roll = Math.random() * Object.values(mix).reduce((sum, weight) => sum + weight, 0);
+    target = Object.keys(mix).find(kind => (roll -= mix[kind]) < 0) || 'inaccuracy';
+  } else if (top >= 5 && !lastSlip) {
     let roll = Math.random() * Object.values(TRAINER_MIX).reduce((sum, weight) => sum + weight, 0);
     target = TRAINER_KINDS.find(kind => (roll -= TRAINER_MIX[kind]) < 0) || 'best';
     if (top < 25 && (target === 'mistake' || target === 'blunder')) target = 'inaccuracy';
@@ -8644,6 +8728,267 @@ function setTrainer(on) {
   maybeEngineMove();
 }
 $('trainer-toggle').addEventListener('click', () => setTrainer(!state.trainer));
+
+// ---------- openings: catalog, own lines, line training ----------
+
+const BROWSE = '<button class="link op-browse" data-act="learn" title="Browse and train openings"><svg class="ic"><use href="#i-book"/></svg><span>Openings</span></button>';
+const DEVIATE_MIX = { good: 28, inaccuracy: 40, mistake: 24, blunder: 8 };
+const MY_LINES_KEY = 'chess-coach-lines';
+const learn = { src: 'catalog', family: null, query: '', open: null };
+let catalog = null;
+const sanCache = new Map();
+
+function buildCatalog() {
+  if (catalog) return catalog;
+  const families = new Map();
+  const longest = new Map();
+  for (let i = 0; i < BOOK_SIZE; i++) {
+    const item = lineAt(i);
+    const kept = longest.get(item.name);
+    if (!kept || item.moves.length > kept.moves.length) longest.set(item.name, item);
+  }
+  for (const item of longest.values()) {
+    if (!families.has(item.family)) families.set(item.family, { name: item.family, lines: [], low: item.eco, high: item.eco });
+    const group = families.get(item.family);
+    group.lines.push(item);
+    if (item.eco < group.low) group.low = item.eco;
+    if (item.eco > group.high) group.high = item.eco;
+  }
+  for (const group of families.values()) group.lines.sort((a, b) => a.moves.length - b.moves.length || a.name.localeCompare(b.name));
+  const featured = Object.keys(FEATURED);
+  const list = [...families.values()].sort((a, b) => {
+    const fa = featured.indexOf(a.name);
+    const fb = featured.indexOf(b.name);
+    if (fa !== -1 || fb !== -1) return (fa === -1 ? 999 : fa) - (fb === -1 ? 999 : fb);
+    return b.lines.length - a.lines.length;
+  });
+  catalog = { families, list, all: list.flatMap(group => group.lines) };
+  return catalog;
+}
+
+const FEATURED = Object.fromEntries(['Italian Game', 'Ruy Lopez', 'Sicilian Defense', 'French Defense', 'Caro-Kann Defense', "Queen's Gambit Declined", "Queen's Gambit Accepted", 'Slav Defense', "King's Indian Defense", 'Nimzo-Indian Defense', 'English Opening', 'London System', 'Scotch Game', "King's Gambit", 'Scandinavian Defense', 'Pirc Defense', 'Dutch Defense', 'Grünfeld Defense', 'Petrov\'s Defense', 'Vienna Game'].map(name => [name, true]));
+
+function movesText(moves) {
+  const key = moves.join(' ');
+  if (!sanCache.has(key)) sanCache.set(key, lineText(START, playLine(START, moves, 40).slice(1)));
+  return sanCache.get(key);
+}
+
+function myLines() {
+  try {
+    const list = JSON.parse(localStorage.getItem(MY_LINES_KEY) || '[]');
+    return Array.isArray(list) ? list : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function storeMyLines(list) {
+  try {
+    localStorage.setItem(MY_LINES_KEY, JSON.stringify(list));
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+function lineByKey(key) {
+  if (key.startsWith('c:')) return lineAt(Number(key.slice(2)));
+  const mine = myLines().find(item => `m:${item.id}` === key);
+  return mine ? { name: mine.name, moves: mine.moves, mine: true, id: mine.id } : null;
+}
+
+function lineRow(key, item, { mine = false } = {}) {
+  const title = mine ? item.name : (item.variation || item.name);
+  const open = learn.open === key;
+  const eco = mine ? '' : `<span class="lr-eco">${item.eco}</span>`;
+  const actions = open ? `<div class="lr-actions">
+      <button class="pill" data-train="w" title="Train this line as White"><i class="disc w"></i><span>Train</span></button>
+      <button class="pill" data-train="b" title="Train this line as Black"><i class="disc b"></i><span>Train</span></button>
+      <button class="pill" data-show title="Step through it on the board"><svg class="ic"><use href="#i-play"/></svg><span>Show</span></button>
+      ${mine ? '<button class="icon sm" data-del title="Delete this line" aria-label="Delete"><svg class="ic"><use href="#i-stop"/></svg></button>' : ''}
+    </div>` : '';
+  return `<li class="lr line${open ? ' open' : ''}" data-key="${key}"><div class="lr-top">${eco}<span class="lr-name">${title}</span><span class="lr-len">${Math.ceil(item.moves.length / 2)}</span></div><div class="lr-moves">${movesText(item.moves)}</div>${actions}</li>`;
+}
+
+function renderLearn() {
+  const list = $('learn-list');
+  const crumb = $('learn-crumb');
+  const query = learn.query.trim().toLowerCase();
+  $('learn-save').hidden = learn.src !== 'mine';
+  $('learn-search').hidden = learn.src === 'mine';
+  if (learn.src === 'mine') {
+    setHtml(crumb, '');
+    const lines = myLines();
+    const played = state.nodes[0].fen === START ? state.index : 0;
+    $('learn-save-btn').disabled = played < 2;
+    $('learn-note').textContent = played < 2
+      ? 'Play your line on the board from the start (both sides), then save it here.'
+      : `Saves the ${played} moves up to the current position.`;
+    if (!$('learn-name').value) {
+      const { named } = openingContext(state.index);
+      $('learn-name').placeholder = named ? named.name : 'Name this line';
+    }
+    setHtml(list, lines.length ? lines.map(item => lineRow(`m:${item.id}`, item, { mine: true })).join('') : '<li class="lr-empty">No saved lines yet.</li>');
+    return;
+  }
+  const book = buildCatalog();
+  if (query) {
+    const pool = learn.family ? book.families.get(learn.family).lines : book.all;
+    const hits = pool.filter(item => item.name.toLowerCase().includes(query) || item.eco.toLowerCase().startsWith(query)).slice(0, 80);
+    setHtml(crumb, learn.family ? `<button class="link" data-crumb>${'All openings'}</button><span>›</span><b>${learn.family}</b>` : `<span>${hits.length >= 80 ? '80+' : hits.length} matches</span>`);
+    setHtml(list, hits.length ? hits.map(item => lineRow(`c:${item.index}`, item)).join('') : '<li class="lr-empty">Nothing matches.</li>');
+    return;
+  }
+  if (!learn.family) {
+    setHtml(crumb, `<span>${book.list.length} openings · ${book.all.length.toLocaleString('en-US')} lines</span>`);
+    setHtml(list, book.list.map(group => `<li class="lr fam" data-family="${group.name.replace(/"/g, '&quot;')}"><span class="lr-name">${group.name}</span><span class="lr-meta">${group.low === group.high ? group.low : `${group.low}–${group.high}`} · ${group.lines.length}</span></li>`).join(''));
+    return;
+  }
+  const group = book.families.get(learn.family);
+  setHtml(crumb, `<button class="link" data-crumb>All openings</button><span>›</span><b>${group.name}</b>`);
+  setHtml(list, group.lines.slice(0, 150).map(item => lineRow(`c:${item.index}`, item)).join('') + (group.lines.length > 150 ? `<li class="lr-empty">${group.lines.length - 150} more · search to narrow down</li>` : ''));
+}
+
+function openLearn() {
+  if (state.editing) { closeEditor(); refresh(); }
+  closeExplore(false);
+  hideCard(true);
+  showView('learn');
+  setSegmented($('learn-tabs'), learn.src);
+  renderLearn();
+}
+
+function closeLearn(doRefresh = true) {
+  if ($('view-learn').hidden) return;
+  showView('game');
+  if (doRefresh) refresh();
+}
+
+function drillState() {
+  const drill = state.drill;
+  if (!drill || state.nodes[0].fen !== START) return null;
+  const ply = state.index;
+  const onLine = state.nodes.slice(1, ply + 1).every((node, k) => node.uci === drill.moves[k]);
+  return { ply, onLine, inLine: onLine && ply < drill.moves.length, expected: drill.moves[ply] };
+}
+
+function startDrill(item, color) {
+  closeLearn(false);
+  if (state.playout) setPlayout(false);
+  if (state.solving) setSolving(false);
+  if (state.enginePaused) setEnginePaused(false);
+  const theirs = [];
+  for (let ply = 2; ply < item.moves.length; ply++) if ((ply % 2 === 0 ? 'w' : 'b') !== color) theirs.push(ply);
+  const deviateAt = theirs.length && Math.random() < 0.8 ? theirs[Math.floor(Math.random() * theirs.length)] : -1;
+  state.drill = { name: item.mine ? item.name : item.name.split(':').pop().trim() || item.name, moves: item.moves, color, deviateAt };
+  state.mode = color;
+  setSegmented($('mode'), color);
+  document.body.classList.add('vs-engine');
+  setOrientation(color);
+  state.nodes = [{ fen: START }];
+  state.index = 0;
+  setTab('opening');
+  refresh();
+  maybeEngineMove();
+  toast(`Training ${state.drill.name} as ${color === 'w' ? 'White' : 'Black'}`);
+}
+
+function showLine(item) {
+  closeLearn(false);
+  if (state.playout) setPlayout(false);
+  state.drill = null;
+  const nodes = [{ fen: START }];
+  let fen = START;
+  for (const uci of item.moves) {
+    const chess = chessAt(fen);
+    const move = moveFromUci(chess, uci);
+    if (!move) break;
+    fen = chess.fen();
+    nodes.push({ fen, move, uci });
+  }
+  state.mode = 'both';
+  setSegmented($('mode'), 'both');
+  document.body.classList.remove('vs-engine');
+  state.nodes = nodes;
+  state.index = 0;
+  refresh();
+  toast('Step through it with the arrows');
+}
+
+function drillRow() {
+  const drill = state.drill;
+  if (!drill) return '';
+  const total = drill.moves.length;
+  let reached = 0;
+  let left = -1;
+  for (let ply = 1; ply < state.nodes.length; ply++) {
+    if (state.nodes[ply].uci === drill.moves[ply - 1]) { reached = ply; continue; }
+    left = ply;
+    break;
+  }
+  let status = `<span class="tr-cur">${Math.min(reached, total)}/${total}</span>`;
+  if (left === -1 && reached >= total) status = '<span class="tr-res ok">Line complete</span>';
+  else if (left !== -1 && state.nodes[left].byEngine) status = `<span class="tr-res warn">They left the line · ${moveLabel(state.nodes[left - 1].fen, state.nodes[left].uci)}</span>`;
+  else if (left !== -1) status = `<span class="tr-res miss">Line: ${moveLabel(state.nodes[left - 1].fen, drill.moves[left - 1])}</span><button class="icon sm tr-hint" data-act="retry" data-index="${left}" title="Take it back" aria-label="Take it back"><svg class="ic"><use href="#i-undo"/></svg></button>`;
+  return `<div class="tr-row"><span class="tr-score drill" title="Line you are training"><svg class="ic"><use href="#i-book"/></svg>${drill.name}</span>${status}<button class="icon sm tr-hint" data-act="drill-end" title="Stop training this line" aria-label="Stop training"><svg class="ic"><use href="#i-stop"/></svg></button></div>`;
+}
+
+setupSegmented($('learn-tabs'), value => {
+  learn.src = value;
+  learn.open = null;
+  renderLearn();
+}, 'src');
+$('learn-exit').addEventListener('click', () => closeLearn());
+$('learn-open-sheet').addEventListener('click', () => openLearn());
+$('learn-search').addEventListener('input', event => {
+  learn.query = event.target.value;
+  learn.open = null;
+  renderLearn();
+});
+$('learn-crumb').addEventListener('click', event => {
+  if (!event.target.closest('[data-crumb]')) return;
+  learn.family = null;
+  learn.open = null;
+  renderLearn();
+});
+$('learn-list').addEventListener('click', event => {
+  const fam = event.target.closest('.lr.fam');
+  if (fam) {
+    learn.family = fam.dataset.family;
+    learn.open = null;
+    renderLearn();
+    $('learn-list').scrollTop = 0;
+    return;
+  }
+  const row = event.target.closest('.lr.line');
+  if (!row) return;
+  const item = lineByKey(row.dataset.key);
+  if (!item) return;
+  const train = event.target.closest('[data-train]');
+  if (train) { startDrill(item, train.dataset.train); return; }
+  if (event.target.closest('[data-show]')) { showLine(item); return; }
+  if (event.target.closest('[data-del]')) {
+    storeMyLines(myLines().filter(line => line.id !== item.id));
+    learn.open = null;
+    renderLearn();
+    toast('Line deleted');
+    return;
+  }
+  learn.open = learn.open === row.dataset.key ? null : row.dataset.key;
+  renderLearn();
+});
+$('learn-save-btn').addEventListener('click', () => {
+  if (state.nodes[0].fen !== START || state.index < 2) return;
+  const moves = state.nodes.slice(1, state.index + 1).map(node => node.uci);
+  const name = $('learn-name').value.trim() || $('learn-name').placeholder || 'My line';
+  const lines = myLines();
+  lines.unshift({ id: Date.now().toString(36), name, moves });
+  if (!storeMyLines(lines)) { toast('Couldn’t save in this browser'); return; }
+  $('learn-name').value = '';
+  renderLearn();
+  toast(`Saved “${name}”`);
+});
 
 // ---------- solve ----------
 
