@@ -831,6 +831,10 @@ body.training .fb-meter { display: none; }
 .train-row .segmented { width: 190px; }
 .train-row .pill { height: 34px; font-size: 0.82rem; }
 .train-status:empty { display: none; }
+.tr-goal { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.78rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.tr-goal-track { width: 70px; height: 6px; border-radius: 6px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.tr-goal-fill { display: block; height: 100%; border-radius: 6px; background: var(--best); transition: width 500ms var(--ease); }
+.tr-next { height: 30px; padding: 0 12px; font-size: 0.8rem; }
 .train-tip { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--rule-soft); color: var(--faint); font-size: 0.78rem; }
 .mark.hint-to { background: rgba(127, 214, 160, 0.2); }
 .mark.hint-to::before { inset: 32%; border-radius: 50%; background: rgba(127, 214, 160, 0.85); animation: pulse-ring 1.2s ease-in-out infinite; }
@@ -6773,11 +6777,13 @@ engine.on(message => {
     scheduleSoft();
     if (state.waitingEngine === message.fen) tryEngineReply();
     tickPlayout();
+    checkPending();
   } else if (message.type === 'done') {
     if (message.fen === viewFen() && !(message.job && message.job.then)) setEngineState('idle', 'ready');
     scheduleSoft();
     if (state.waitingEngine === message.fen) tryEngineReply(true);
     tickPlayout();
+    checkPending();
     if (state.solving) {
       saveCacheSoon();
       if (message.job && message.job.settled && message.fen === state.nodes[state.index].fen) {
@@ -6890,13 +6896,15 @@ async function handleBoardMove(from, to) {
 }
 
 function play(uci, { byEngine = false, auto = false, trainer = null } = {}) {
-  if (state.missing) return false;
+  if (state.missing || state.pendingCheck) return false;
   const before = state.nodes[state.index].fen;
   const chess = chessAt(before);
   const move = moveFromUci(chess, uci);
   if (!move) return false;
-  const challenge = byEngine ? null : challengeFor(state.index);
-  const challenged = state.index;
+  const line = state.drill ? drillState() : null;
+  const onLine = !!(line && line.inLine && line.expected === move.from + move.to + (move.promotion || ''));
+  const checking = !byEngine && !onLine && trainerOn() && state.index === state.nodes.length - 1 && turnOf(before) === state.mode;
+  const at = state.index;
   hideCard(true);
   clearTimeout(state.engineTimer);
   clearTimeout(state.playoutTimer);
@@ -6908,13 +6916,10 @@ function play(uci, { byEngine = false, auto = false, trainer = null } = {}) {
   state.index++;
   engine.prioritize(before, 12);
   if (!byEngine) state.hintFrom = null;
-  if (challenge && !challenge.accept.has(move.from + move.to + (move.promotion || ''))) {
-    const slip = state.nodes[challenged];
-    slip.tries = (slip.tries || 0) + 1;
-    state.missing = { index: state.index, square: move.to, best: challenge.best };
+  if (checking) {
+    state.pendingCheck = { at, index: state.index, before, after: chess.fen(), uci: move.from + move.to + (move.promotion || ''), square: move.to };
     refresh();
-    clearTimeout(state.missTimer);
-    state.missTimer = setTimeout(takeBackMiss, MISS_PAUSE);
+    checkPending();
     return true;
   }
   refresh();
@@ -6985,7 +6990,7 @@ function refresh() {
 
 function canMove(fen) {
   // Both colours are always movable: in an engine game you can also move for the engine.
-  return !(state.explore || state.editing || state.missing || terminal(fen));
+  return !(state.explore || state.editing || state.missing || state.pendingCheck || terminal(fen));
 }
 
 // Cheap update after engine output: arrows, eval bar, lines, feedback.
@@ -7795,7 +7800,7 @@ setupSegmented($('explore-tabs'), value => {
 function maybeEngineMove() {
   clearTimeout(state.engineTimer);
   state.waitingEngine = null;
-  if (state.mode === 'both' || state.enginePaused || state.explore || state.editing || state.playout) return;
+  if (state.mode === 'both' || state.enginePaused || state.explore || state.editing || state.playout || state.trainDone) return;
   if (state.index !== state.nodes.length - 1) return;
   const fen = state.nodes[state.index].fen;
   if (turnOf(fen) === state.mode || terminal(fen)) return;
@@ -7837,6 +7842,14 @@ function tryEngineReply(force = false) {
   if (!entry || !entry.lines[0] || !entry.lines[0].pv.length) return;
   if (trainerOn()) {
     if (engine.wideDepth(fen, TRAIN_WIDTH) < TRAIN_DEPTH) return;
+    state.goalCp = userCp(entry.lines[0]);
+    if (!state.goalOff && state.goalCp >= GOAL_CP) {
+      state.waitingEngine = null;
+      state.trainDone = true;
+      refresh();
+      toast('Goal reached · you are +1 or better');
+      return;
+    }
     const drill = drillState();
     const deviation = !!(drill && drill.inLine && drill.ply === state.drill.deviateAt);
     const choice = deviation
@@ -8674,6 +8687,13 @@ const TRAIN_DEPTH = 12;
 const TRAIN_WIDTH = 14;
 const TRAINER_MIX = { best: 46, second: 24, third: 12, slip: 10, heavy: 8 };
 const MISS_PAUSE = 2000;
+const GOAL_CP = 100;
+
+function userCp(line) {
+  if (!line) return 0;
+  if (line.mate != null) return (line.mate > 0) === (state.mode === 'w') ? 10000 : -10000;
+  return state.mode === 'w' ? line.cp : -line.cp;
+}
 
 function trainerOn() {
   return state.train && state.mode !== 'both' && !state.enginePaused && !state.solving;
@@ -8755,20 +8775,51 @@ function pickTrainerMove(fen, entry, { avoid = null, mix = null } = {}) {
   return ranked[0];
 }
 
-function challengeFor(index) {
-  if (!trainerOn() || index !== state.nodes.length - 1) return null;
-  const node = state.nodes[index];
-  if (!node || !node.byEngine || !node.trainer || !isSlip(node.trainer.kind)) return null;
-  if (turnOf(node.fen) !== state.mode) return null;
-  const entry = engine.entry(node.fen);
+function userWin(score) {
+  return state.mode === 'w' ? winPercent(score) : 100 - winPercent(score);
+}
+
+function judgeUserMove(beforeFen, uci, afterFen) {
+  const entry = engine.entry(beforeFen);
   const best = entry && entry.lines[0];
-  if (!best || !best.pv || !best.pv.length || best.seeded || entry.depth < 10) return null;
-  const mine = line => (state.mode === 'w' ? winPercent(line) : 100 - winPercent(line));
-  const accept = new Set([best.pv[0]]);
-  for (const line of entry.lines) {
-    if (line && line.pv && line.pv.length && line.depth >= 10 && mine(best) - mine(line) < 2) accept.add(line.pv[0]);
+  if (!best || !best.pv || !best.pv.length || best.seeded || entry.depth < 12) return { wait: true };
+  const top = userWin(best);
+  const inBook = bookMoves(beforeFen).some(move => move.uci === uci);
+  const allowed = inBook ? 6 : 3;
+  const known = entry.lines.find(line => line && line.pv && line.pv[0] === uci && line.depth >= 12);
+  let drop;
+  if (uci === best.pv[0]) drop = 0;
+  else if (known) drop = top - userWin(known);
+  else {
+    const after = evalOf(afterFen);
+    if (!after || after.depth < 12) return { wait: true };
+    drop = top - userWin(after.score);
   }
-  return { best: best.pv[0], accept };
+  return drop < allowed ? { ok: true } : { bad: true, best: best.pv[0], drop };
+}
+
+function checkPending() {
+  const pending = state.pendingCheck;
+  if (!pending) return;
+  if (state.nodes.length - 1 !== pending.index || !state.train) {
+    state.pendingCheck = null;
+    return;
+  }
+  const verdict = judgeUserMove(pending.before, pending.uci, pending.after);
+  if (verdict.wait) return;
+  state.pendingCheck = null;
+  if (verdict.bad) {
+    const node = state.nodes[pending.at];
+    node.tries = (node.tries || 0) + 1;
+    state.misses = (state.misses || 0) + 1;
+    state.missing = { index: pending.index, square: pending.square, best: verdict.best };
+    refresh();
+    clearTimeout(state.missTimer);
+    state.missTimer = setTimeout(takeBackMiss, MISS_PAUSE);
+    return;
+  }
+  refresh();
+  maybeEngineMove();
 }
 
 function takeBackMiss() {
@@ -8787,6 +8838,11 @@ function clearChallenge() {
   clearTimeout(state.missTimer);
   state.missing = null;
   state.hintFrom = null;
+  state.pendingCheck = null;
+  state.misses = 0;
+  state.goalCp = null;
+  state.trainDone = false;
+  state.goalOff = false;
 }
 
 
@@ -8804,9 +8860,21 @@ function trainerRow() {
     last = { i: i + 1, tries: slip.tries || 0, theirs: moveLabel(state.nodes[i - 1].fen, slip.uci) };
   }
   const parts = chances ? [`<span class="tr-score" title="Slips punished on the first try"><svg class="ic"><use href="#i-cap"/></svg>${hits}/${chances}</span>`] : [];
+  if (state.misses) parts.push(`<span class="tr-cur" title="Moves that were not good enough">${state.misses} ${state.misses === 1 ? 'miss' : 'misses'}</span>`);
   const node = state.nodes[state.index];
   const live = state.index === state.nodes.length - 1;
-  if (state.missing) {
+  if (state.goalCp != null && !state.goalOff) {
+    const pct = Math.max(0, Math.min(100, (state.goalCp / GOAL_CP) * 100));
+    const shown = Math.abs(state.goalCp) >= 10000 ? (state.goalCp > 0 ? 'M' : '−M') : `${state.goalCp >= 0 ? '+' : '−'}${Math.abs(state.goalCp / 100).toFixed(1)}`;
+    parts.push(`<span class="tr-goal" title="Your advantage, aiming for +1.0"><span class="tr-goal-track"><span class="tr-goal-fill" style="width:${pct.toFixed(0)}%"></span></span>${shown} / +1.0</span>`);
+  }
+  if (state.trainDone) {
+    parts.push('<span class="tr-res ok">Goal reached</span><button class="pill solid tr-next" data-act="next">Next round</button><button class="pill tr-next" data-act="continue">Keep playing</button>');
+    return `<div class="tr-row">${parts.join('')}</div>`;
+  }
+  if (state.pendingCheck) {
+    parts.push('<span class="tr-cur">Checking your move…</span>');
+  } else if (state.missing) {
     parts.push('<span class="tr-res miss">✕ Not the best move · taking it back</span>');
   } else if (state.hintFrom && state.hintFrom.index === state.index && live) {
     const tries = node.tries || 0;
@@ -8919,6 +8987,17 @@ function trainAction(button) {
   }
   if (act === 'retry') {
     retry(Number(button.dataset.index));
+    return true;
+  }
+  if (act === 'next') {
+    restartTraining();
+    return true;
+  }
+  if (act === 'continue') {
+    state.goalOff = true;
+    state.trainDone = false;
+    refresh();
+    maybeEngineMove();
     return true;
   }
   return false;
@@ -9455,6 +9534,7 @@ $('solve-log').addEventListener('click', event => {
 });
 function onTick() {
   if (state.playout) tickPlayout();
+  checkPending();
   if (!document.hidden && state.solving && !state.explore && !state.editing) renderSolve();
 }
 
