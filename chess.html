@@ -213,6 +213,10 @@ b { font-weight: 650; }
 .mark.shield::before { inset: auto 4% 4% auto; width: 34%; height: 34%; border-radius: 40% 40% 50% 50%; background: rgba(143, 220, 176, 0.95); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25); }
 .mark.shield i { position: absolute; right: 4%; bottom: 4%; width: 34%; height: 34%; display: grid; place-items: center; font-style: normal; font-weight: 800; font-size: clamp(8px, calc(var(--board) / 70), 12px); color: #183324; z-index: 1; }
 .mark.target::before { box-shadow: 0 0 0 2px rgba(232, 200, 114, 0.85); border-radius: 50%; inset: 10%; }
+.mark.miss { background: rgba(236, 88, 78, 0.34); }
+.mark.miss::before { inset: 3% 3% auto auto; width: 34%; height: 34%; border-radius: 50%; content: "✕"; display: grid; place-items: center; background: #e5534b; color: #fff; font-weight: 900; font-size: clamp(9px, calc(var(--board) / 44), 17px); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); animation: pop 320ms var(--ease) both; }
+.mark.hint { background: rgba(127, 214, 160, 0.3); }
+.mark.hint::before { inset: 4%; border-radius: 14%; box-shadow: inset 0 0 0 3px rgba(127, 214, 160, 0.95), 0 0 18px rgba(127, 214, 160, 0.55); animation: pulse-ring 1.2s ease-in-out infinite; }
 
 /* promotion */
 .b-promo { z-index: 20; background: rgba(7, 7, 7, 0); transition: background 200ms ease; }
@@ -846,6 +850,11 @@ button.link .ic { width: 15px; height: 15px; }
 .lr-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .lr-actions .pill { height: 32px; padding: 0 12px; font-size: 0.8rem; }
 .lr-empty { padding: 10px 0; color: var(--faint); font-size: 0.84rem; }
+.lr-moves .done { color: var(--faint); }
+.lr-moves b { color: #ecd2b0; }
+.learn-crumb { flex-wrap: wrap; }
+.crumb-moves { color: var(--text); font-weight: 600; }
+.crumb-count { margin-left: auto; }
 .tr-res.warn { background: rgba(232, 200, 114, 0.16); color: #f2dc9c; }
 .tr-score.drill { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -6844,10 +6853,13 @@ async function handleBoardMove(from, to) {
 }
 
 function play(uci, { byEngine = false, auto = false, trainer = null } = {}) {
+  if (state.missing) return false;
   const before = state.nodes[state.index].fen;
   const chess = chessAt(before);
   const move = moveFromUci(chess, uci);
   if (!move) return false;
+  const challenge = byEngine ? null : challengeFor(state.index);
+  const challenged = state.index;
   hideCard(true);
   clearTimeout(state.engineTimer);
   clearTimeout(state.playoutTimer);
@@ -6857,8 +6869,17 @@ function play(uci, { byEngine = false, auto = false, trainer = null } = {}) {
   state.nodes.push({ fen: chess.fen(), move, uci: move.from + move.to + (move.promotion || ''), byEngine, auto, trainer });
   carryMate(before, move.from + move.to + (move.promotion || ''), chess.fen());
   state.index++;
-  // Feedback needs a baseline for the position the move was played from.
   engine.prioritize(before, 12);
+  if (!byEngine) state.hintFrom = null;
+  if (challenge && !challenge.accept.has(move.from + move.to + (move.promotion || ''))) {
+    const slip = state.nodes[challenged];
+    slip.tries = (slip.tries || 0) + 1;
+    state.missing = { index: state.index, square: move.to, best: challenge.best };
+    refresh();
+    clearTimeout(state.missTimer);
+    state.missTimer = setTimeout(takeBackMiss, MISS_PAUSE);
+    return true;
+  }
   refresh();
   maybeEngineMove();
   return true;
@@ -6922,11 +6943,12 @@ function refresh() {
   renderMoveList();
   updateNavButtons();
   if (state.solving) saveSession();
+  if (!$('view-learn').hidden) renderLearn();
 }
 
 function canMove(fen) {
   // Both colours are always movable: in an engine game you can also move for the engine.
-  return !(state.explore || state.editing || terminal(fen));
+  return !(state.explore || state.editing || state.missing || terminal(fen));
 }
 
 // Cheap update after engine output: arrows, eval bar, lines, feedback.
@@ -7022,6 +7044,16 @@ function renderArrows() {
       const overlay = threatOverlay(fen, turnOf(fen), false);
       arrows.push(...overlay.arrows);
       marks = overlay.marks;
+    }
+  }
+  if (!state.explore) {
+    if (state.missing && state.index === state.missing.index) marks.push({ type: 'miss', square: state.missing.square, title: 'Not the best move' });
+    const hintNode = state.nodes[state.index];
+    if (state.hintFrom && state.hintFrom.index === state.index && state.index === state.nodes.length - 1) {
+      marks.push({ type: 'hint', square: state.hintFrom.square, title: 'The best move starts with this piece' });
+      if ((hintNode.tries || 0) >= 3) {
+        arrows.push({ id: 'hint-best', from: state.hintFrom.best.slice(0, 2), to: state.hintFrom.best.slice(2, 4), color: COLORS.best, width: 13, opacity: 0.9, className: 'best', z: 3 });
+      }
     }
   }
   board.setArrows(arrows);
@@ -7802,6 +7834,7 @@ function tryEngineReply(force = false) {
 function openEditor() {
   if (state.playout) setPlayout(false);
   state.drill = null;
+  clearChallenge();
   closeExplore(false);
   hideCard(true);
   clearTimeout(state.engineTimer);
@@ -8056,6 +8089,7 @@ $('nav-end').addEventListener('click', () => navigate('end'));
 $('new-game').addEventListener('click', () => {
   if (state.playout) setPlayout(false);
   state.drill = null;
+  clearChallenge();
   closeExplore(false);
   if (state.editing) closeEditor();
   state.nodes = [{ fen: START }];
@@ -8602,9 +8636,8 @@ function setupHeadingAnimation() {
 
 const TRAIN_DEPTH = 12;
 const TRAIN_WIDTH = 14;
-const TRAINER_KINDS = ['best', 'good', 'inaccuracy', 'mistake', 'blunder'];
-const TRAINER_ERRORS = ['inaccuracy', 'mistake', 'blunder'];
-const TRAINER_MIX = { best: 40, good: 24, inaccuracy: 18, mistake: 12, blunder: 6 };
+const TRAINER_MIX = { best: 46, second: 24, third: 12, slip: 10, heavy: 8 };
+const MISS_PAUSE = 2000;
 const TRAINER_KEY = 'chess-coach-trainer';
 
 function trainerOn() {
@@ -8633,6 +8666,10 @@ function dropKind(drop) {
   return 'blunder';
 }
 
+function isSlip(kind) {
+  return !!kind && kind !== 'best' && kind !== 'book';
+}
+
 function pickTrainerMove(fen, entry, { avoid = null, mix = null } = {}) {
   const color = turnOf(fen);
   const mine = line => (color === 'w' ? winPercent(line) : 100 - winPercent(line));
@@ -8641,76 +8678,114 @@ function pickTrainerMove(fen, entry, { avoid = null, mix = null } = {}) {
   if (!lines.length) return null;
   const top = Math.max(...lines.map(mine));
   const popularity = new Map(bookMoves(fen).map(move => [move.uci, move.count]));
-  const candidates = lines.map(line => {
+  const ranked = lines.map(line => {
     const drop = Math.max(0, top - mine(line));
     return { uci: line.pv[0], drop, kind: dropKind(drop), book: popularity.get(line.pv[0]) || 0 };
-  });
+  }).sort((x, y) => x.drop - y.drop);
   const previous = state.nodes[state.index].move ? state.nodes[state.index - 1] : null;
-  const lastSlip = previous && previous.trainer && TRAINER_ERRORS.includes(previous.trainer.kind);
+  const lastSlip = previous && previous.trainer && isSlip(previous.trainer.kind);
   let target = 'best';
-  if (mix) {
-    let roll = Math.random() * Object.values(mix).reduce((sum, weight) => sum + weight, 0);
-    target = Object.keys(mix).find(kind => (roll -= mix[kind]) < 0) || 'inaccuracy';
-  } else if (top >= 5 && !lastSlip) {
-    let roll = Math.random() * Object.values(TRAINER_MIX).reduce((sum, weight) => sum + weight, 0);
-    target = TRAINER_KINDS.find(kind => (roll -= TRAINER_MIX[kind]) < 0) || 'best';
-    if (top < 25 && (target === 'mistake' || target === 'blunder')) target = 'inaccuracy';
+  if (mix || (top >= 5 && !lastSlip)) {
+    const table = mix || TRAINER_MIX;
+    let roll = Math.random() * Object.values(table).reduce((sum, weight) => sum + weight, 0);
+    target = Object.keys(table).find(kind => (roll -= table[kind]) < 0) || 'second';
+    if (!mix && top < 25 && target === 'heavy') target = 'slip';
   }
-  const fallback = {
-    best: ['best', 'good'],
-    good: ['good', 'best'],
-    inaccuracy: ['inaccuracy', 'mistake', 'good', 'best'],
-    mistake: ['mistake', 'inaccuracy', 'blunder', 'good', 'best'],
-    blunder: ['blunder', 'mistake', 'inaccuracy', 'good', 'best']
+  const chain = {
+    best: ['best'],
+    second: ['second', 'third', 'best'],
+    third: ['third', 'second', 'best'],
+    slip: ['slip', 'third', 'second', 'best'],
+    heavy: ['heavy', 'slip', 'third', 'second', 'best']
   }[target];
-  for (const kind of fallback) {
-    let pool = candidates.filter(candidate => candidate.kind === kind);
-    if (!pool.length) continue;
-    const clean = kind === 'best' || kind === 'good';
-    const inBook = candidates.filter(candidate => candidate.book && candidate.drop < 5);
-    if (clean && inBook.length) pool = inBook;
-    const weight = candidate => (candidate.book ? (clean ? Math.pow(candidate.book, 0.8) : 4 + Math.log(1 + candidate.book)) : 1);
-    let roll = Math.random() * pool.reduce((sum, candidate) => sum + weight(candidate), 0);
-    return pool.find(candidate => (roll -= weight(candidate)) < 0) || pool[0];
+  const choose = step => {
+    if (step === 'second' || step === 'third') {
+      const pick = ranked[step === 'second' ? 1 : 2];
+      return pick && pick.drop < 15 ? pick : null;
+    }
+    if (step === 'slip' || step === 'heavy') {
+      const pool = ranked.filter(c => (step === 'slip' ? c.drop >= 5 && c.drop < 12 : c.drop >= 12 && c.drop < 40));
+      return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+    }
+    const inBook = ranked.filter(c => c.book && c.drop < 5);
+    const pool = inBook.length ? inBook : ranked.filter(c => c.drop < 2);
+    const weight = c => (c.book ? Math.pow(c.book, 0.8) : 1);
+    let roll = Math.random() * pool.reduce((sum, c) => sum + weight(c), 0);
+    return pool.find(c => (roll -= weight(c)) < 0) || pool[0] || null;
+  };
+  for (const step of chain) {
+    const pick = choose(step);
+    if (pick) return pick;
   }
-  return candidates[0];
+  return ranked[0];
 }
 
-function punished(verdict) {
-  if (!verdict) return false;
-  if (verdict.kind === 'best' || verdict.kind === 'excellent') return true;
-  return verdict.kind === 'book' && verdict.engineDrop != null && verdict.engineDrop < 2;
+function challengeFor(index) {
+  if (!trainerOn() || index !== state.nodes.length - 1) return null;
+  const node = state.nodes[index];
+  if (!node || !node.byEngine || !node.trainer || !isSlip(node.trainer.kind)) return null;
+  if (turnOf(node.fen) !== state.mode) return null;
+  const entry = engine.entry(node.fen);
+  const best = entry && entry.lines[0];
+  if (!best || !best.pv || !best.pv.length || best.seeded || entry.depth < 10) return null;
+  const mine = line => (state.mode === 'w' ? winPercent(line) : 100 - winPercent(line));
+  const accept = new Set([best.pv[0]]);
+  for (const line of entry.lines) {
+    if (line && line.pv && line.pv.length && line.depth >= 10 && mine(best) - mine(line) < 2) accept.add(line.pv[0]);
+  }
+  return { best: best.pv[0], accept };
 }
+
+function takeBackMiss() {
+  const miss = state.missing;
+  state.missing = null;
+  if (!miss) return;
+  if (state.nodes.length - 1 === miss.index) {
+    state.nodes = state.nodes.slice(0, miss.index);
+    state.index = miss.index - 1;
+    state.hintFrom = { index: state.index, square: miss.best.slice(0, 2), best: miss.best };
+  }
+  refresh();
+}
+
+function clearChallenge() {
+  clearTimeout(state.missTimer);
+  state.missing = null;
+  state.hintFrom = null;
+}
+
 
 function trainerRow() {
   if (!trainerOn()) return '';
   let chances = 0;
   let hits = 0;
   let last = null;
-  for (let i = 2; i <= state.index; i++) {
-    const prev = state.nodes[i - 1];
-    const node = state.nodes[i];
-    if (!prev.trainer || !TRAINER_ERRORS.includes(prev.trainer.kind) || node.byEngine) continue;
-    const verdict = judge(i);
-    if (!verdict || verdict.kind === 'pending') { last = { i, pending: true }; continue; }
+  for (let i = 1; i < state.index; i++) {
+    const slip = state.nodes[i];
+    const reply = state.nodes[i + 1];
+    if (!slip.byEngine || !slip.trainer || !isSlip(slip.trainer.kind) || !reply || reply.byEngine) continue;
     chances++;
-    const ok = punished(verdict);
-    if (ok) hits++;
-    const bestUci = verdict.before && verdict.before.pv && verdict.before.pv[0];
-    last = { i, ok, theirs: moveLabel(state.nodes[i - 2].fen, prev.uci), kind: prev.trainer.kind, best: bestUci ? sanOf(prev.fen, bestUci) : null };
+    if (!slip.tries) hits++;
+    last = { i: i + 1, tries: slip.tries || 0, theirs: moveLabel(state.nodes[i - 1].fen, slip.uci) };
   }
-  const parts = chances ? [`<span class="tr-score" title="Slips you punished"><svg class="ic"><use href="#i-cap"/></svg>${hits}/${chances}</span>`] : [];
-  const recent = last && last.i >= state.index - 1 && !last.pending;
-  if (recent) {
-    parts.push(last.ok
-      ? `<span class="tr-res ok" title="Their ${last.theirs} was ${classLabel(last.kind).toLowerCase()}">Punished ${last.theirs}</span>`
-      : `<span class="tr-res miss" title="Their ${last.theirs} was ${classLabel(last.kind).toLowerCase()}">${last.best ? `Missed ${last.best}` : 'Missed it'}</span>`);
-  }
+  const parts = chances ? [`<span class="tr-score" title="Slips punished on the first try"><svg class="ic"><use href="#i-cap"/></svg>${hits}/${chances}</span>`] : [];
   const node = state.nodes[state.index];
-  if (state.index === state.nodes.length - 1 && node.trainer && turnOf(node.fen) === state.mode) {
+  const live = state.index === state.nodes.length - 1;
+  if (state.missing) {
+    parts.push('<span class="tr-res miss">✕ Not the best move · taking it back</span>');
+  } else if (state.hintFrom && state.hintFrom.index === state.index && live) {
+    const tries = node.tries || 0;
+    parts.push(`<span class="tr-res warn">Find the best move with the glowing piece · ${tries} ${tries === 1 ? 'miss' : 'misses'}</span>`);
+  } else if (last && last.i >= state.index - 1) {
+    parts.push(last.tries
+      ? `<span class="tr-res warn">Found after ${last.tries} ${last.tries === 1 ? 'miss' : 'misses'}</span>`
+      : `<span class="tr-res ok">Punished ${last.theirs}</span>`);
+  }
+  if (live && node.trainer && turnOf(node.fen) === state.mode && !state.missing && !(state.hintFrom && state.hintFrom.index === state.index)) {
     const hint = node.hint || 0;
     const kind = node.trainer.kind;
-    const chip = hint >= 1 ? `<span class="fb-kind t-${kind}">${TRAINER_ERRORS.includes(kind) ? classLabel(kind) : 'Solid'}</span>` : '';
+    const label = !isSlip(kind) ? 'Best' : kind === 'good' ? 'Not the best' : classLabel(kind);
+    const chip = hint >= 1 ? `<span class="fb-kind t-${isSlip(kind) ? kind : 'best'}">${label}</span>` : '';
     const button = hint < 2 ? `<button class="icon sm tr-hint" data-act="hint" title="${hint ? 'Show the best reply' : 'Was their move a slip?'}" aria-label="Hint"><svg class="ic"><use href="#i-bulb"/></svg></button>` : '';
     parts.push(`<span class="tr-cur">Their <b>${moveLabel(state.nodes[state.index - 1].fen, node.uci)}</b></span>${chip}${button}`);
   }
@@ -8732,7 +8807,7 @@ $('trainer-toggle').addEventListener('click', () => setTrainer(!state.trainer));
 // ---------- openings: catalog, own lines, line training ----------
 
 const BROWSE = '<button class="link op-browse" data-act="learn" title="Browse and train openings"><svg class="ic"><use href="#i-book"/></svg><span>Openings</span></button>';
-const DEVIATE_MIX = { good: 28, inaccuracy: 40, mistake: 24, blunder: 8 };
+const DEVIATE_MIX = { second: 38, third: 24, slip: 22, heavy: 16 };
 const MY_LINES_KEY = 'chess-coach-lines';
 const learn = { src: 'catalog', family: null, query: '', open: null };
 let catalog = null;
@@ -8768,10 +8843,26 @@ function buildCatalog() {
 
 const FEATURED = Object.fromEntries(['Italian Game', 'Ruy Lopez', 'Sicilian Defense', 'French Defense', 'Caro-Kann Defense', "Queen's Gambit Declined", "Queen's Gambit Accepted", 'Slav Defense', "King's Indian Defense", 'Nimzo-Indian Defense', 'English Opening', 'London System', 'Scotch Game', "King's Gambit", 'Scandinavian Defense', 'Pirc Defense', 'Dutch Defense', 'Grünfeld Defense', 'Petrov\'s Defense', 'Vienna Game'].map(name => [name, true]));
 
-function movesText(moves) {
+function movesTokens(moves) {
   const key = moves.join(' ');
-  if (!sanCache.has(key)) sanCache.set(key, lineText(START, playLine(START, moves, 40).slice(1)));
+  if (!sanCache.has(key)) sanCache.set(key, lineText(START, playLine(START, moves, 40).slice(1)).split(' '));
   return sanCache.get(key);
+}
+
+function movesText(moves) {
+  return movesTokens(moves).join(' ');
+}
+
+function movesHtml(moves, ply) {
+  return movesTokens(moves).map((token, k) => (k < ply ? `<span class="done">${token}</span>` : k === ply ? `<b>${token}</b>` : token)).join(' ');
+}
+
+function learnPrefix() {
+  return state.nodes[0].fen === START ? state.nodes.slice(1, state.index + 1).map(node => node.uci) : [];
+}
+
+function followsPrefix(item, prefix) {
+  return item.moves.length >= prefix.length && prefix.every((uci, k) => item.moves[k] === uci);
 }
 
 function myLines() {
@@ -8798,7 +8889,7 @@ function lineByKey(key) {
   return mine ? { name: mine.name, moves: mine.moves, mine: true, id: mine.id } : null;
 }
 
-function lineRow(key, item, { mine = false } = {}) {
+function lineRow(key, item, { mine = false, ply = 0 } = {}) {
   const title = mine ? item.name : (item.variation || item.name);
   const open = learn.open === key;
   const eco = mine ? '' : `<span class="lr-eco">${item.eco}</span>`;
@@ -8808,46 +8899,52 @@ function lineRow(key, item, { mine = false } = {}) {
       <button class="pill" data-show title="Step through it on the board"><svg class="ic"><use href="#i-play"/></svg><span>Show</span></button>
       ${mine ? '<button class="icon sm" data-del title="Delete this line" aria-label="Delete"><svg class="ic"><use href="#i-stop"/></svg></button>' : ''}
     </div>` : '';
-  return `<li class="lr line${open ? ' open' : ''}" data-key="${key}"><div class="lr-top">${eco}<span class="lr-name">${title}</span><span class="lr-len">${Math.ceil(item.moves.length / 2)}</span></div><div class="lr-moves">${movesText(item.moves)}</div>${actions}</li>`;
+  return `<li class="lr line${open ? ' open' : ''}" data-key="${key}"><div class="lr-top">${eco}<span class="lr-name">${title}</span><span class="lr-len">${Math.ceil(item.moves.length / 2)}</span></div><div class="lr-moves">${movesHtml(item.moves, ply)}</div>${actions}</li>`;
 }
 
 function renderLearn() {
   const list = $('learn-list');
   const crumb = $('learn-crumb');
   const query = learn.query.trim().toLowerCase();
+  const prefix = learnPrefix();
+  const ply = prefix.length;
+  const prefixKey = prefix.join(' ');
+  if (learn.lastPrefix !== prefixKey) {
+    learn.lastPrefix = prefixKey;
+    list.scrollTop = 0;
+  }
   $('learn-save').hidden = learn.src !== 'mine';
   $('learn-search').hidden = learn.src === 'mine';
+  const position = ply ? `<span class="crumb-moves">${movesText(prefix)}</span>` : '';
   if (learn.src === 'mine') {
-    setHtml(crumb, '');
-    const lines = myLines();
-    const played = state.nodes[0].fen === START ? state.index : 0;
-    $('learn-save-btn').disabled = played < 2;
-    $('learn-note').textContent = played < 2
+    const lines = myLines().filter(item => followsPrefix(item, prefix));
+    $('learn-save-btn').disabled = ply < 2;
+    $('learn-note').textContent = ply < 2
       ? 'Play your line on the board from the start (both sides), then save it here.'
-      : `Saves the ${played} moves up to the current position.`;
+      : `Saves the ${ply} moves up to the current position.`;
     if (!$('learn-name').value) {
       const { named } = openingContext(state.index);
       $('learn-name').placeholder = named ? named.name : 'Name this line';
     }
-    setHtml(list, lines.length ? lines.map(item => lineRow(`m:${item.id}`, item, { mine: true })).join('') : '<li class="lr-empty">No saved lines yet.</li>');
+    setHtml(crumb, position);
+    setHtml(list, lines.length ? lines.map(item => lineRow(`m:${item.id}`, item, { mine: true, ply })).join('') : `<li class="lr-empty">${ply ? 'None of your lines start like this.' : 'No saved lines yet.'}</li>`);
     return;
   }
   const book = buildCatalog();
-  if (query) {
+  const textMatch = item => !query || item.name.toLowerCase().includes(query) || item.eco.toLowerCase().startsWith(query);
+  if (learn.family || query || ply) {
     const pool = learn.family ? book.families.get(learn.family).lines : book.all;
-    const hits = pool.filter(item => item.name.toLowerCase().includes(query) || item.eco.toLowerCase().startsWith(query)).slice(0, 80);
-    setHtml(crumb, learn.family ? `<button class="link" data-crumb>${'All openings'}</button><span>›</span><b>${learn.family}</b>` : `<span>${hits.length >= 80 ? '80+' : hits.length} matches</span>`);
-    setHtml(list, hits.length ? hits.map(item => lineRow(`c:${item.index}`, item)).join('') : '<li class="lr-empty">Nothing matches.</li>');
+    const hits = pool.filter(item => textMatch(item) && followsPrefix(item, prefix));
+    if (ply) hits.sort((x, y) => x.moves.length - y.moves.length);
+    const shown = hits.slice(0, 120);
+    const head = learn.family ? `<button class="link" data-crumb>All openings</button><span>›</span><b>${learn.family}</b>` : '';
+    setHtml(crumb, `${head}${position}<span class="crumb-count">${hits.length.toLocaleString('en-US')} ${hits.length === 1 ? 'line' : 'lines'}</span>`);
+    const more = hits.length > shown.length ? `<li class="lr-empty">${hits.length - shown.length} more · keep playing or search to narrow down</li>` : '';
+    setHtml(list, shown.length ? shown.map(item => lineRow(`c:${item.index}`, item, { ply })).join('') + more : `<li class="lr-empty">${ply ? 'No book line continues from this position.' : 'Nothing matches.'}</li>`);
     return;
   }
-  if (!learn.family) {
-    setHtml(crumb, `<span>${book.list.length} openings · ${book.all.length.toLocaleString('en-US')} lines</span>`);
-    setHtml(list, book.list.map(group => `<li class="lr fam" data-family="${group.name.replace(/"/g, '&quot;')}"><span class="lr-name">${group.name}</span><span class="lr-meta">${group.low === group.high ? group.low : `${group.low}–${group.high}`} · ${group.lines.length}</span></li>`).join(''));
-    return;
-  }
-  const group = book.families.get(learn.family);
-  setHtml(crumb, `<button class="link" data-crumb>All openings</button><span>›</span><b>${group.name}</b>`);
-  setHtml(list, group.lines.slice(0, 150).map(item => lineRow(`c:${item.index}`, item)).join('') + (group.lines.length > 150 ? `<li class="lr-empty">${group.lines.length - 150} more · search to narrow down</li>` : ''));
+  setHtml(crumb, `<span>${book.list.length} openings · ${book.all.length.toLocaleString('en-US')} lines · or just play moves on the board</span>`);
+  setHtml(list, book.list.map(group => `<li class="lr fam" data-family="${group.name.replace(/"/g, '&quot;')}"><span class="lr-name">${group.name}</span><span class="lr-meta">${group.low === group.high ? group.low : `${group.low}–${group.high}`} · ${group.lines.length}</span></li>`).join(''));
 }
 
 function openLearn() {
@@ -8875,6 +8972,7 @@ function drillState() {
 
 function startDrill(item, color) {
   closeLearn(false);
+  clearChallenge();
   if (state.playout) setPlayout(false);
   if (state.solving) setSolving(false);
   if (state.enginePaused) setEnginePaused(false);
@@ -8896,6 +8994,7 @@ function startDrill(item, color) {
 
 function showLine(item) {
   closeLearn(false);
+  clearChallenge();
   if (state.playout) setPlayout(false);
   state.drill = null;
   const nodes = [{ fen: START }];
@@ -8922,7 +9021,7 @@ function drillRow() {
   const total = drill.moves.length;
   let reached = 0;
   let left = -1;
-  for (let ply = 1; ply < state.nodes.length; ply++) {
+  for (let ply = 1; ply < Math.min(state.nodes.length, total + 1); ply++) {
     if (state.nodes[ply].uci === drill.moves[ply - 1]) { reached = ply; continue; }
     left = ply;
     break;
