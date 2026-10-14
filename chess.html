@@ -836,6 +836,23 @@ body.training .fb-meter { display: none; }
 .tr-goal-fill { display: block; height: 100%; border-radius: 6px; background: var(--best); transition: width 500ms var(--ease); }
 .tr-next { height: 30px; padding: 0 12px; font-size: 0.8rem; }
 .train-tip { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--rule-soft); color: var(--faint); font-size: 0.78rem; }
+.mark.premove { background: rgba(236, 96, 82, 0.42); }
+.mark.drawn::before { inset: 5%; border-radius: 50%; box-shadow: inset 0 0 0 4px var(--draw); }
+.mark.drawn.orange { --draw: rgba(242, 163, 60, 0.9); }
+.mark.drawn.green { --draw: rgba(127, 214, 160, 0.9); }
+.mark.drawn.red { --draw: rgba(239, 107, 98, 0.9); }
+.mark.drawn.blue { --draw: rgba(122, 167, 255, 0.9); }
+.celebrate { position: absolute; inset: 0; z-index: 30; display: grid; place-items: center; pointer-events: none; overflow: hidden; border-radius: inherit; background: radial-gradient(circle at 50% 50%, rgba(127, 214, 160, 0.28), rgba(7, 9, 12, 0.35) 70%); animation: cele-in 380ms var(--ease) both; transition: opacity 420ms ease; }
+.celebrate.out { opacity: 0; }
+.celebrate i { position: absolute; left: 50%; top: 50%; width: 9px; height: 14px; border-radius: 2px; background: var(--c); opacity: 0; animation: confetti 1500ms var(--d) cubic-bezier(0.15, 0.7, 0.3, 1) both; }
+.cele-card { display: grid; justify-items: center; gap: 6px; padding: 22px 30px; border-radius: 24px; background: rgba(14, 18, 24, 0.82); border: 1px solid rgba(127, 214, 160, 0.45); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45), 0 0 50px rgba(127, 214, 160, 0.25); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); animation: pop 520ms 80ms var(--ease) both; }
+.cele-card b { font-size: 1.6rem; letter-spacing: -0.03em; color: #c9f2d8; }
+.cele-card span { color: var(--muted); font-size: 0.82rem; }
+.cele-check { width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; background: var(--best); box-shadow: 0 0 0 8px rgba(127, 214, 160, 0.18); }
+.cele-check svg { width: 32px; height: 32px; fill: none; stroke: #0f2a1b; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 30; stroke-dashoffset: 30; animation: draw-check 520ms 300ms ease forwards; }
+@keyframes cele-in { from { opacity: 0; } }
+@keyframes confetti { 0% { opacity: 1; transform: translate(-50%, -50%) rotate(0); } 100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy) + 90px)) rotate(var(--r)); } }
+@keyframes draw-check { to { stroke-dashoffset: 0; } }
 .mark.hint-to { background: rgba(127, 214, 160, 0.2); }
 .mark.hint-to::before { inset: 32%; border-radius: 50%; background: rgba(127, 214, 160, 0.85); animation: pulse-ring 1.2s ease-in-out infinite; }
 .actions #edit-toggle, .actions #new-game { width: 38px; padding: 0; }
@@ -6065,6 +6082,9 @@ class Board {
     this.edit = false;
     this.brush = null;
     this.arrows = new Map();
+    this.drawn = new Map();
+    this.drawnSquares = new Map();
+    this.appArrows = [];
     this.hovered = null;
     this.drag = null;
     this.raf = 0;
@@ -6263,15 +6283,19 @@ class Board {
 
   pointerDown(event) {
     if (event.button !== 0 && event.pointerType === 'mouse') {
+      const square = this.squareFromPoint(event.clientX, event.clientY);
       if (event.button === 2 && this.edit) {
-        const square = this.squareFromPoint(event.clientX, event.clientY);
         if (square) this.handlers.onEdit && this.handlers.onEdit({ type: 'remove', square });
+      } else if (event.button === 2 && square) {
+        const color = event.shiftKey ? 'green' : (event.ctrlKey || event.metaKey) ? 'red' : event.altKey ? 'blue' : 'orange';
+        this.annot = { from: square, color };
       }
       return;
     }
     const square = this.squareFromPoint(event.clientX, event.clientY);
     if (!square) return;
     event.preventDefault();
+    if (this.drawn.size || this.drawnSquares.size) this.clearDrawings();
 
     if (this.edit && this.brush) {
       this.handlers.onEdit && this.handlers.onEdit({ type: 'paint', square, code: this.brush });
@@ -6290,6 +6314,7 @@ class Board {
 
     if (!this.canDrag(square)) {
       this.select(null);
+      this.handlers.onBlank && this.handlers.onBlank(square);
       return;
     }
     const piece = this.pieceAt(square);
@@ -6326,6 +6351,23 @@ class Board {
   }
 
   pointerUp(event) {
+    if (this.annot && event.button === 2) {
+      const { from, color } = this.annot;
+      this.annot = null;
+      const to = this.squareFromPoint(event.clientX, event.clientY);
+      if (!to) return;
+      if (to === from) {
+        if (this.drawnSquares.get(from) === color) this.drawnSquares.delete(from);
+        else this.drawnSquares.set(from, color);
+      } else {
+        const key = from + to;
+        if (this.drawn.get(key) === color) this.drawn.delete(key);
+        else this.drawn.set(key, color);
+      }
+      this.applyArrows();
+      this.renderMarks(this.allMarks());
+      return;
+    }
     if (this.painting) { this.painting = false; return; }
     const drag = this.drag;
     if (!drag) return;
@@ -6424,7 +6466,20 @@ class Board {
 
   setMarks(marks) {
     this.marks = marks;
-    this.renderMarks(marks);
+    this.renderMarks(this.allMarks());
+  }
+
+  allMarks() {
+    const drawn = [...this.drawnSquares].map(([square, color]) => ({ type: `drawn ${color}`, square }));
+    return [...(this.marks || []), ...drawn];
+  }
+
+  clearDrawings() {
+    if (!this.drawn.size && !this.drawnSquares.size) return;
+    this.drawn.clear();
+    this.drawnSquares.clear();
+    this.applyArrows();
+    this.renderMarks(this.allMarks());
   }
 
   renderMarks(marks) {
@@ -6460,6 +6515,14 @@ class Board {
   // Each arrow is three spring-driven points (tail, corner, tip). A straight arrow keeps its
   // corner on the midpoint, so it can bend into a knight's L while it glides to a new move.
   setArrows(list) {
+    this.appArrows = list;
+    this.applyArrows();
+  }
+
+  applyArrows() {
+    const DRAWN = { orange: '#f2a33c', green: '#7fd6a0', red: '#ef6b62', blue: '#7aa7ff' };
+    const drawn = [...this.drawn].map(([key, color]) => ({ id: `draw:${key}`, from: key.slice(0, 2), to: key.slice(2, 4), color: DRAWN[color], width: 15, opacity: 0.85, className: 'drawn', z: 6 }));
+    const list = [...(this.appArrows || []), ...drawn];
     const seen = new Set();
     for (const spec of list) {
       seen.add(spec.id);
@@ -6877,6 +6940,7 @@ const board = new Board($('board'), {
   onMove: (from, to) => handleBoardMove(from, to),
   onEdit: action => editAction(action),
   onPaletteClick: code => setBrush(state.editing && state.editing.brush === code ? null : code),
+  onBlank: () => { if (state.premove) { state.premove = null; renderArrows(); } },
   onArrowHover: (spec, event) => {
     if (spec && spec.hover) showMoveCard(spec.hover, event);
     else hideCard();
@@ -6887,6 +6951,13 @@ async function handleBoardMove(from, to) {
   const fen = state.nodes[state.index].fen;
   const chess = chessAt(fen);
   const piece = chess.get(from);
+  if (piece && premoveTime(fen) && piece.color === state.mode) {
+    const promote = piece.type === 'p' && (to[1] === '8' || to[1] === '1') ? 'q' : '';
+    state.premove = { from, to, uci: from + to + promote };
+    board.setPosition(fen);
+    renderArrows();
+    return;
+  }
   let promotion;
   if (piece && piece.type === 'p' && (to[1] === '8' || to[1] === '1')) {
     promotion = await board.askPromotion(to, piece.color);
@@ -6912,6 +6983,8 @@ function play(uci, { byEngine = false, auto = false, trainer = null } = {}) {
   state.lastMoveAt = performance.now();
   state.nodes = state.nodes.slice(0, state.index + 1);
   state.nodes.push({ fen: chess.fen(), move, uci: move.from + move.to + (move.promotion || ''), byEngine, auto, trainer });
+  board.clearDrawings();
+  if (!byEngine) state.premove = null;
   carryMate(before, move.from + move.to + (move.promotion || ''), chess.fen());
   state.index++;
   engine.prioritize(before, 12);
@@ -6924,6 +6997,7 @@ function play(uci, { byEngine = false, auto = false, trainer = null } = {}) {
   }
   refresh();
   maybeEngineMove();
+  if (byEngine && state.premove) setTimeout(firePremove, 90);
   return true;
 }
 
@@ -6952,6 +7026,7 @@ function goTo(index) {
   index = Math.max(0, Math.min(state.nodes.length - 1, index));
   if (index === state.index) return;
   state.index = index;
+  state.premove = null;
   if (state.playout) setPlayout(false);
   clearTimeout(state.engineTimer);
   state.waitingEngine = null;
@@ -6972,7 +7047,7 @@ function refresh() {
     for (const row of chess.board()) for (const p of row) if (p && p.type === 'k' && p.color === chess.turn()) check = p.square;
   }
   board.setHighlights({ lastMove, check });
-  board.setMovable(canMove(fen) ? legalMap(fen) : null);
+  board.setMovable(movableFor(fen));
   if (state.scrubbing) {
     board.setArrows([]);
     board.setMarks([]);
@@ -6986,6 +7061,52 @@ function refresh() {
   updateNavButtons();
   if (state.solving) saveSession();
   if (!$('view-learn').hidden) renderLearn();
+}
+
+function premoveTime(fen) {
+  return state.mode !== 'both' && !state.enginePaused && !state.explore && !state.editing && !state.playout
+    && state.index === state.nodes.length - 1 && turnOf(fen) !== state.mode && !terminal(fen);
+}
+
+function premoveMap(fen) {
+  const parts = fen.split(' ');
+  parts[1] = state.mode;
+  parts[3] = '-';
+  const map = new Map();
+  try {
+    const chess = new Chess();
+    chess.load(parts.join(' '), { skipValidation: true });
+    for (const move of chess.moves({ verbose: true })) {
+      if (!map.has(move.from)) map.set(move.from, []);
+      if (!map.get(move.from).includes(move.to)) map.get(move.from).push(move.to);
+    }
+  } catch (error) {
+    return map;
+  }
+  return map;
+}
+
+function movableFor(fen) {
+  if (premoveTime(fen) && !state.missing && !state.pendingCheck) {
+    const pre = premoveMap(fen);
+    if (state.train) return pre;
+    const own = canMove(fen) ? legalMap(fen) : new Map();
+    pre.forEach((targets, from) => own.set(from, targets));
+    return own;
+  }
+  return canMove(fen) ? legalMap(fen) : null;
+}
+
+function firePremove() {
+  const pre = state.premove;
+  state.premove = null;
+  if (!pre) return;
+  const fen = state.nodes[state.index].fen;
+  if (turnOf(fen) !== state.mode || !moveFromUci(chessAt(fen), pre.uci)) {
+    renderArrows();
+    return;
+  }
+  play(pre.uci);
 }
 
 function canMove(fen) {
@@ -7092,6 +7213,10 @@ function renderArrows() {
   if (state.train && !state.explore) {
     arrows.length = 0;
     marks = [];
+  }
+  if (state.premove && !state.explore) {
+    marks.push({ type: 'premove', square: state.premove.from, title: 'Premove' });
+    marks.push({ type: 'premove', square: state.premove.to, title: 'Premove' });
   }
   if (!state.explore) {
     if (state.missing && state.index === state.missing.index) marks.push({ type: 'miss', square: state.missing.square, title: 'Not the best move' });
@@ -7843,11 +7968,15 @@ function tryEngineReply(force = false) {
   if (trainerOn()) {
     if (engine.wideDepth(fen, TRAIN_WIDTH) < TRAIN_DEPTH) return;
     state.goalCp = userCp(entry.lines[0]);
-    if (!state.goalOff && state.goalCp >= GOAL_CP) {
+    if (state.goalCp >= GOAL_CP) {
       state.waitingEngine = null;
       state.trainDone = true;
       refresh();
-      toast('Goal reached · you are +1 or better');
+      celebrate(state.goalCp);
+      state.engineTimer = setTimeout(() => {
+        state.rounds = (state.rounds || 1) + 1;
+        restartTraining();
+      }, CELEBRATE_MS);
       return;
     }
     const drill = drillState();
@@ -8688,6 +8817,28 @@ const TRAIN_WIDTH = 14;
 const TRAINER_MIX = { best: 46, second: 24, third: 12, slip: 10, heavy: 8 };
 const MISS_PAUSE = 2000;
 const GOAL_CP = 100;
+const CELEBRATE_MS = 2600;
+
+function celebrate(cp) {
+  const frame = document.querySelector('.board-frame');
+  const old = frame.querySelector('.celebrate');
+  if (old) old.remove();
+  const layer = document.createElement('div');
+  layer.className = 'celebrate';
+  const colors = ['#7fd6a0', '#f2c46d', '#9db8ff', '#f0827a', '#c9a7ff', '#ffffff'];
+  let bits = '';
+  const size = frame.offsetWidth || 400;
+  for (let i = 0; i < 46; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = size * (0.14 + Math.random() * 0.32);
+    bits += `<i style="--dx:${(Math.cos(angle) * dist).toFixed(0)}px;--dy:${(Math.sin(angle) * dist - size * 0.08).toFixed(0)}px;--r:${Math.round(Math.random() * 720 - 360)}deg;--c:${colors[i % colors.length]};--d:${Math.round(Math.random() * 180)}ms"></i>`;
+  }
+  const shown = cp >= 10000 ? 'Mate' : `+${(cp / 100).toFixed(1)}`;
+  layer.innerHTML = `${bits}<div class="cele-card"><div class="cele-check"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><b>${shown}</b><span>Round complete · next one starting</span></div>`;
+  frame.appendChild(layer);
+  setTimeout(() => layer.classList.add('out'), CELEBRATE_MS - 450);
+  setTimeout(() => layer.remove(), CELEBRATE_MS + 100);
+}
 
 function userCp(line) {
   if (!line) return 0;
@@ -8740,7 +8891,8 @@ function pickTrainerMove(fen, entry, { avoid = null, mix = null } = {}) {
   const previous = state.nodes[state.index].move ? state.nodes[state.index - 1] : null;
   const lastSlip = previous && previous.trainer && isSlip(previous.trainer.kind);
   let target = 'best';
-  if (mix || (top >= 5 && !lastSlip)) {
+  const ramp = Math.min(1, Math.pow(state.index / 18, 1.6));
+  if (mix || (top >= 5 && !lastSlip && Math.random() < ramp)) {
     const table = mix || TRAINER_MIX;
     let roll = Math.random() * Object.values(table).reduce((sum, weight) => sum + weight, 0);
     target = Object.keys(table).find(kind => (roll -= table[kind]) < 0) || 'second';
@@ -8764,9 +8916,10 @@ function pickTrainerMove(fen, entry, { avoid = null, mix = null } = {}) {
     }
     const inBook = ranked.filter(c => c.book && c.drop < 5);
     const pool = inBook.length ? inBook : ranked.filter(c => c.drop < 2);
-    const weight = c => (c.book ? Math.pow(c.book, 0.8) : 1);
+    const weight = c => (c.book ? Math.pow(c.book, state.index < 12 ? 1.1 : 0.8) : 1);
     let roll = Math.random() * pool.reduce((sum, c) => sum + weight(c), 0);
-    return pool.find(c => (roll -= weight(c)) < 0) || pool[0] || null;
+    const pick = pool.find(c => (roll -= weight(c)) < 0) || pool[0] || null;
+    return pick && pick.book ? { ...pick, kind: 'book' } : pick;
   };
   for (const step of chain) {
     const pick = choose(step);
@@ -8836,6 +8989,7 @@ function takeBackMiss() {
 
 function clearChallenge() {
   clearTimeout(state.missTimer);
+  state.premove = null;
   state.missing = null;
   state.hintFrom = null;
   state.pendingCheck = null;
@@ -8863,13 +9017,14 @@ function trainerRow() {
   if (state.misses) parts.push(`<span class="tr-cur" title="Moves that were not good enough">${state.misses} ${state.misses === 1 ? 'miss' : 'misses'}</span>`);
   const node = state.nodes[state.index];
   const live = state.index === state.nodes.length - 1;
-  if (state.goalCp != null && !state.goalOff) {
+  if (state.rounds > 1) parts.unshift(`<span class="tr-cur">Round ${state.rounds}</span>`);
+  if (state.goalCp != null) {
     const pct = Math.max(0, Math.min(100, (state.goalCp / GOAL_CP) * 100));
     const shown = Math.abs(state.goalCp) >= 10000 ? (state.goalCp > 0 ? 'M' : '−M') : `${state.goalCp >= 0 ? '+' : '−'}${Math.abs(state.goalCp / 100).toFixed(1)}`;
     parts.push(`<span class="tr-goal" title="Your advantage, aiming for +1.0"><span class="tr-goal-track"><span class="tr-goal-fill" style="width:${pct.toFixed(0)}%"></span></span>${shown} / +1.0</span>`);
   }
   if (state.trainDone) {
-    parts.push('<span class="tr-res ok">Goal reached</span><button class="pill solid tr-next" data-act="next">Next round</button><button class="pill tr-next" data-act="continue">Keep playing</button>');
+    parts.push('<span class="tr-res ok">Goal reached · next round</span>');
     return `<div class="tr-row">${parts.join('')}</div>`;
   }
   if (state.pendingCheck) {
@@ -9005,7 +9160,10 @@ function trainAction(button) {
 
 $('train-toggle').addEventListener('click', () => {
   if (state.train) endTraining();
-  else startFree(state.mode === 'b' ? 'b' : 'w');
+  else {
+    state.rounds = 1;
+    startFree(state.mode === 'b' ? 'b' : 'w');
+  }
 });
 $('train-exit').addEventListener('click', () => endTraining());
 $('train-restart').addEventListener('click', () => restartTraining());
@@ -9188,7 +9346,11 @@ function startDrill(item, color) {
   beginTraining();
   const theirs = [];
   for (let ply = 2; ply < item.moves.length; ply++) if ((ply % 2 === 0 ? 'w' : 'b') !== color) theirs.push(ply);
-  const deviateAt = theirs.length && Math.random() < 0.8 ? theirs[Math.floor(Math.random() * theirs.length)] : -1;
+  let deviateAt = -1;
+  if (theirs.length && Math.random() < 0.8) {
+    let roll = Math.random() * theirs.reduce((sum, ply) => sum + Math.pow(ply, 1.5), 0);
+    deviateAt = theirs.find(ply => (roll -= Math.pow(ply, 1.5)) < 0) || theirs[theirs.length - 1];
+  }
   state.drill = { name: item.mine ? item.name : item.name.split(':').pop().trim() || item.name, moves: item.moves, color, deviateAt };
   setSide(color);
   state.nodes = [{ fen: START }];
