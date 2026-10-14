@@ -837,11 +837,12 @@ body.training .fb-meter { display: none; }
 .tr-next { height: 30px; padding: 0 12px; font-size: 0.8rem; }
 .train-tip { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--rule-soft); color: var(--faint); font-size: 0.78rem; }
 .mark.premove { background: rgba(236, 96, 82, 0.42); }
-.mark.drawn::before { inset: 5%; border-radius: 50%; box-shadow: inset 0 0 0 4px var(--draw); }
-.mark.drawn.orange { --draw: rgba(242, 163, 60, 0.9); }
-.mark.drawn.green { --draw: rgba(127, 214, 160, 0.9); }
-.mark.drawn.red { --draw: rgba(239, 107, 98, 0.9); }
-.mark.drawn.blue { --draw: rgba(122, 167, 255, 0.9); }
+.mark.drawn { background: var(--draw); }
+.mark.drawn::before { display: none; }
+.mark.drawn.orange { --draw: rgba(240, 140, 50, 0.62); }
+.mark.drawn.green { --draw: rgba(105, 200, 140, 0.6); }
+.mark.drawn.red { --draw: rgba(232, 84, 72, 0.62); }
+.mark.drawn.blue { --draw: rgba(95, 145, 255, 0.58); }
 .celebrate { position: absolute; inset: 0; z-index: 30; display: grid; place-items: center; pointer-events: none; overflow: hidden; border-radius: inherit; background: radial-gradient(circle at 50% 50%, rgba(127, 214, 160, 0.28), rgba(7, 9, 12, 0.35) 70%); animation: cele-in 380ms var(--ease) both; transition: opacity 420ms ease; }
 .celebrate.out { opacity: 0; }
 .celebrate i { position: absolute; left: 50%; top: 50%; width: 9px; height: 14px; border-radius: 2px; background: var(--c); opacity: 0; animation: confetti 1500ms var(--d) cubic-bezier(0.15, 0.7, 0.3, 1) both; }
@@ -6989,6 +6990,10 @@ function play(uci, { byEngine = false, auto = false, trainer = null } = {}) {
   state.index++;
   engine.prioritize(before, 12);
   if (!byEngine) state.hintFrom = null;
+  if (lineFinished()) {
+    finishRound('Line complete', 'Every move right · next run starting');
+    return true;
+  }
   if (checking) {
     state.pendingCheck = { at, index: state.index, before, after: chess.fen(), uci: move.from + move.to + (move.promotion || ''), square: move.to };
     refresh();
@@ -7969,14 +7974,7 @@ function tryEngineReply(force = false) {
     if (engine.wideDepth(fen, TRAIN_WIDTH) < TRAIN_DEPTH) return;
     state.goalCp = userCp(entry.lines[0]);
     if (state.goalCp >= GOAL_CP) {
-      state.waitingEngine = null;
-      state.trainDone = true;
-      refresh();
-      celebrate(state.goalCp);
-      state.engineTimer = setTimeout(() => {
-        state.rounds = (state.rounds || 1) + 1;
-        restartTraining();
-      }, CELEBRATE_MS);
+      finishRound(state.goalCp >= 10000 ? 'Mate' : `+${(state.goalCp / 100).toFixed(1)}`, 'Round complete · next one starting');
       return;
     }
     const drill = drillState();
@@ -8819,7 +8817,25 @@ const MISS_PAUSE = 2000;
 const GOAL_CP = 100;
 const CELEBRATE_MS = 2600;
 
-function celebrate(cp) {
+function finishRound(title, sub) {
+  state.waitingEngine = null;
+  clearTimeout(state.engineTimer);
+  state.trainDone = true;
+  refresh();
+  celebrate(title, sub);
+  state.engineTimer = setTimeout(() => {
+    state.rounds = (state.rounds || 1) + 1;
+    restartTraining();
+  }, CELEBRATE_MS);
+}
+
+function lineFinished() {
+  if (!state.train || !state.drill || state.trainDone) return false;
+  const line = drillState();
+  return !!(line && line.onLine && line.ply >= state.drill.moves.length);
+}
+
+function celebrate(title, sub) {
   const frame = document.querySelector('.board-frame');
   const old = frame.querySelector('.celebrate');
   if (old) old.remove();
@@ -8833,8 +8849,7 @@ function celebrate(cp) {
     const dist = size * (0.14 + Math.random() * 0.32);
     bits += `<i style="--dx:${(Math.cos(angle) * dist).toFixed(0)}px;--dy:${(Math.sin(angle) * dist - size * 0.08).toFixed(0)}px;--r:${Math.round(Math.random() * 720 - 360)}deg;--c:${colors[i % colors.length]};--d:${Math.round(Math.random() * 180)}ms"></i>`;
   }
-  const shown = cp >= 10000 ? 'Mate' : `+${(cp / 100).toFixed(1)}`;
-  layer.innerHTML = `${bits}<div class="cele-card"><div class="cele-check"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><b>${shown}</b><span>Round complete · next one starting</span></div>`;
+  layer.innerHTML = `${bits}<div class="cele-card"><div class="cele-check"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><b>${title}</b><span>${sub}</span></div>`;
   frame.appendChild(layer);
   setTimeout(() => layer.classList.add('out'), CELEBRATE_MS - 450);
   setTimeout(() => layer.remove(), CELEBRATE_MS + 100);
@@ -9178,6 +9193,7 @@ $('train-status').addEventListener('click', event => {
 
 const BROWSE = '<button class="link op-browse" data-act="learn" title="Browse and train openings"><svg class="ic"><use href="#i-book"/></svg><span>Openings</span></button>';
 const DEVIATE_MIX = { second: 38, third: 24, slip: 22, heavy: 16 };
+const LINE_SURPRISE = 0.35;
 const MY_LINES_KEY = 'chess-coach-lines';
 const learn = { src: 'catalog', family: null, query: '', open: null };
 let catalog = null;
@@ -9347,7 +9363,7 @@ function startDrill(item, color) {
   const theirs = [];
   for (let ply = 2; ply < item.moves.length; ply++) if ((ply % 2 === 0 ? 'w' : 'b') !== color) theirs.push(ply);
   let deviateAt = -1;
-  if (theirs.length && Math.random() < 0.8) {
+  if (theirs.length && Math.random() < LINE_SURPRISE) {
     let roll = Math.random() * theirs.reduce((sum, ply) => sum + Math.pow(ply, 1.5), 0);
     deviateAt = theirs.find(ply => (roll -= Math.pow(ply, 1.5)) < 0) || theirs[theirs.length - 1];
   }
