@@ -819,7 +819,23 @@ button.link .ic { width: 15px; height: 15px; }
 .tr-cur b { color: var(--text); }
 .icon.sm.tr-hint { width: 28px; height: 28px; border-radius: 9px; }
 .icon.sm.tr-hint .ic { width: 15px; height: 15px; color: #f2dc9c; }
-#trainer-toggle .ic { width: 19px; height: 19px; }
+#train-toggle .ic { width: 19px; height: 19px; }
+.train-card { display: none; }
+body.training .train-card { display: block; }
+body.training .opening-card, body.training .engine-card, body.training .solve-card, body.training .mode-row, body.training #solve-toggle, body.training .tabbar { display: none !important; }
+body.training .evalbar { visibility: hidden; }
+body.training .fb-meter { display: none; }
+.train-title { margin: 2px 0 0; font-size: 1.22rem; font-weight: 720; letter-spacing: -0.025em; line-height: 1.2; }
+.train-sub { margin: 3px 0 0; color: var(--muted); font-size: 0.86rem; }
+.train-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+.train-row .segmented { width: 190px; }
+.train-row .pill { height: 34px; font-size: 0.82rem; }
+.train-status:empty { display: none; }
+.train-tip { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--rule-soft); color: var(--faint); font-size: 0.78rem; }
+.mark.hint-to { background: rgba(127, 214, 160, 0.2); }
+.mark.hint-to::before { inset: 32%; border-radius: 50%; background: rgba(127, 214, 160, 0.85); animation: pulse-ring 1.2s ease-in-out infinite; }
+.actions #edit-toggle, .actions #new-game { width: 38px; padding: 0; }
+.actions #edit-toggle span, .actions #new-game span { display: none; }
 
 
 .op-browse { margin-left: auto; font-size: 0.8rem; }
@@ -934,7 +950,8 @@ body.solving .solve-card { display: block; }
   #view-game > .card[data-panel] { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
   .side[data-tab="opening"] .card[data-panel]:not([data-panel="opening"]),
   .side[data-tab="engine"] .card[data-panel]:not([data-panel="engine"]),
-  .side[data-tab="solve"] .card[data-panel]:not([data-panel="solve"]) { display: none; }
+  .side[data-tab="solve"] .card[data-panel]:not([data-panel="solve"]),
+  .side[data-tab="train"] .card[data-panel]:not([data-panel="train"]) { display: none; }
   .side .solve-card { display: block; }
 
   .moves-card { flex: none; padding: 0 6px; border-block: 1px solid var(--rule-soft); background: rgba(255, 255, 255, 0.025); }
@@ -1093,6 +1110,7 @@ body.solving .solve-card { display: block; }
       </div>
       <div class="actions">
         <button class="icon" id="flip" title="Flip board (F)" aria-label="Flip board"><svg viewBox="0 0 24 24"><path d="M7 4v14M4 15l3 3 3-3M17 20V6M14 9l3-3 3 3"/></svg></button>
+        <button class="icon" id="train-toggle" title="Training mode — the engine slips up, you punish it" aria-label="Training mode" aria-pressed="false"><svg class="ic"><use href="#i-cap"/></svg></button>
         <div class="piece-pick" id="piece-pick">
           <button class="icon pp-current" id="pp-current" title="Style" aria-label="Choose pieces and board"></button>
           <div class="pp-menu" id="pp-menu"><div class="pp-row" id="pp-pieces"></div><div class="pp-row" id="pp-boards"></div></div>
@@ -1119,7 +1137,6 @@ body.solving .solve-card { display: block; }
           <svg class="i-pause" viewBox="0 0 24 24"><path d="M9 6v12M15 6v12"/></svg>
           <svg class="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10-6.5z"/></svg>
         </button>
-        <button class="icon engine-toggle" id="trainer-toggle" title="Trainer — the engine slips up on purpose so you learn to punish it" aria-label="Trainer" aria-pressed="false"><svg class="ic"><use href="#i-cap"/></svg></button>
       </div>
 
       <section class="card opening-card" id="opening-card" data-panel="opening">
@@ -1128,6 +1145,26 @@ body.solving .solve-card { display: block; }
 
       <section class="card feedback-card" id="feedback-card">
         <div class="morph" id="feedback-body"></div>
+      </section>
+
+      <section class="card train-card" id="train-card" data-panel="train">
+        <div class="card-head">
+          <h2>Training</h2>
+          <button class="link" id="train-exit" title="Leave training"><svg class="ic"><use href="#i-stop"/></svg><span>Exit</span></button>
+        </div>
+        <p class="train-title" id="train-title"></p>
+        <p class="train-sub" id="train-sub"></p>
+        <div class="train-row">
+          <div class="segmented small" id="train-side">
+            <span class="seg-glider"></span>
+            <button data-side="w" class="on"><i class="disc w"></i>White</button>
+            <button data-side="b"><i class="disc b"></i>Black</button>
+          </div>
+          <button class="icon sm" id="train-restart" title="Start over" aria-label="Start over"><svg class="ic"><use href="#i-undo"/></svg></button>
+          <button class="pill" id="train-lines" title="Pick a line to train"><svg class="ic"><use href="#i-book"/></svg><span>Lines</span></button>
+        </div>
+        <div class="train-status" id="train-status"></div>
+        <p class="train-tip">No arrows, no engine. The engine slips now and then — find the move that punishes it. Miss it and the right piece lights up.</p>
       </section>
 
       <div class="tabbar" id="tabbar" role="tablist">
@@ -6711,7 +6748,7 @@ const state = {
   editing: null,
   solving: false,
   playout: false,
-  trainer: false
+  train: false
 };
 
 // ---------- engine ----------
@@ -6977,6 +7014,7 @@ function softUpdate() {
     renderFeedback();
     updateMoveDots();
     renderSolve();
+    renderTrain();
   }
 }
 
@@ -7046,14 +7084,16 @@ function renderArrows() {
       marks = overlay.marks;
     }
   }
+  if (state.train && !state.explore) {
+    arrows.length = 0;
+    marks = [];
+  }
   if (!state.explore) {
     if (state.missing && state.index === state.missing.index) marks.push({ type: 'miss', square: state.missing.square, title: 'Not the best move' });
     const hintNode = state.nodes[state.index];
     if (state.hintFrom && state.hintFrom.index === state.index && state.index === state.nodes.length - 1) {
       marks.push({ type: 'hint', square: state.hintFrom.square, title: 'The best move starts with this piece' });
-      if ((hintNode.tries || 0) >= 3) {
-        arrows.push({ id: 'hint-best', from: state.hintFrom.best.slice(0, 2), to: state.hintFrom.best.slice(2, 4), color: COLORS.best, width: 13, opacity: 0.9, className: 'best', z: 3 });
-      }
+      if ((hintNode.tries || 0) >= 3) marks.push({ type: 'hint-to', square: state.hintFrom.best.slice(2, 4), title: 'Move it here' });
     }
   }
   board.setArrows(arrows);
@@ -7467,7 +7507,7 @@ function renderFeedback() {
   const end = terminal(state.nodes[state.index].fen);
   if (i === 0) {
     cardEl.dataset.kind = '';
-    morph(body, `<div class="fb idle"><div class="fb-icon k-idle">♞</div><div class="fb-main"><p class="fb-title">Your move</p>${drillRow()}${trainerRow()}</div></div>`, 'intro');
+    morph(body, `<div class="fb idle"><div class="fb-icon k-idle">♞</div><div class="fb-main"><p class="fb-title">Your move</p>${state.train ? '' : drillRow() + trainerRow()}</div></div>`, 'intro');
     return;
   }
   const node = state.nodes[i];
@@ -7510,7 +7550,7 @@ function renderFeedback() {
   const endText = end ? `<p class="fb-sub end">${end.text}</p>` : '';
   const icon = kind === 'pending' ? '' : CLASS_ICON[kind];
   const html = `<div class="fb"><div class="fb-icon k-${kind}">${icon}</div><div class="fb-main">
-    <p class="fb-title">${title}</p>${sub}${meter}${actions}${endText}${drillRow()}${trainerRow()}</div></div>`;
+    <p class="fb-title">${title}</p>${sub}${meter}${actions}${endText}${state.train ? '' : drillRow() + trainerRow()}</div></div>`;
   morph(body, html, `fb:${i}:${kind}`);
 }
 
@@ -7523,18 +7563,7 @@ function flip(score) {
 $('feedback-body').addEventListener('click', event => {
   const button = event.target.closest('button[data-act]');
   if (!button) return;
-  if (button.dataset.act === 'drill-end') {
-    state.drill = null;
-    toast('Line training stopped');
-    refresh();
-    return;
-  }
-  if (button.dataset.act === 'hint') {
-    const node = state.nodes[state.index];
-    node.hint = (node.hint || 0) + 1;
-    softUpdate();
-    return;
-  }
+  if (button.dataset.act !== 'retry' && trainAction(button)) return;
   const i = Number(button.dataset.index);
   if (button.dataset.act === 'why') openExplore(i);
   if (button.dataset.act === 'retry') retry(i);
@@ -7832,6 +7861,7 @@ function tryEngineReply(force = false) {
 // ---------- editor ----------
 
 function openEditor() {
+  if (state.train) endTraining();
   if (state.playout) setPlayout(false);
   state.drill = null;
   clearChallenge();
@@ -8049,6 +8079,11 @@ const gliderObserver = new ResizeObserver(entries => entries.forEach(entry => pl
 document.querySelectorAll('.segmented').forEach(el => gliderObserver.observe(el));
 
 setupSegmented($('mode'), value => {
+  if (state.train) {
+    if (value === 'both') endTraining();
+    else restartTraining(value);
+    return;
+  }
   if (state.drill && value !== state.drill.color) state.drill = null;
   state.mode = value;
   document.body.classList.toggle('vs-engine', value !== 'both');
@@ -8087,6 +8122,7 @@ holdRepeat($('nav-back'), 'back');
 holdRepeat($('nav-forward'), 'forward');
 $('nav-end').addEventListener('click', () => navigate('end'));
 $('new-game').addEventListener('click', () => {
+  if (state.train) { restartTraining(); return; }
   if (state.playout) setPlayout(false);
   state.drill = null;
   clearChallenge();
@@ -8638,10 +8674,9 @@ const TRAIN_DEPTH = 12;
 const TRAIN_WIDTH = 14;
 const TRAINER_MIX = { best: 46, second: 24, third: 12, slip: 10, heavy: 8 };
 const MISS_PAUSE = 2000;
-const TRAINER_KEY = 'chess-coach-trainer';
 
 function trainerOn() {
-  return (state.trainer || !!state.drill) && state.mode !== 'both' && !state.enginePaused && !state.solving;
+  return state.train && state.mode !== 'both' && !state.enginePaused && !state.solving;
 }
 
 function trainerTurn() {
@@ -8775,7 +8810,7 @@ function trainerRow() {
     parts.push('<span class="tr-res miss">✕ Not the best move · taking it back</span>');
   } else if (state.hintFrom && state.hintFrom.index === state.index && live) {
     const tries = node.tries || 0;
-    parts.push(`<span class="tr-res warn">Find the best move with the glowing piece · ${tries} ${tries === 1 ? 'miss' : 'misses'}</span>`);
+    parts.push(`<span class="tr-res warn">${tries ? `Find the best move with the glowing piece · ${tries} ${tries === 1 ? 'miss' : 'misses'}` : 'Move the glowing piece'}</span>`);
   } else if (last && last.i >= state.index - 1) {
     parts.push(last.tries
       ? `<span class="tr-res warn">Found after ${last.tries} ${last.tries === 1 ? 'miss' : 'misses'}</span>`
@@ -8792,17 +8827,115 @@ function trainerRow() {
   return parts.length ? `<div class="tr-row">${parts.join('')}</div>` : '';
 }
 
-function setTrainer(on) {
-  state.trainer = on;
-  try { localStorage.setItem(TRAINER_KEY, on ? '1' : '0'); } catch (error) { state.trainer = on; }
-  const button = $('trainer-toggle');
-  button.classList.toggle('on', on);
-  button.setAttribute('aria-pressed', on ? 'true' : 'false');
-  toast(on ? 'Trainer on · the engine will slip up, punish it' : 'Trainer off');
+function beginTraining() {
+  if (state.solving) setSolving(false);
+  if (state.playout) setPlayout(false);
+  if (state.editing) closeEditor();
+  closeExplore(false);
+  if (state.enginePaused) {
+    state.enginePaused = false;
+    $('engine-toggle').classList.remove('paused');
+    $('engine-toggle').setAttribute('aria-pressed', 'false');
+  }
+  if (!state.train) {
+    state.train = true;
+    state.tabBefore = $('side').dataset.tab;
+  }
+  document.body.classList.add('training');
+  $('train-toggle').classList.add('on');
+  $('train-toggle').setAttribute('aria-pressed', 'true');
+  setTab('train');
+}
+
+function setSide(color) {
+  state.mode = color;
+  setSegmented($('mode'), color);
+  setSegmented($('train-side'), color);
+  document.body.classList.add('vs-engine');
+  setOrientation(color);
+}
+
+function startFree(color) {
+  closeLearn(false);
+  beginTraining();
+  clearChallenge();
+  state.drill = null;
+  setSide(color);
+  state.nodes = [{ fen: START }];
+  state.index = 0;
   refresh();
   maybeEngineMove();
 }
-$('trainer-toggle').addEventListener('click', () => setTrainer(!state.trainer));
+
+function restartTraining(color = state.mode === 'b' ? 'b' : 'w') {
+  if (state.drill) startDrill({ name: state.drill.name, moves: state.drill.moves, mine: true }, color);
+  else startFree(color);
+}
+
+function endTraining() {
+  if (!state.train) return;
+  state.train = false;
+  state.drill = null;
+  clearChallenge();
+  clearTimeout(state.engineTimer);
+  state.waitingEngine = null;
+  document.body.classList.remove('training');
+  $('train-toggle').classList.remove('on');
+  $('train-toggle').setAttribute('aria-pressed', 'false');
+  setTab(state.tabBefore && state.tabBefore !== 'train' ? state.tabBefore : 'opening');
+  refresh();
+  toast('Training off');
+}
+
+function renderTrain() {
+  if (!state.train) return;
+  const { named } = openingContext(state.index);
+  const title = state.drill ? state.drill.name : 'Free play';
+  $('train-title').textContent = title;
+  $('train-sub').textContent = state.drill
+    ? `Line training as ${state.mode === 'w' ? 'White' : 'Black'}`
+    : named ? named.name : `Against the engine as ${state.mode === 'w' ? 'White' : 'Black'}`;
+  setHtml($('train-status'), `${drillRow()}${trainerRow()}`);
+}
+
+function trainAction(button) {
+  const act = button.dataset.act;
+  if (act === 'drill-end') {
+    state.drill = null;
+    toast('Line training stopped · free play');
+    refresh();
+    return true;
+  }
+  if (act === 'hint') {
+    const node = state.nodes[state.index];
+    node.hint = (node.hint || 0) + 1;
+    if (node.hint >= 2 && state.train) {
+      const entry = engine.entry(node.fen);
+      const best = entry && entry.lines[0] && entry.lines[0].pv && entry.lines[0].pv[0];
+      if (best) state.hintFrom = { index: state.index, square: best.slice(0, 2), best };
+    }
+    refresh();
+    return true;
+  }
+  if (act === 'retry') {
+    retry(Number(button.dataset.index));
+    return true;
+  }
+  return false;
+}
+
+$('train-toggle').addEventListener('click', () => {
+  if (state.train) endTraining();
+  else startFree(state.mode === 'b' ? 'b' : 'w');
+});
+$('train-exit').addEventListener('click', () => endTraining());
+$('train-restart').addEventListener('click', () => restartTraining());
+$('train-lines').addEventListener('click', () => openLearn());
+setupSegmented($('train-side'), value => restartTraining(value), 'side');
+$('train-status').addEventListener('click', event => {
+  const button = event.target.closest('button[data-act]');
+  if (button) trainAction(button);
+});
 
 // ---------- openings: catalog, own lines, line training ----------
 
@@ -8973,20 +9106,14 @@ function drillState() {
 function startDrill(item, color) {
   closeLearn(false);
   clearChallenge();
-  if (state.playout) setPlayout(false);
-  if (state.solving) setSolving(false);
-  if (state.enginePaused) setEnginePaused(false);
+  beginTraining();
   const theirs = [];
   for (let ply = 2; ply < item.moves.length; ply++) if ((ply % 2 === 0 ? 'w' : 'b') !== color) theirs.push(ply);
   const deviateAt = theirs.length && Math.random() < 0.8 ? theirs[Math.floor(Math.random() * theirs.length)] : -1;
   state.drill = { name: item.mine ? item.name : item.name.split(':').pop().trim() || item.name, moves: item.moves, color, deviateAt };
-  state.mode = color;
-  setSegmented($('mode'), color);
-  document.body.classList.add('vs-engine');
-  setOrientation(color);
+  setSide(color);
   state.nodes = [{ fen: START }];
   state.index = 0;
-  setTab('opening');
   refresh();
   maybeEngineMove();
   toast(`Training ${state.drill.name} as ${color === 'w' ? 'White' : 'Black'}`);
@@ -9538,13 +9665,6 @@ loadCache();
 try { state.notify = localStorage.getItem(NOTIFY_KEY) === '1' && 'Notification' in window && Notification.permission === 'granted'; } catch (error) { state.notify = false; }
 paintBell();
 const restored = restoreSession();
-try {
-  state.trainer = localStorage.getItem(TRAINER_KEY) === '1';
-} catch (error) {
-  state.trainer = false;
-}
-$('trainer-toggle').classList.toggle('on', state.trainer);
-$('trainer-toggle').setAttribute('aria-pressed', state.trainer ? 'true' : 'false');
 setupHeadingAnimation();
 setupPiecePicker();
 board.setPosition(START, { instant: true });
