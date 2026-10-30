@@ -819,7 +819,6 @@ button.link .ic { width: 15px; height: 15px; }
 .tr-cur b { color: var(--text); }
 .icon.sm.tr-hint { width: 28px; height: 28px; border-radius: 9px; }
 .icon.sm.tr-hint .ic { width: 15px; height: 15px; color: #f2dc9c; }
-#train-toggle .ic { width: 19px; height: 19px; }
 .train-card { display: none; }
 body.training .train-card { display: block; }
 body.training .opening-card, body.training .engine-card, body.training .solve-card, body.training .mode-row, body.training #solve-toggle, body.training .tabbar { display: none !important; }
@@ -856,8 +855,7 @@ body.training .fb-meter { display: none; }
 @keyframes draw-check { to { stroke-dashoffset: 0; } }
 .mark.hint-to { background: rgba(127, 214, 160, 0.2); }
 .mark.hint-to::before { inset: 32%; border-radius: 50%; background: rgba(127, 214, 160, 0.85); animation: pulse-ring 1.2s ease-in-out infinite; }
-.actions #edit-toggle, .actions #new-game { width: 38px; padding: 0; }
-.actions #edit-toggle span, .actions #new-game span { display: none; }
+
 
 
 .op-browse { margin-left: auto; font-size: 0.8rem; }
@@ -895,6 +893,29 @@ body.training .fb-meter { display: none; }
 .crumb-count { margin-left: auto; }
 .tr-res.warn { background: rgba(232, 200, 114, 0.16); color: #f2dc9c; }
 .tr-score.drill { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+
+.topbar { position: relative; }
+.head-tools { display: none; }
+.modes { margin: 0 0 12px; }
+.modes button { gap: 8px; height: 38px; font-size: 0.84rem; }
+.modes .ic { width: 17px; height: 17px; }
+.play-card { display: none; }
+body.m-play .play-card { display: block; }
+.play-card .card-head { margin-bottom: 10px; }
+#mode [data-mode="both"] { display: none; }
+body:not(.m-analyse) .engine-card, body:not(.m-analyse) .solve-card { display: none !important; }
+body.m-train .game-actions, body:not(.m-analyse) #edit-toggle { display: none; }
+.engine-card .card-head { gap: 12px; }
+.engine-card .card-head .depth { margin-left: auto; }
+#solve-toggle { height: 28px; padding: 0 11px; font-size: 0.76rem; }
+#solve-toggle .ic { width: 14px; height: 14px; }
+.moves-row { display: flex; align-items: center; gap: 4px; }
+.moves-row .movelist { flex: 1; min-width: 0; }
+.slot-nav:empty { display: none; }
+.game-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.game-actions .pill { height: 36px; font-size: 0.84rem; }
+#view-game .credits { margin: 4px 4px 0; }
 
 .tabbar, .more-btn, .sheet { display: none; }
 
@@ -970,11 +991,6 @@ body.solving .solve-card { display: block; }
   .card { padding: 10px 14px; border: 0; border-radius: 0; background: transparent; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
   .card::before { display: none; }
   #view-game > .card[data-panel] { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-  .side[data-tab="opening"] .card[data-panel]:not([data-panel="opening"]),
-  .side[data-tab="engine"] .card[data-panel]:not([data-panel="engine"]),
-  .side[data-tab="solve"] .card[data-panel]:not([data-panel="solve"]),
-  .side[data-tab="train"] .card[data-panel]:not([data-panel="train"]) { display: none; }
-  .side .solve-card { display: block; }
 
   .moves-card { flex: none; padding: 0 6px; border-block: 1px solid var(--rule-soft); background: rgba(255, 255, 255, 0.025); }
   .moves-card .card-head { display: none; }
@@ -1080,6 +1096,38 @@ body.solving .solve-card { display: block; }
   .sheet-backdrop { background: rgba(0, 0, 0, 0.42); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
   .sheet-panel { background: rgba(22, 24, 32, 0.72); backdrop-filter: blur(30px) saturate(1.6); -webkit-backdrop-filter: blur(30px) saturate(1.6); }
 }
+@media (max-width: 720px) and (orientation: portrait) {
+  :root { --modes-h: 60px; --strip-h: 42px; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex: none; padding: calc(4px + env(safe-area-inset-top)) 10px 4px 14px; }
+  .topbar .title { padding: 4px 0; }
+  .head-tools { display: flex; align-items: center; gap: 6px; }
+  .head-tools .icon { width: 36px; height: 36px; border-radius: 11px; }
+  .head-tools .pp-menu { top: calc(100% + 8px); bottom: auto; left: auto; right: 0; transform: translate(0, -6px) scale(0.96); transform-origin: top right; }
+  .head-tools .piece-pick.open .pp-menu { transform: none; }
+  .head-tools .pp-menu button { width: 52px; height: 40px; }
+  .controls { display: none !important; }
+
+  .modes { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; margin: 0; padding: 6px 10px calc(6px + env(safe-area-inset-bottom)); border: 0; border-top: 1px solid var(--rule-soft); border-radius: 0; background: rgba(12, 14, 20, 0.92); backdrop-filter: blur(26px) saturate(1.6); -webkit-backdrop-filter: blur(26px) saturate(1.6); }
+  .modes button { flex-direction: column; height: 46px; gap: 3px; border-radius: 14px; font-size: 0.68rem; letter-spacing: 0.01em; }
+  .modes .ic { width: 20px; height: 20px; }
+  .modes .seg-glider { top: 6px; bottom: calc(6px + env(safe-area-inset-bottom)); border-radius: 14px; }
+
+  #view-game:not([hidden]) { display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; }
+  #view-game > * { order: 5; flex: none; }
+  #view-game > .moves-card { order: 1; position: sticky; top: 0; z-index: 6; height: var(--strip-h); padding: 0; display: flex; align-items: center; }
+  #view-game > .feedback-card { order: 2; position: sticky; top: var(--strip-h); z-index: 5; }
+  .side > .view:not([hidden]) { padding-bottom: calc(var(--modes-h) + 18px + env(safe-area-inset-bottom)); }
+  .moves-card .moves-row { width: 100%; gap: 0; }
+  .moves-row .slot-nav .icon { width: 42px; height: var(--strip-h); border: 0; border-radius: 0; background: transparent; }
+  .moves-row .slot-nav .icon:disabled { opacity: 0.25; }
+
+  .play-card, .train-card, .engine-card, .solve-card, .opening-card { border-bottom: 1px solid var(--rule-soft); }
+  .game-actions { padding: 12px 14px 4px; }
+  .game-actions .pill { flex: 1 1 0; min-width: 0; height: 42px; padding: 0 10px; }
+  .game-actions .pill span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #view-game .credits { margin: 10px 14px 0; }
+  .play-card .mode-row .segmented button { font-size: 0.82rem; }
+}
 </style>
 </head>
 <body>
@@ -1099,15 +1147,20 @@ body.solving .solve-card { display: block; }
 <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 21a2 2 0 0 0 4 0"/></symbol>
 <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="12" r="5"/><circle cx="15" cy="12" r="5"/></symbol>
 <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 19.5h16"/><path d="M5 15.5l4.2-5 3.8 3 6-7.5"/></symbol>
+<symbol id="i-pawn" viewBox="0 0 24 24"><circle cx="12" cy="6.8" r="2.7"/><path d="M9.6 11.3h4.8M10.6 11.3l-1.1 6.4M13.4 11.3l1.1 6.4M7.4 20.2h9.2"/></symbol>
 <symbol id="i-cap" viewBox="0 0 24 24"><path d="M2.5 9.5L12 5l9.5 4.5L12 14z"/><path d="M6.5 11.7v4.3c0 1.4 2.5 2.8 5.5 2.8s5.5-1.4 5.5-2.8v-4.3"/><path d="M21.5 9.5v5"/></symbol>
 <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.3 1.1 2.2h5c0-.9.4-1.6 1.1-2.2A6 6 0 0 0 12 3z"/></symbol>
 </defs></svg>
 
 <div class="page">
+<header class="topbar">
 <h1 class="title">
   <a class="name-cycle" id="name-cycle" href="/" aria-label="Danylo's — all tools"><span aria-hidden="true">Danylo's</span></a>
   <span class="title-rest">Chess Coach</span>
 </h1>
+<div class="head-tools" id="slot-head"></div>
+</header>
 
 <main class="layout">
   <section class="stage">
@@ -1132,22 +1185,26 @@ body.solving .solve-card { display: block; }
       </div>
       <div class="actions">
         <button class="icon" id="flip" title="Flip board (F)" aria-label="Flip board"><svg viewBox="0 0 24 24"><path d="M7 4v14M4 15l3 3 3-3M17 20V6M14 9l3-3 3 3"/></svg></button>
-        <button class="icon" id="train-toggle" title="Training mode — the engine slips up, you punish it" aria-label="Training mode" aria-pressed="false"><svg class="ic"><use href="#i-cap"/></svg></button>
         <div class="piece-pick" id="piece-pick">
           <button class="icon pp-current" id="pp-current" title="Style" aria-label="Choose pieces and board"></button>
           <div class="pp-menu" id="pp-menu"><div class="pp-row" id="pp-pieces"></div><div class="pp-row" id="pp-boards"></div></div>
         </div>
-        <button class="pill" id="edit-toggle" title="Edit position"><svg class="ic"><use href="#i-pencil"/></svg><span>Edit position</span></button>
-        <button class="pill" id="new-game" title="New game"><svg class="ic"><use href="#i-plus"/></svg><span>New game</span></button>
-        <button class="pill accent" id="solve-toggle" aria-pressed="false" title="Solve — search deeper and play the position out"><svg class="ic"><use href="#i-target"/></svg><span>Solve</span></button>
-        <button class="icon more-btn" id="more-btn" aria-label="Menu"><svg viewBox="0 0 24 24"><path d="M5 12h.01M12 12h.01M19 12h.01" stroke-width="3.2"/></svg></button>
       </div>
     </div>
   </section>
 
   <aside class="side" id="side">
-    <!-- game view -->
+    <nav class="segmented modes" id="modes" aria-label="Mode">
+      <span class="seg-glider"></span>
+      <button data-go="analyse" class="on" title="Analyse — engine, openings, move both sides"><svg class="ic"><use href="#i-chart"/></svg><span>Analyse</span></button>
+      <button data-go="play" title="Play a game against the engine"><svg class="ic"><use href="#i-pawn"/></svg><span>Play</span></button>
+      <button data-go="train" title="Train — punish the engine’s slips"><svg class="ic"><use href="#i-cap"/></svg><span>Train</span></button>
+      <button data-go="learn" title="Openings — browse, save and drill lines"><svg class="ic"><use href="#i-book"/></svg><span>Openings</span></button>
+    </nav>
+
     <div class="view" id="view-game">
+      <section class="card play-card" id="play-card">
+        <div class="card-head"><h2>Playing as</h2></div>
       <div class="mode-row">
         <div class="segmented" id="mode" role="radiogroup" aria-label="Opponent">
           <span class="seg-glider"></span>
@@ -1160,8 +1217,9 @@ body.solving .solve-card { display: block; }
           <svg class="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10-6.5z"/></svg>
         </button>
       </div>
+      </section>
 
-      <section class="card opening-card" id="opening-card" data-panel="opening">
+      <section class="card opening-card" id="opening-card">
         <div class="morph" id="opening-body"></div>
       </section>
 
@@ -1169,7 +1227,7 @@ body.solving .solve-card { display: block; }
         <div class="morph" id="feedback-body"></div>
       </section>
 
-      <section class="card train-card" id="train-card" data-panel="train">
+      <section class="card train-card" id="train-card">
         <div class="card-head">
           <h2>Training</h2>
           <button class="link" id="train-exit" title="Leave training"><svg class="ic"><use href="#i-stop"/></svg><span>Exit</span></button>
@@ -1189,13 +1247,7 @@ body.solving .solve-card { display: block; }
         <p class="train-tip">No arrows, no engine. The engine slips now and then — find the move that punishes it. Miss it and the right piece lights up.</p>
       </section>
 
-      <div class="tabbar" id="tabbar" role="tablist">
-        <button class="on" role="tab" data-tab="opening" aria-label="Opening"><svg class="ic"><use href="#i-book"/></svg><span>Opening</span></button>
-        <button role="tab" data-tab="engine" aria-label="Engine"><svg class="ic"><use href="#i-cpu"/></svg><span>Engine</span></button>
-        <button role="tab" data-tab="solve" aria-label="Solve"><svg class="ic"><use href="#i-target"/></svg><span>Solve</span></button>
-      </div>
-
-      <section class="card solve-card" id="solve-card" data-panel="solve">
+      <section class="card solve-card" id="solve-card">
         <div class="card-head">
           <h2>Solve <span class="engine-state" id="solve-state"><i></i><span>off</span></span></h2>
           <span class="depth" id="solve-meta"></span>
@@ -1212,10 +1264,11 @@ body.solving .solve-card { display: block; }
         <ol class="solve-log" id="solve-log"></ol>
       </section>
 
-      <section class="card engine-card" data-panel="engine">
+      <section class="card engine-card">
         <div class="card-head">
           <h2>Engine <span class="engine-state" id="engine-state"><i></i><span>loading</span></span></h2>
           <span class="depth" id="depth"><span class="depth-track"><span class="depth-fill" id="depth-fill"></span></span><span id="depth-text" title="Search depth">–</span></span>
+          <button class="pill accent" id="solve-toggle" aria-pressed="false" title="Solve — search past the normal depth and play it out"><svg class="ic"><use href="#i-target"/></svg><span>Solve</span></button>
         </div>
         <ol class="lines" id="lines"></ol>
         <div class="toggles">
@@ -1227,9 +1280,21 @@ body.solving .solve-card { display: block; }
       </section>
 
       <section class="card moves-card">
-        <div class="card-head"><h2>Moves</h2><button class="link" id="copy-pgn" title="Copy PGN"><svg class="ic"><use href="#i-copy"/></svg><span>Copy PGN</span></button></div>
-        <ol class="movelist" id="movelist"></ol>
+        <div class="card-head"><h2>Moves</h2></div>
+        <div class="moves-row">
+          <div class="slot-nav" id="slot-prev"></div>
+          <ol class="movelist" id="movelist"></ol>
+          <div class="slot-nav" id="slot-next"></div>
+        </div>
       </section>
+
+      <div class="game-actions" id="game-actions">
+        <button class="pill" id="new-game" title="New game"><svg class="ic"><use href="#i-plus"/></svg><span>New game</span></button>
+        <button class="pill" id="edit-toggle" title="Set up a position"><svg class="ic"><use href="#i-pencil"/></svg><span>Edit position</span></button>
+        <button class="pill" id="copy-pgn" title="Copy the game as PGN"><svg class="ic"><use href="#i-copy"/></svg><span>Copy PGN</span></button>
+      </div>
+
+      <p class="credits">Stockfish 19 · lichess + eco.json openings · lichess piece sets</p>
     </div>
 
     <!-- explain view -->
@@ -1319,22 +1384,8 @@ body.solving .solve-card { display: block; }
         <ol class="learn-list" id="learn-list"></ol>
       </section>
     </div>
-
-    <p class="credits">Stockfish 19 · lichess + eco.json openings · lichess piece sets</p>
   </aside>
 </main>
-</div>
-
-<div class="sheet" id="sheet" aria-hidden="true">
-  <div class="sheet-backdrop" id="sheet-backdrop"></div>
-  <div class="sheet-panel" role="dialog" aria-label="Menu">
-    <div class="sheet-grab"></div>
-    <div class="sheet-sec"><h3>Play</h3><div id="slot-mode"></div></div>
-    <div class="sheet-sec"><h3>Arrows</h3><div id="slot-toggles"></div></div>
-    <div class="sheet-sec"><h3>Board</h3><div id="slot-style"></div></div>
-    <div class="sheet-sec sheet-actions" id="slot-actions"><button class="pill" id="learn-open-sheet" title="Openings"><svg class="ic"><use href="#i-book"/></svg><span>Openings</span></button></div>
-    <div id="slot-credits"></div>
-  </div>
 </div>
 
 <div class="hovercard" id="hovercard" aria-hidden="true"><div class="hc-inner" id="hovercard-body"></div></div>
@@ -7066,6 +7117,7 @@ function refresh() {
   updateNavButtons();
   if (state.solving) saveSession();
   if (!$('view-learn').hidden) renderLearn();
+  syncModeUI();
 }
 
 function premoveTime(fen) {
@@ -7397,7 +7449,7 @@ function renderOpening() {
   if (!named) {
     const fresh = state.index === 0 && fen === START;
     key = fresh ? 'start' : `custom:${unofficialLine ? unofficialLine.index : ''}`;
-    html = `<div class="op-top"><span class="eco">—</span><span class="op-status ${fresh || here ? 'inbook' : ''}"><i></i>${fresh ? `${BOOK_SIZE.toLocaleString('en-US')} lines` : here ? 'Book' : 'Custom'}</span>${BROWSE}</div>
+    html = `<div class="op-top"><span class="eco">—</span><span class="op-status ${fresh || here ? 'inbook' : ''}"><i></i>${fresh ? `${BOOK_SIZE.toLocaleString('en-US')} lines` : here ? 'Book' : 'Custom'}</span></div>
       ${badge}
       <p class="op-name">${fresh ? 'Choose an opening' : here ? 'Known position' : 'Off the map'}</p>
       ${fresh ? legend : ''}${next}`;
@@ -7407,7 +7459,7 @@ function renderOpening() {
       ? '<span class="op-status inbook"><i></i>Book</span>'
       : `<span class="op-status"><i></i>Left book ${leftAt ? moveLabel(state.nodes[leftAt - 1].fen, state.nodes[leftAt].uci) : ''}</span>`;
     key = `op:${named.index}:${unofficialLine ? unofficialLine.index : ''}`;
-    html = `<div class="op-top"><span class="eco">${named.eco}</span>${status}${BROWSE}</div>
+    html = `<div class="op-top"><span class="eco">${named.eco}</span>${status}</div>
       ${badge}
       <p class="op-name" title="${info ? info.summary.replace(/"/g, '&quot;') : ''}">${named.family}</p>
       ${named.variation ? `<p class="op-var">${named.variation}</p>` : ''}
@@ -8185,6 +8237,7 @@ function showView(name) {
   for (const view of ['game', 'explore', 'edit', 'learn']) {
     $(`view-${view}`).hidden = view !== name;
   }
+  syncModeUI();
   document.querySelectorAll('.segmented').forEach(placeGlider);
 }
 
@@ -8218,19 +8271,55 @@ function placeGlider(el) {
 const gliderObserver = new ResizeObserver(entries => entries.forEach(entry => placeGlider(entry.target)));
 document.querySelectorAll('.segmented').forEach(el => gliderObserver.observe(el));
 
-setupSegmented($('mode'), value => {
+function setGameMode(value) {
   if (state.train) {
-    if (value === 'both') endTraining();
+    if (value === 'both') endTraining(true);
     else restartTraining(value);
     return;
   }
   if (state.drill && value !== state.drill.color) state.drill = null;
+  if (value !== 'both') state.playSide = value;
   state.mode = value;
+  setSegmented($('mode'), value);
   document.body.classList.toggle('vs-engine', value !== 'both');
   if (value !== 'both') setOrientation(value);
   refresh();
   maybeEngineMove();
-}, 'mode');
+}
+setupSegmented($('mode'), value => setGameMode(value), 'mode');
+
+function currentMode() {
+  if (!$('view-learn').hidden) return 'learn';
+  if (state.train) return 'train';
+  return state.mode === 'both' ? 'analyse' : 'play';
+}
+
+function syncModeUI() {
+  const mode = currentMode();
+  for (const name of ['analyse', 'play', 'train', 'learn']) document.body.classList.toggle(`m-${name}`, name === mode);
+  setSegmented($('modes'), mode);
+}
+
+function goMode(name) {
+  if (state.editing) closeEditor();
+  if (state.explore) closeExplore(false);
+  if (name === 'learn') {
+    openLearn();
+    return;
+  }
+  closeLearn(false);
+  if (name === 'train') {
+    if (!state.train) {
+      state.rounds = 1;
+      startFree(state.playSide || 'w');
+    } else refresh();
+    return;
+  }
+  if (state.train) endTraining(true);
+  if (name === 'analyse') setGameMode('both');
+  else setGameMode(state.mode !== 'both' ? state.mode : state.playSide || 'w');
+}
+setupSegmented($('modes'), value => goMode(value), 'go');
 
 function setEnginePaused(paused) {
   state.enginePaused = paused;
@@ -8417,8 +8506,7 @@ document.addEventListener('keydown', event => {
   else if (event.key === 'End') navigate('end');
   else if (event.key === 'f' || event.key === 'F') setOrientation(state.orientation === 'w' ? 'b' : 'w');
   else if (event.key === 'Escape') {
-    if ($('sheet').classList.contains('open')) closeSheet();
-    else if (!$('view-learn').hidden) closeLearn();
+    if (!$('view-learn').hidden) closeLearn();
     else if (state.explore) closeExplore();
     else if (state.editing) { closeEditor(); refresh(); }
   }
@@ -9080,8 +9168,6 @@ function beginTraining() {
     state.tabBefore = $('side').dataset.tab;
   }
   document.body.classList.add('training');
-  $('train-toggle').classList.add('on');
-  $('train-toggle').setAttribute('aria-pressed', 'true');
   setTab('train');
 }
 
@@ -9110,7 +9196,7 @@ function restartTraining(color = state.mode === 'b' ? 'b' : 'w') {
   else startFree(color);
 }
 
-function endTraining() {
+function endTraining(quiet = false) {
   if (!state.train) return;
   state.train = false;
   state.drill = null;
@@ -9118,11 +9204,8 @@ function endTraining() {
   clearTimeout(state.engineTimer);
   state.waitingEngine = null;
   document.body.classList.remove('training');
-  $('train-toggle').classList.remove('on');
-  $('train-toggle').setAttribute('aria-pressed', 'false');
-  setTab(state.tabBefore && state.tabBefore !== 'train' ? state.tabBefore : 'opening');
   refresh();
-  toast('Training off');
+  if (!quiet) toast('Training off');
 }
 
 function renderTrain() {
@@ -9173,14 +9256,7 @@ function trainAction(button) {
   return false;
 }
 
-$('train-toggle').addEventListener('click', () => {
-  if (state.train) endTraining();
-  else {
-    state.rounds = 1;
-    startFree(state.mode === 'b' ? 'b' : 'w');
-  }
-});
-$('train-exit').addEventListener('click', () => endTraining());
+$('train-exit').addEventListener('click', () => goMode('analyse'));
 $('train-restart').addEventListener('click', () => restartTraining());
 $('train-lines').addEventListener('click', () => openLearn());
 setupSegmented($('train-side'), value => restartTraining(value), 'side');
@@ -9191,7 +9267,6 @@ $('train-status').addEventListener('click', event => {
 
 // ---------- openings: catalog, own lines, line training ----------
 
-const BROWSE = '<button class="link op-browse" data-act="learn" title="Browse and train openings"><svg class="ic"><use href="#i-book"/></svg><span>Openings</span></button>';
 const DEVIATE_MIX = { second: 38, third: 24, slip: 22, heavy: 16 };
 const LINE_SURPRISE = 0.35;
 const MY_LINES_KEY = 'chess-coach-lines';
@@ -9423,7 +9498,6 @@ setupSegmented($('learn-tabs'), value => {
   renderLearn();
 }, 'src');
 $('learn-exit').addEventListener('click', () => closeLearn());
-$('learn-open-sheet').addEventListener('click', () => openLearn());
 $('learn-search').addEventListener('input', event => {
   learn.query = event.target.value;
   learn.open = null;
@@ -9866,19 +9940,11 @@ function setTab(name) {
   $('side').dataset.tab = name;
   document.querySelectorAll('#tabbar button').forEach(button => button.classList.toggle('on', button.dataset.tab === name));
 }
-$('tabbar').addEventListener('click', event => {
-  const button = event.target.closest('button[data-tab]');
-  if (button) setTab(button.dataset.tab);
-});
-
 const relocations = [
-  ['slot-mode', document.querySelector('.mode-row')],
-  ['slot-toggles', document.querySelector('.toggles')],
-  ['slot-style', $('piece-pick')],
-  ['slot-actions', $('edit-toggle')],
-  ['slot-actions', $('new-game')],
-  ['slot-actions', $('copy-pgn')],
-  ['slot-credits', document.querySelector('.credits')]
+  ['slot-head', $('flip')],
+  ['slot-head', $('piece-pick')],
+  ['slot-prev', $('nav-back')],
+  ['slot-next', $('nav-forward')]
 ].map(([slot, el]) => ({ slot, el, marker: document.createComment(''), moved: false }));
 
 function applyLayout() {
@@ -9892,24 +9958,9 @@ function applyLayout() {
       item.moved = false;
     }
   }
-  if (!phone.matches) closeSheet();
   document.querySelectorAll('.segmented').forEach(placeGlider);
 }
 
-function openSheet() {
-  $('sheet').classList.add('open');
-  $('sheet').setAttribute('aria-hidden', 'false');
-  document.querySelectorAll('.segmented').forEach(placeGlider);
-}
-function closeSheet() {
-  $('sheet').classList.remove('open');
-  $('sheet').setAttribute('aria-hidden', 'true');
-}
-$('more-btn').addEventListener('click', openSheet);
-$('sheet-backdrop').addEventListener('click', closeSheet);
-$('slot-actions').addEventListener('click', event => {
-  if (event.target.closest('button')) closeSheet();
-});
 phone.addEventListener('change', applyLayout);
 
 // ---------- start ----------
