@@ -7197,19 +7197,60 @@ function premoveTime(fen) {
 }
 
 function premoveMap(fen) {
-  const parts = fen.split(' ');
-  parts[1] = premoveColor();
-  parts[3] = '-';
+  const color = premoveColor();
   const map = new Map();
+  let chess;
   try {
-    const chess = new Chess();
-    chess.load(parts.join(' '), { skipValidation: true });
-    for (const move of chess.moves({ verbose: true })) {
-      if (!map.has(move.from)) map.set(move.from, []);
-      if (!map.get(move.from).includes(move.to)) map.get(move.from).push(move.to);
-    }
+    chess = chessAt(fen);
   } catch (error) {
     return map;
+  }
+  const files = 'abcdefgh';
+  const on = (f, r) => f >= 0 && f < 8 && r >= 0 && r < 8;
+  const name = (f, r) => files[f] + (r + 1);
+  const ray = (f, r, dirs, far) => {
+    const out = [];
+    for (const [df, dr] of dirs) {
+      for (let k = 1; k < (far ? 8 : 2); k++) {
+        if (!on(f + df * k, r + dr * k)) break;
+        out.push(name(f + df * k, r + dr * k));
+      }
+    }
+    return out;
+  };
+  const straight = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const diagonal = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
+  const knight = [[1, 2], [2, 1], [-1, 2], [-2, 1], [1, -2], [2, -1], [-1, -2], [-2, -1]];
+  const back = color === 'w' ? 0 : 7;
+  for (const row of chess.board()) {
+    for (const piece of row) {
+      if (!piece || piece.color !== color) continue;
+      const f = files.indexOf(piece.square[0]);
+      const r = Number(piece.square[1]) - 1;
+      let targets = [];
+      if (piece.type === 'p') {
+        const dir = color === 'w' ? 1 : -1;
+        if (on(f, r + dir)) targets.push(name(f, r + dir));
+        if (r === (color === 'w' ? 1 : 6)) targets.push(name(f, r + 2 * dir));
+        for (const df of [-1, 1]) if (on(f + df, r + dir)) targets.push(name(f + df, r + dir));
+      } else if (piece.type === 'n') {
+        targets = knight.filter(([df, dr]) => on(f + df, r + dr)).map(([df, dr]) => name(f + df, r + dr));
+      } else if (piece.type === 'b') {
+        targets = ray(f, r, diagonal, true);
+      } else if (piece.type === 'r') {
+        targets = ray(f, r, straight, true);
+      } else if (piece.type === 'q') {
+        targets = ray(f, r, straight.concat(diagonal), true);
+      } else if (piece.type === 'k') {
+        targets = ray(f, r, straight.concat(diagonal), false);
+        if (f === 4 && r === back) {
+          const rook = sq => { const p = chess.get(sq); return p && p.type === 'r' && p.color === color; };
+          if (rook(name(7, back))) targets.push(name(6, back));
+          if (rook(name(0, back))) targets.push(name(2, back));
+        }
+      }
+      if (targets.length) map.set(piece.square, targets);
+    }
   }
   return map;
 }
