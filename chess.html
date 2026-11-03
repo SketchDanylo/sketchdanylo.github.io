@@ -7066,7 +7066,7 @@ async function handleBoardMove(from, to) {
   const fen = state.nodes[state.index].fen;
   const chess = chessAt(fen);
   const piece = chess.get(from);
-  if (piece && premoveTime(fen) && piece.color === state.mode) {
+  if (piece && premoveTime(fen) && piece.color === premoveColor()) {
     const promote = piece.type === 'p' && (to[1] === '8' || to[1] === '1') ? 'q' : '';
     state.premove = { from, to, uci: from + to + promote };
     board.setPosition(fen);
@@ -7184,14 +7184,21 @@ function refresh() {
   syncModeUI();
 }
 
+function premoveColor() {
+  return state.puzzle && !state.puzzle.done ? state.puzzle.color : state.mode;
+}
+
 function premoveTime(fen) {
+  if (state.puzzle && !state.puzzle.done) {
+    return !state.explore && !state.editing && !state.missing && state.index === state.nodes.length - 1 && turnOf(fen) !== state.puzzle.color && !terminal(fen);
+  }
   return state.mode !== 'both' && !state.enginePaused && !state.explore && !state.editing && !state.playout
     && state.index === state.nodes.length - 1 && turnOf(fen) !== state.mode && !terminal(fen);
 }
 
 function premoveMap(fen) {
   const parts = fen.split(' ');
-  parts[1] = state.mode;
+  parts[1] = premoveColor();
   parts[3] = '-';
   const map = new Map();
   try {
@@ -7210,6 +7217,7 @@ function premoveMap(fen) {
 function movableFor(fen) {
   if (state.puzzle && !state.puzzle.done && !state.explore) {
     const pz = state.puzzle;
+    if (premoveTime(fen)) return premoveMap(fen);
     const live = !state.missing && !pz.auto && state.index === state.nodes.length - 1 && turnOf(fen) === pz.color && !terminal(fen);
     return live ? legalMap(fen) : null;
   }
@@ -7228,7 +7236,7 @@ function firePremove() {
   state.premove = null;
   if (!pre) return;
   const fen = state.nodes[state.index].fen;
-  if (turnOf(fen) !== state.mode || !moveFromUci(chessAt(fen), pre.uci)) {
+  if (turnOf(fen) !== premoveColor() || !moveFromUci(chessAt(fen), pre.uci)) {
     renderArrows();
     return;
   }
@@ -8604,6 +8612,7 @@ function puzzleSolution() {
   if (!pz || pz.done) return;
   clearTimeout(pz.timer);
   clearTimeout(state.missTimer);
+  state.premove = null;
   if (state.missing) takeBackMiss();
   puzzleFail();
   state.hintFrom = null;
