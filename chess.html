@@ -485,7 +485,7 @@ h2 { margin: 0; font-size: 0.78rem; font-weight: 650; letter-spacing: 0.14em; te
 .lg.target { box-shadow: inset 0 0 0 2px var(--inaccuracy); }
 
 /* ---------- editor ---------- */
-.hint { margin: 0 0 12px; color: var(--muted); font-size: 0.85rem; }
+.edit-hint { margin: 0 0 12px; color: var(--muted); font-size: 0.85rem; }
 .palette { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 14px; }
 .palette button {
   aspect-ratio: 1; border: 1px solid var(--rule-soft); border-radius: 12px;
@@ -929,6 +929,8 @@ body.pzc .pz-custom { display: flex; }
 .pz-streak i { width: 10px; height: 10px; border-radius: 3px; background: rgba(255, 255, 255, 0.1); }
 .pz-streak i.ok { background: var(--best); }
 .pz-streak i.no { background: #e5534b; }
+.pz-streak i.mid { background: #f2c46d; }
+.pz-delta.flat { color: var(--muted); }
 .topbar { position: relative; }
 .head-tools { display: none; }
 .modes { margin: 0 0 12px; }
@@ -1125,7 +1127,7 @@ body.solving .solve-card { display: block; }
   .fb-actions .pill { padding: 0 11px; }
   .lbl-long { display: none; }
   .lbl-short { display: inline; }
-  .hint { display: none; }
+  .edit-hint { display: none; }
 
   .sheet-backdrop { background: rgba(0, 0, 0, 0.42); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
   .sheet-panel { background: rgba(22, 24, 32, 0.72); backdrop-filter: blur(30px) saturate(1.6); -webkit-backdrop-filter: blur(30px) saturate(1.6); }
@@ -1273,7 +1275,7 @@ body.solving .solve-card { display: block; }
         </div>
         <div class="pz-status" id="pz-status"></div>
         <div class="pz-actions">
-          <button class="icon sm" id="pz-hint" title="Hint — counts as a miss" aria-label="Hint"><svg class="ic"><use href="#i-bulb"/></svg></button>
+          <button class="icon sm" id="pz-hint" title="Hint — first one makes the puzzle worth ±0, the second shows the move and costs rating" aria-label="Hint"><svg class="ic"><use href="#i-bulb"/></svg></button>
           <button class="icon sm" id="pz-retry" title="Try this puzzle again" aria-label="Retry"><svg class="ic"><use href="#i-undo"/></svg></button>
           <button class="pill" id="pz-solution" title="Show the solution — counts as a miss"><svg class="ic"><use href="#i-play"/></svg><span>Solution</span></button>
           <button class="pill solid" id="pz-next" title="Next puzzle"><span>Next</span><svg class="ic"><use href="#i-play"/></svg></button>
@@ -1392,7 +1394,7 @@ body.solving .solve-card { display: block; }
     <div class="view" id="view-edit" hidden>
       <section class="card edit-card">
         <div class="card-head"><h2>Set up a position</h2></div>
-        <p class="hint">Drag pieces on · drag off to remove</p>
+        <p class="edit-hint">Drag pieces on · drag off to remove</p>
         <div class="palette" id="palette"></div>
         <div class="edit-row">
           <span class="label">To move</span>
@@ -6929,7 +6931,8 @@ const state = {
   editing: null,
   solving: false,
   playout: false,
-  train: false
+  train: false,
+  premoves: []
 };
 
 // ---------- engine ----------
@@ -7055,7 +7058,7 @@ const board = new Board($('board'), {
   onMove: (from, to) => handleBoardMove(from, to),
   onEdit: action => editAction(action),
   onPaletteClick: code => setBrush(state.editing && state.editing.brush === code ? null : code),
-  onBlank: () => { if (state.premove) { state.premove = null; renderArrows(); } },
+  onBlank: () => { if (state.premoves.length) { state.premoves = []; refresh(); } },
   onArrowHover: (spec, event) => {
     if (spec && spec.hover) showMoveCard(spec.hover, event);
     else hideCard();
@@ -7066,12 +7069,16 @@ async function handleBoardMove(from, to) {
   const fen = state.nodes[state.index].fen;
   const chess = chessAt(fen);
   const piece = chess.get(from);
-  if (piece && premoveTime(fen) && piece.color === premoveColor()) {
-    const promote = piece.type === 'p' && (to[1] === '8' || to[1] === '1') ? 'q' : '';
-    state.premove = { from, to, uci: from + to + promote };
-    board.setPosition(fen);
-    renderArrows();
-    return;
+  if (premoveTime(fen)) {
+    const shown = chessAt(premoveFen(fen)).get(from);
+    if (shown && shown.color === premoveColor()) {
+      const promote = shown.type === 'p' && (to[1] === '8' || to[1] === '1') ? 'q' : '';
+      if (state.premoves.length < 8) state.premoves.push({ from, to, uci: from + to + promote });
+      board.setPosition(premoveFen(fen));
+      board.setMovable(movableFor(fen));
+      renderArrows();
+      return;
+    }
   }
   let promotion;
   if (piece && piece.type === 'p' && (to[1] === '8' || to[1] === '1')) {
@@ -7081,13 +7088,13 @@ async function handleBoardMove(from, to) {
   play(from + to + (promotion || ''));
 }
 
-function play(uci, { byEngine = false, auto = false, trainer = null } = {}) {
+function play(uci, { byEngine = false, auto = false, trainer = null, queued = false } = {}) {
   if (state.missing || state.pendingCheck) return false;
   const before = state.nodes[state.index].fen;
   const chess = chessAt(before);
   const move = moveFromUci(chess, uci);
   if (!move) return false;
-  if (state.puzzle && !state.puzzle.done && !byEngine) return puzzleMove(chess, move);
+  if (state.puzzle && !state.puzzle.done && !byEngine) return puzzleMove(chess, move, queued);
   const line = state.drill ? drillState() : null;
   const onLine = !!(line && line.inLine && line.expected === move.from + move.to + (move.promotion || ''));
   const checking = !byEngine && !onLine && trainerOn() && state.index === state.nodes.length - 1 && turnOf(before) === state.mode;
@@ -7100,7 +7107,7 @@ function play(uci, { byEngine = false, auto = false, trainer = null } = {}) {
   state.nodes = state.nodes.slice(0, state.index + 1);
   state.nodes.push({ fen: chess.fen(), move, uci: move.from + move.to + (move.promotion || ''), byEngine, auto, trainer });
   board.clearDrawings();
-  if (!byEngine) state.premove = null;
+  if (!byEngine && !queued) state.premoves = [];
   carryMate(before, move.from + move.to + (move.promotion || ''), chess.fen());
   state.index++;
   engine.prioritize(before, 12);
@@ -7117,7 +7124,7 @@ function play(uci, { byEngine = false, auto = false, trainer = null } = {}) {
   }
   refresh();
   maybeEngineMove();
-  if (byEngine && state.premove) setTimeout(firePremove, 90);
+  if (byEngine && state.premoves.length) setTimeout(firePremove, 20);
   return true;
 }
 
@@ -7146,7 +7153,7 @@ function goTo(index) {
   index = Math.max(0, Math.min(state.nodes.length - 1, index));
   if (index === state.index) return;
   state.index = index;
-  state.premove = null;
+  state.premoves = [];
   if (state.playout) setPlayout(false);
   clearTimeout(state.engineTimer);
   state.waitingEngine = null;
@@ -7157,7 +7164,7 @@ function goTo(index) {
 // Full update: board position plus everything around it.
 function refresh() {
   const fen = viewFen();
-  board.setPosition(fen);
+  board.setPosition(state.explore ? fen : premoveFen(fen));
   const lastMove = state.explore
     ? (currentLine()[state.explore.step].move || null)
     : state.nodes[state.index].move || null;
@@ -7182,6 +7189,33 @@ function refresh() {
   if (state.solving) saveSession();
   if (!$('view-learn').hidden) renderLearn();
   syncModeUI();
+}
+
+function premoveFen(fen) {
+  if (!state.premoves.length || state.explore || state.index !== state.nodes.length - 1) return fen;
+  let chess;
+  try {
+    chess = chessAt(fen);
+    for (const pre of state.premoves) {
+      const piece = chess.get(pre.from);
+      if (!piece) break;
+      chess.remove(pre.from);
+      chess.remove(pre.to);
+      chess.put({ type: pre.uci.length === 5 ? pre.uci[4] : piece.type, color: piece.color }, pre.to);
+      if (piece.type === 'k' && Math.abs(pre.from.charCodeAt(0) - pre.to.charCodeAt(0)) === 2) {
+        const rank = pre.from[1];
+        const [rookFrom, rookTo] = pre.to[0] === 'g' ? ['h' + rank, 'f' + rank] : ['a' + rank, 'd' + rank];
+        const rook = chess.get(rookFrom);
+        if (rook) {
+          chess.remove(rookFrom);
+          chess.put(rook, rookTo);
+        }
+      }
+    }
+    return chess.fen();
+  } catch (error) {
+    return fen;
+  }
 }
 
 function premoveColor() {
@@ -7258,12 +7292,12 @@ function premoveMap(fen) {
 function movableFor(fen) {
   if (state.puzzle && !state.puzzle.done && !state.explore) {
     const pz = state.puzzle;
-    if (premoveTime(fen)) return premoveMap(fen);
+    if (premoveTime(fen)) return premoveMap(premoveFen(fen));
     const live = !state.missing && !pz.auto && state.index === state.nodes.length - 1 && turnOf(fen) === pz.color && !terminal(fen);
     return live ? legalMap(fen) : null;
   }
   if (premoveTime(fen) && !state.missing && !state.pendingCheck) {
-    const pre = premoveMap(fen);
+    const pre = premoveMap(premoveFen(fen));
     if (state.train) return pre;
     const own = canMove(fen) ? legalMap(fen) : new Map();
     pre.forEach((targets, from) => own.set(from, targets));
@@ -7273,15 +7307,15 @@ function movableFor(fen) {
 }
 
 function firePremove() {
-  const pre = state.premove;
-  state.premove = null;
+  const pre = state.premoves.shift();
   if (!pre) return;
   const fen = state.nodes[state.index].fen;
   if (turnOf(fen) !== premoveColor() || !moveFromUci(chessAt(fen), pre.uci)) {
-    renderArrows();
+    state.premoves = [];
+    refresh();
     return;
   }
-  play(pre.uci);
+  play(pre.uci, { queued: true });
 }
 
 function canMove(fen) {
@@ -7390,14 +7424,17 @@ function renderArrows() {
     arrows.length = 0;
     marks = [];
   }
-  if (state.premove && !state.explore) {
-    marks.push({ type: 'premove', square: state.premove.from, title: 'Premove' });
-    marks.push({ type: 'premove', square: state.premove.to, title: 'Premove' });
+  if (!state.explore) {
+    for (const pre of state.premoves) {
+      marks.push({ type: 'premove', square: pre.from, title: 'Premove' });
+      marks.push({ type: 'premove', square: pre.to, title: 'Premove' });
+    }
   }
   if (!state.explore) {
     if (state.missing && state.index === state.missing.index) marks.push({ type: 'miss', square: state.missing.square, title: 'Not the best move' });
     const hintNode = state.nodes[state.index];
     if (state.hintFrom && state.hintFrom.index === state.index && state.index === state.nodes.length - 1) {
+      if (state.hintFrom.arrow) arrows.push({ id: 'hint', from: state.hintFrom.best.slice(0, 2), to: state.hintFrom.best.slice(2, 4), color: COLORS.best, width: 13, opacity: 0.9, className: 'best', z: 3 });
       marks.push({ type: 'hint', square: state.hintFrom.square, title: 'The best move starts with this piece' });
       if ((hintNode.tries || 0) >= 3) marks.push({ type: 'hint-to', square: state.hintFrom.best.slice(2, 4), title: 'Move it here' });
     }
@@ -8544,7 +8581,7 @@ function startPuzzle(p, retry = false) {
   clearChallenge();
   hideCard(true);
   const color = turnOf(p.fen) === 'w' ? 'b' : 'w';
-  state.puzzle = { p, color, done: false, failed: false, rated: retry || pzStore.mode !== 'rated', auto: true, timer: null, delta: null, result: null };
+  state.puzzle = { p, color, strikes: 0, done: false, failed: false, rated: retry || pzStore.mode !== 'rated', auto: true, timer: null, delta: null, result: null };
   if (!retry && !pzStore.seen.includes(p.id)) {
     pzStore.seen.push(p.id);
     if (pzStore.seen.length > 20000) pzStore.seen = pzStore.seen.slice(-20000);
@@ -8555,7 +8592,7 @@ function startPuzzle(p, retry = false) {
   state.index = 0;
   setOrientation(color);
   refresh();
-  state.puzzle.timer = setTimeout(() => puzzleReply(), 700);
+  state.puzzle.timer = setTimeout(() => puzzleReply(), 450);
 }
 
 function puzzleReply() {
@@ -8571,24 +8608,31 @@ function puzzleReply() {
   refresh();
 }
 
-function puzzleMove(chess, move) {
+function puzzleMove(chess, move, queued = false) {
   const pz = state.puzzle;
   const uci = move.from + move.to + (move.promotion || '');
   const step = state.nodes.length - 1;
   const expected = pz.p.moves[step];
   const correct = uci === expected || chess.isCheckmate();
-  state.premove = null;
+  if (!queued || !correct) state.premoves = [];
   state.hintFrom = null;
   board.clearDrawings();
   state.nodes.push({ fen: chess.fen(), move, uci, byEngine: false });
   state.index++;
   if (!correct) {
-    puzzleFail();
+    pz.strikes++;
+    if (pz.strikes >= 2) puzzleFail();
     state.missing = { index: state.index, square: move.to, best: expected };
     pz.status = 'bad';
     refresh();
     clearTimeout(state.missTimer);
-    state.missTimer = setTimeout(takeBackMiss, 1100);
+    state.missTimer = setTimeout(() => {
+      takeBackMiss();
+      if (pz.strikes >= 2 && state.hintFrom && state.puzzle === pz) {
+        state.hintFrom.arrow = true;
+        refresh();
+      }
+    }, 800);
     return true;
   }
   if (chess.isCheckmate() || step + 1 >= pz.p.moves.length) {
@@ -8598,7 +8642,7 @@ function puzzleMove(chess, move) {
   pz.status = 'good';
   pz.auto = true;
   refresh();
-  pz.timer = setTimeout(puzzleReply, 420);
+  pz.timer = setTimeout(puzzleReply, 160);
   return true;
 }
 
@@ -8610,9 +8654,10 @@ function puzzleScore(score) {
   const k = pzStore.played < 20 ? 40 : 20;
   let delta = Math.round(k * (score - expected));
   if (delta === 0) delta = score ? 1 : -1;
+  if (score === null) delta = 0;
   pzStore.rating = Math.max(100, pzStore.rating + delta);
   pzStore.played++;
-  pzStore.history = pzStore.history.concat(score ? 1 : 0).slice(-30);
+  pzStore.history = pzStore.history.concat(score === null ? 2 : score ? 1 : 0).slice(-30);
   pz.delta = delta;
   savePuzzles();
 }
@@ -8628,11 +8673,11 @@ function finishPuzzle() {
   const pz = state.puzzle;
   pz.done = true;
   pz.auto = false;
-  if (!pz.failed) puzzleScore(1);
+  if (!pz.failed) puzzleScore(pz.strikes ? null : 1);
   pz.result = pz.failed ? 'fail' : 'win';
   document.body.classList.add('pz-done');
   refresh();
-  if (!pz.failed) celebrate('Solved', pz.delta != null ? `${pz.p.rating} · ${pz.delta > 0 ? '+' : ''}${pz.delta}` : `Puzzle ${pz.p.rating}`);
+  if (!pz.failed) celebrate(pz.strikes ? 'Solved with a hint' : 'Solved', pz.delta != null ? `${pz.p.rating} · ${pz.delta > 0 ? '+' : pz.delta < 0 ? '−' : '±'}${Math.abs(pz.delta)}` : `Puzzle ${pz.p.rating}`);
 }
 
 function puzzleHint() {
@@ -8643,8 +8688,16 @@ function puzzleHint() {
   if (state.index !== step) {
     state.index = step;
   }
-  puzzleFail();
-  state.hintFrom = { index: step, square: best.slice(0, 2), best };
+  state.premoves = [];
+  const shown = state.hintFrom && state.hintFrom.index === step;
+  if (shown || pz.strikes >= 1) {
+    pz.strikes = Math.max(pz.strikes + (shown ? 1 : 0), 2);
+    puzzleFail();
+    state.hintFrom = { index: step, square: best.slice(0, 2), best, arrow: shown || pz.strikes >= 2 };
+  } else {
+    pz.strikes = 1;
+    state.hintFrom = { index: step, square: best.slice(0, 2), best };
+  }
   refresh();
 }
 
@@ -8653,7 +8706,7 @@ function puzzleSolution() {
   if (!pz || pz.done) return;
   clearTimeout(pz.timer);
   clearTimeout(state.missTimer);
-  state.premove = null;
+  state.premoves = [];
   if (state.missing) takeBackMiss();
   puzzleFail();
   state.hintFrom = null;
@@ -8666,7 +8719,7 @@ function puzzleSolution() {
       return;
     }
     play(pz.p.moves[step], { byEngine: true });
-    pz.timer = setTimeout(stepOn, 650);
+    pz.timer = setTimeout(stepOn, 450);
   };
   refresh();
   pz.timer = setTimeout(stepOn, 250);
@@ -8677,9 +8730,9 @@ function renderPuzzle() {
   $('pz-rating').textContent = pzStore.mode === 'custom' ? (pz ? (pz.done ? pz.p.rating : '?') : pzStore.target) : pzStore.rating;
   $('pz-label').textContent = pzStore.mode === 'custom' ? 'Puzzle difficulty' : 'Puzzle rating';
   const delta = $('pz-delta');
-  const d = pz && pz.delta;
-  delta.textContent = d ? `${d > 0 ? '+' : '−'}${Math.abs(d)}` : '';
-  delta.className = `pz-delta${d ? ' show ' + (d > 0 ? 'up' : 'down') : ''}`;
+  const d = pz ? pz.delta : null;
+  delta.textContent = d == null ? '' : `${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d)}`;
+  delta.className = `pz-delta${d == null ? '' : ' show ' + (d > 0 ? 'up' : d < 0 ? 'down' : 'flat')}`;
   $('pz-target').value = pzStore.target;
   $('pz-target-label').textContent = pzStore.target;
   if (!pz) return;
@@ -8690,23 +8743,25 @@ function renderPuzzle() {
   if (pz.done) {
     kind = pz.failed ? 'bad' : 'good';
     const theme = pz.p.theme ? ` · ${pz.p.theme}` : '';
-    html = `<div><span>${pz.failed ? 'Puzzle over' : 'Solved'}</span><small>Rated ${pz.p.rating}${theme}${pz.failed ? '' : ' · analysis is on'}</small></div>`;
+    html = `<div><span>${pz.failed ? 'Puzzle over' : pz.strikes ? 'Solved with a hint' : 'Solved'}</span><small>Rated ${pz.p.rating}${theme}${pz.failed ? '' : ' · analysis is on'}</small></div>`;
   } else if (state.missing) {
     kind = 'bad';
-    html = `<div><span>Not the move</span><small>Try again — it’s no longer rated</small></div>`;
+    html = pz.strikes >= 2
+      ? `<div><span>Missed again</span><small>Rating taken · the arrow shows the move</small></div>`
+      : `<div><span>Not the move</span><small>Here’s a hint · solve it for ±0, one more miss costs rating</small></div>`;
   } else if (pz.auto && state.nodes.length === 1) {
     html = `<i class="pz-side ${pz.color}"></i><div><span>Get ready</span><small>${pz.color === 'w' ? 'Black' : 'White'} moves first</small></div>`;
   } else if (pz.status === 'good' && state.nodes.length > 2) {
     kind = 'good';
     html = `<i class="pz-side ${pz.color}"></i><div><span>Best move — keep going</span><small>${side} to move</small></div>`;
   } else {
-    html = `<i class="pz-side ${pz.color}"></i><div><span>${side} to move</span><small>Find the best move${state.hintFrom ? ' · the glowing piece starts it' : ''}</small></div>`;
+    html = `<i class="pz-side ${pz.color}"></i><div><span>${side} to move</span><small>${state.hintFrom && state.hintFrom.arrow ? 'Play the arrow' : state.hintFrom ? 'The glowing piece starts it' : 'Find the best move'}</small></div>`;
   }
   status.className = `pz-status ${kind}`;
   setHtml(status, html);
   $('pz-hint').disabled = pz.done;
   $('pz-solution').disabled = pz.done;
-  setHtml($('pz-streak'), pzStore.history.map(x => `<i class="${x ? 'ok' : 'no'}"></i>`).join(''));
+  setHtml($('pz-streak'), pzStore.history.map(x => `<i class="${x === 2 ? 'mid' : x ? 'ok' : 'no'}"></i>`).join(''));
 }
 
 setupSegmented($('pz-mode'), value => {
@@ -9504,7 +9559,7 @@ function takeBackMiss() {
 
 function clearChallenge() {
   clearTimeout(state.missTimer);
-  state.premove = null;
+  state.premoves = [];
   state.missing = null;
   state.hintFrom = null;
   state.pendingCheck = null;
