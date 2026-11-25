@@ -640,7 +640,8 @@ footer.credit{display:none}
       <section><h4>Tools &amp; view</h4>
         <p><kbd>E</kbd> <span>eraser</span> · click empty space <span>back to building (from the eraser and the arrow / plus tools)</span></p>
         <p>double-click an atom <span>change it to the current element</span></p>
-        <p>hold an atom, then drag <span>move it with its H (snaps to the squares in skeletal); hold a bond: move the molecule</span></p>
+        <p>right-drag (or hold left a moment, then drag) an atom <span>move it with its H (snaps to the squares in skeletal); on a bond: the whole molecule; on empty space: pan</span></p>
+        <p>quick right-click <span>opens the menu of the atom / bond / arrow under the cursor</span></p>
         <p><kbd>Ctrl</kbd>+click <span>add / remove an atom or bond from the selection</span> <kbd>Shift</kbd>+drag <span>box-select</span></p>
         <p>in <b>More elements</b> or the shelf: click or right-click one (also the elements on the left rail), then press a key <span>that key now builds with it (replaces what the key did before)</span></p>
         <div class="mykeys" id="myKeys"></div>
@@ -1716,7 +1717,7 @@ function applySettings(){
     seg.querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.v===SETTINGS[k]));
   });
   const hint=$("canvasHint");
-  const editLine="<b>Double-click</b> an atom to change it, <b>hold</b> it to drag it, <b>Ctrl+click</b> / <b>Shift+drag</b> to select<br/><b>Right-click</b> an atom or bond for stereo &amp; editing (tap on touch). E/Z follows the drawing.<br/>Press <b>?</b> for keyboard shortcuts";
+  const editLine="<b>Double-click</b> an atom to change it, <b>right-drag</b> (or hold) it to move it, <b>Ctrl+click</b> / <b>Shift+drag</b> to select<br/><b>Right-click</b> an atom or bond for stereo &amp; editing (tap on touch). E/Z follows the drawing.<br/>Press <b>?</b> for keyboard shortcuts";
   if(hint) hint.innerHTML = SETTINGS.place==="click"
     ? `<b>Click</b> empty space to place an atom<br/><b>Drag</b> from an atom on canvas to bond it to another<br/><b>Click</b> an atom or bond to select it, a bond <b>again</b> to cycle its order<br/>${editLine}`
     : `<b>Drag</b> an element from the rail to place an atom<br/><b>Drag</b> from an atom on canvas to bond it to another<br/><b>Click</b> an atom or bond to select it, a bond <b>again</b> to cycle its order<br/>${editLine}`;
@@ -2653,25 +2654,27 @@ function hitBond(sx,sy){
 const drag={kind:null,from:-1,bond:-1,sx:0,sy:0,moved:false,startView:null};
 const pointers=new Map();
 let pinch0=null;
-const THRESH=6, HOLD_MS=280;
+const THRESH=6, HOLD_MS=250, HOLD_SLOP=12;
 
 canvas.addEventListener("contextmenu",e=>e.preventDefault());
 canvas.addEventListener("mousedown",e=>{ if(e.button===0||e.button===1) e.preventDefault(); }); // no text-selection / autoscroll
 canvas.addEventListener("pointerdown",e=>{
   // right-click only opens the charge/delete popover for whatever's under the cursor —
   // it never draws, bonds, or places anything
+  // right button: drag an atom (with its H) / a bond (whole molecule) / empty space (pan);
+  // a quick right-click released on the same thing opens its editing menu
   if(e.button===2){
     e.preventDefault();
-    drag.kind=null;
+    try{ canvas.setPointerCapture(e.pointerId); }catch(err){}
     const rect=canvas.getBoundingClientRect();
-    const sx=e.clientX-rect.left, sy=e.clientY-rect.top;
-    const ai=hitAtom(sx,sy);
-    if(ai>=0){ selectAtom(ai,true); return; }
-    const ski=hitSketch(sx,sy);
-    if(ski>=0){ selectSketch(ski,true); return; }
-    const bi=hitBond(sx,sy);
-    if(bi>=0){ selectBond(bi,true); return; }
-    selAtom=selBond=-1; hidePopover(); selSketch=-1; hideSkPop(); redraw();
+    const sx=e.clientX-rect.left, sy=e.clientY-rect.top, pk=pickAt(sx,sy);
+    pointers.set(e.pointerId,{sx,sy});
+    clearTimeout(drag.holdT);
+    Object.assign(drag,{kind:"rightPress", rAi:pk.ai, rBi:pk.bi, rSki:pk.ai<0? hitSketch(sx,sy) : -1, rT:performance.now(),
+      sx, sy, panSX:sx, panSY:sy, startView:{...view}, paperG:paperOn()? gridSize() : 0, pid:e.pointerId,
+      moved:false, far:false, held:false, holdFrom:-1});
+    if(popVisible) hidePopover();
+    if(skPopVisible) hideSkPop();
     return;
   }
   // middle-click: pan the canvas without switching tools
@@ -2700,7 +2703,7 @@ canvas.addEventListener("pointerdown",e=>{
             view:{...view}};
     drag.kind="pinch"; return;
   }
-  drag.moved=false; drag.far=false; drag.held=false; drag.holdFrom=-1; drag.eraseHit=false; drag.pid=e.pointerId; clearTimeout(drag.holdT);
+  drag.moved=false; drag.far=false; drag.held=false; drag.holdGone=false; drag.holdFrom=-1; drag.eraseHit=false; drag.pid=e.pointerId; clearTimeout(drag.holdT);
   drag.sx=sx; drag.sy=sy; drag.panSX=sx; drag.panSY=sy; drag.startView={...view};
   drag.paperG=paperOn()? gridSize() : 0;
   if(popVisible) hidePopover();
@@ -2732,7 +2735,7 @@ canvas.addEventListener("pointerdown",e=>{
   // press and hold (without moving) picks the thing up: an atom with its H, or a bond's whole molecule
   const holdThen=pick=>{
     drag.holdT=setTimeout(()=>{
-      if(drag.far||drag.pid!==e.pointerId||!pointers.has(e.pointerId)||(drag.kind!=="growBond"&&drag.kind!=="bondHit")) return;
+      if(drag.holdGone||drag.pid!==e.pointerId||!pointers.has(e.pointerId)||(drag.kind!=="growBond"&&drag.kind!=="bondHit")) return;
       const idx=pick(); if(!idx.length) return;
       const cur=pointers.get(e.pointerId);
       drag.kind="moveSel"; drag.held=true; drag.moved=false; drag.sx=cur.sx; drag.sy=cur.sy;
@@ -2766,7 +2769,19 @@ canvas.addEventListener("pointermove",e=>{
     redraw(); return;
   }
   if(Math.hypot(sx-drag.sx,sy-drag.sy)>THRESH) drag.moved=true;
-  if(!drag.far && Math.hypot(sx-drag.panSX,sy-drag.panSY)>THRESH){ drag.far=true; if(!drag.held) clearTimeout(drag.holdT); }
+  if(!drag.far && Math.hypot(sx-drag.panSX,sy-drag.panSY)>THRESH) drag.far=true;
+  // a little hand shake while holding still is fine; a real move before the hold time starts a bond instead
+  if(!drag.held && !drag.holdGone && Math.hypot(sx-drag.panSX,sy-drag.panSY)>HOLD_SLOP){ drag.holdGone=true; clearTimeout(drag.holdT); }
+  if(drag.kind==="rightPress" && drag.far){
+    const ai=drag.rAi, bi=drag.rBi;
+    let idx=[];
+    if(ai>=0&&atoms[ai]) idx=(multiSel.size>1&&multiSel.has(ai))? [...multiSel] : [ai,...termHs(ai)];
+    else if(drag.rSki<0&&bi>=0&&bonds[bi]) idx=moleculeOf(bonds[bi].a);
+    if(idx.length){
+      drag.kind="moveSel"; drag.held=true; drag.sx=drag.panSX; drag.sy=drag.panSY;
+      drag.selStart=idx.map(i=>({idx:i,x:atoms[i].x,y:atoms[i].y})); canvas.style.cursor="grabbing";
+    } else drag.kind="panBtn";
+  }
   if(drag.kind==="moveAtom"){
     const w=onPaper(S2W({x:sx,y:sy}),drag.paperG); atoms[drag.from].x=w.x; atoms[drag.from].y=w.y;
     mergeHint=drag.moved&&!e.altKey? findMerge([drag.from]) : null;
@@ -2832,6 +2847,15 @@ canvas.addEventListener("pointerup",e=>{
   const kind=drag.kind; drag.kind=null;
   clearTimeout(drag.holdT); if(drag.held){ drag.held=false; canvas.style.cursor=modeCursor(); }
   const emptyClick=!drag.far && hitAtom(sx,sy)<0 && hitBond(sx,sy)<0 && hitSketch(sx,sy)<0;
+  if(kind==="rightPress"){
+    // only a quick click that is let go on the same thing opens the menu
+    if(performance.now()-drag.rT>450){ redraw(); return; }
+    const pk=pickAt(sx,sy);
+    if(drag.rAi>=0){ if(pk.ai===drag.rAi) selectAtom(drag.rAi,true); else redraw(); return; }
+    if(drag.rSki>=0){ if(hitSketch(sx,sy)===drag.rSki) selectSketch(drag.rSki,true); else redraw(); return; }
+    if(drag.rBi>=0){ if(pk.bi===drag.rBi) selectBond(drag.rBi,true); else redraw(); return; }
+    selAtom=selBond=-1; hidePopover(); selSketch=-1; hideSkPop(); redraw(); return;
+  }
 
   if(kind==="skDraw"){
     const w1=skPaper(S2W({x:sx,y:sy}),mode,drag.w0), a=W2S(drag.w0), b1=W2S(w1);
