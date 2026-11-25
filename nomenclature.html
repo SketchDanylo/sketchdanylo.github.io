@@ -233,7 +233,8 @@ header.topbar{
   font:700 .74rem 'Arial';color:var(--text);transition:.12s;background:var(--surface-2);
 }
 .pt-cell small{font:500 .47rem 'Arial';color:var(--text-faint)}
-.pt-cell{position:relative}
+.pt-cell,.el-swatch{position:relative}
+.el-swatch .kb{top:-3px;right:-3px}
 .kb{position:absolute;top:3px;right:3px;min-width:13px;padding:0 3px;border-radius:4px;background:var(--accent);color:var(--accent-ink);
   font:800 .55rem/13px 'Arial';text-align:center;text-transform:uppercase;pointer-events:none;z-index:3}
 .sv-card .kb{top:8px;left:8px;right:auto;font-size:.7rem;line-height:17px;min-width:17px}
@@ -641,7 +642,7 @@ footer.credit{display:none}
         <p>double-click an atom <span>change it to the current element</span></p>
         <p>hold an atom, then drag <span>move it with its H (snaps to the squares in skeletal); hold a bond: move the molecule</span></p>
         <p><kbd>Ctrl</kbd>+click <span>add / remove an atom or bond from the selection</span> <kbd>Shift</kbd>+drag <span>box-select</span></p>
-        <p>in <b>More elements</b> or the shelf: click one, then press a key <span>that key now builds with it (replaces what the key did before)</span></p>
+        <p>in <b>More elements</b> or the shelf: click or right-click one (also the elements on the left rail), then press a key <span>that key now builds with it (replaces what the key did before)</span></p>
         <div class="mykeys" id="myKeys"></div>
         <p><kbd>K</kbd> <span>skeletal view</span> <kbd>T</kbd> <span>tidy layout</span></p>
         <p><kbd>X</kbd> <span>mirror left ↔ right</span> <kbd>Y</kbd> <span>mirror up ↕ down (selection, or everything)</span></p>
@@ -3526,7 +3527,8 @@ function useBind(b){
   insertMolAt(b,p.x,p.y,true);
 }
 function refreshBinds(){
-  document.querySelectorAll(".pt-cell").forEach(c=>{
+  if($("ptVeil")&&$("ptVeil").classList.contains("show")&&$("savedPage").style.display!=="none") renderSaved();
+  document.querySelectorAll(".pt-cell,.el-swatch").forEach(c=>{
     const k=keyFor({t:"el",el:c.dataset.el}); let kb=c.querySelector(".kb");
     if(k){ if(!kb){ kb=document.createElement("i"); kb.className="kb"; c.appendChild(kb); } kb.textContent=k; } else if(kb) kb.remove();
   });
@@ -3602,6 +3604,7 @@ function wireElementDrag(btn,getEl,onPlainClick){
 }
 document.querySelectorAll(".el-swatch").forEach(b=>{
   wireElementDrag(b, ()=>b.dataset.el, ()=>selectSwatch(b.dataset.el,b));
+  b.addEventListener("contextmenu",e=>{ e.preventDefault(); offerBind({t:"el",el:b.dataset.el}); });
 });
 document.querySelectorAll("[data-bond]").forEach(b=>{
   b.addEventListener("click",()=>{
@@ -3795,7 +3798,8 @@ $("drawerVeil").onclick=closeDrawer;
     c.className="pt-cell";
     c.style.gridColumn=g; c.style.gridRow=p;
     c.style.color=elColor(sym);
-    c.innerHTML=`${sym}<small>${z}</small>`; c.dataset.el=sym;
+    c.innerHTML=`${sym}<small>${z}</small>`; c.dataset.el=sym; c.title="Click to draw with "+sym+" · right-click to give it a key";
+    c.addEventListener("contextmenu",e=>{ e.preventDefault(); offerBind({t:"el",el:sym}); });
     c.onclick=()=>{
       drawEl=sym;
       document.querySelectorAll(".el-swatch").forEach(x=>x.classList.remove("active"));
@@ -3879,6 +3883,8 @@ function shelfCard(s,i){
   el.append(art,info,del);
   const bk=keyFor({t:"mol",name:s.name});
   if(bk){ const kb=document.createElement("i"); kb.className="kb"; kb.textContent=bk; kb.title="Press "+bk.toUpperCase()+" to drop it at the cursor"; el.appendChild(kb); }
+  el.title="Drag onto the canvas, click to place it in the middle · right-click to give it a key";
+  el.addEventListener("contextmenu",e=>{ e.preventDefault(); offerBind({t:"mol",name:s.name,atoms:JSON.parse(JSON.stringify(s.atoms)),bonds:JSON.parse(JSON.stringify(s.bonds))}); });
   wireStructDrag(el,i);
   return el;
 }
