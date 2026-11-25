@@ -2074,7 +2074,7 @@ function redraw(){
     ctx.strokeRect(x0,y0,x1-x0,y1-y0);
     ctx.restore();
   }
-  drawOverValence(); drawHover(PAL); drawElectronSites();
+  drawLonePairs(); drawOverValence(); drawHover(PAL); drawElectronSites();
   updateFormula();
   positionPopover();
   positionSelPop();
@@ -2213,6 +2213,45 @@ function lonePairs(i){
   const nb=ve-(a.charge||0)-bondSum(i)-implicitH(i);
   return Math.max(0,Math.floor(nb/2)) + (nb%2===1?1:0); // a lone radical electron gets a site too
 }
+/* free electron pairs around atom i (and a lone single electron for radicals), in world coords:
+   just outside the atom's label, in the free directions, never on the side where its H is written */
+function lonePairSpots(i){
+  const a=atoms[i], ve=VAL_E[a.el]; if(ve===undefined||skelHiddenH(i)) return [];
+  const nb=ve-(a.charge||0)-bondSum(i)-implicitH(i); if(nb<=0) return [];
+  const pairs=Math.floor(nb/2), rad=nb%2, n=pairs+rad;
+  const dh=skelOn()? displayH(i) : 0;
+  // box around the element letter itself (in "OH" the O sits left of the atom point)
+  let box=null, ox=0;
+  if(skelOn() && skelLabel(i)){
+    ctx.font=labelFont();
+    const label=a.el+(dh>0? "H"+(dh>1?subNum(dh):"") : ""), wl=ctx.measureText(label).width, we=ctx.measureText(a.el).width;
+    box={hw:we/2+2.5, hh:Math.max(11,14*view.k)*1.12*.5}; ox=-(wl-we)/2;
+  }
+  const angs=openAngles(i, n+(dh>0?1:0));
+  if(dh>0){ // the H is written to the right: keep the pairs off that side
+    let k=0,best=9; angs.forEach((g,j)=>{ const d=Math.abs(Math.atan2(Math.sin(g),Math.cos(g))); if(d<best){best=d;k=j;} });
+    angs.splice(k,1);
+  }
+  const L=medianBondLen(), k=view.k, cx=a.x+ox/k, cy=a.y;
+  return angs.map((g,j)=>{
+    const ux=Math.cos(g), uy=Math.sin(g);
+    const r= box? Math.min(Math.abs(ux)>1e-6? box.hw/k/Math.abs(ux) : 1e9, Math.abs(uy)>1e-6? box.hh/k/Math.abs(uy) : 1e9)+3.5/k : 0.3*L;
+    return {x:cx+ux*r, y:cy+uy*r, ux, uy, single: !!rad && j===angs.length-1};
+  });
+}
+const lpHalf=()=>Math.max(11,14*view.k)*1.12*0.3; // half length of a lone-pair bar, screen px
+// Classic: draw them the textbook way: a short bar per pair, a dot for a single electron
+function drawLonePairs(){
+  if(!isClassic()) return;
+  const fsz=Math.max(11,14*view.k)*1.12, h=lpHalf();
+  ctx.save(); ctx.strokeStyle="#000"; ctx.fillStyle="#000"; ctx.lineWidth=Math.max(1.5,fsz*0.09); ctx.lineCap="round";
+  atoms.forEach((a,i)=>lonePairSpots(i).forEach(sp=>{
+    const p=W2S(sp);
+    if(sp.single){ ctx.beginPath(); ctx.arc(p.x,p.y,ctx.lineWidth,0,7); ctx.fill(); return; }
+    ctx.beginPath(); ctx.moveTo(p.x-sp.uy*h,p.y+sp.ux*h); ctx.lineTo(p.x+sp.uy*h,p.y-sp.ux*h); ctx.stroke();
+  }));
+  ctx.restore();
+}
 function electronSites(e){
   const out=[], L=medianBondLen();
   bonds.forEach(b=>{
@@ -2226,12 +2265,11 @@ function electronSites(e){
   });
   atoms.forEach((a,i)=>{
     if(skelHiddenH(i)) return;
-    const n=lonePairs(i); if(!n) return;
-    const r=0.36*L, pair=0.1*L;
-    openAngles(i,n).forEach(ang=>{
-      const ux=Math.cos(ang), uy=Math.sin(ang), cx=a.x+ux*r, cy=a.y+uy*r;
-      if(e===1){ out.push({x:cx-uy*pair,y:cy+ux*pair,kind:"lp"}); out.push({x:cx+uy*pair,y:cy-ux*pair,kind:"lp"}); }
-      else out.push({x:cx,y:cy,kind:"lp"});
+    // same spots as the drawn pairs: 2e⁻ = middle of the bar, 1e⁻ = either end of it
+    const h=lpHalf()/view.k;
+    lonePairSpots(i).forEach(sp=>{
+      if(e===1&&!sp.single){ out.push({x:sp.x-sp.uy*h,y:sp.y+sp.ux*h,kind:"lp"}); out.push({x:sp.x+sp.uy*h,y:sp.y-sp.ux*h,kind:"lp"}); }
+      else out.push({x:sp.x,y:sp.y,kind:"lp"});
     });
   });
   return out;
