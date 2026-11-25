@@ -1672,7 +1672,7 @@ let view = {x:0,y:0,k:1};
 const hist = [], redoS = [];
 const $ = id => document.getElementById(id);
 const canvas = $("molCanvas"), wrap = $("canvasWrap");
-const ctx = canvas.getContext("2d");
+let ctx = canvas.getContext("2d"); // swapped temporarily while the magnifier renders
 
 /* user settings */
 const SETTINGS=Object.assign({grid:"lines",snap:"skeletal",place:"click",scrollLock:"off",sketch:"off",theme:"dark",pubchem:"auto"},JSON.parse(localStorage.getItem("dne_settings")||"{}"));
@@ -1871,7 +1871,7 @@ function drawBondLine(x1,y1,x2,y2,order,color,width,side){
 /* skeletal helpers: hide H bound to a heavy atom, fold them into labels */
 function skelHiddenH(i){
   if(!skelOn()) return false;
-  const a=atoms[i]; if(a.el!=="H"||a.charge) return false;
+  const a=atoms[i]; if(a.el!=="H"||a.charge||a.keepH) return false;
   if(bonds.some(b=>(b.a===i||b.b===i)&&b.stereo)) return false;
   let nb=-1,cnt=0;
   for(const b of bonds){ if(b.a===i){nb=b.b;cnt++;} else if(b.b===i){nb=b.a;cnt++;} }
@@ -1951,7 +1951,7 @@ function drawPaper(w,h){
 function redraw(){
   const r=wrap.getBoundingClientRect();
   ctx.clearRect(0,0,r.width,r.height);
-  $("canvasHint").style.display = atoms.length||sketch.length? "none":"block";
+  if(!renderingLoupe) $("canvasHint").style.display = atoms.length||sketch.length? "none":"block";
   const PAL=pal(), classic=isClassic(), bw=classic? 1.7 : 2;
   if(ownPaper()) drawPaper(r.width,r.height);
   // classic: bonds stop short of atom labels instead of hiding behind a mask (keeps the paper visible)
@@ -2075,6 +2075,8 @@ function redraw(){
     ctx.restore();
   }
   drawLonePairs(); drawOverValence(); drawHover(PAL); drawElectronSites();
+  if(renderingLoupe) return;
+  drawLoupe();
   updateFormula();
   positionPopover();
   positionSelPop();
@@ -2301,14 +2303,107 @@ function snapElectron(w,from,e){
     const t=Math.max(.15,Math.min(.85,((w.x-A.x)*dx+(w.y-A.y)*dy)/L2));
     cands.push({x:A.x+dx*t, y:A.y+dy*t, kind:"line", pen:5/k});
   });
+  hydrogenTargets(from).forEach(h=>cands.push(h));
   let best=null, bd=R;
   for(const c of cands){ const d=Math.hypot(c.x-w.x,c.y-w.y)+c.pen; if(d<bd){ bd=d; best=c; } }
-  return best? {x:best.x,y:best.y} : w;
+  return best? {x:best.x,y:best.y,hRef:best.hRef||null} : w;
 }
+/* ---- hydrogens for electron arrows ----
+   hidden C–H hydrogens (skeletal view) and the H written inside labels like "N⁺H" / "NH₂"
+   are aim points; an arrow that ends on a hidden H turns it into a real, drawn H atom. */
+function implicitHSpots(i){
+  const a=atoms[i]; if(!a||a.el==="H"||skelHiddenH(i)) return [];
+  if(skelOn() && skelLabel(i)) return [];            // its H is written in the label instead
+  const n=implicitH(i); if(!n) return [];
+  const L=medianBondLen(), lp=lonePairSpots(i).length;
+  return openAngles(i,n+lp).slice(0,n).map(g=>({x:a.x+Math.cos(g)*0.55*L, y:a.y+Math.sin(g)*0.55*L, parent:i}));
+}
+function labelHSpot(i){
+  if(!skelOn()) return null;
+  const a=atoms[i], dh=displayH(i); if(!dh||a.el==="H"||!skelLabel(i)) return null;
+  ctx.font=labelFont();
+  const label=a.el+"H"+(dh>1?subNum(dh):""), wl=ctx.measureText(label).width, we=ctx.measureText(a.el).width, wh=ctx.measureText("H").width;
+  return {x:a.x+(-wl/2+we+wh/2)/view.k, y:a.y, parent:i};
+}
+function hydrogenTargets(from){
+  const out=[], k=view.k;
+  atoms.forEach((a,i)=>{
+    const g=labelHSpot(i);
+    if(g){ const d=from? Math.hypot(from.x-g.x,from.y-g.y)||1 : 1, o=from? 7/k : 0;
+      out.push({x:g.x+(from?(from.x-g.x)/d*o:0), y:g.y+(from?(from.y-g.y)/d*o:0), kind:"labelH", pen:1/k}); }
+    implicitHSpots(i).forEach(h=>{
+      const d=from? Math.hypot(from.x-h.x,from.y-h.y)||1 : 1, o=from? 6/k : 0;
+      out.push({x:h.x+(from?(from.x-h.x)/d*o:0), y:h.y+(from?(from.y-h.y)/d*o:0), kind:"implicitH", pen:1/k, hRef:h});
+    });
+  });
+  return out;
+}
+// make a hidden hydrogen a real atom (kept visible in skeletal view)
+function materializeH(ref){
+  if(!ref||!atoms[ref.parent]||implicitH(ref.parent)<1) return false;
+  if(atoms.some(a=>a.el==="H"&&a.keepH&&Math.hypot(a.x-ref.x,a.y-ref.y)<1)) return false;
+  atoms.push({el:"H",x:ref.x,y:ref.y,charge:0,keepH:true});
+  bonds.push({a:ref.parent,b:atoms.length-1,order:1});
+  return true;
+}
+/* ---- magnifier: a loupe follows the cursor in the electron-arrow tool ---- */
+let renderingLoupe=false, loupeCanvas=null;
+const LOUPE_D=168, LOUPE_M=2.6;
+function drawLoupeHydrogens(){
+  // in the loupe the hidden hydrogens are shown, so you can aim at them
+  const L=medianBondLen(), k=view.k, PAL=pal();
+  ctx.save(); ctx.strokeStyle=PAL.hText; ctx.fillStyle=PAL.hText; ctx.lineWidth=1.2;
+  ctx.font=`700 ${Math.max(10,13*Math.min(k,2.4))}px Arial`; ctx.textAlign="center"; ctx.textBaseline="middle";
+  atoms.forEach((a,i)=>implicitHSpots(i).forEach(h=>{
+    const P=W2S(a), Q=W2S(h), dx=Q.x-P.x, dy=Q.y-P.y, d=Math.hypot(dx,dy)||1, ux=dx/d, uy=dy/d;
+    const lab=skelOn()? skelLabel(i) : null, start=lab? 10 : (skelOn()? 0 : R_ATOM*k);
+    ctx.setLineDash([3,2]); ctx.beginPath(); ctx.moveTo(P.x+ux*start,P.y+uy*start); ctx.lineTo(Q.x-ux*7,Q.y-uy*7); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillText("H",Q.x,Q.y);
+  }));
+  ctx.restore();
+}
+function drawLoupe(){
+  if(renderingLoupe || mode!=="mech" && !(drag.kind==="skHandle" && sketch[selSketch]?.t==="mech")) return;
+  if(!lastCanvasPt || !atoms.length) return;
+  const D=LOUPE_D, dpr=window.devicePixelRatio||1, c={x:lastCanvasPt.sx,y:lastCanvasPt.sy};
+  if(!loupeCanvas) loupeCanvas=document.createElement("canvas");
+  loupeCanvas.width=D*dpr; loupeCanvas.height=D*dpr;
+  const lctx=loupeCanvas.getContext("2d"); lctx.setTransform(dpr,0,0,dpr,0,0);
+  const w=S2W(c), mainCtx=ctx, mainView=view;
+  // zoom so about one bond length fills the loupe radius (always magnifies at least 1.6×)
+  const M=Math.max(1.6,Math.min(4,(D/2)/(1.05*medianBondLen())/mainView.k)), k=mainView.k*M;
+  view={k, x:D/2/k-w.x, y:D/2/k-w.y};
+  ctx=lctx; renderingLoupe=true;
+  try{
+    lctx.fillStyle=getComputedStyle(document.body).getPropertyValue("--bg").trim()||"#0a0c10";
+    lctx.fillRect(0,0,D,D);
+    redraw();
+    drawLoupeHydrogens();
+  } finally { ctx=mainCtx; view=mainView; renderingLoupe=false; }
+  const r=wrap.getBoundingClientRect();
+  let lx=c.x+46, ly=c.y-46-D;
+  if(lx+D>r.width-6) lx=c.x-46-D;
+  if(ly<6) ly=c.y+46;
+  const PAL=pal();
+  ctx.save();
+  ctx.shadowColor="rgba(0,0,0,.35)"; ctx.shadowBlur=18;
+  ctx.beginPath(); ctx.arc(lx+D/2,ly+D/2,D/2,0,7); ctx.fillStyle=PAL.mask; ctx.fill();
+  ctx.shadowBlur=0; ctx.save(); ctx.clip(); ctx.drawImage(loupeCanvas,lx,ly,D,D); ctx.restore();
+  ctx.lineWidth=2.5; ctx.strokeStyle=PAL.mech; ctx.stroke();
+  // aim cross at the loupe centre = the cursor
+  ctx.strokeStyle=PAL.mech; ctx.globalAlpha=.7; ctx.lineWidth=1;
+  const cx=lx+D/2, cy=ly+D/2;
+  ctx.beginPath(); ctx.moveTo(cx-9,cy); ctx.lineTo(cx-3,cy); ctx.moveTo(cx+3,cy); ctx.lineTo(cx+9,cy);
+  ctx.moveTo(cx,cy-9); ctx.lineTo(cx,cy-3); ctx.moveTo(cx,cy+3); ctx.lineTo(cx,cy+9); ctx.stroke();
+  ctx.globalAlpha=1; ctx.font="700 10px Arial"; ctx.fillStyle=PAL.mech; ctx.textAlign="center"; ctx.textBaseline="alphabetic";
+  ctx.fillText("×"+M.toFixed(1), cx, ly+D-10);
+  ctx.restore();
+}
+
 // faint dots showing where an electron arrow will snap (near the cursor)
 function drawElectronSites(){
   if(mode!=="mech" && !(drag.kind==="skHandle" && sketch[selSketch]?.t==="mech")) return;
-  const P0=lastCanvasPt? {x:lastCanvasPt.sx,y:lastCanvasPt.sy} : null;
+  const P0=renderingLoupe? {x:LOUPE_D/2,y:LOUPE_D/2} : lastCanvasPt? {x:lastCanvasPt.sx,y:lastCanvasPt.sy} : null;
   if(!P0) return;
   const e=drag.kind==="skHandle"? (sketch[selSketch].e||2) : mechE;
   ctx.save(); ctx.fillStyle=pal().mech;
@@ -2575,6 +2670,7 @@ canvas.addEventListener("pointermove",e=>{
       if(it.t==="arrow"&&drag.h!=="mid") w=onPaper(raw);
       else if(it.t==="mech"&&drag.h==="p1") w=snapElectron(raw,null,it.e);
       else if(it.t==="mech"&&drag.h==="p2") w=snapElectron(raw,{x:it.x1,y:it.y1},it.e);
+      drag.lastSnap=w;
       moveSketchHandle(it,drag.h,w);
     }
     redraw();
@@ -2596,7 +2692,8 @@ canvas.addEventListener("pointerup",e=>{
     if(Math.hypot(b1.x-a.x,b1.y-a.y)>=14){
       sketch.push(newSketchItem(mode,drag.w0,w1));
       selSketch=sketch.length-1; skPopVisible=false;
-      snap();
+      const madeH=mode==="mech" && [drag.w0,w1].map(p=>p&&p.hRef? materializeH(p.hRef) : false).some(Boolean);
+      snap(); if(madeH) afterChange();
     } else {
       // a plain click on an existing item (outside its own hit) just deselects
       selSketch=-1; hideSkPop();
@@ -2612,7 +2709,11 @@ canvas.addEventListener("pointerup",e=>{
     else selectSketch(drag.si,true);
     return;
   }
-  if(kind==="skHandle"){ if(drag.moved) snap(); redraw(); return; }
+  if(kind==="skHandle"){
+    const madeH=drag.moved && drag.lastSnap && drag.lastSnap.hRef && materializeH(drag.lastSnap.hRef);
+    drag.lastSnap=null;
+    if(drag.moved) snap(); if(madeH) afterChange(); else redraw(); return;
+  }
   if(kind==="empty"){
     if(!drag.moved){
       // if something is selected, the first empty click only deselects — no surprise atom
@@ -2713,7 +2814,8 @@ canvas.addEventListener("wheel",e=>{
 /* ================= KEYBOARD SHORTCUTS & EDITING HELPERS ================= */
 let hoverAtom=-1, hoverBond=-1;
 canvas.addEventListener("pointermove",e=>{
-  if(e.buttons || drag.kind) { if(hoverAtom>=0||hoverBond>=0){ hoverAtom=hoverBond=-1; } return; }
+  // electron-arrow tool: repaint on every move so the loupe follows the cursor (also mid-drag)
+  if(e.buttons || drag.kind) { if(hoverAtom>=0||hoverBond>=0){ hoverAtom=hoverBond=-1; } if(mode==="mech"||drag.kind==="skHandle") redraw(); return; }
   if(mode==="mech"){ redraw(); }
   const r=canvas.getBoundingClientRect(), sx=e.clientX-r.left, sy=e.clientY-r.top;
   const ha=hitAtom(sx,sy), hb=ha<0? hitBond(sx,sy) : -1;
