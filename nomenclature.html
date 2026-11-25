@@ -1680,8 +1680,7 @@ function saveSettings(){ try{localStorage.setItem("dne_settings",JSON.stringify(
 let settingsApplied=false;
 function applySettings(){
   const classicOn=SETTINGS.theme==="classic";
-  wrap.classList.toggle("grid-dots",SETTINGS.grid==="dots"&&!classicOn);
-  wrap.classList.toggle("grid-off",SETTINGS.grid==="off"||classicOn);
+  syncGrid();
   const sb=$("skelBtn"); sb.classList.toggle("active",skeletal||classicOn);
   sb.title = classicOn? "Skeletal formula: always on in the Classic style" : "Skeletal formula view (Skelettformel)";
   document.body.classList.toggle("classic",SETTINGS.theme==="classic");
@@ -1717,7 +1716,26 @@ function gridOf(A,B){
   L.sort((a,b)=>a-b);
   return Math.max(10,Math.min(100,Math.round(L[L.length>>1]/2*10)/10));
 }
-const paperOn=()=>SETTINGS.theme==="classic"&&SETTINGS.snap!=="off";
+const paperOn=()=>skelOn()&&SETTINGS.snap!=="off";
+// the canvas draws its own world-anchored paper whenever snapping to it is on (or in Classic)
+const ownPaper=()=>paperOn()||SETTINGS.theme==="classic";
+function syncGrid(){
+  const own=ownPaper();
+  wrap.classList.toggle("grid-dots",SETTINGS.grid==="dots"&&!own);
+  wrap.classList.toggle("grid-off",SETTINGS.grid==="off"||own);
+}
+// pull every visible atom onto the nearest square corner (hidden H ride along with their atom)
+function snapAllToPaper(idxs){
+  if(!paperOn()) return;
+  const G=gridSize(), list=idxs||atoms.map((a,i)=>i);
+  const heavy=list.filter(i=>!skelHiddenH(i));
+  const moved=new Map();
+  heavy.forEach(i=>{ const a=atoms[i], p=onPaper(a,G); moved.set(i,{dx:p.x-a.x,dy:p.y-a.y}); a.x=p.x; a.y=p.y; });
+  list.filter(i=>skelHiddenH(i)).forEach(i=>{
+    const nb=bonds.find(b=>b.a===i||b.b===i), o=nb&&(nb.a===i?nb.b:nb.a), d=moved.get(o);
+    if(d){ atoms[i].x+=d.dx; atoms[i].y+=d.dy; }
+  });
+}
 const gridSize=()=>gridOf(atoms,bonds);
 // classic: free atoms and new bond ends sit on the square corners, like drawing on squared paper
 const onPaper=(w,G)=>{ if(!paperOn()) return w; G=G||gridSize(); return {x:Math.round(w.x/G)*G, y:Math.round(w.y/G)*G}; };
@@ -1920,10 +1938,10 @@ function drawPaper(w,h){
   const ox=((view.x*view.k)%step+step)%step, oy=((view.y*view.k)%step+step)%step;
   ctx.save();
   if(SETTINGS.grid==="dots"){
-    ctx.fillStyle="rgba(0,0,0,.28)";
+    ctx.fillStyle=isClassic()? "rgba(0,0,0,.28)" : "rgba(231,233,238,.22)";
     for(let x=ox;x<w;x+=step) for(let y=oy;y<h;y+=step){ ctx.fillRect(Math.round(x)-1,Math.round(y)-1,2,2); }
   } else {
-    ctx.strokeStyle="rgba(60,90,140,.17)"; ctx.lineWidth=1; ctx.beginPath();
+    ctx.strokeStyle=isClassic()? "rgba(60,90,140,.17)" : "rgba(231,233,238,.07)"; ctx.lineWidth=1; ctx.beginPath();
     for(let x=ox;x<w;x+=step){ const X=Math.round(x)+.5; ctx.moveTo(X,0); ctx.lineTo(X,h); }
     for(let y=oy;y<h;y+=step){ const Y=Math.round(y)+.5; ctx.moveTo(0,Y); ctx.lineTo(w,Y); }
     ctx.stroke();
@@ -1935,7 +1953,7 @@ function redraw(){
   ctx.clearRect(0,0,r.width,r.height);
   $("canvasHint").style.display = atoms.length||sketch.length? "none":"block";
   const PAL=pal(), classic=isClassic(), bw=classic? 1.7 : 2;
-  if(classic) drawPaper(r.width,r.height);
+  if(ownPaper()) drawPaper(r.width,r.height);
   // classic: bonds stop short of atom labels instead of hiding behind a mask (keeps the paper visible)
   const labs=classic? atoms.map((a,i)=>skelLabel(i)) : null;
   bonds.forEach((b,bi)=>{
@@ -2394,6 +2412,7 @@ canvas.addEventListener("pointerdown",e=>{
     drag.kind="pinch"; return;
   }
   drag.moved=false; drag.sx=sx; drag.sy=sy; drag.panSX=sx; drag.panSY=sy; drag.startView={...view};
+  drag.paperG=paperOn()? gridSize() : 0;
   if(popVisible) hidePopover();
   if(skPopVisible) hideSkPop();
   // sketch layer: handles of the selected item first, then the items themselves
@@ -2470,7 +2489,14 @@ canvas.addEventListener("pointermove",e=>{
   } else if(drag.kind==="moveSel"){
     const w=S2W({x:sx,y:sy}), w0=S2W({x:drag.sx,y:drag.sy});
     const dx=w.x-w0.x, dy=w.y-w0.y;
-    drag.selStart.forEach(s=>{ atoms[s.idx].x=s.x+dx; atoms[s.idx].y=s.y+dy; });
+    if(drag.paperG){
+      const G=drag.paperG, heavy=drag.selStart.filter(s=>!skelHiddenH(s.idx)), an=heavy[0]||drag.selStart[0];
+      const p=onPaper({x:an.x+dx,y:an.y+dy},G), ddx=p.x-an.x, ddy=p.y-an.y;
+      drag.selStart.forEach(s=>{
+        const q=skelHiddenH(s.idx)? {x:s.x+ddx,y:s.y+ddy} : onPaper({x:s.x+ddx,y:s.y+ddy},G);
+        atoms[s.idx].x=q.x; atoms[s.idx].y=q.y;
+      });
+    } else drag.selStart.forEach(s=>{ atoms[s.idx].x=s.x+dx; atoms[s.idx].y=s.y+dy; });
     if(hasGeometryStereo())afterChange();else redraw();
   } else if(drag.kind==="skDraw"){
     if(drag.moved) drag.w1=skPaper(S2W({x:sx,y:sy}),mode,drag.w0);
@@ -3002,6 +3028,7 @@ $("skelBtn").onclick=()=>{
   if(SETTINGS.theme==="classic"){ toast("Classic style is always a skeletal formula"); return; }
   skeletal=!skeletal;
   $("skelBtn").classList.toggle("active",skeletal);
+  syncGrid();
   selAtom=selBond=-1; hidePopover(); redraw();
 };
 $("undoBtn").onclick=undo; $("redoBtn").onclick=redo;
@@ -3496,7 +3523,7 @@ $("cleanBtn").onclick=async()=>{
     // when the original double-bond geometry was ambiguous or unspecified.
     assigned.unspecifiedBonds.forEach(e=>{const b=bonds.find(b=>b.a===e.a&&b.b===e.b||b.b===e.a&&b.a===e.b);if(b)b.stereo='unknown';});
     assigned.coordinates.forEach((p,i)=>{atoms[i].x=p[0]*52;atoms[i].y=-p[1]*52;});
-    snap();afterChange();fitView();toast('Layout tidied · configurations preserved','ok');return;
+    snapAllToPaper(); snap();afterChange();fitView();toast('Layout tidied · configurations preserved','ok');return;
   }
   const L=52;
   const adjIdx=atoms.map(()=>[]);
@@ -3578,7 +3605,7 @@ $("cleanBtn").onclick=async()=>{
     atoms.forEach((a,i)=>{a.x+=fx[i];a.y+=fy[i]; maxF=Math.max(maxF,Math.abs(fx[i]),Math.abs(fy[i]));});
     if(maxF<0.045 && it>120) break;      // converged
   }
-  snap(); afterChange(); fitView(); toast("Layout tidied · specified configurations preserved","ok");
+  snapAllToPaper(); snap(); afterChange(); fitView(); toast("Layout tidied · specified configurations preserved","ok");
 };
 
 /* ================= GRAPH HELPERS + FORMULA ================= */
