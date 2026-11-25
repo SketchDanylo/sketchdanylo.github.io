@@ -1590,11 +1590,13 @@ function implicitH(i){
   const a=atoms[i]; if(a.el==="H") return 0;
   const v=VALENCE[a.el]; if(!v) return 0;
   const s=bondSum(i);
-  // charge adjusts target valence: N+ ->4, O- ->1, etc.
+  // charge adjusts target valence: N+ ->4 (NH4+), O- ->1 (OH-), B- ->4 (BH4-),
+  // but a metal/carbon cation LOSES a bond per charge: Na+ -> 0 (bare ion), Mg2+ -> 0, C+ -> 3 (CH3+)
+  const q=a.charge||0, ok=CATION_OK[a.el];
   for(const base of v){
     let target=base;
-    if(a.charge>0 && CATION_OK[a.el]>0) target=base+a.charge;      // N+ -> 4 bonds
-    else if(a.charge<0) target=Math.max(0,base+a.charge);          // O- -> 1 bond
+    if(q>0) target = ok>0 ? base+q : Math.max(0,base-q);
+    else if(q<0) target = ok<0 ? base-q : Math.max(0,base+q);
     if(target>=s) return target-s;
   }
   return 0;
