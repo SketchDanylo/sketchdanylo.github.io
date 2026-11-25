@@ -2277,17 +2277,32 @@ function electronSites(e){
 // snap a mechanism-arrow end to the nearest electron site; an arrow head may also land on an atom's edge
 function snapElectron(w,from,e){
   if(!atoms.length) return w;
-  const R=18/view.k, L=medianBondLen();
-  const cands=electronSites(e||mechE);
-  if(from){
-    atoms.forEach((a,i)=>{
-      if(skelHiddenH(i)) return;
-      const dx=from.x-a.x, dy=from.y-a.y, d=Math.hypot(dx,dy); if(d<1e-6) return;
-      cands.push({x:a.x+dx/d*0.3*L, y:a.y+dy/d*0.3*L, kind:"atom"});
-    });
-  }
-  let best=null, bd=R*R;
-  for(const c of cands){ const d=(c.x-w.x)**2+(c.y-w.y)**2; if(d<bd){ bd=d; best=c; } }
+  const k=view.k, R=18/k;
+  // electron sites (pairs / single electrons) win ties: atoms and bond lines carry a small penalty
+  const cands=electronSites(e||mechE).map(c=>({...c,pen:0}));
+  atoms.forEach((a,i)=>{
+    if(skelHiddenH(i)) return;
+    // aim from the other end of the arrow (or from the cursor, for the start)
+    const ref=from||w; let dx=ref.x-a.x, dy=ref.y-a.y, d=Math.hypot(dx,dy);
+    if(d<1e-6){ dx=0; dy=-1; d=1; }
+    const ux=dx/d, uy=dy/d;
+    let r;
+    if(skelOn()){
+      const box=skelLabel(i);
+      r= box? Math.min(Math.abs(ux)>1e-6? box.hw/Math.abs(ux):1e9, Math.abs(uy)>1e-6? box.hh/Math.abs(uy):1e9)/k+2/k  // edge of the letters
+             : 3/k;                                                                                                   // skeletal C: right at the corner
+    } else r=R_ATOM+2/k;                                                                                               // edge of the atom circle
+    cands.push({x:a.x+ux*r, y:a.y+uy*r, kind:"atom", pen:3/k});
+  });
+  // anywhere along a bond line (the drawn line itself)
+  bonds.forEach(b=>{
+    if(skelHiddenH(b.a)||skelHiddenH(b.b)) return;
+    const A=atoms[b.a], B=atoms[b.b], dx=B.x-A.x, dy=B.y-A.y, L2=dx*dx+dy*dy; if(!L2) return;
+    const t=Math.max(.15,Math.min(.85,((w.x-A.x)*dx+(w.y-A.y)*dy)/L2));
+    cands.push({x:A.x+dx*t, y:A.y+dy*t, kind:"line", pen:5/k});
+  });
+  let best=null, bd=R;
+  for(const c of cands){ const d=Math.hypot(c.x-w.x,c.y-w.y)+c.pen; if(d<bd){ bd=d; best=c; } }
   return best? {x:best.x,y:best.y} : w;
 }
 // faint dots showing where an electron arrow will snap (near the cursor)
