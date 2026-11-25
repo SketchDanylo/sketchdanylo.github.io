@@ -3257,15 +3257,20 @@ function heavyAngles(i){ const hs=new Set(termHs(i)); return nbrsOf(i).filter(n=
 function mergeBondLen(){ return paperOn()? 2*gridSize()*1.118 : medianBondLen(); }
 function bonded(i,j){ return bonds.some(b=>(b.a===i&&b.b===j)||(b.a===j&&b.b===i)); }
 // the free direction of an atom closest to `cur` (zig-zag 120° off a single neighbour, else the middle of a wide gap)
-function pickSlot(occ,cur){
-  if(!occ.length) return snapActive()? Math.round(cur/SNAP_STEP)*SNAP_STEP : cur;
-  if(occ.length===1){ const o=[occ[0]+2*Math.PI/3, occ[0]-2*Math.PI/3]; return angGap(o[0],cur)<=angGap(o[1],cur)? o[0] : o[1]; }
-  const TWO=2*Math.PI, s=occ.map(a=>((a%TWO)+TWO)%TWO).sort((a,b)=>a-b);
-  const gaps=s.map((a,g)=>{ const b=g+1<s.length? s[g+1] : s[0]+TWO; return {mid:a+(b-a)/2,size:b-a}; });
-  const big=Math.max(...gaps.map(g=>g.size));
-  const ok=gaps.filter(g=>g.size>=Math.min(big,1.9)).sort((a,b)=>angGap(a.mid,cur)-angGap(b.mid,cur));
-  return ok[0].mid;
+// every free direction, the one closest to `cur` first
+function slotOptions(occ,cur){
+  if(!occ.length) return [snapActive()? Math.round(cur/SNAP_STEP)*SNAP_STEP : cur];
+  let o;
+  if(occ.length===1) o=[occ[0]+2*Math.PI/3, occ[0]-2*Math.PI/3, occ[0]+Math.PI];
+  else {
+    const TWO=2*Math.PI, s=occ.map(a=>((a%TWO)+TWO)%TWO).sort((a,b)=>a-b);
+    const gaps=s.map((a,g)=>{ const b=g+1<s.length? s[g+1] : s[0]+TWO; return {mid:a+(b-a)/2,size:b-a}; });
+    const big=Math.max(...gaps.map(g=>g.size));
+    o=gaps.filter(g=>g.size>=Math.min(big,1.9)).map(g=>g.mid);
+  }
+  return o.sort((a,b)=>angGap(a,cur)-angGap(b,cur));
 }
+const pickSlot=(occ,cur)=>slotOptions(occ,cur)[0];
 function circMean(a){ let x=0,y=0; a.forEach(g=>{x+=Math.cos(g);y+=Math.sin(g);}); return Math.hypot(x,y)<1e-6? a[0] : Math.atan2(y,x); }
 // what dropping the moved atoms right here would do (null: nothing)
 function findMerge(moved){
@@ -3298,7 +3303,17 @@ function findMerge(moved){
       }
     });
   });
-  if(best) best.label={fuse:"merge "+atoms[best.t].el, join:"bond", hOnAtom:"replaces H", atomOnH:"replaces H", hh:"bond (−2 H)"}[best.kind];
+  // several heavy atoms lying on atoms of the other molecule (a shared bond or ring edge):
+  // all of those pairs fuse together, as they lie, with no turning
+  const pairs=[], usedM=new Set(), usedT=new Set(), cand=[];
+  M.forEach(m=>{ if(!atoms[m]||isHyd(m)) return; atoms.forEach((B,t)=>{
+    if(M.has(t)||isHyd(t)||bonded(m,t)) return;
+    const d=Math.hypot(atoms[m].x-B.x,atoms[m].y-B.y); if(d<0.42*L) cand.push({m,t,d}); }); });
+  cand.sort((a,b)=>a.d-b.d).forEach(c=>{ if(usedM.has(c.m)||usedT.has(c.t)) return; usedM.add(c.m); usedT.add(c.t); pairs.push([c.m,c.t]); });
+  if(pairs.length>=2) best={kind:"fuse",m:pairs[0][0],t:pairs[0][1],pairs,score:0};
+  else if(best&&best.kind==="fuse") best.pairs=[[best.m,best.t]];
+  if(best) best.label=best.kind==="fuse"&&best.pairs.length>1? "merge "+best.pairs.length+" atoms"
+    : {fuse:"merge "+atoms[best.t].el, join:"bond", hOnAtom:"replaces H", atomOnH:"replaces H", hh:"bond (−2 H)"}[best.kind];
   return best;
 }
 function drawMergeHint(){
@@ -3307,8 +3322,9 @@ function drawMergeHint(){
   const A=W2S(atoms[h.m]), B=W2S(atoms[h.t]);
   const X=h.x!==undefined&&atoms[h.x]? W2S(atoms[h.x]) : A, Y=h.y!==undefined&&atoms[h.y]? W2S(atoms[h.y]) : B;
   ctx.save(); ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=2;
-  ctx.globalAlpha=.18; ctx.beginPath(); ctx.arc(B.x,B.y,17*k,0,7); ctx.fill();
-  ctx.globalAlpha=1; ctx.setLineDash([4,3]); ctx.beginPath(); ctx.arc(B.x,B.y,17*k,0,7); ctx.stroke();
+  (h.pairs||[[h.m,h.t]]).forEach(([,t])=>{ if(!atoms[t]) return; const Q=W2S(atoms[t]);
+    ctx.globalAlpha=.18; ctx.beginPath(); ctx.arc(Q.x,Q.y,17*k,0,7); ctx.fill();
+    ctx.globalAlpha=1; ctx.setLineDash([4,3]); ctx.beginPath(); ctx.arc(Q.x,Q.y,17*k,0,7); ctx.stroke(); });
   if(h.kind!=="fuse"){ ctx.beginPath(); ctx.moveTo(X.x,X.y); ctx.lineTo(Y.x,Y.y); ctx.stroke(); }
   ctx.setLineDash([]);
   if(h.kind==="hOnAtom"||h.kind==="atomOnH"||h.kind==="hh"){ // the H that leaves
@@ -3345,39 +3361,65 @@ function applyMerge(plan,moved){
     const hs=termHs(i); if(!hs.length) return false;
     hs.sort((a,b)=>angGap(angTo(i,a),dir)-angGap(angTo(i,b),dir)); cut(hs[0]); return true;
   };
+  // how badly a placement makes the incoming molecule sit on the other atoms (heavy atoms only)
+  const skip=new Set(plan.kind==="fuse"? (plan.pairs||[[plan.m]]).map(p=>p[0]) : []);
+  const crowd=()=>{ let c=0; M.forEach(i=>{ if(skip.has(i)||drop.has(i)||isHyd(i)) return; const a=atoms[i];
+    atoms.forEach((b,j)=>{ if(M.has(j)||drop.has(j)||isHyd(j)) return; const d=Math.hypot(a.x-b.x,a.y-b.y); if(d<0.75*L) c+=(0.75*L-d)**2; }); }); return c; };
+  // try each placement, keep the one that crowds least (ties go to the earlier, closer-to-your-drop option)
+  const tryPlacements=opts=>{
+    const save=[...M].map(i=>[i,atoms[i].x,atoms[i].y]);
+    const restore=()=>save.forEach(([i,x,y])=>{ atoms[i].x=x; atoms[i].y=y; });
+    let bestO=null, bestC=Infinity;
+    opts.forEach((o,n)=>{ restore(); moveGroup(M,o.pivot,o.rot,o.to); const c=crowd()+n*0.02*L*L; if(c<bestC){ bestC=c; bestO=o; } });
+    restore(); if(bestO) moveGroup(M,bestO.pivot,bestO.rot,bestO.to); return bestO;
+  };
   let joined=[];
   if(plan.kind==="fuse"){
-    const m=plan.m, t=plan.t, occM=heavyAngles(m), occT=heavyAngles(t);
-    let rot=0;
-    if(occM.length&&occT.length){ const mean=circMean(occM); rot=wrapAng(pickSlot(occT,mean)-mean); }
-    moveGroup(M,{x:atoms[m].x,y:atoms[m].y},rot,{x:atoms[t].x,y:atoms[t].y});
-    // m's bonds move over to t
-    bonds=bonds.filter(b=>{
-      if(b.a!==m&&b.b!==m) return true;
-      const n=b.a===m? b.b : b.a; if(n===t) return false;
-      const ex=bonds.find(o=>o!==b&&((o.a===t&&o.b===n)||(o.a===n&&o.b===t)));
-      if(ex){ ex.order=Math.max(ex.order,b.order); return false; }
-      if(b.a===m) b.a=t; else b.b=t; return true;
-    });
-    drop.add(m);
-    const cap=()=>maxValence(atoms[t].el)+(atoms[t].manualCharge&&CATION_OK[atoms[t].el]&&(atoms[t].charge||0)>0? 1 : 0);
-    for(let guard=0; guard<8 && bondSum(t)>cap(); guard++){
-      const hs=termHs(t); if(!hs.length) break;
-      const occ=heavyAngles(t); // drop the H most crowded by the newcomer's bonds
-      hs.sort((a,b)=>Math.min(...occ.map(g=>angGap(g,angTo(t,a))))-Math.min(...occ.map(g=>angGap(g,angTo(t,b)))));
-      cut(hs[0]);
+    const pairs=plan.pairs||[[plan.m,plan.t]];
+    if(pairs.length>1){
+      // shared bond / ring edge: slide so the pairs sit exactly on each other
+      let dx=0,dy=0; pairs.forEach(([m,t])=>{ dx+=atoms[t].x-atoms[m].x; dy+=atoms[t].y-atoms[m].y; });
+      moveGroup(M,{x:0,y:0},0,{x:dx/pairs.length,y:dy/pairs.length});
+    } else {
+      const [m,t]=pairs[0], occM=heavyAngles(m), occT=heavyAngles(t), pivot={x:atoms[m].x,y:atoms[m].y}, to={x:atoms[t].x,y:atoms[t].y};
+      const opts=[];
+      if(occM.length&&occT.length){ const mean=circMean(occM); slotOptions(occT,mean).forEach(g=>opts.push({pivot,to,rot:wrapAng(g-mean)})); }
+      else opts.push({pivot,to,rot:0});
+      tryPlacements(opts);
     }
-    joined=[t];
+    // each m hands its bonds over to its t (bonds that now coincide become one)
+    pairs.forEach(([m,t])=>{
+      bonds=bonds.filter(b=>{
+        if(b.a!==m&&b.b!==m) return true;
+        const n=b.a===m? b.b : b.a; if(n===t) return false;
+        const ex=bonds.find(o=>o!==b&&((o.a===t&&o.b===n)||(o.a===n&&o.b===t)));
+        if(ex){ ex.order=Math.max(ex.order,b.order); return false; }
+        if(b.a===m) b.a=t; else b.b=t; return true;
+      });
+      drop.add(m);
+    });
+    pairs.forEach(([,t])=>{
+      const cap=()=>maxValence(atoms[t].el)+(atoms[t].manualCharge&&CATION_OK[atoms[t].el]&&(atoms[t].charge||0)>0? 1 : 0);
+      for(let guard=0; guard<8 && bondSum(t)>cap(); guard++){
+        const hs=termHs(t); if(!hs.length) break;
+        const occ=heavyAngles(t); // drop the H most crowded by the newcomer's bonds
+        hs.sort((a,b)=>Math.min(...occ.map(g=>angGap(g,angTo(t,a))))-Math.min(...occ.map(g=>angGap(g,angTo(t,b)))));
+        cut(hs[0]);
+      }
+    });
+    joined=pairs.map(p=>p[1]);
   } else {
     const X=plan.x, Y=plan.y;
     if(plan.kind==="hOnAtom"||plan.kind==="hh") cut(plan.m);
     if(plan.kind==="atomOnH"||plan.kind==="hh") cut(plan.t);
-    const dY=pickSlot(heavyAngles(Y),angTo(Y,X));
+    const occX=heavyAngles(X), pivot={x:atoms[X].x,y:atoms[X].y}, opts=[];
+    slotOptions(heavyAngles(Y),angTo(Y,X)).forEach(dY=>{
+      const want=dY+Math.PI, to={x:atoms[Y].x+L*Math.cos(dY),y:atoms[Y].y+L*Math.sin(dY)};
+      (occX.length? slotOptions(occX,want) : [want]).forEach(g=>opts.push({pivot,to,dY,rot:occX.length? wrapAng(want-g) : 0}));
+    });
+    const o=tryPlacements(opts), dY=o.dY;
     if(plan.kind==="join"||plan.kind==="hOnAtom"){ if(!giveH(Y,dY)) return null; }
-    if(plan.kind==="join"||plan.kind==="atomOnH"){ if(!giveH(X,angTo(X,Y))) return null; }
-    const occX=heavyAngles(X), want=dY+Math.PI;
-    const rot=occX.length? wrapAng(want-pickSlot(occX,want)) : 0;
-    moveGroup(M,{x:atoms[X].x,y:atoms[X].y},rot,{x:atoms[Y].x+L*Math.cos(dY),y:atoms[Y].y+L*Math.sin(dY)});
+    if(plan.kind==="join"||plan.kind==="atomOnH"){ if(!giveH(X,dY+Math.PI)) return null; }
     bonds.push({a:X,b:Y,order:1});
     joined=[X,Y];
   }
@@ -3392,7 +3434,7 @@ function applyMerge(plan,moved){
   selAtom=keep.has(selAtom)? keep.get(selAtom) : -1; selBond=-1; hidePopover();
   if(paperOn()) snapAllToPaper(kept.map(i=>keep.get(i)));
   mergeHint=null;
-  const what=plan.kind==="fuse"? "Merged onto "+atoms[keep.get(plan.t)].el : "Joined with a new bond";
+  const what=plan.kind!=="fuse"? "Joined with a new bond" : plan.pairs&&plan.pairs.length>1? "Merged "+plan.pairs.length+" atoms (shared bond)" : "Merged onto "+atoms[keep.get(plan.t)].el;
   return what+(lostH? ", "+lostH+" H removed" : "");
 }
 // atoms of the molecule (connected piece) that contains atom i
