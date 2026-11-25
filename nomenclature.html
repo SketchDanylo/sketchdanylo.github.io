@@ -629,6 +629,7 @@ footer.credit{display:none}
         <p><kbd>Shift</kbd><kbd>H</kbd> <span>fill hydrogens</span></p>
         <p><kbd>0</kbd> <span>fit to screen</span> <kbd>Esc</kbd> <span>close / deselect / back to drawing</span></p>
         <p><kbd>A</kbd> <span>reaction arrow</span> <kbd>Shift</kbd><kbd>A</kbd> <span>electron arrow</span> <kbd>Shift</kbd><kbd>P</kbd> <span>plus (sketch tools on)</span></p>
+        <p>in the electron-arrow tool: <kbd>1</kbd> <span>1e⁻ fishhook</span> <kbd>2</kbd> <span>2e⁻ pair</span></p>
       </section>
       <section><h4>Name &amp; save</h4>
         <p><kbd>Enter</kbd> <span>name it</span></p>
@@ -2055,7 +2056,7 @@ function redraw(){
     ctx.strokeRect(x0,y0,x1-x0,y1-y0);
     ctx.restore();
   }
-  drawOverValence(); drawHover(PAL);
+  drawOverValence(); drawHover(PAL); drawElectronSites();
   updateFormula();
   positionPopover();
   positionSelPop();
@@ -2065,7 +2066,7 @@ function redraw(){
 /* ================= SKETCH LAYER ================= */
 function newSketchItem(m,w0,w1){
   if(m==="arrow") return {t:"arrow",x1:w0.x,y1:w0.y,x2:w1.x,y2:w1.y,eq:false};
-  return {t:"mech",x1:w0.x,y1:w0.y,x2:w1.x,y2:w1.y,bu:0,bv:-0.4,e:2};
+  return {t:"mech",x1:w0.x,y1:w0.y,x2:w1.x,y2:w1.y,bu:0,bv:-0.4,e:mechE};
 }
 // quadratic control point of a mechanism arrow (world coords); bu/bv are fractions of the chord length
 function mechCtrl(it){
@@ -2178,7 +2179,82 @@ function hitSketchHandle(sx,sy){
   return h? h.h : null;
 }
 // plus signs and reaction arrows sit on the paper squares (Classic); electron arrows stay free-hand
-const skPaper=(w,m)=>m==="mech"? w : onPaper(w);
+/* ---- electron sites: where mechanism arrows snap ----
+   2e⁻ arrows snap to the middle of an electron pair (lone pair, σ bond, π bond);
+   1e⁻ arrows snap a little off-centre, onto one electron of that pair. */
+let mechE=2; // electron count for newly drawn mechanism arrows
+const VAL_E={B:3,C:4,N:5,O:6,F:7,Si:4,P:5,S:6,Cl:7,Se:6,Br:7,I:7};
+function medianBondLen(){
+  const L=[];
+  for(const b of bonds){ const p=atoms[b.a], q=atoms[b.b]; if(!p||!q||p.el==="H"||q.el==="H") continue; L.push(Math.hypot(q.x-p.x,q.y-p.y)); }
+  if(!L.length) return SNAP_LEN;
+  L.sort((a,b)=>a-b); return L[L.length>>1];
+}
+function lonePairs(i){
+  const a=atoms[i], ve=VAL_E[a.el]; if(ve===undefined) return 0;
+  const nb=ve-(a.charge||0)-bondSum(i)-implicitH(i);
+  return Math.max(0,Math.floor(nb/2)) + (nb%2===1?1:0); // a lone radical electron gets a site too
+}
+function electronSites(e){
+  const out=[], L=medianBondLen();
+  bonds.forEach(b=>{
+    if(skelHiddenH(b.a)||skelHiddenH(b.b)) return;
+    const A=atoms[b.a], B=atoms[b.b], dx=B.x-A.x, dy=B.y-A.y, len=Math.hypot(dx,dy)||1, nx=-dy/len, ny=dx/len;
+    const ts=e===1? [0.4,0.6] : [0.5];
+    const lines=[0];
+    if(b.order>=2){ const gw=5.2*Math.min(view.k,1.6)/view.k; lines.push((bondSide(b)||1)*gw); } // π electrons sit on the inner line
+    if(b.order===3){ const gw=5.2*Math.min(view.k,1.6)/view.k; lines.push(-gw); }
+    lines.forEach(o=>ts.forEach(t=>out.push({x:A.x+dx*t+nx*o, y:A.y+dy*t+ny*o, kind:"bond"})));
+  });
+  atoms.forEach((a,i)=>{
+    if(skelHiddenH(i)) return;
+    const n=lonePairs(i); if(!n) return;
+    const r=0.36*L, pair=0.1*L;
+    openAngles(i,n).forEach(ang=>{
+      const ux=Math.cos(ang), uy=Math.sin(ang), cx=a.x+ux*r, cy=a.y+uy*r;
+      if(e===1){ out.push({x:cx-uy*pair,y:cy+ux*pair,kind:"lp"}); out.push({x:cx+uy*pair,y:cy-ux*pair,kind:"lp"}); }
+      else out.push({x:cx,y:cy,kind:"lp"});
+    });
+  });
+  return out;
+}
+// snap a mechanism-arrow end to the nearest electron site; an arrow head may also land on an atom's edge
+function snapElectron(w,from,e){
+  if(!atoms.length) return w;
+  const R=18/view.k, L=medianBondLen();
+  const cands=electronSites(e||mechE);
+  if(from){
+    atoms.forEach((a,i)=>{
+      if(skelHiddenH(i)) return;
+      const dx=from.x-a.x, dy=from.y-a.y, d=Math.hypot(dx,dy); if(d<1e-6) return;
+      cands.push({x:a.x+dx/d*0.3*L, y:a.y+dy/d*0.3*L, kind:"atom"});
+    });
+  }
+  let best=null, bd=R*R;
+  for(const c of cands){ const d=(c.x-w.x)**2+(c.y-w.y)**2; if(d<bd){ bd=d; best=c; } }
+  return best? {x:best.x,y:best.y} : w;
+}
+// faint dots showing where an electron arrow will snap (near the cursor)
+function drawElectronSites(){
+  if(mode!=="mech" && !(drag.kind==="skHandle" && sketch[selSketch]?.t==="mech")) return;
+  const P0=lastCanvasPt? {x:lastCanvasPt.sx,y:lastCanvasPt.sy} : null;
+  if(!P0) return;
+  const e=drag.kind==="skHandle"? (sketch[selSketch].e||2) : mechE;
+  ctx.save(); ctx.fillStyle=pal().mech;
+  electronSites(e).forEach(s=>{
+    const p=W2S(s), d=Math.hypot(p.x-P0.x,p.y-P0.y); if(d>90) return;
+    ctx.globalAlpha=Math.max(.15,.75-d/120);
+    if(e===2){ // a pair: two dots
+      ctx.beginPath(); ctx.arc(p.x-2.3,p.y,1.7,0,7); ctx.arc(p.x+2.3,p.y,1.7,0,7); ctx.fill();
+    } else { ctx.beginPath(); ctx.arc(p.x,p.y,1.9,0,7); ctx.fill(); }
+  });
+  ctx.restore();
+}
+function resnapMech(it){
+  const p1=snapElectron({x:it.x1,y:it.y1},null,it.e), p2=snapElectron({x:it.x2,y:it.y2},p1,it.e);
+  it.x1=p1.x; it.y1=p1.y; it.x2=p2.x; it.y2=p2.y;
+}
+const skPaper=(w,m,from)=>m==="mech"? snapElectron(w,from,mechE) : onPaper(w);
 function moveSketchHandle(it,h,w){
   if(h==="p1"||h==="p2"){
     // keep the bend's shape relative to the chord while an end moves
@@ -2224,8 +2300,8 @@ function positionSkPop(){
   pop.style.left=Math.max(half+6,Math.min(bounds.width-half-6,P.x))+"px";
   pop.style.top=Math.max(pop.offsetHeight+18,top)+"px";
 }
-$("skE2").onclick=()=>{ const it=sketch[selSketch]; if(it&&it.e!==2){ it.e=2; snap(); redraw(); } };
-$("skE1").onclick=()=>{ const it=sketch[selSketch]; if(it&&it.e!==1){ it.e=1; snap(); redraw(); } };
+$("skE2").onclick=()=>{ const it=sketch[selSketch]; if(it&&it.e!==2){ it.e=2; mechE=2; resnapMech(it); snap(); redraw(); } };
+$("skE1").onclick=()=>{ const it=sketch[selSketch]; if(it&&it.e!==1){ it.e=1; mechE=1; resnapMech(it); snap(); redraw(); } };
 $("skFlip").onclick=()=>{ const it=sketch[selSketch]; if(it){ it.bv=-it.bv; snap(); redraw(); } };
 $("skEq").onclick=()=>{ const it=sketch[selSketch]; if(it){ it.eq=!it.eq; snap(); redraw(); } };
 $("skDel").onclick=()=>deleteSketch(selSketch);
@@ -2397,7 +2473,7 @@ canvas.addEventListener("pointermove",e=>{
     drag.selStart.forEach(s=>{ atoms[s.idx].x=s.x+dx; atoms[s.idx].y=s.y+dy; });
     if(hasGeometryStereo())afterChange();else redraw();
   } else if(drag.kind==="skDraw"){
-    if(drag.moved) drag.w1=skPaper(S2W({x:sx,y:sy}),mode);
+    if(drag.moved) drag.w1=skPaper(S2W({x:sx,y:sy}),mode,drag.w0);
     redraw();
   } else if(drag.kind==="skMove"){
     if(!drag.moved) return;
@@ -2413,7 +2489,15 @@ canvas.addEventListener("pointermove",e=>{
     }
     redraw();
   } else if(drag.kind==="skHandle"){
-    const it=sketch[selSketch]; if(it) moveSketchHandle(it,drag.h,it.t==="arrow"&&drag.h!=="mid"? onPaper(S2W({x:sx,y:sy})) : S2W({x:sx,y:sy}));
+    const it=sketch[selSketch];
+    if(it){
+      const raw=S2W({x:sx,y:sy});
+      let w=raw;
+      if(it.t==="arrow"&&drag.h!=="mid") w=onPaper(raw);
+      else if(it.t==="mech"&&drag.h==="p1") w=snapElectron(raw,null,it.e);
+      else if(it.t==="mech"&&drag.h==="p2") w=snapElectron(raw,{x:it.x1,y:it.y1},it.e);
+      moveSketchHandle(it,drag.h,w);
+    }
     redraw();
   } else if(((drag.kind==="empty"||drag.kind==="skPlus")&&drag.moved) || drag.kind==="panBtn"){
     view.x=drag.startView.x+(sx-drag.panSX)/view.k;
@@ -2429,7 +2513,7 @@ canvas.addEventListener("pointerup",e=>{
   const kind=drag.kind; drag.kind=null;
 
   if(kind==="skDraw"){
-    const w1=skPaper(S2W({x:sx,y:sy}),mode), a=W2S(drag.w0), b1=W2S(w1);
+    const w1=skPaper(S2W({x:sx,y:sy}),mode,drag.w0), a=W2S(drag.w0), b1=W2S(w1);
     if(Math.hypot(b1.x-a.x,b1.y-a.y)>=14){
       sketch.push(newSketchItem(mode,drag.w0,w1));
       selSketch=sketch.length-1; skPopVisible=false;
@@ -2551,6 +2635,7 @@ canvas.addEventListener("wheel",e=>{
 let hoverAtom=-1, hoverBond=-1;
 canvas.addEventListener("pointermove",e=>{
   if(e.buttons || drag.kind) { if(hoverAtom>=0||hoverBond>=0){ hoverAtom=hoverBond=-1; } return; }
+  if(mode==="mech"){ redraw(); }
   const r=canvas.getBoundingClientRect(), sx=e.clientX-r.left, sy=e.clientY-r.top;
   const ha=hitAtom(sx,sy), hb=ha<0? hitBond(sx,sy) : -1;
   if(ha!==hoverAtom||hb!==hoverBond){ hoverAtom=ha; hoverBond=hb; redraw(); }
@@ -2693,6 +2778,11 @@ function shortcutKey(e){
     return true;
   }
   // bond order: change the hovered bond, otherwise pick the bond tool
+  if(mode==="mech" && (k==="1"||k==="2")){
+    mechE=+k; const it=sketch[selSketch];
+    if(it&&it.t==="mech"&&it.e!==mechE){ it.e=mechE; resnapMech(it); snap(); }
+    toast(mechE===1? "1e⁻ fishhook arrows (snap to single electrons)" : "2e⁻ arrows (snap to electron pairs)","ok"); redraw(); return true;
+  }
   if(k==="1"||k==="2"||k==="3"){
     const n=+k;
     if(hoverBond>=0 && bonds[hoverBond]) setBondOrder(hoverBond,n);
