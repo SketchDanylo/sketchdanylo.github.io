@@ -233,6 +233,17 @@ header.topbar{
   font:700 .74rem 'Arial';color:var(--text);transition:.12s;background:var(--surface-2);
 }
 .pt-cell small{font:500 .47rem 'Arial';color:var(--text-faint)}
+.pt-cell{position:relative}
+.kb{position:absolute;top:3px;right:3px;min-width:13px;padding:0 3px;border-radius:4px;background:var(--accent);color:var(--accent-ink);
+  font:800 .55rem/13px 'Arial';text-align:center;text-transform:uppercase;pointer-events:none;z-index:3}
+.sv-card .kb{top:8px;left:8px;right:auto;font-size:.7rem;line-height:17px;min-width:17px}
+#bindBar{position:fixed;left:50%;bottom:22px;transform:translate(-50%,12px);opacity:0;pointer-events:none;z-index:700;
+  background:var(--surface-2,#151a24);color:var(--text);border:1px solid var(--accent-brd);border-radius:12px;padding:9px 14px;
+  font:600 .8rem 'Arial';box-shadow:0 12px 30px rgba(0,0,0,.3);transition:opacity .15s,transform .15s}
+#bindBar.show{opacity:1;transform:translate(-50%,0)}
+#bindBar kbd{font:800 .72rem 'Arial';padding:1px 6px;border-radius:4px;background:var(--accent-dim);border:1px solid var(--accent-brd)}
+.mykeys p{display:flex;align-items:center;gap:6px}
+.mykeys button{margin-left:auto;background:none;border:0;color:var(--text-faint);cursor:pointer;font-size:.8rem}
 .pt-cell:hover{background:var(--accent-dim);border-color:var(--accent-brd);z-index:2}
 .pt-cell:active{transform:scale(.94)}
 .pt-tabs{display:flex;gap:3px;background:var(--surface-2);padding:3px;border-radius:8px;border:1px solid var(--border-soft)}
@@ -415,14 +426,8 @@ footer.credit{display:none}
       <svg class="ico" viewBox="0 0 24 24"><path d="M4 18C5 8 15 4 19 12"/><path d="M15.5 11.2l4 1.6 1-4.2z" fill="currentColor"/></svg>
     </button>
     <div class="sep"></div>
-    <button class="rbtn" id="moveBtn" title="Move: drag an atom to reposition it, drag a bond to move the whole molecule. Drop it on another molecule to merge (Alt: don't merge)">
-      <svg class="ico" viewBox="0 0 24 24"><path d="M4 3l7 18 2.5-7.5L21 11z"/></svg>
-    </button>
     <button class="rbtn" id="eraseBtn" title="Eraser (drag over atoms/bonds to remove)">
       <svg class="ico" viewBox="0 0 24 24"><path d="M19 13l-6 6H7.8L4 15.2a2 2 0 0 1 0-2.8L12.2 4a2 2 0 0 1 2.8 0l4 4a2 2 0 0 1 0 2.8z"/><path d="M8.5 8.5l7 7"/><path d="M5 21h14"/></svg>
-    </button>
-    <button class="rbtn" id="selectBtn" title="Select (drag a box to select, drag selection to move, then delete/save it)">
-      <svg class="ico" viewBox="0 0 24 24" stroke-dasharray="2.5 2.5"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
     </button>
     <button class="rbtn" id="skelBtn" title="Skeletal formula view (Skelettformel)">
       <svg class="ico" viewBox="0 0 24 24"><path d="M3 16l5-8 4 8 5-8 4 8"/></svg>
@@ -444,7 +449,7 @@ footer.credit{display:none}
     <div class="canvas-hint" id="canvasHint">
       <b>Drag</b> an element from the rail to place an atom<br/>
       <b>Drag</b> from an atom on canvas to bond it to another<br/>
-      <b>Click</b> an atom or bond to select it, <b>again</b> to retype/cycle order<br/>
+      <b>Click</b> an atom or bond to select it, a bond <b>again</b> to cycle its order<br/>
       <b>Right-click</b> an atom or bond for stereo &amp; editing (tap on touch)
     </div>
     <div class="formula-badge" id="formulaBadge"></div>
@@ -625,7 +630,6 @@ footer.credit{display:none}
       <section><h4>Select &amp; edit</h4>
         <p><kbd>Shift</kbd>+drag <span>box-select (any tool), Shift+click adds/removes</span></p>
         <p><kbd>Ctrl</kbd><kbd>A</kbd> <span>select everything</span></p>
-        <p>double-click <span>(select / move) pick the whole molecule</span></p>
         <p>drop on a molecule <span>merges: atom on atom fuses, H on an atom replaces it, near an atom bonds; hold <kbd>Alt</kbd> to just place it</span></p>
         <p><kbd>Ctrl</kbd><kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd> <span>copy, cut, paste at the cursor</span></p>
         <p><kbd>Ctrl</kbd><kbd>D</kbd> <span>duplicate</span></p>
@@ -633,7 +637,12 @@ footer.credit{display:none}
         <p>drag a selected atom <span>moves the whole selection</span></p>
       </section>
       <section><h4>Tools &amp; view</h4>
-        <p><kbd>V</kbd> <span>select tool</span> <kbd>M</kbd> <span>move</span> <kbd>E</kbd> <span>eraser</span></p>
+        <p><kbd>E</kbd> <span>eraser</span> · click empty space <span>back to building (from the eraser and the arrow / plus tools)</span></p>
+        <p>double-click an atom <span>change it to the current element</span></p>
+        <p>hold an atom, then drag <span>move it with its H (snaps to the squares in skeletal); hold a bond: move the molecule</span></p>
+        <p><kbd>Ctrl</kbd>+click <span>add / remove an atom or bond from the selection</span> <kbd>Shift</kbd>+drag <span>box-select</span></p>
+        <p>in <b>More elements</b> or the shelf: click one, then press a key <span>that key now builds with it (replaces what the key did before)</span></p>
+        <div class="mykeys" id="myKeys"></div>
         <p><kbd>K</kbd> <span>skeletal view</span> <kbd>T</kbd> <span>tidy layout</span></p>
         <p><kbd>X</kbd> <span>mirror left ↔ right</span> <kbd>Y</kbd> <span>mirror up ↕ down (selection, or everything)</span></p>
         <p><kbd>Shift</kbd><kbd>H</kbd> <span>fill hydrogens</span></p>
@@ -1706,10 +1715,10 @@ function applySettings(){
     seg.querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.v===SETTINGS[k]));
   });
   const hint=$("canvasHint");
-  const editLine="<b>Right-click</b> an atom or bond for stereo &amp; editing (tap on touch). E/Z follows the drawing.<br/>Press <b>?</b> for keyboard shortcuts";
+  const editLine="<b>Double-click</b> an atom to change it, <b>hold</b> it to drag it, <b>Ctrl+click</b> / <b>Shift+drag</b> to select<br/><b>Right-click</b> an atom or bond for stereo &amp; editing (tap on touch). E/Z follows the drawing.<br/>Press <b>?</b> for keyboard shortcuts";
   if(hint) hint.innerHTML = SETTINGS.place==="click"
-    ? `<b>Click</b> empty space to place an atom<br/><b>Drag</b> from an atom on canvas to bond it to another<br/><b>Click</b> an atom or bond to select it, <b>again</b> to retype/cycle order<br/>${editLine}`
-    : `<b>Drag</b> an element from the rail to place an atom<br/><b>Drag</b> from an atom on canvas to bond it to another<br/><b>Click</b> an atom or bond to select it, <b>again</b> to retype/cycle order<br/>${editLine}`;
+    ? `<b>Click</b> empty space to place an atom<br/><b>Drag</b> from an atom on canvas to bond it to another<br/><b>Click</b> an atom or bond to select it, a bond <b>again</b> to cycle its order<br/>${editLine}`
+    : `<b>Drag</b> an element from the rail to place an atom<br/><b>Drag</b> from an atom on canvas to bond it to another<br/><b>Click</b> an atom or bond to select it, a bond <b>again</b> to cycle its order<br/>${editLine}`;
 }
 /* Classic style is always drawn as a skeletal formula, on squared (Karo) paper */
 const skelOn=()=>skeletal||SETTINGS.theme==="classic";
@@ -2597,22 +2606,34 @@ function afterChange(){
 
 /* ================= HIT TESTS ================= */
 function hitAtom(sx,sy){
+  let best=-1, bd=(R_ATOM*view.k+10)**2;
   for(let i=atoms.length-1;i>=0;i--){
     if(skelHiddenH(i)) continue;
-    const P=W2S(atoms[i]);
-    if((P.x-sx)**2+(P.y-sy)**2 < (R_ATOM*view.k+10)**2) return i;
+    const P=W2S(atoms[i]), d=(P.x-sx)**2+(P.y-sy)**2;
+    if(d<bd){ bd=d; best=i; }
   }
-  return -1;
+  return best;
+}
+// what is under the cursor: the nearest atom, unless the cursor sits on a bond line well away from that atom's centre
+function pickAt(sx,sy){
+  const ai=hitAtom(sx,sy), bi=hitBond(sx,sy);
+  if(ai<0||bi<0) return {ai,bi};
+  const P=W2S(atoms[ai]), da=Math.hypot(P.x-sx,P.y-sy);
+  const b=bonds[bi], A=W2S(atoms[b.a]), B=W2S(atoms[b.b]), db=Math.sqrt(segDist2(sx,sy,A,B));
+  const core=Math.max(9,(skelOn()&&atoms[ai].el==="C"? 0.45 : 0.75)*R_ATOM*view.k);
+  return (da>core && db<da*0.5)? {ai:-1,bi} : {ai,bi:-1};
 }
 function hitBond(sx,sy){
+  let best=-1, bd=121;
   for(let i=bonds.length-1;i>=0;i--){
+    if(skelHiddenH(bonds[i].a)||skelHiddenH(bonds[i].b)) continue;
     const A=W2S(atoms[bonds[i].a]), B=W2S(atoms[bonds[i].b]);
     const L2=(B.x-A.x)**2+(B.y-A.y)**2; if(!L2) continue;
     let t=((sx-A.x)*(B.x-A.x)+(sy-A.y)*(B.y-A.y))/L2; t=Math.max(0,Math.min(1,t));
-    const px=A.x+t*(B.x-A.x), py=A.y+t*(B.y-A.y);
-    if((px-sx)**2+(py-sy)**2 < 121) return i;
+    const px=A.x+t*(B.x-A.x), py=A.y+t*(B.y-A.y), d=(px-sx)**2+(py-sy)**2;
+    if(d<bd){ bd=d; best=i; }
   }
-  return -1;
+  return best;
 }
 
 /* =================================================================
@@ -2628,7 +2649,7 @@ function hitBond(sx,sy){
 const drag={kind:null,from:-1,bond:-1,sx:0,sy:0,moved:false,startView:null};
 const pointers=new Map();
 let pinch0=null;
-const THRESH=6;
+const THRESH=6, HOLD_MS=280;
 
 canvas.addEventListener("contextmenu",e=>e.preventDefault());
 canvas.addEventListener("mousedown",e=>{ if(e.button===0||e.button===1) e.preventDefault(); }); // no text-selection / autoscroll
@@ -2675,7 +2696,8 @@ canvas.addEventListener("pointerdown",e=>{
             view:{...view}};
     drag.kind="pinch"; return;
   }
-  drag.moved=false; drag.sx=sx; drag.sy=sy; drag.panSX=sx; drag.panSY=sy; drag.startView={...view};
+  drag.moved=false; drag.far=false; drag.held=false; drag.holdFrom=-1; drag.eraseHit=false; drag.pid=e.pointerId; clearTimeout(drag.holdT);
+  drag.sx=sx; drag.sy=sy; drag.panSX=sx; drag.panSY=sy; drag.startView={...view};
   drag.paperG=paperOn()? gridSize() : 0;
   if(popVisible) hidePopover();
   if(skPopVisible) hideSkPop();
@@ -2683,50 +2705,45 @@ canvas.addEventListener("pointerdown",e=>{
   drag.hadSk = selSketch>=0;
   const skHandle=hitSketchHandle(sx,sy);
   if(skHandle && mode!=="erase"){ drag.kind="skHandle"; drag.h=skHandle; return; }
-  const skHit = mode==="erase"||mode==="select" ? -1 : hitSketch(sx,sy);
+  const skHit = mode==="erase" ? -1 : hitSketch(sx,sy);
   if(skHit!==selSketch){ selSketch=-1; hideSkPop(); }
-  if(mode==="erase"){ drag.kind="erase"; eraseAt(sx,sy); return; }
+  if(mode==="erase"){ drag.kind="erase"; drag.eraseHit=hitAtom(sx,sy)>=0||hitSketch(sx,sy)>=0||hitBond(sx,sy)>=0; eraseAt(sx,sy); return; }
   if(SKETCH_MODES.has(mode)){
     if(skHit>=0 && hitAtom(sx,sy)<0){ drag.kind="skMove"; drag.si=skHit; drag.skFrom={...sketch[skHit]}; return; }
     if(mode==="plus"){ drag.kind="skPlus"; return; }
     drag.kind="skDraw"; drag.w0=skPaper(S2W({x:sx,y:sy}),mode); drag.w1=null; return;
   }
-  if(mode==="select" || e.shiftKey){
-    const ai=hitAtom(sx,sy);
-    if(ai>=0){
-      if(e.shiftKey){
-        drag.kind = multiSel.has(ai) ? "selectRemove" : "selectAdd";
-        drag.from = ai;
-        return;
-      }
-      if(!multiSel.has(ai)){ multiSel.clear(); multiSel.add(ai); }
-      drag.kind="moveSel";
-      drag.selStart=[...multiSel].map(idx=>({idx,x:atoms[idx].x,y:atoms[idx].y}));
-      redraw();
-      return;
-    }
-    if(!e.shiftKey) multiSel.clear();
-    drag.kind="marquee";
-    drag.rect={x0:sx,y0:sy,x1:sx,y1:sy};
-    redraw();
-    return;
+  const pk=pickAt(sx,sy), ai=pk.ai, bi=pk.bi;
+  // the cursor is the selector: Ctrl+click toggles an atom (a bond: both its atoms), Shift+click toggles, Shift/Ctrl+drag boxes
+  const ctrl=e.ctrlKey||e.metaKey;
+  if(e.shiftKey||ctrl){
+    if(ai>=0){ drag.kind = multiSel.has(ai) ? "selectRemove" : "selectAdd"; drag.from=ai; return; }
+    if(bi>=0 && ctrl){ drag.kind="selectBond"; drag.bond=bi; return; }
+    if(skHit>=0){ drag.kind="skMove"; drag.si=skHit; drag.skFrom={...sketch[skHit]}; return; }
+    drag.kind="marquee"; drag.rect={x0:sx,y0:sy,x1:sx,y1:sy}; redraw(); return;
   }
-  const ai=hitAtom(sx,sy);
   if(ai>=0 && multiSel.size>1 && multiSel.has(ai)){
     drag.kind="moveSel"; drag.selStart=[...multiSel].map(idx=>({idx,x:atoms[idx].x,y:atoms[idx].y})); return;
   }
+  // press and hold (without moving) picks the thing up: an atom with its H, or a bond's whole molecule
+  const holdThen=pick=>{
+    drag.holdT=setTimeout(()=>{
+      if(drag.far||drag.pid!==e.pointerId||!pointers.has(e.pointerId)||(drag.kind!=="growBond"&&drag.kind!=="bondHit")) return;
+      const idx=pick(); if(!idx.length) return;
+      const cur=pointers.get(e.pointerId);
+      drag.kind="moveSel"; drag.held=true; drag.moved=false; drag.sx=cur.sx; drag.sy=cur.sy;
+      drag.selStart=idx.map(i=>({idx:i,x:atoms[i].x,y:atoms[i].y}));
+      canvas.style.cursor="grabbing"; redraw();
+    },HOLD_MS);
+  };
   if(ai>=0){
-    drag.from=ai;
-    drag.kind = mode==="move" ? "moveAtom" : "growBond";
+    drag.from=ai; drag.kind="growBond";
     drag.paperG = paperOn()? gridSize() : 0;
+    holdThen(()=>{ drag.holdFrom=ai; return [ai,...termHs(ai)]; });
     return;
   }
   if(skHit>=0){ drag.kind="skMove"; drag.si=skHit; drag.skFrom={...sketch[skHit]}; return; }
-  const bi=hitBond(sx,sy);
-  if(bi>=0 && mode==="move"){
-    drag.kind="moveSel"; drag.selStart=moleculeOf(bonds[bi].a).map(idx=>({idx,x:atoms[idx].x,y:atoms[idx].y})); return;
-  }
-  if(bi>=0){ drag.kind="bondHit"; drag.bond=bi; return; }
+  if(bi>=0){ drag.kind="bondHit"; drag.bond=bi; holdThen(()=>bonds[bi]? moleculeOf(bonds[bi].a) : []); return; }
   drag.kind="empty";
 });
 canvas.addEventListener("pointermove",e=>{
@@ -2745,6 +2762,7 @@ canvas.addEventListener("pointermove",e=>{
     redraw(); return;
   }
   if(Math.hypot(sx-drag.sx,sy-drag.sy)>THRESH) drag.moved=true;
+  if(!drag.far && Math.hypot(sx-drag.panSX,sy-drag.panSY)>THRESH){ drag.far=true; if(!drag.held) clearTimeout(drag.holdT); }
   if(drag.kind==="moveAtom"){
     const w=onPaper(S2W({x:sx,y:sy}),drag.paperG); atoms[drag.from].x=w.x; atoms[drag.from].y=w.y;
     mergeHint=drag.moved&&!e.altKey? findMerge([drag.from]) : null;
@@ -2808,6 +2826,8 @@ canvas.addEventListener("pointerup",e=>{
   pointers.delete(e.pointerId);
   if(drag.kind==="pinch"){ if(pointers.size<2){drag.kind=null; pinch0=null;} return; }
   const kind=drag.kind; drag.kind=null;
+  clearTimeout(drag.holdT); if(drag.held){ drag.held=false; canvas.style.cursor=modeCursor(); }
+  const emptyClick=!drag.far && hitAtom(sx,sy)<0 && hitBond(sx,sy)<0 && hitSketch(sx,sy)<0;
 
   if(kind==="skDraw"){
     const w1=skPaper(S2W({x:sx,y:sy}),mode,drag.w0), a=W2S(drag.w0), b1=W2S(w1);
@@ -2817,13 +2837,15 @@ canvas.addEventListener("pointerup",e=>{
       const madeH=mode==="mech" && [drag.w0,w1].map(p=>p&&p.hRef? materializeH(p.hRef) : false).some(Boolean);
       snap(); if(madeH) afterChange();
     } else {
-      // a plain click on an existing item (outside its own hit) just deselects
+      // a plain click: the first one only deselects an arrow; on empty space it is back to building
+      if(!drag.hadSk && emptyClick){ drag.w0=drag.w1=null; setMode("build"); return; }
       selSketch=-1; hideSkPop();
     }
     drag.w0=drag.w1=null; redraw(); return;
   }
   if(kind==="skPlus"){
-    if(!drag.moved && !drag.hadSk){ const w=onPaper(S2W({x:sx,y:sy})); sketch.push({t:"plus",x:w.x,y:w.y}); snap(); }
+    // one plus per click, then back to building
+    if(!drag.moved && !drag.hadSk){ const w=onPaper(S2W({x:sx,y:sy})); sketch.push({t:"plus",x:w.x,y:w.y}); snap(); setMode("build"); return; }
     redraw(); return;
   }
   if(kind==="skMove"){
@@ -2835,6 +2857,12 @@ canvas.addEventListener("pointerup",e=>{
     const madeH=drag.moved && drag.lastSnap && drag.lastSnap.hRef && materializeH(drag.lastSnap.hRef);
     drag.lastSnap=null;
     if(drag.moved) snap(); if(madeH) afterChange(); else redraw(); return;
+  }
+  if(kind==="erase" && !drag.eraseHit && !drag.far){ setMode("build"); return; }
+  if(kind==="selectBond"){
+    const b=bonds[drag.bond];
+    if(b){ const on=multiSel.has(b.a)&&multiSel.has(b.b); [b.a,b.b].forEach(i=>on? multiSel.delete(i) : multiSel.add(i)); }
+    selAtom=selBond=-1; hidePopover(); redraw(); return;
   }
   if(kind==="empty"){
     if(!drag.moved){
@@ -2870,6 +2898,7 @@ canvas.addEventListener("pointerup",e=>{
     const plan=drag.moved&&!e.altKey? findMerge(moved) : null; mergeHint=null;
     const msg=plan&&applyMerge(plan,moved);
     if(msg){ snap(); afterChange(); toast(msg,"ok"); return; }
+    if(!drag.moved && drag.holdFrom>=0 && atoms[drag.holdFrom]){ selectAtom(drag.holdFrom, e.pointerType!=="mouse"); return; }
     if(drag.moved){ snap(); if(hasGeometryStereo()) afterChange(); }
     redraw();
   } else if(kind==="selectAdd"){ multiSel.add(drag.from); redraw();
@@ -2881,13 +2910,8 @@ canvas.addEventListener("pointerup",e=>{
     const CREATE_MIN=Math.max(14,0.4*SNAP_LEN*view.k);
     const ontoOther=ai>=0&&ai!==drag.from;
     if(dist<CREATE_MIN && !ontoOther){
-      // treat as a tap: select; retype only on a deliberate second tap
-      if(selAtom===drag.from && atoms[drag.from].el!==drawEl){
-        atoms[drag.from].el=drawEl; atoms[drag.from].charge=0; atoms[drag.from].manualCharge=false;
-        snap(); afterChange();
-      } else if(selAtom!==drag.from && atoms[drag.from].el!==drawEl){
-        toast("Tap again to change this "+atoms[drag.from].el+" into "+drawEl);
-      }
+      // a tap only selects; a double-click changes the element
+      if(!multiSel.has(drag.from)) multiSel.clear();
       selectAtom(drag.from, e.pointerType!=="mouse");
     } else if(ontoOther){
       tryBond(drag.from,ai,bondOrder);
@@ -2919,13 +2943,16 @@ canvas.addEventListener("pointerup",e=>{
     selectBond(drag.bond, e.pointerType!=="mouse");
   }
 });
-canvas.addEventListener("pointercancel",e=>{ pointers.delete(e.pointerId); drag.kind=null; mergeHint=null; });
-// select tool: double-click an atom to pick its whole molecule
+canvas.addEventListener("pointercancel",e=>{ pointers.delete(e.pointerId); drag.kind=null; mergeHint=null; clearTimeout(drag.holdT); if(drag.held){ drag.held=false; canvas.style.cursor=modeCursor(); } });
+// double-click an atom: it becomes the current element
 canvas.addEventListener("dblclick",e=>{
-  if(mode!=="select"&&mode!=="move") return;
-  const r=canvas.getBoundingClientRect(), ai=hitAtom(e.clientX-r.left,e.clientY-r.top); if(ai<0) return;
-  if(mode==="move") setMode("select");
-  multiSel=new Set(moleculeOf(ai)); redraw();
+  if(mode!=="build"||e.shiftKey||e.ctrlKey||e.metaKey) return;
+  const r=canvas.getBoundingClientRect(), ai=pickAt(e.clientX-r.left,e.clientY-r.top).ai; if(ai<0||!atoms[ai]) return;
+  const a=atoms[ai]; if(a.el===drawEl) return;
+  const was=a.el; a.el=drawEl; a.charge=0; a.manualCharge=false;
+  // turning a skeletal-hidden H into a heavy atom keeps it visible
+  if(drawEl==="H") a.keepH=true;
+  snap(); afterChange(); toast(was+" → "+drawEl,"ok");
 });
 
 /* zoom by a factor, keeping the world point under (sx,sy) fixed */
@@ -2954,7 +2981,7 @@ canvas.addEventListener("pointermove",e=>{
   if(e.buttons || drag.kind) { if(hoverAtom>=0||hoverBond>=0){ hoverAtom=hoverBond=-1; } if(mode==="mech"||drag.kind==="skHandle") redraw(); return; }
   if(mode==="mech"){ redraw(); }
   const r=canvas.getBoundingClientRect(), sx=e.clientX-r.left, sy=e.clientY-r.top;
-  const ha=hitAtom(sx,sy), hb=ha<0? hitBond(sx,sy) : -1;
+  const pk=pickAt(sx,sy), ha=pk.ai, hb=pk.bi;
   if(ha!==hoverAtom||hb!==hoverBond){ hoverAtom=ha; hoverBond=hb; redraw(); }
 });
 canvas.addEventListener("pointerleave",()=>{ if(hoverAtom>=0||hoverBond>=0){ hoverAtom=hoverBond=-1; redraw(); } });
@@ -2994,6 +3021,7 @@ function drawOverValence(){
 function upsertStructure(entry){
   const key=entry.name.trim().toLowerCase();
   const i=structures.findIndex(s=>s.name.trim().toLowerCase()===key);
+  Object.values(KEYBINDS).forEach(b=>{ if(b.t==="mol"&&b.name.trim().toLowerCase()===key){ b.atoms=JSON.parse(JSON.stringify(entry.atoms)); b.bonds=JSON.parse(JSON.stringify(entry.bonds)); saveBinds(); } });
   if(i>=0){ structures[i]=entry; saveStructs(); toast('Replaced "'+structures[i].name+'" on the shelf',"ok"); }
   else { structures.push(entry); saveStructs(); toast('"'+entry.name+'" saved',"ok"); }
   if($("ptVeil").classList.contains("show")) renderSaved();
@@ -3059,12 +3087,16 @@ function closeTopLayer(){
   if(mode!=="build"){ setMode("build"); return true; }
   return false;
 }
-function shortcutKey(e){
-  // physical key position as a fallback, so shortcuts also work on Cyrillic / other layouts
+// physical key position as a fallback, so shortcuts also work on Cyrillic / other layouts
+function keyOf(e){
   const byCode=(/^Key([A-Z])$/.exec(e.code)||[])[1], digit=(/^Digit([0-9])$/.exec(e.code)||[])[1];
   let k=e.key.length===1? e.key.toLowerCase() : e.key;
   if(k.length===1 && !/[a-z0-9?+=-_]/.test(k)) k=byCode? byCode.toLowerCase() : (digit||k);
   if(e.code==="Slash"&&e.shiftKey) k="?";
+  return k;
+}
+function shortcutKey(e){
+  const k=keyOf(e);
   const mod=e.ctrlKey||e.metaKey;
   if(mod && !e.altKey){
     if(k==="a"){ e.preventDefault(); multiSel=new Set(atoms.map((a,i)=>i).filter(i=>!skelHiddenH(i))); selAtom=selBond=-1; hidePopover(); redraw(); return true; }
@@ -3079,6 +3111,7 @@ function shortcutKey(e){
   if(e.altKey) return false;
   if(k==="?"||e.key==="F1"){ e.preventDefault(); $("keysVeil").classList.add("show"); return true; }
   if(e.key==="Enter"){ if(document.activeElement&&document.activeElement!==document.body) return false; e.preventDefault(); runNaming(); return true; }
+  if(!e.shiftKey && KEYBINDS[k]){ useBind(KEYBINDS[k]); return true; }
   if(k==="0"){ fitView(); return true; }
   // sketch tools
   if(SETTINGS.sketch==="on"){
@@ -3114,8 +3147,6 @@ function shortcutKey(e){
     return true;
   }
   if(k==="e"){ setMode(mode==="erase"?"build":"erase"); return true; }
-  if(k==="m"){ setMode(mode==="move"?"build":"move"); return true; }
-  if(k==="v"){ setMode(mode==="select"?"build":"select"); return true; }
   if(k==="k"){ $("skelBtn").click(); return true; }
   if(k==="x"){ mirrorPick("h"); return true; }
   if(k==="y"){ mirrorPick("v"); return true; }
@@ -3128,6 +3159,7 @@ $("keysBtn").onclick=()=>{ $("setVeil").classList.remove("show"); $("keysVeil").
 document.addEventListener("keydown",e=>{
   if(e.key==="Escape" && document.activeElement && document.activeElement.id==="svSearch"){ document.activeElement.blur(); $("ptVeil").classList.remove("show"); return; }
   if(document.activeElement && ["INPUT","TEXTAREA","SELECT"].includes(document.activeElement.tagName)) return;
+  if(bindKeyFrom(e)) return;
   if(e.key==="ScrollLock"){
     SETTINGS.scrollLock = SETTINGS.scrollLock==="on"? "off" : "on";
     saveSettings(); applySettings();
@@ -3444,18 +3476,74 @@ function moleculeOf(i){
   return [...seen];
 }
 
+
+/* ================= YOUR OWN KEYS =================
+   Click an element in "More elements" or a molecule on the shelf, then press a letter or digit:
+   that key now builds with it (an element: draw with it / change the atom under the cursor;
+   a molecule: drop it at the cursor, merging if it lands on an atom). A key can hold one thing,
+   and one thing one key: the earlier binding is replaced. */
+let KEYBINDS={}; try{ KEYBINDS=JSON.parse(localStorage.getItem("dne_keybinds")||"{}")||{}; }catch(e){ KEYBINDS={}; }
+function saveBinds(){ try{ localStorage.setItem("dne_keybinds",JSON.stringify(KEYBINDS)); }catch(e){} }
+const bindName=b=>b.t==="el"? b.el : '"'+b.name+'"';
+const sameBind=(a,b)=>a.t===b.t&&(a.t==="el"? a.el===b.el : a.name===b.name);
+const keyFor=b=>Object.keys(KEYBINDS).find(k=>sameBind(KEYBINDS[k],b));
+let bindTarget=null, bindTimer=0;
+function bindBar(){ let el=$("bindBar"); if(!el){ el=document.createElement("div"); el.id="bindBar"; document.body.appendChild(el); } return el; }
+function offerBind(target){
+  bindTarget=target;
+  const k=keyFor(target), bar=bindBar();
+  bar.innerHTML="Press a key to build with <b>"+esc(bindName(target))+"</b>"+(k? " (now <kbd>"+esc(k.toUpperCase())+"</kbd>)" : "")+" · <kbd>Esc</kbd> skips";
+  bar.classList.add("show");
+  clearTimeout(bindTimer); bindTimer=setTimeout(endBind,7000);
+}
+function endBind(){ bindTarget=null; clearTimeout(bindTimer); const bar=$("bindBar"); if(bar) bar.classList.remove("show"); }
+function bindKeyFrom(e){
+  if(!bindTarget) return false;
+  if(e.key==="Escape"){ e.preventDefault(); endBind(); return true; }
+  if(e.ctrlKey||e.metaKey||e.altKey||e.shiftKey) return false;
+  const k=keyOf(e); if(!/^[a-z0-9]$/.test(k)) return false;
+  e.preventDefault();
+  const t=bindTarget, old=KEYBINDS[k];
+  Object.keys(KEYBINDS).forEach(x=>{ if(sameBind(KEYBINDS[x],t)) delete KEYBINDS[x]; });
+  KEYBINDS[k]=t; saveBinds(); endBind(); refreshBinds();
+  const before=old&&!sameBind(old,t)? " (was "+bindName(old)+")" : KEY_ELEMENTS[k]&&!old? " (was "+KEY_ELEMENTS[k]+")" : "";
+  toast(k.toUpperCase()+" now builds "+bindName(t)+before,"ok");
+  return true;
+}
+function useBind(b){
+  if(b.t==="el"){
+    if(hoverAtom>=0 && atoms[hoverAtom]){
+      if(atoms[hoverAtom].el!==b.el){ atoms[hoverAtom].el=b.el; atoms[hoverAtom].charge=0; atoms[hoverAtom].manualCharge=false; snap(); afterChange(); }
+    } else { setDrawElement(b.el); if(mode!=="build") setMode("build"); toast("Drawing with "+b.el,"ok"); }
+    return;
+  }
+  const r=canvas.getBoundingClientRect();
+  const p=lastCanvasPt? {x:r.left+lastCanvasPt.sx, y:r.top+lastCanvasPt.sy} : {x:r.left+r.width/2, y:r.top+r.height/2};
+  if(mode!=="build") setMode("build");
+  insertMolAt(b,p.x,p.y,true);
+}
+function refreshBinds(){
+  document.querySelectorAll(".pt-cell").forEach(c=>{
+    const k=keyFor({t:"el",el:c.dataset.el}); let kb=c.querySelector(".kb");
+    if(k){ if(!kb){ kb=document.createElement("i"); kb.className="kb"; c.appendChild(kb); } kb.textContent=k; } else if(kb) kb.remove();
+  });
+  const box=$("myKeys"); if(!box) return;
+  const ks=Object.keys(KEYBINDS).sort();
+  box.innerHTML=ks.length? "<p><b>Your keys</b></p>"+ks.map(k=>'<p><kbd>'+esc(k.toUpperCase())+'</kbd> <span>'+esc(bindName(KEYBINDS[k]))+'</span><button data-unbind="'+esc(k)+'" title="Remove this key">✕</button></p>').join("") : "";
+  box.querySelectorAll("[data-unbind]").forEach(btn=>btn.onclick=()=>{ delete KEYBINDS[btn.dataset.unbind]; saveBinds(); refreshBinds(); if($("ptVeil").classList.contains("show")) renderSaved(); });
+}
+
 /* ================= UI WIRING ================= */
 function exitMoveMode(){ setMode("build"); }
+const modeCursor=()=>mode==="erase"? "cell" : "crosshair";
 function setMode(m){
   mode=m;
-  $("moveBtn").classList.toggle("active",mode==="move");
   $("eraseBtn").classList.toggle("active",mode==="erase");
-  $("selectBtn").classList.toggle("active",mode==="select");
   $("plusBtn").classList.toggle("active",mode==="plus");
   $("arrowBtn").classList.toggle("active",mode==="arrow");
   $("mechBtn").classList.toggle("active",mode==="mech");
-  canvas.style.cursor = mode==="move"? "grab" : mode==="erase"? "cell" : "crosshair";
-  if(mode!=="select") multiSel.clear();
+  canvas.style.cursor = modeCursor();
+  if(SKETCH_MODES.has(mode)||mode==="erase") multiSel.clear();
   if(mode!=="build"){ selAtom=selBond=-1; hidePopover(); }
   redraw();
 }
@@ -3520,9 +3608,7 @@ document.querySelectorAll("[data-bond]").forEach(b=>{
   });
 });
 document.querySelector('[data-bond="1"]').classList.add("active");
-$("moveBtn").onclick=()=>setMode(mode==="move"?"build":"move");
 $("eraseBtn").onclick=()=>setMode(mode==="erase"?"build":"erase");
-$("selectBtn").onclick=()=>setMode(mode==="select"?"build":"select");
 $("plusBtn").onclick=()=>setMode(mode==="plus"?"build":"plus");
 $("arrowBtn").onclick=()=>setMode(mode==="arrow"?"build":"arrow");
 $("mechBtn").onclick=()=>setMode(mode==="mech"?"build":"mech");
@@ -3706,7 +3792,7 @@ $("drawerVeil").onclick=closeDrawer;
     c.className="pt-cell";
     c.style.gridColumn=g; c.style.gridRow=p;
     c.style.color=elColor(sym);
-    c.innerHTML=`${sym}<small>${z}</small>`;
+    c.innerHTML=`${sym}<small>${z}</small>`; c.dataset.el=sym;
     c.onclick=()=>{
       drawEl=sym;
       document.querySelectorAll(".el-swatch").forEach(x=>x.classList.remove("active"));
@@ -3714,11 +3800,13 @@ $("drawerVeil").onclick=closeDrawer;
       if(existing) existing.classList.add("active");
       else $("ptBtn").classList.add("active");
       $("ptVeil").classList.remove("show");
-      toast("Drawing with "+sym,"ok");
+      if(mode!=="build") setMode("build");
+      offerBind({t:"el",el:sym});
     };
     grid.appendChild(c);
   });
 })();
+refreshBinds();
 wireElementDrag($("ptBtn"), ()=>drawEl, ()=>$("ptVeil").classList.add("show"));
 $("ptClose").onclick=()=>$("ptVeil").classList.remove("show");
 
@@ -3786,6 +3874,8 @@ function shelfCard(s,i){
   del.onclick=e=>{ e.stopPropagation(); const gone=structures.splice(i,1)[0]; saveStructs(); renderSaved();
     toast('"'+gone.name+'" removed from the shelf'); };
   el.append(art,info,del);
+  const bk=keyFor({t:"mol",name:s.name});
+  if(bk){ const kb=document.createElement("i"); kb.className="kb"; kb.textContent=bk; kb.title="Press "+bk.toUpperCase()+" to drop it at the cursor"; el.appendChild(kb); }
   wireStructDrag(el,i);
   return el;
 }
@@ -3852,7 +3942,7 @@ function wireStructDrag(cardEl,i){
       if(ghost) ghost.remove();
       previewStruct(null);
       $("ptVeil").classList.remove("peek");
-      if(!dragging){ if(ev.type==="pointerup") insertStruct(i); return; }
+      if(!dragging){ if(ev.type==="pointerup"){ const s=structures[i]; insertStruct(i); if(s) offerBind({t:"mol",name:s.name,atoms:JSON.parse(JSON.stringify(s.atoms)),bonds:JSON.parse(JSON.stringify(s.bonds))}); } return; }
       if(ev.type==="pointerup" && overCanvas(ev)){
         $("ptVeil").classList.remove("show");
         insertStructAt(i,ev.clientX,ev.clientY,!ev.altKey);
@@ -3885,8 +3975,9 @@ function stageStruct(s,c){
   }
   return s.atoms.map(a=>({...a,x:a.x-cx+c.x,y:a.y-cy+c.y,charge:a.charge||0}));
 }
-function insertStructAt(i,clientX,clientY,merge){
-  const s=structures[i]; if(!s||!s.atoms.length) return;
+function insertStructAt(i,clientX,clientY,merge){ insertMolAt(structures[i],clientX,clientY,merge); }
+function insertMolAt(s,clientX,clientY,merge){
+  if(!s||!s.atoms||!s.atoms.length) return;
   const rect=canvas.getBoundingClientRect();
   const c=S2W({x:clientX-rect.left, y:clientY-rect.top});
   const off=atoms.length;
