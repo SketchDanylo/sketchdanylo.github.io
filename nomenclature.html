@@ -248,6 +248,51 @@ header.topbar{
 .saved-item button{height:30px;padding:0 12px;border-radius:7px;border:1px solid var(--border);background:var(--surface-3);color:var(--text);font:600 .76rem 'Arial';cursor:pointer;flex:none}
 .saved-item button.del{color:var(--bad);min-width:30px;padding:0}
 .saved-empty{color:var(--text-dim);font:500 .8rem 'Arial';text-align:center;padding:22px 0}
+/* molecule shelf */
+.sv-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:2px 0 14px;flex-wrap:wrap}
+.sv-title{font:700 1.05rem 'Arial';letter-spacing:-.2px}
+.sv-title small{font:600 .72rem 'Arial';color:var(--text-dim);margin-left:6px;padding:2px 8px;border-radius:999px;background:var(--surface-3)}
+.sv-search{height:34px;width:230px;max-width:100%;padding:0 12px;border-radius:9px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);font:500 .8rem 'Arial';outline:none;transition:border-color .12s,box-shadow .12s;user-select:text;-webkit-user-select:text}
+.sv-search:focus{border-color:var(--accent-brd);box-shadow:0 0 0 3px var(--accent-dim)}
+.sv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(176px,1fr));gap:12px}
+.sv-card{position:relative;border-radius:14px;overflow:hidden;cursor:grab;touch-action:none;
+  background:var(--surface-2);border:1px solid var(--border-soft);
+  transition:transform .18s cubic-bezier(.2,.8,.2,1),box-shadow .18s,border-color .18s;
+  animation:svIn .32s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0)*28ms)}
+.sv-card:hover{transform:translateY(-3px);border-color:var(--accent-brd);box-shadow:0 12px 28px rgba(0,0,0,.32)}
+.sv-card:active{cursor:grabbing;transform:translateY(-1px) scale(.985)}
+@keyframes svIn{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
+.sv-art{height:124px;display:grid;place-items:center;border-bottom:1px solid var(--border-soft);
+  background:radial-gradient(circle at 50% 45%,var(--accent-dim),transparent 68%),
+    radial-gradient(circle,var(--border) 1px,transparent 1.3px) 0 0/14px 14px,var(--bg)}
+.sv-art canvas{max-width:100%;transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+.sv-card:hover .sv-art canvas{transform:scale(1.06) rotate(-1.5deg)}
+.sv-info{padding:9px 12px 11px}
+.sv-name{font:700 .86rem 'Arial';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sv-meta{display:flex;align-items:center;gap:5px;margin-top:5px;flex-wrap:wrap}
+.sv-formula{font:600 .74rem 'Arial';color:var(--text);padding:2px 7px;border-radius:6px;background:var(--surface-3)}
+.sv-formula sub{font-size:.62rem}
+.sv-chip{font:800 .62rem 'Arial';padding:2px 6px;border-radius:999px;color:#0a0c10;background:var(--c)}
+.sv-count{font:500 .7rem 'Arial';color:var(--text-dim);margin-left:auto}
+.sv-del{position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;border:1px solid var(--border);
+  background:var(--surface);color:var(--bad);font:700 .7rem 'Arial';cursor:pointer;opacity:0;transform:scale(.8);transition:.15s}
+.sv-card:hover .sv-del{opacity:1;transform:none}
+.sv-del:hover{background:var(--bad-dim)}
+.sv-add{border-style:dashed;border-color:var(--accent-brd);cursor:pointer}
+.sv-add .sv-name{color:var(--accent)}
+.sv-plus{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;font:300 1.8rem 'Arial';color:var(--accent);border:1.5px dashed var(--accent-brd)}
+.sv-empty{grid-column:1/-1;text-align:center;color:var(--text-dim);font:500 .8rem 'Arial';padding:26px 0}
+.sv-empty b{display:block;color:var(--text);font-size:.9rem;margin-bottom:4px}
+.sv-tip{margin-top:14px;text-align:center;font:500 .72rem 'Arial';color:var(--text-faint)}
+.modal-veil{transition:opacity .18s}
+.modal-veil.peek{opacity:0;pointer-events:none}
+.sv-ghost{position:fixed;left:0;top:0;z-index:500;pointer-events:none;transform:translate(-50%,-50%) rotate(-3deg) scale(.95);
+  padding:8px 8px 6px;border-radius:14px;background:var(--surface);border:1.5px solid var(--border);box-shadow:0 18px 40px rgba(0,0,0,.45);
+  display:flex;flex-direction:column;align-items:center;gap:3px;transition:transform .15s,border-color .15s;opacity:.96}
+.sv-ghost span{font:700 .72rem 'Arial';color:var(--text-dim)}
+.sv-ghost.ready{border-color:var(--accent);transform:translate(-50%,-50%) rotate(0) scale(1)}
+body.classic .sv-card:hover{box-shadow:0 12px 28px rgba(0,0,0,.14)}
+body.classic .sv-ghost{box-shadow:0 18px 40px rgba(0,0,0,.2)}
 
 /* ---------- name-structure modal (replaces window.prompt) ---------- */
 .name-input{
@@ -462,8 +507,13 @@ footer.credit{display:none}
     </div>
     <div class="pt-grid" id="ptGrid"></div>
     <div id="savedPage" style="display:none">
-      <button class="save-cta" id="saveStructBtn">＋ Save current drawing</button>
-      <div id="savedList" class="saved-list"></div>
+      <button id="saveStructBtn" hidden></button>
+      <div class="sv-head">
+        <div class="sv-title">Molecule shelf <small id="svCount"></small></div>
+        <input type="search" id="svSearch" class="sv-search" placeholder="Search name or formula…" autocomplete="off"/>
+      </div>
+      <div id="savedList" class="sv-grid"></div>
+      <div class="sv-tip">Drag a card onto the canvas to place it there · click a card to drop it in the middle</div>
     </div>
   </div>
 </div>
@@ -2797,8 +2847,8 @@ function showPtTab(which){
 $("tabElements").onclick=()=>showPtTab("el");
 $("tabSaved").onclick=()=>showPtTab("saved");
 /* small skeletal-style picture of a saved structure */
-function structThumb(st){
-  const W=104,H=78,dpr=window.devicePixelRatio||1, c=document.createElement("canvas");
+function structThumb(st,W=104,H=78){
+  const dpr=window.devicePixelRatio||1, c=document.createElement("canvas");
   c.width=W*dpr; c.height=H*dpr; c.style.width=W+"px"; c.style.height=H+"px";
   const g=c.getContext("2d"); g.scale(dpr,dpr);
   const A=st.atoms||[], B=st.bonds||[];
@@ -2812,7 +2862,7 @@ const pad=8, k=Math.min((W-2*pad)/Math.max(x1-x0,1),(H-2*pad)/Math.max(y1-y0,1),
   const ox=W/2-(x0+x1)/2*k, oy=H/2-(y0+y1)/2*k, P=i=>({x:A[i].x*k+ox,y:A[i].y*k+oy});
   const ink=getComputedStyle(document.body).getPropertyValue("--text").trim()||"#ddd";
   const label=i=>A[i].el!=="C"||deg[i]===0;
-  g.strokeStyle=ink; g.lineWidth=1.25; g.lineCap="round";
+  g.strokeStyle=ink; g.lineWidth=W>120?1.6:1.25; g.lineCap="round";
   B.forEach(b=>{
     if(hidden[b.a]||hidden[b.b]) return;
     let p=P(b.a), q=P(b.b); const dx=q.x-p.x, dy=q.y-p.y, L=Math.hypot(dx,dy)||1, ux=dx/L, uy=dy/L;
@@ -2821,7 +2871,7 @@ const pad=8, k=Math.min((W-2*pad)/Math.max(x1-x0,1),(H-2*pad)/Math.max(y1-y0,1),
     const offs=b.order===2?[-1.3,1.3]:b.order===3?[-2,0,2]:[0];
     offs.forEach(o=>{ g.beginPath(); g.moveTo(p.x-uy*o,p.y+ux*o); g.lineTo(q.x-uy*o,q.y+ux*o); g.stroke(); });
   });
-  g.font="700 9px Arial"; g.textAlign="center"; g.textBaseline="middle";
+  g.font="700 "+(W>120?11:9)+"px Arial"; g.textAlign="center"; g.textBaseline="middle";
   vis.forEach(i=>{
     if(!label(i)) return;
     const p=P(i);
@@ -2830,67 +2880,95 @@ const pad=8, k=Math.min((W-2*pad)/Math.max(x1-x0,1),(H-2*pad)/Math.max(y1-y0,1),
   });
   return c;
 }
+/* ---- molecule shelf: card gallery of saved structures ---- */
+let shelfQuery="";
+function formulaHTML(f){ return esc(f||"").replace(/(\d+)/g,"<sub>$1</sub>"); }
+function shelfCard(s,i){
+  const el=document.createElement("div"); el.className="sv-card"; el.style.setProperty("--i",i);
+  el.title="Drag onto the canvas, or click to place it in the middle";
+  const art=document.createElement("div"); art.className="sv-art";
+  art.appendChild(structThumb(s,196,124));
+  const elems=[...new Set((s.atoms||[]).map(a=>a.el))].filter(e=>e!=="C"&&e!=="H").slice(0,5);
+  const chips=elems.map(e=>'<span class="sv-chip" style="--c:'+elColor(e)+'">'+esc(e)+'</span>').join("");
+  const info=document.createElement("div"); info.className="sv-info";
+  info.innerHTML='<div class="sv-name">'+esc(s.name)+'</div>'+
+    '<div class="sv-meta"><span class="sv-formula">'+formulaHTML(s.formula)+'</span>'+chips+'<span class="sv-count">'+(s.atoms||[]).length+' atoms</span></div>';
+  const del=document.createElement("button"); del.className="sv-del"; del.title="Remove from the shelf"; del.innerHTML="✕";
+  del.onclick=e=>{ e.stopPropagation(); const gone=structures.splice(i,1)[0]; saveStructs(); renderSaved();
+    toast('"'+gone.name+'" removed from the shelf'); };
+  el.append(art,info,del);
+  wireStructDrag(el,i);
+  return el;
+}
 function renderSaved(){
   const list=$("savedList"); list.innerHTML="";
-  if(!structures.length){
-    const d=document.createElement("div"); d.className="saved-empty";
-    d.textContent="Nothing saved yet — draw a structure and press the button above.";
-    list.appendChild(d); return;
-  }
+  $("svCount").textContent=structures.length? structures.length+" saved" : "";
+  // first card: save what is on the canvas right now, with a live preview
+  const add=document.createElement("div"); add.className="sv-card sv-add"; add.style.setProperty("--i",0);
+  const addArt=document.createElement("div"); addArt.className="sv-art";
+  if(atoms.length) addArt.appendChild(structThumb({atoms,bonds},196,124));
+  else addArt.innerHTML='<div class="sv-plus">＋</div>';
+  const addInfo=document.createElement("div"); addInfo.className="sv-info";
+  addInfo.innerHTML='<div class="sv-name">＋ Save current drawing</div><div class="sv-meta"><span class="sv-count">'+
+    (atoms.length? formulaHTML(molFormula().str) : "draw something first")+'</span></div>';
+  add.append(addArt,addInfo); add.onclick=()=>$("saveStructBtn").click();
+  list.appendChild(add);
+  const q=shelfQuery.trim().toLowerCase();
+  let shown=0;
   structures.forEach((s,i)=>{
-    const row=document.createElement("div"); row.className="saved-item";
-    row.title="Drag onto the canvas to place it there";
-    const th=structThumb(s); th.className="thumb";
-    const nm=document.createElement("div"); nm.className="nm";
-    nm.innerHTML=`${esc(s.name)}<small>${esc(s.formula||"")} · ${s.atoms.length} atoms</small>`;
-    const ins=document.createElement("button"); ins.textContent="Insert";
-    ins.onclick=()=>insertStruct(i);
-    const del=document.createElement("button"); del.className="del"; del.textContent="✕";
-    del.onclick=()=>{ structures.splice(i,1); saveStructs(); renderSaved(); };
-    row.append(th,nm,ins,del); list.appendChild(row);
-    wireStructDrag(row,i);
+    if(q && !(s.name.toLowerCase().includes(q) || String(s.formula||"").toLowerCase().includes(q))) return;
+    list.appendChild(shelfCard(s,i)); shown++;
   });
+  if(!structures.length){
+    const d=document.createElement("div"); d.className="sv-empty";
+    d.innerHTML='<b>Your shelf is empty</b>Draw a molecule and hit the first card to keep it here.';
+    list.appendChild(d);
+  } else if(!shown){
+    const d=document.createElement("div"); d.className="sv-empty"; d.innerHTML='<b>No match</b>Nothing saved matches “'+esc(shelfQuery)+'”.';
+    list.appendChild(d);
+  }
 }
-/* press-and-drag a saved-structure row onto the canvas to place it at the drop point */
-function wireStructDrag(row,i){
-  const ghost=$("dragGhost");
-  row.addEventListener("pointerdown",e=>{
-    if(e.button!==0 || e.target.tagName==="BUTTON") return;
-    try{ row.setPointerCapture(e.pointerId); }catch(err){}
+$("svSearch").addEventListener("input",e=>{ shelfQuery=e.target.value; renderSaved(); });
+/* drag a card onto the canvas; the shelf fades away so you can see where it lands */
+function wireStructDrag(cardEl,i){
+  cardEl.addEventListener("pointerdown",e=>{
+    if(e.button!==0 || e.target.closest(".sv-del")) return;
+    try{ cardEl.setPointerCapture(e.pointerId); }catch(err){}
     const startX=e.clientX, startY=e.clientY;
-    let dragging=false;
+    let dragging=false, ghost=null;
+    const overCanvas=ev=>{ const r=canvas.getBoundingClientRect(); return ev.clientX>=r.left&&ev.clientX<=r.right&&ev.clientY>=r.top&&ev.clientY<=r.bottom; };
     const move=ev=>{
-      if(!dragging && Math.hypot(ev.clientX-startX,ev.clientY-startY)>10){
+      if(!dragging && Math.hypot(ev.clientX-startX,ev.clientY-startY)>8){
         dragging=true;
         const s=structures[i]; if(!s) return;
-        ghost.textContent=s.formula||s.name;
-        ghost.style.width="auto"; ghost.style.minWidth="38px"; ghost.style.padding="0 10px";
-        ghost.style.display="flex";
-        $("ptVeil").classList.remove("show");
+        ghost=document.createElement("div"); ghost.className="sv-ghost";
+        ghost.appendChild(structThumb(s,150,100));
+        const lab=document.createElement("span"); lab.textContent=s.name; ghost.appendChild(lab);
+        document.body.appendChild(ghost);
+        $("ptVeil").classList.add("peek");
       }
-      if(dragging){
+      if(dragging && ghost){
         ghost.style.left=ev.clientX+"px"; ghost.style.top=ev.clientY+"px";
-        const rect=canvas.getBoundingClientRect();
-        wrap.classList.toggle("drop-ready", ev.clientX>=rect.left&&ev.clientX<=rect.right&&ev.clientY>=rect.top&&ev.clientY<=rect.bottom);
+        const on=overCanvas(ev);
+        ghost.classList.toggle("ready",on); wrap.classList.toggle("drop-ready",on);
       }
     };
     const up=ev=>{
-      row.removeEventListener("pointermove",move);
-      row.removeEventListener("pointerup",up);
-      row.removeEventListener("pointercancel",up);
-      ghost.style.display="none"; ghost.style.width=""; ghost.style.minWidth=""; ghost.style.padding="";
+      cardEl.removeEventListener("pointermove",move);
+      cardEl.removeEventListener("pointerup",up);
+      cardEl.removeEventListener("pointercancel",up);
       wrap.classList.remove("drop-ready");
-      if(!dragging) return;
-      const rect=canvas.getBoundingClientRect();
-      if(ev.clientX>=rect.left&&ev.clientX<=rect.right&&ev.clientY>=rect.top&&ev.clientY<=rect.bottom){
+      if(ghost) ghost.remove();
+      $("ptVeil").classList.remove("peek");
+      if(!dragging){ if(ev.type==="pointerup") insertStruct(i); return; }
+      if(ev.type==="pointerup" && overCanvas(ev)){
+        $("ptVeil").classList.remove("show");
         insertStructAt(i,ev.clientX,ev.clientY);
-      } else {
-        $("ptVeil").classList.add("show");
       }
     };
-    row.addEventListener("pointermove",move);
-    row.addEventListener("pointerup",up);
-    row.addEventListener("pointercancel",up);
+    cardEl.addEventListener("pointermove",move);
+    cardEl.addEventListener("pointerup",up);
+    cardEl.addEventListener("pointercancel",up);
   });
 }
 $("saveStructBtn").onclick=()=>{
