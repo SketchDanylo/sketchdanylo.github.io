@@ -471,6 +471,13 @@ footer.credit{display:none}
       </div>
     </div>
     <div class="ctx-pop" id="selPop">
+      <button id="selFlipH" title="Mirror left ↔ right (X)">
+        <svg class="ico" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M12 3v18" stroke-dasharray="2 2"/><path d="M9 6L3 18h6z"/><path d="M15 6l6 12h-6z" fill="currentColor"/></svg>
+      </button>
+      <button id="selFlipV" title="Mirror up ↕ down (Y)">
+        <svg class="ico" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M3 12h18" stroke-dasharray="2 2"/><path d="M6 9L18 3v6z"/><path d="M6 15l12 6v-6z" fill="currentColor"/></svg>
+      </button>
+      <span class="cp-sep"></span>
       <button id="selSaveBtn" title="Save selection as a structure">
         <svg class="ico" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M7 3v5h9V3M7 21v-7h10v7"/></svg>
       </button>
@@ -626,6 +633,7 @@ footer.credit{display:none}
       <section><h4>Tools &amp; view</h4>
         <p><kbd>V</kbd> <span>select tool</span> <kbd>M</kbd> <span>move</span> <kbd>E</kbd> <span>eraser</span></p>
         <p><kbd>K</kbd> <span>skeletal view</span> <kbd>T</kbd> <span>tidy layout</span></p>
+        <p><kbd>X</kbd> <span>mirror left ↔ right</span> <kbd>Y</kbd> <span>mirror up ↕ down (selection, or everything)</span></p>
         <p><kbd>Shift</kbd><kbd>H</kbd> <span>fill hydrogens</span></p>
         <p><kbd>0</kbd> <span>fit to screen</span> <kbd>Esc</kbd> <span>close / deselect / back to drawing</span></p>
         <p><kbd>A</kbd> <span>reaction arrow</span> <kbd>Shift</kbd><kbd>A</kbd> <span>electron arrow</span> <kbd>Shift</kbd><kbd>P</kbd> <span>plus (sketch tools on)</span></p>
@@ -2981,6 +2989,8 @@ function shortcutKey(e){
   if(k==="m"){ setMode(mode==="move"?"build":"move"); return true; }
   if(k==="v"){ setMode(mode==="select"?"build":"select"); return true; }
   if(k==="k"){ $("skelBtn").click(); return true; }
+  if(k==="x"){ mirrorPick("h"); return true; }
+  if(k==="y"){ mirrorPick("v"); return true; }
   if(k==="t"){ $("cleanBtn").click(); return true; }
   return false;
 }
@@ -3312,6 +3322,31 @@ function positionSelPop(){
   pop.style.top=y0+"px";
 }
 $("selSaveBtn").onclick=saveSelection;
+/* mirror the selection (or everything) left↔right or up↕down, around its own centre */
+function mirrorPick(axis){
+  const idx=multiSel.size? [...multiSel] : atoms.map((a,i)=>i);
+  const all=!multiSel.size;
+  if(!idx.length && !(all&&sketch.length)){ toast("Nothing to mirror"); return; }
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  const pts=idx.map(i=>atoms[i]);
+  if(all) sketch.forEach(it=>{ if(it.t==="plus") pts.push({x:it.x,y:it.y}); else pts.push({x:it.x1,y:it.y1},{x:it.x2,y:it.y2}); });
+  pts.forEach(p=>{x0=Math.min(x0,p.x);y0=Math.min(y0,p.y);x1=Math.max(x1,p.x);y1=Math.max(y1,p.y);});
+  const cx=(x0+x1)/2, cy=(y0+y1)/2;
+  const fx=x=>axis==="h"? 2*cx-x : x, fy=y=>axis==="v"? 2*cy-y : y;
+  idx.forEach(i=>{ const a=atoms[i]; a.x=fx(a.x); a.y=fy(a.y);
+    // a mirror image has the opposite configuration
+    if(a.cip==="R") a.cip="S"; else if(a.cip==="S") a.cip="R"; else if(a.cip==="r") a.cip="s"; else if(a.cip==="s") a.cip="r"; });
+  if(all) sketch.forEach(it=>{
+    if(it.t==="plus"){ it.x=fx(it.x); it.y=fy(it.y); return; }
+    it.x1=fx(it.x1); it.y1=fy(it.y1); it.x2=fx(it.x2); it.y2=fy(it.y2);
+    if(it.t==="mech") it.bv=-it.bv; // keep the curve on the mirrored side
+  });
+  snapAllToPaper(idx);
+  snap(); afterChange();
+  toast(axis==="h"? "Mirrored left ↔ right" : "Mirrored up ↕ down","ok");
+}
+$("selFlipH").onclick=()=>mirrorPick("h");
+$("selFlipV").onclick=()=>mirrorPick("v");
 $("selDeleteBtn").onclick=deleteSelection;
 
 document.addEventListener("pointerdown",e=>{
