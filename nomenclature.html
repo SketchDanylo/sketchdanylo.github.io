@@ -2276,12 +2276,15 @@ function atomLayout(i,expanded){
     const rest=spreadAngles(occ,nH-hAngles.length); rest.forEach(g=>{ hAngles.push(g); occ.push(g); });
   }
   // lone pairs: spread into the free space, then settle onto a side of the letter if it is free
-  const lpAngles=[];
-  spreadAngles(occ,pairs+rad).forEach(g=>{
+  // (only when every pair still keeps ≥ 60° from the others; otherwise the even spread stays, e.g. a bent ether O)
+  const spread=spreadAngles(occ,pairs+rad), snapped=[];
+  spread.forEach(g=>{
     const side=Math.round(g/(Math.PI/2))*(Math.PI/2);
-    const taken=[...occ,...lpAngles];
-    lpAngles.push(taken.every(t=>angGap(t,side)>0.75)? side : g);
+    const taken=[...occ,...snapped];
+    snapped.push(angGap(g,side)<=0.9 && taken.every(t=>angGap(t,side)>0.75)? side : g);
   });
+  const apart=snapped.every((x,i)=>snapped.every((y,j)=>i===j||angGap(x,y)>=1.05));
+  const lpAngles=apart? snapped : spread;
   const edge=(ux,uy)=> box? Math.min(Math.abs(ux)>1e-6? box.hw/k/Math.abs(ux) : 1e9, Math.abs(uy)>1e-6? box.hh/k/Math.abs(uy) : 1e9)+3.5/k : 0.3*L;
   return {
     cx, cy, box,
