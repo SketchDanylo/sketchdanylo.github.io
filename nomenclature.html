@@ -1500,8 +1500,11 @@ const SETTINGS=Object.assign({grid:"lines",snap:"skeletal",place:"click",scrollL
 function saveSettings(){ try{localStorage.setItem("dne_settings",JSON.stringify(SETTINGS));}catch(e){} }
 let settingsApplied=false;
 function applySettings(){
-  wrap.classList.toggle("grid-dots",SETTINGS.grid==="dots");
-  wrap.classList.toggle("grid-off",SETTINGS.grid==="off");
+  const classicOn=SETTINGS.theme==="classic";
+  wrap.classList.toggle("grid-dots",SETTINGS.grid==="dots"&&!classicOn);
+  wrap.classList.toggle("grid-off",SETTINGS.grid==="off"||classicOn);
+  const sb=$("skelBtn"); sb.classList.toggle("active",skeletal||classicOn);
+  sb.title = classicOn? "Skeletal formula: always on in the Classic style" : "Skeletal formula view (Skelettformel)";
   document.body.classList.toggle("classic",SETTINGS.theme==="classic");
   document.body.classList.toggle("sketch-on",SETTINGS.sketch==="on");
   document.querySelector('meta[name="theme-color"]').content = SETTINGS.theme==="classic"? "#f4f4f4" : "#0b1020";
@@ -1520,7 +1523,12 @@ function applySettings(){
     ? `<b>Click</b> empty space to place an atom<br/><b>Drag</b> from an atom on canvas to bond it to another<br/><b>Click</b> an atom or bond to select it, <b>again</b> to retype/cycle order<br/>${editLine}`
     : `<b>Drag</b> an element from the rail to place an atom<br/><b>Drag</b> from an atom on canvas to bond it to another<br/><b>Click</b> an atom or bond to select it, <b>again</b> to retype/cycle order<br/>${editLine}`;
 }
-const snapActive=()=>SETTINGS.snap==="always"||(SETTINGS.snap==="skeletal"&&skeletal);
+/* Classic style is always drawn as a skeletal formula, on squared (Karo) paper */
+const skelOn=()=>skeletal||SETTINGS.theme==="classic";
+const snapActive=()=>SETTINGS.snap==="always"||(SETTINGS.snap==="skeletal"&&skelOn());
+const GRID=26; // one paper square = half a bond (world units)
+// classic: free atoms and new bond ends sit on the square corners, like drawing on squared paper
+const onPaper=w=>SETTINGS.theme==="classic"&&SETTINGS.snap!=="off"? {x:Math.round(w.x/GRID)*GRID, y:Math.round(w.y/GRID)*GRID} : w;
 const SNAP_LEN=52, SNAP_STEP=Math.PI/6; // 30° increments, fixed bond length
 function snapFrom(o,w){
   let ang=Math.atan2(w.y-o.y,w.x-o.x);
@@ -1645,7 +1653,7 @@ function drawBondLine(x1,y1,x2,y2,order,color,width,side){
 }
 /* skeletal helpers: hide H bound to a heavy atom, fold them into labels */
 function skelHiddenH(i){
-  if(!skeletal) return false;
+  if(!skelOn()) return false;
   const a=atoms[i]; if(a.el!=="H"||a.charge) return false;
   if(bonds.some(b=>(b.a===i||b.b===i)&&b.stereo)) return false;
   let nb=-1,cnt=0;
@@ -1688,15 +1696,53 @@ function drawChargeBadge(P,rr,charge,fs){
   ctx.textAlign="center"; ctx.textBaseline="middle";
   ctx.fillText(charge>0? (charge>1?charge+"+":"+") : (charge<-1?(-charge)+"−":"−"), P.x+rr*.85, P.y-rr*.85+0.5);
 }
+/* ---- classic style helpers ---- */
+const labelFont=()=>{ const fs=Math.max(11,14*view.k); return SETTINGS.theme==="classic"? `800 ${fs*1.12}px Arial` : `700 ${fs}px Arial`; };
+// text box of the label drawn at atom i in skeletal view, or null for a bare line-angle vertex
+function skelLabel(i){
+  if(skelHiddenH(i)) return null;
+  const a=atoms[i]; if(a.el==="C"&&atomDeg(i)>0) return null;
+  const dh=displayH(i), label=a.el+(dh>0? "H"+(dh>1?subNum(dh):"") : "");
+  ctx.font=labelFont();
+  return {hw:ctx.measureText(label).width/2+3, hh:Math.max(11,14*view.k)*1.12*.5+2};
+}
+// shorten a bond so it ends at the edge of each label's text box
+function clipBond(A,B,la,lb){
+  const dx=B.x-A.x, dy=B.y-A.y, L=Math.hypot(dx,dy)||1, ux=dx/L, uy=dy/L;
+  const cut=l=>l? Math.min(Math.abs(ux)>1e-6? l.hw/Math.abs(ux):1e9, Math.abs(uy)>1e-6? l.hh/Math.abs(uy):1e9) : 0;
+  const ca=cut(la), cb=cut(lb);
+  if(ca+cb>=L-2) return null;
+  return [{x:A.x+ux*ca,y:A.y+uy*ca},{x:B.x-ux*cb,y:B.y-uy*cb}];
+}
+// squared exercise-book paper, anchored to the drawing: it pans and zooms with the molecule
+function drawPaper(w,h){
+  if(SETTINGS.grid==="off") return;
+  const step=GRID*view.k; if(step<5) return;
+  const ox=((view.x*view.k)%step+step)%step, oy=((view.y*view.k)%step+step)%step;
+  ctx.save();
+  if(SETTINGS.grid==="dots"){
+    ctx.fillStyle="rgba(0,0,0,.28)";
+    for(let x=ox;x<w;x+=step) for(let y=oy;y<h;y+=step){ ctx.fillRect(Math.round(x)-1,Math.round(y)-1,2,2); }
+  } else {
+    ctx.strokeStyle="rgba(60,90,140,.17)"; ctx.lineWidth=1; ctx.beginPath();
+    for(let x=ox;x<w;x+=step){ const X=Math.round(x)+.5; ctx.moveTo(X,0); ctx.lineTo(X,h); }
+    for(let y=oy;y<h;y+=step){ const Y=Math.round(y)+.5; ctx.moveTo(0,Y); ctx.lineTo(w,Y); }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
 function redraw(){
   const r=wrap.getBoundingClientRect();
   ctx.clearRect(0,0,r.width,r.height);
   $("canvasHint").style.display = atoms.length||sketch.length? "none":"block";
-  const PAL=pal(), bw=isClassic()? 1.6 : 2;
-  // bonds
+  const PAL=pal(), classic=isClassic(), bw=classic? 1.7 : 2;
+  if(classic) drawPaper(r.width,r.height);
+  // classic: bonds stop short of atom labels instead of hiding behind a mask (keeps the paper visible)
+  const labs=classic? atoms.map((a,i)=>skelLabel(i)) : null;
   bonds.forEach((b,bi)=>{
     if(skelHiddenH(b.a)||skelHiddenH(b.b)) return;
-    const A=W2S(atoms[b.a]), B=W2S(atoms[b.b]);
+    let A=W2S(atoms[b.a]), B=W2S(atoms[b.b]);
+    if(classic){ const c=clipBond(A,B,labs[b.a],labs[b.b]); if(!c) return; A=c[0]; B=c[1]; }
     const sel = bi===selBond;
     const msel = multiSel.has(b.a)&&multiSel.has(b.b);
     const color = sel? PAL.sel : msel? PAL.msel : PAL.bond;
@@ -1733,7 +1779,7 @@ function redraw(){
     const A=W2S(atoms[drag.from]);
     let ex=drag.sx, ey=drag.sy;
     if(snapActive()&&hitAtom(drag.sx,drag.sy)<0){
-      const sw=W2S(snapFrom(atoms[drag.from],S2W({x:drag.sx,y:drag.sy})));
+      const sw=W2S(onPaper(snapFrom(atoms[drag.from],S2W({x:drag.sx,y:drag.sy}))));
       ex=sw.x; ey=sw.y;
     }
     ctx.setLineDash([6,5]);
@@ -1748,7 +1794,7 @@ function redraw(){
     const col=atomInk(a.el);
     if(a.cip){ctx.font='bold 12px Arial';ctx.textAlign='left';ctx.fillStyle=PAL.label;ctx.fillText('('+a.cip+')',P.x+12,P.y-15);}
 
-    if(skeletal){
+    if(skelOn()){
       const isVertexC = a.el==="C" && atomDeg(i)>0;
       if(isVertexC){
         // bare line-angle vertex; only selection ring + charge
@@ -1762,11 +1808,11 @@ function redraw(){
       // labeled atom (heteroatom, H, isolated C): mask circle + text like OH / NH₂ / CH₄
       const dh=displayH(i);
       const label=a.el+(dh>0? "H"+(dh>1?subNum(dh):"") : "");
-      ctx.font=`700 ${fs}px Arial`;
+      ctx.font=labelFont();
       const tw=ctx.measureText(label).width;
       ctx.beginPath(); ctx.arc(P.x,P.y,Math.max(rr*.8,tw*.62),0,7);
-      ctx.fillStyle=PAL.mask; ctx.fill();
-      if(i===selAtom){ ctx.strokeStyle="#5b8cf0"; ctx.lineWidth=2; ctx.stroke(); }
+      if(!classic){ ctx.fillStyle=PAL.mask; ctx.fill(); }
+      if(i===selAtom){ ctx.strokeStyle=PAL.sel; ctx.lineWidth=2; ctx.stroke(); }
       ctx.fillStyle=col; ctx.textAlign="center"; ctx.textBaseline="middle";
       ctx.fillText(label,P.x,P.y+1);
       if(a.charge) drawChargeBadge(P,rr,a.charge,fs);
@@ -2128,7 +2174,7 @@ canvas.addEventListener("pointermove",e=>{
   }
   if(Math.hypot(sx-drag.sx,sy-drag.sy)>THRESH) drag.moved=true;
   if(drag.kind==="moveAtom"){
-    const w=S2W({x:sx,y:sy}); atoms[drag.from].x=w.x; atoms[drag.from].y=w.y; redraw();
+    const w=onPaper(S2W({x:sx,y:sy})); atoms[drag.from].x=w.x; atoms[drag.from].y=w.y; redraw();
   } else if(drag.kind==="growBond"){
     drag.sx=sx; drag.sy=sy; redraw();
   } else if(drag.kind==="erase"){
@@ -2191,7 +2237,7 @@ canvas.addEventListener("pointerup",e=>{
       // if something is selected, the first empty click only deselects — no surprise atom
       if(selAtom>=0||selBond>=0||drag.hadSk){ selAtom=selBond=-1; hidePopover(); redraw(); return; }
       if(mode==="build" && SETTINGS.place==="click"){
-        const w=S2W({x:sx,y:sy});
+        const w=onPaper(S2W({x:sx,y:sy}));
         atoms.push({el:drawEl,x:w.x,y:w.y,charge:0}); snap(); afterChange();
       } else redraw();
     } else redraw();
@@ -2241,7 +2287,7 @@ canvas.addEventListener("pointerup",e=>{
       if(snapActive()){
         // resolve the target from the SNAPPED endpoint (matches the preview),
         // even if the raw release drifted back over the origin atom
-        w=snapFrom(atoms[drag.from],w);
+        w=onPaper(snapFrom(atoms[drag.from],w));
         const sp=W2S(w);
         const near=hitAtom(sp.x,sp.y);
         if(near>=0&&near!==drag.from){ tryBond(drag.from,near,bondOrder); return; }
@@ -2421,7 +2467,7 @@ function dropAtomAt(el,clientX,clientY){
   if(hit>=0){
     if(atoms[hit].el!==el){ atoms[hit].el=el; atoms[hit].charge=0; atoms[hit].manualCharge=false; snap(); afterChange(); }
   } else {
-    const w=S2W({x:sx,y:sy});
+    const w=onPaper(S2W({x:sx,y:sy}));
     atoms.push({el,x:w.x,y:w.y,charge:0}); snap(); afterChange();
   }
   return true;
@@ -2475,6 +2521,7 @@ $("plusBtn").onclick=()=>setMode(mode==="plus"?"build":"plus");
 $("arrowBtn").onclick=()=>setMode(mode==="arrow"?"build":"arrow");
 $("mechBtn").onclick=()=>setMode(mode==="mech"?"build":"mech");
 $("skelBtn").onclick=()=>{
+  if(SETTINGS.theme==="classic"){ toast("Classic style is always a skeletal formula"); return; }
   skeletal=!skeletal;
   $("skelBtn").classList.toggle("active",skeletal);
   selAtom=selBond=-1; hidePopover(); redraw();
