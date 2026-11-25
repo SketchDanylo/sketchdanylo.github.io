@@ -2177,6 +2177,8 @@ function hitSketchHandle(sx,sy){
   const h=sketchHandles(sketch[selSketch]).find(p=>(p.x-sx)**2+(p.y-sy)**2<100);
   return h? h.h : null;
 }
+// plus signs and reaction arrows sit on the paper squares (Classic); electron arrows stay free-hand
+const skPaper=(w,m)=>m==="mech"? w : onPaper(w);
 function moveSketchHandle(it,h,w){
   if(h==="p1"||h==="p2"){
     // keep the bend's shape relative to the chord while an end moves
@@ -2328,7 +2330,7 @@ canvas.addEventListener("pointerdown",e=>{
   if(SKETCH_MODES.has(mode)){
     if(skHit>=0 && hitAtom(sx,sy)<0){ drag.kind="skMove"; drag.si=skHit; drag.skFrom={...sketch[skHit]}; return; }
     if(mode==="plus"){ drag.kind="skPlus"; return; }
-    drag.kind="skDraw"; drag.w0=S2W({x:sx,y:sy}); drag.w1=null; return;
+    drag.kind="skDraw"; drag.w0=skPaper(S2W({x:sx,y:sy}),mode); drag.w1=null; return;
   }
   if(mode==="select" || e.shiftKey){
     const ai=hitAtom(sx,sy);
@@ -2395,15 +2397,23 @@ canvas.addEventListener("pointermove",e=>{
     drag.selStart.forEach(s=>{ atoms[s.idx].x=s.x+dx; atoms[s.idx].y=s.y+dy; });
     if(hasGeometryStereo())afterChange();else redraw();
   } else if(drag.kind==="skDraw"){
-    if(drag.moved) drag.w1=S2W({x:sx,y:sy});
+    if(drag.moved) drag.w1=skPaper(S2W({x:sx,y:sy}),mode);
     redraw();
   } else if(drag.kind==="skMove"){
     if(!drag.moved) return;
     const w=S2W({x:sx,y:sy}), w0=S2W({x:drag.sx,y:drag.sy});
-    const it=sketch[drag.si]; if(it) translateSketch(it,drag.skFrom,w.x-w0.x,w.y-w0.y);
+    const it=sketch[drag.si];
+    if(it){
+      let dx=w.x-w0.x, dy=w.y-w0.y;
+      if(it.t!=="mech"){ // move in whole squares so it stays on the paper
+        const f=drag.skFrom, ax=it.t==="plus"?f.x:f.x1, ay=it.t==="plus"?f.y:f.y1, p=onPaper({x:ax+dx,y:ay+dy});
+        dx=p.x-ax; dy=p.y-ay;
+      }
+      translateSketch(it,drag.skFrom,dx,dy);
+    }
     redraw();
   } else if(drag.kind==="skHandle"){
-    const it=sketch[selSketch]; if(it) moveSketchHandle(it,drag.h,S2W({x:sx,y:sy}));
+    const it=sketch[selSketch]; if(it) moveSketchHandle(it,drag.h,it.t==="arrow"&&drag.h!=="mid"? onPaper(S2W({x:sx,y:sy})) : S2W({x:sx,y:sy}));
     redraw();
   } else if(((drag.kind==="empty"||drag.kind==="skPlus")&&drag.moved) || drag.kind==="panBtn"){
     view.x=drag.startView.x+(sx-drag.panSX)/view.k;
@@ -2419,8 +2429,8 @@ canvas.addEventListener("pointerup",e=>{
   const kind=drag.kind; drag.kind=null;
 
   if(kind==="skDraw"){
-    const w1=S2W({x:sx,y:sy}), a=W2S(drag.w0);
-    if(Math.hypot(sx-a.x,sy-a.y)>=14){
+    const w1=skPaper(S2W({x:sx,y:sy}),mode), a=W2S(drag.w0), b1=W2S(w1);
+    if(Math.hypot(b1.x-a.x,b1.y-a.y)>=14){
       sketch.push(newSketchItem(mode,drag.w0,w1));
       selSketch=sketch.length-1; skPopVisible=false;
       snap();
@@ -2431,7 +2441,7 @@ canvas.addEventListener("pointerup",e=>{
     drag.w0=drag.w1=null; redraw(); return;
   }
   if(kind==="skPlus"){
-    if(!drag.moved && !drag.hadSk){ const w=S2W({x:sx,y:sy}); sketch.push({t:"plus",x:w.x,y:w.y}); snap(); }
+    if(!drag.moved && !drag.hadSk){ const w=onPaper(S2W({x:sx,y:sy})); sketch.push({t:"plus",x:w.x,y:w.y}); snap(); }
     redraw(); return;
   }
   if(kind==="skMove"){
