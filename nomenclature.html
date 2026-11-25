@@ -114,11 +114,13 @@ header.topbar{
 
 /* floating context popover for a selected atom/bond */
 .ctx-pop{
-  position:absolute;transform:translate(-50%,calc(-100% - 12px));display:none;
+  position:absolute;transform:translate(-50%,calc(-100% - 5px)) scale(.96);display:flex;
+  opacity:0;visibility:hidden;pointer-events:none;transform-origin:50% 100%;
+  transition:opacity .15s ease,transform .22s cubic-bezier(.2,.8,.2,1),visibility 0s .18s;
   align-items:center;gap:2px;padding:5px;border-radius:9px;
   background:var(--surface-2);border:1px solid var(--border);box-shadow:var(--shadow);z-index:20;
 }
-.ctx-pop.show{display:flex}
+.ctx-pop.show{opacity:1;visibility:visible;pointer-events:auto;transform:translate(-50%,calc(-100% - 12px)) scale(1);transition-delay:0s}
 .ctx-pop button{
   height:32px;min-width:32px;padding:0 9px;border:none;border-radius:6px;background:transparent;color:var(--text);
   font:600 .82rem 'Arial';cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.12s;
@@ -128,6 +130,26 @@ header.topbar{
 .ctx-pop .cp-sep{width:1px;height:20px;background:var(--border);margin:0 3px;flex:none}
 .ctx-pop .cp-danger{color:var(--bad)}
 .ctx-pop .cp-danger:hover{background:var(--bad-dim)}
+#ctxPop{width:272px;padding:10px;gap:9px;flex-direction:column;align-items:stretch;border-color:#354052;box-shadow:0 12px 32px #0006}
+.cp-actions{display:flex;align-items:center;gap:2px}
+.cp-target{flex:1;font-size:10px;letter-spacing:.7px;text-transform:uppercase;color:var(--text-dim);padding-left:3px}
+#cpStereo{position:relative;display:grid;grid-template-columns:repeat(var(--count,3),1fr);gap:3px;padding:3px;border:1px solid var(--border);border-radius:9px;background:var(--bg);isolation:isolate}
+.cp-indicator{position:absolute;z-index:-1;left:3px;top:3px;bottom:3px;width:calc((100% - 6px - (var(--count) - 1)*3px)/var(--count));transform:translateX(calc(var(--choice,0)*(100% + 3px)));background:var(--accent-dim);border:1px solid var(--accent-brd);border-radius:6px;transition:transform .22s cubic-bezier(.2,.8,.2,1),width .18s ease}
+#cpStereo .cp-option{height:54px;min-width:0;padding:4px 2px;flex-direction:column;gap:3px;color:var(--text-dim);background:transparent;transition:color .16s ease,transform .16s ease}
+#cpStereo .cp-option[aria-checked="true"]{color:#a6c5ff}
+#cpStereo .cp-option:hover{color:var(--text);background:#ffffff06}
+#cpStereo .cp-option:active{transform:scale(.93)}
+.cp-option svg{width:29px;height:22px;transition:transform .2s ease}
+.cp-option[aria-checked="true"] svg{transform:translateY(-1px)}
+.cp-option strong{font-size:17px;font-weight:600;line-height:22px}
+.cp-option small{font-size:10px;font-weight:500;line-height:12px}
+.cp-foot{display:flex;align-items:center;gap:7px;min-height:34px}
+.cp-hint{flex:1;font-size:10px;line-height:15px;color:var(--text-dim);padding-left:3px}
+#cpReverse{font-size:10px;gap:5px;padding:0 7px;flex:none;border:1px solid var(--border);height:28px}
+#cpReverse svg{width:13px;height:13px;transition:transform .22s ease}
+#cpReverse:hover svg{transform:rotate(180deg)}
+.ctx-pop button:focus-visible{outline:2px solid #a6c5ff;outline-offset:1px}
+@media(prefers-reduced-motion:reduce){.ctx-pop,.ctx-pop *{transition:none!important;animation:none!important}}
 
 /* drag-from-rail element placement */
 .drag-ghost{
@@ -220,6 +242,7 @@ header.topbar{
 .save-cta:hover{background:rgba(91,140,240,.22)}
 .saved-list{display:flex;flex-direction:column;gap:7px}
 .saved-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;background:var(--surface-2);border:1px solid var(--border-soft)}
+.saved-item .thumb{flex:none;width:104px;height:78px;border-radius:7px;background:var(--bg);border:1px solid var(--border-soft)}
 .saved-item .nm{flex:1;min-width:0;font:600 .84rem 'Arial';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .saved-item .nm small{display:block;font:500 .72rem 'Arial';color:var(--text-dim)}
 .saved-item button{height:30px;padding:0 12px;border-radius:7px;border:1px solid var(--border);background:var(--surface-3);color:var(--text);font:600 .76rem 'Arial';cursor:pointer;flex:none}
@@ -257,7 +280,10 @@ body.classic{
 body.classic .el-swatch{color:#141414!important}
 body.classic .pt-cell{color:#141414!important}
 body.classic .toast{background:rgba(250,250,250,.98)}
-body.classic #cpStereo{background:#fff!important;color:#141414!important;border-color:#c2c2c2!important}
+body.classic #ctxPop{border-color:var(--border);box-shadow:var(--shadow)}
+body.classic #cpStereo .cp-option[aria-checked="true"]{color:var(--accent)}
+body.classic #cpStereo .cp-option:hover{background:rgba(0,0,0,.04)}
+body.classic .ctx-pop button:focus-visible{outline-color:var(--accent)}
 body.classic .name-card .meta code{background:rgba(0,0,0,.06)}
 body.classic .name-cta:hover{background:rgba(37,99,217,.2)}
 body.classic .send-cta:hover{border-color:#a9a9a9}
@@ -364,7 +390,7 @@ footer.credit{display:none}
       <b>Drag</b> an element from the rail to place an atom<br/>
       <b>Drag</b> from an atom on canvas to bond it to another<br/>
       <b>Click</b> an atom or bond to select it, <b>again</b> to retype/cycle order<br/>
-      <b>Right-click</b> an atom or bond for charge &amp; delete (tap on touch)
+      <b>Right-click</b> an atom or bond for stereo &amp; editing (tap on touch)
     </div>
     <div class="formula-badge" id="formulaBadge"></div>
     <div class="zoom-ui">
@@ -372,19 +398,22 @@ footer.credit{display:none}
       <button id="zoomOut" title="Zoom out"><svg class="ico" viewBox="0 0 24 24" style="width:16px;height:16px"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
       <button id="zoomFit" title="Fit to view"><svg class="ico" viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
     </div>
-    <div class="ctx-pop" id="ctxPop">
+    <div class="ctx-pop" id="ctxPop" role="group" aria-label="Atom and bond controls">
+      <div class="cp-actions"><span class="cp-target" id="cpTarget"></span>
       <button id="cpMinus" title="Decrease charge">−</button>
       <span class="charge-val" id="cpCharge">0</span>
       <button id="cpPlus" title="Increase charge">+</button>
       <button id="cpOrder" title="Change bond order">
         <svg class="ico" viewBox="0 0 24 24" style="width:16px;height:16px"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/></svg>
       </button>
-      <span class="cp-sep" id="cpSep"></span>
-      <select id="cpStereo" aria-label="Stereochemistry" style="background:#171b24;color:#e7e9ee;border:1px solid #394252;border-radius:6px;padding:6px;max-width:148px"></select>
-      <button id="cpReverse" title="Reverse wedge: swap the narrow endpoint">⇄</button>
       <button class="cp-danger" id="cpDelete" title="Delete">
         <svg class="ico" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M3 6h18M8 6V4h8v2m-9 0l1 14h8l1-14"/></svg>
       </button>
+      </div>
+      <div id="cpStereo" role="radiogroup" aria-label="Stereochemistry"></div>
+      <div class="cp-foot"><span class="cp-hint" id="cpHint"></span>
+        <button id="cpReverse" title="Reverse wedge: swap the narrow endpoint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h15l-4-4M20 16H5l4 4"/></svg>Reverse end</button>
+      </div>
     </div>
     <div class="ctx-pop" id="selPop">
       <button id="selSaveBtn" title="Save selection as a structure">
@@ -474,6 +503,12 @@ footer.credit{display:none}
       <div class="lbl">Sketch tools<small>Adds +, reaction arrows and electron-flow (mechanism) arrows to the rail</small></div>
       <div class="seg" data-setting="sketch">
         <button data-v="off">Off</button><button data-v="on">On</button>
+      </div>
+    </div>
+    <div class="set-row">
+      <div class="lbl">Online name check<small>Auto: every name is checked with PubChem (official IUPAC + common name, and a name when the offline engine can't). Sends the structure, nothing else.</small></div>
+      <div class="seg" data-setting="pubchem">
+        <button data-v="auto">Auto (PubChem)</button><button data-v="button">Button only</button>
       </div>
     </div>
     <div class="set-row">
@@ -1153,8 +1188,8 @@ var initRDKitModule=(()=>{var _scriptName=globalThis.document?.currentScript?.sr
 
 /* src/js/stereochemistry.js */
 /* RDKit 2026.03.6 (BSD-3-Clause), bundled locally. No network service.
- * Explicit wedges/hash bonds and requested R/S or E/Z configurations only.
- * Plain 2D layout is never interpreted as a stereochemical specification.
+ * Tetrahedral configuration requires wedges/hash or explicit R/S labels.
+ * Clear C=C geometry supplies relative stereo; RDKit assigns its CIP E/Z label.
  */
 (function(root,factory){
   const api=factory();
@@ -1186,6 +1221,32 @@ var initRDKitModule=(()=>{var _scriptName=globalThis.document?.currentScript?.sr
   }
   const key=(a,b)=>Math.min(a,b)+':'+Math.max(a,b);
   const strip=s=>s.replace(/[()]/g,'');
+  function alkeneGeometry(input,bond){
+    const {atoms,bonds}=input,A=atoms[bond.a],B=atoms[bond.b];
+    if(bond.order!==2||A?.el!=='C'||B?.el!=='C')return null;
+    if(![A.x,A.y,B.x,B.y].every(Number.isFinite))return null;
+    const dx=B.x-A.x,dy=B.y-A.y,length=Math.hypot(dx,dy);
+    if(length<1e-4)return null;
+    const side=(center,other)=>{
+      const edges=bonds.filter(b=>(b.a===center||b.b===center)&&b!==bond);
+      if(!edges.length||edges.length>2||edges.some(b=>b.order!==1))return null;
+      const refs=edges.map(b=>b.a===center?b.b:b.a),signs=[];
+      for(const ref of refs){
+        const P=atoms[ref],C=atoms[center];
+        if(!P||![P.x,P.y].every(Number.isFinite)||ref===other)return null;
+        const x=P.x-C.x,y=P.y-C.y,l=Math.hypot(x,y);
+        // Collinear, coincident and nearly collinear branches cannot specify
+        // which side of the double-bond axis a ligand occupies reliably.
+        const cross=(dx*y-dy*x)/(length*l);
+        if(l<1e-4||!Number.isFinite(cross)||Math.abs(cross)<Math.sin(Math.PI/18))return null;
+        signs.push(Math.sign(cross));
+      }
+      if(signs.length===2&&signs[0]===signs[1])return null;
+      return {ref:refs[0],sign:signs[0]};
+    };
+    const left=side(bond.a,bond.b),right=side(bond.b,bond.a);
+    return left&&right?{stereo:left.sign===right.sign?'cis':'trans',stereoAtoms:[left.ref,right.ref]}:null;
+  }
   function molblock(input){
     const {atoms,bonds}=input;
     const lines=['Nomenclature stereo','  NativeNamer       2D','','  0  0  0     0  0            999 V3000',
@@ -1198,8 +1259,8 @@ var initRDKitModule=(()=>{var _scriptName=globalThis.document?.currentScript?.sr
     lines.push('M  V30 END ATOM','M  V30 BEGIN BOND');
     bonds.forEach((b,i)=>{
       if(!atoms[b.a]||!atoms[b.b]||b.a===b.b||![1,2,3].includes(b.order)) throw Error('Invalid stereo graph.');
-      if(b.stereo&&!['wedge','hash','E','Z'].includes(b.stereo)) throw Error('Unknown stereochemical bond annotation.');
-      if(b.stereo&&((['wedge','hash'].includes(b.stereo)&&b.order!==1)||(['E','Z'].includes(b.stereo)&&b.order!==2))) throw Error('Stereo annotation does not match the bond order.');
+      if(b.stereo&&!['wedge','hash','E','Z','unknown'].includes(b.stereo)) throw Error('Unknown stereochemical bond annotation.');
+      if(b.stereo&&((['wedge','hash'].includes(b.stereo)&&b.order!==1)||(['E','Z','unknown'].includes(b.stereo)&&b.order!==2))) throw Error('Stereo annotation does not match the bond order.');
       const cfg=b.stereo==='wedge'?1:b.stereo==='hash'?3:b.order===2?2:0;
       lines.push(`M  V30 ${i+1} ${b.order} ${b.a+1} ${b.b+1}${cfg?' CFG='+cfg:''}`);
     });
@@ -1209,7 +1270,7 @@ var initRDKitModule=(()=>{var _scriptName=globalThis.document?.currentScript?.sr
   function materialize(R,data){
     // JSON preserves ordered tetrahedral parity. Generate fresh coordinates so
     // explicit alkene assignments survive RDKit's stereo-cleaning pass without
-    // borrowing any stereochemistry from the user's unmarked 2D coordinates.
+    // changing the relative geometry already encoded in the stereo graph.
     const copy=JSON.parse(JSON.stringify(data));
     const molecule=copy.molecules[0]; delete molecule.conformers; molecule.extensions=[];
     const jsonMol=R.get_mol(JSON.stringify(copy),JSON.stringify({assignStereo:false,removeHs:false}));
@@ -1244,6 +1305,14 @@ var initRDKitModule=(()=>{var _scriptName=globalThis.document?.currentScript?.sr
           throw Error('Hydrogen count does not match the structure at atom '+(i+1)+'.');
       });
       mol.bonds.forEach(b=>{delete b.stereo;delete b.stereoAtoms;});
+      const automatic=new Set();
+      for(const b of input.bonds.filter(b=>b.order===2&&!b.stereo)){
+        const geometry=alkeneGeometry(input,b);
+        const targetIndex=mol.bonds.findIndex(e=>key(...e.atoms)===key(b.a,b.b)),target=mol.bonds[targetIndex];
+        // Aromatic bonds are not ordinary alkene stereogenic units.
+        const aromatic=(mol.extensions||[]).some(e=>e.aromaticBonds?.includes(targetIndex));
+        if(geometry&&target.bo===2&&!aromatic){Object.assign(target,geometry);automatic.add(key(b.a,b.b));}
+      }
       const wedges=input.bonds.filter(b=>b.stereo==='wedge'||b.stereo==='hash');
       const centers=new Set(wedges.map(b=>b.a));
       for(const center of centers){
@@ -1286,7 +1355,7 @@ var initRDKitModule=(()=>{var _scriptName=globalThis.document?.currentScript?.sr
       for(const center of centers) if(!result.atoms.some(x=>x.atom===center)) throw Error('The marked atom is not a stereogenic center.');
       // Check possible but unassigned alkenes by trying a temporary stereo tag.
       const unspecifiedBonds=[];
-      for(const b of input.bonds.filter(b=>b.order===2&&!b.stereo)){
+      for(const b of input.bonds.filter(b=>b.order===2&&!result.bonds.some(e=>key(e.a,e.b)===key(b.a,b.b)))){
         const neighbors=i=>input.bonds.filter(e=>(e.a===i||e.b===i)&&e!==b).map(e=>e.a===i?e.b:e.a);
         const left=neighbors(b.a),right=neighbors(b.b);
         if(!left.length||!right.length||left.length>2||right.length>2) continue;
@@ -1299,7 +1368,11 @@ var initRDKitModule=(()=>{var _scriptName=globalThis.document?.currentScript?.sr
       }
       const warnings=[];
       if(result.unspecified.length||unspecifiedBonds.length) warnings.push('Some stereogenic atoms or double bonds are unspecified; no configuration was guessed.');
-      return {ok:true,...result,unspecifiedBonds,warnings,smiles:m.get_smiles(),molblock:m.get_v3Kmolblock(),version:R.version()};
+      if(unspecifiedBonds.some(b=>!input.bonds.find(e=>key(e.a,e.b)===key(b.a,b.b))?.stereo))
+        warnings.push('E/Z needs clear substituent directions on both sides of the double bond. Separate overlapping branches or move them away from the bond axis.');
+      result.bonds=result.bonds.map(b=>({...b,source:automatic.has(key(b.a,b.b))?'geometry':'explicit'}));
+      return {ok:true,...result,unspecifiedBonds,warnings,coordinates:result.json.molecules[0].conformers?.[0]?.coords,
+        smiles:m.get_smiles(),molblock:m.get_v3Kmolblock(),version:R.version()};
     } catch(error){return {ok:false,reason:error.message||'Stereochemical assignment failed.'};}
     finally{m?.delete();}
   }
@@ -1315,7 +1388,7 @@ var initRDKitModule=(()=>{var _scriptName=globalThis.document?.currentScript?.sr
     for(let i=0;i<4;i++)for(let j=i+1;j<4;j++)if(perm[i]>perm[j])sign=-sign;
     return sign;
   }
-  return {init,assign,orderedParity,molblock};
+  return {init,assign,orderedParity,molblock,alkeneGeometry};
 });
 
 
@@ -1477,6 +1550,7 @@ const CATION_OK = {N:1,O:1,S:1,P:1,B:-1}; // B gets − (borate style)
 
 /* ================= STATE ================= */
 let atoms = [];   // {el,x,y,charge}
+let autoStereoLabels=[];
 let bonds = [];   // {a,b,order}
 let mode = "build";        // build | move | erase | select | plus | arrow | mech (sketch tools)
 const SKETCH_MODES = new Set(["plus","arrow","mech"]);
@@ -1496,7 +1570,7 @@ const canvas = $("molCanvas"), wrap = $("canvasWrap");
 const ctx = canvas.getContext("2d");
 
 /* user settings */
-const SETTINGS=Object.assign({grid:"lines",snap:"skeletal",place:"click",scrollLock:"off",sketch:"off",theme:"dark"},JSON.parse(localStorage.getItem("dne_settings")||"{}"));
+const SETTINGS=Object.assign({grid:"lines",snap:"skeletal",place:"click",scrollLock:"off",sketch:"off",theme:"dark",pubchem:"auto"},JSON.parse(localStorage.getItem("dne_settings")||"{}"));
 function saveSettings(){ try{localStorage.setItem("dne_settings",JSON.stringify(SETTINGS));}catch(e){} }
 let settingsApplied=false;
 function applySettings(){
@@ -1518,7 +1592,7 @@ function applySettings(){
     seg.querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.v===SETTINGS[k]));
   });
   const hint=$("canvasHint");
-  const editLine="<b>Right-click</b> an atom or bond for charge &amp; delete (tap on touch)";
+  const editLine="<b>Right-click</b> an atom or bond for stereo &amp; editing (tap on touch). E/Z follows the drawing.";
   if(hint) hint.innerHTML = SETTINGS.place==="click"
     ? `<b>Click</b> empty space to place an atom<br/><b>Drag</b> from an atom on canvas to bond it to another<br/><b>Click</b> an atom or bond to select it, <b>again</b> to retype/cycle order<br/>${editLine}`
     : `<b>Drag</b> an element from the rail to place an atom<br/><b>Drag</b> from an atom on canvas to bond it to another<br/><b>Click</b> an atom or bond to select it, <b>again</b> to retype/cycle order<br/>${editLine}`;
@@ -1758,9 +1832,11 @@ function redraw(){
         ctx.beginPath();ctx.moveTo(x-dx*w*t,y-dy*w*t);ctx.lineTo(x+dx*w*t,y+dy*w*t);ctx.stroke();
       }
     }else drawBondLine(A.x,A.y,B.x,B.y,b.order, color, (sel||msel?bw+1:bw)*Math.min(view.k,1.4), bondSide(b));
-    if(b.stereo==='E'||b.stereo==='Z'){
+    const autoLabel=autoStereoLabels.find(e=>(e.a===b.a&&e.b===b.b)||(e.a===b.b&&e.b===b.a))?.label;
+    const stereoLabel=b.stereo==='unknown'?'?':['E','Z'].includes(b.stereo)?b.stereo:autoLabel;
+    if(stereoLabel){
       ctx.font='bold 12px Arial';ctx.textAlign='center';ctx.fillStyle=PAL.label;
-      ctx.fillText('('+b.stereo+')',(A.x+B.x)/2,(A.y+B.y)/2-12);
+      ctx.fillText('('+stereoLabel+')',(A.x+B.x)/2,(A.y+B.y)/2-12);
     }
   });
   // select-tool highlight halo (drawn under the atom glyphs)
@@ -2029,6 +2105,7 @@ $("skFlip").onclick=()=>{ const it=sketch[selSketch]; if(it){ it.bv=-it.bv; snap
 $("skEq").onclick=()=>{ const it=sketch[selSketch]; if(it){ it.eq=!it.eq; snap(); redraw(); } };
 $("skDel").onclick=()=>deleteSketch(selSketch);
 function afterChange(){
+  autoStereoLabels=[];
   namingSequence++;
   if(cancelNamingJob) cancelNamingJob();
   if($("resultsBody").children.length) $("resultsBody").innerHTML="<div class=\"meta\">Structure changed. Choose Name it to update the result.</div>";
@@ -2176,7 +2253,7 @@ canvas.addEventListener("pointermove",e=>{
   }
   if(Math.hypot(sx-drag.sx,sy-drag.sy)>THRESH) drag.moved=true;
   if(drag.kind==="moveAtom"){
-    const w=onPaper(S2W({x:sx,y:sy})); atoms[drag.from].x=w.x; atoms[drag.from].y=w.y; redraw();
+    const w=onPaper(S2W({x:sx,y:sy})); atoms[drag.from].x=w.x; atoms[drag.from].y=w.y; if(hasGeometryStereo())afterChange();else redraw();
   } else if(drag.kind==="growBond"){
     drag.sx=sx; drag.sy=sy; redraw();
   } else if(drag.kind==="erase"){
@@ -2187,7 +2264,7 @@ canvas.addEventListener("pointermove",e=>{
     const w=S2W({x:sx,y:sy}), w0=S2W({x:drag.sx,y:drag.sy});
     const dx=w.x-w0.x, dy=w.y-w0.y;
     drag.selStart.forEach(s=>{ atoms[s.idx].x=s.x+dx; atoms[s.idx].y=s.y+dy; });
-    redraw();
+    if(hasGeometryStereo())afterChange();else redraw();
   } else if(drag.kind==="skDraw"){
     if(drag.moved) drag.w1=S2W({x:sx,y:sy});
     redraw();
@@ -2245,7 +2322,7 @@ canvas.addEventListener("pointerup",e=>{
     } else redraw();
   } else if(kind==="moveAtom"){
     if(!drag.moved){ selectAtom(drag.from, e.pointerType!=="mouse"); }
-    else { snap(); if(bonds.some(b=>b.stereo==='wedge'||b.stereo==='hash')) afterChange(); else redraw(); }
+    else { snap(); if(hasGeometryStereo()) afterChange(); else redraw(); }
   } else if(kind==="marquee"){
     const rc=drag.rect;
     if(rc){
@@ -2261,7 +2338,7 @@ canvas.addEventListener("pointerup",e=>{
     }
     drag.rect=null; redraw();
   } else if(kind==="moveSel"){
-    if(drag.moved){ snap(); if(bonds.some(b=>b.stereo==='wedge'||b.stereo==='hash')) afterChange(); }
+    if(drag.moved){ snap(); if(hasGeometryStereo()) afterChange(); }
     redraw();
   } else if(kind==="selectAdd"){ multiSel.add(drag.from); redraw();
   } else if(kind==="selectRemove"){ multiSel.delete(drag.from); redraw();
@@ -2564,6 +2641,27 @@ let popVisible=false;
 function selectAtom(i,showPop){ selAtom=i; selBond=-1; selSketch=-1; hideSkPop(); popVisible=!!showPop; redraw(); }
 function selectBond(bi,showPop){ selBond=bi; selAtom=-1; selSketch=-1; hideSkPop(); popVisible=!!showPop; redraw(); }
 function hidePopover(){ popVisible=false; $("ctxPop").classList.remove("show"); }
+const stereoIcons={
+  plain:'<path d="M3 12h26" fill="none" stroke="currentColor" stroke-width="2"/>',
+  wedge:'<path d="M3 12 29 5v14Z" fill="currentColor"/>',
+  hash:'<path d="M4 11v2m5-3v4m5-6v8m5-10v12m5-13v14m5-15v16" fill="none" stroke="currentColor" stroke-width="2"/>'
+};
+function syncStereoChoices(options,current){
+  const group=$("cpStereo"),key=JSON.stringify(options);
+  if(group.dataset.options!==key){
+    const indicator=document.createElement('span');indicator.className='cp-indicator';indicator.setAttribute('aria-hidden','true');
+    group.replaceChildren(indicator,...options.map(([value,label,icon,title])=>{
+      const button=document.createElement('button');button.type='button';button.className='cp-option';button.dataset.value=value;
+      button.setAttribute('role','radio');button.setAttribute('aria-label',title);button.title=title;
+      button.innerHTML=(stereoIcons[icon]?'<svg viewBox="0 0 32 24" aria-hidden="true">'+stereoIcons[icon]+'</svg>':'<strong aria-hidden="true">'+icon+'</strong>')+'<small>'+label+'</small>';
+      button.onclick=()=>applyStereoChoice(value);return button;
+    }));
+    group.dataset.options=key;
+  }
+  group.style.setProperty('--count',options.length);
+  group.style.setProperty('--choice',Math.max(0,options.findIndex(o=>o[0]===(current||''))));
+  group.querySelectorAll('.cp-option').forEach(b=>{const selected=b.dataset.value===(current||'');b.setAttribute('aria-checked',String(selected));b.tabIndex=selected?0:-1;});
+}
 function positionPopover(){
   const pop=$("ctxPop");
   if((selAtom<0 && selBond<0)||!popVisible){ pop.classList.remove("show"); return; }
@@ -2573,26 +2671,30 @@ function positionPopover(){
   $("cpCharge").style.display = isAtom? "":"none";
   $("cpPlus").style.display = isAtom? "":"none";
   $("cpOrder").style.display = isAtom? "none":"";
-  $("cpSep").style.display = "";
-  const sb=bonds[selBond], options=isAtom?[['','Unspecified'],['R','R'],['S','S']]:sb?.order===1?[['','Plain bond'],['wedge','Solid wedge'],['hash','Dashed wedge']]:sb?.order===2?[['','Unspecified'],['E','E'],['Z','Z']]:[['','No stereo']];
-  const selector=$("cpStereo"), current=isAtom?atoms[selAtom].cip:sb?.stereo;
-  const optionsKey=JSON.stringify(options);
-  if(selector.dataset.options!==optionsKey){selector.replaceChildren(...options.map(([value,label])=>new Option(label,value)));selector.dataset.options=optionsKey;}
-  selector.value=current||'';
-  selector.title=isAtom?'Atom '+(selAtom+1)+': tetrahedral configuration':'Wedge narrow end: atom '+((sb?.a??0)+1);
-  $("cpReverse").style.display=!isAtom&&['wedge','hash'].includes(sb?.stereo)?'':'none';
+  const sb=bonds[selBond],options=isAtom?
+    [['','Unset','—','Unspecified configuration'],['R','R form','R','R configuration'],['S','S form','S','S configuration']]:sb?.order===1?
+    [['','Plain','plain','Plain bond'],['wedge','Solid','wedge','Solid wedge'],['hash','Dashed','hash','Dashed wedge']]:sb?.order===2?
+    [['','Auto','↗','Automatic E/Z from geometry'],['E','Override','E','E override'],['Z','Override','Z','Z override'],['unknown','Unset','?','Unspecified double bond']]:
+    [['','No stereo','≡','No stereochemistry for this bond']];
+  syncStereoChoices(options,isAtom?atoms[selAtom].cip:sb?.stereo);
+  $("cpTarget").textContent=isAtom?atoms[selAtom].el+' · Atom '+(selAtom+1):'Bond '+((sb?.a??0)+1)+'–'+((sb?.b??0)+1);
+  const reversible=!isAtom&&['wedge','hash'].includes(sb?.stereo);
+  $("cpReverse").style.visibility=reversible?'visible':'hidden';$("cpReverse").disabled=!reversible;
+  const autoLabel=sb&&autoStereoLabels.find(e=>e.a===sb.a&&e.b===sb.b||e.b===sb.a&&e.a===sb.b)?.label;
+  $("cpHint").textContent=isAtom?'Absolute configuration at this atom.':sb?.order===2?
+    (sb.stereo==='unknown'?'This double bond stays unassigned.':sb.stereo?'Manual '+sb.stereo+' overrides the drawing.':autoLabel?'Automatic '+autoLabel+' · follows the drawing.':'E/Z is read from the drawn geometry.'):
+    reversible?'Narrow end: atom '+(sb.a+1)+(sb.stereo==='wedge'?' · toward you.':' · away from you.'):'Choose a bond style above.';
   if(isAtom) $("cpCharge").textContent = atoms[selAtom].charge||0;
   let P;
   if(isAtom) P=W2S(atoms[selAtom]);
   else { const b=bonds[selBond]; if(!b){hidePopover();return;} const A=W2S(atoms[b.a]),B=W2S(atoms[b.b]); P={x:(A.x+B.x)/2,y:(A.y+B.y)/2}; }
   const half=pop.offsetWidth/2, bounds=wrap.getBoundingClientRect();
   pop.style.left=Math.max(half+6,Math.min(bounds.width-half-6,P.x))+"px";
-  pop.style.top=Math.max(pop.offsetHeight+18,P.y-(isAtom?R_ATOM*view.k:0))+"px";
+  pop.style.top=Math.max(pop.offsetHeight+18,Math.min(bounds.height-6,P.y-(isAtom?R_ATOM*view.k:0)))+"px";
 }
 $("cpPlus").onclick=()=>{ if(selAtom<0)return; atoms[selAtom].charge=(atoms[selAtom].charge||0)+1; atoms[selAtom].manualCharge=true; snap(); afterChange(); };
 $("cpMinus").onclick=()=>{ if(selAtom<0)return; atoms[selAtom].charge=(atoms[selAtom].charge||0)-1; atoms[selAtom].manualCharge=true; snap(); afterChange(); };
-$("cpStereo").onchange=()=>{
-  const value=$("cpStereo").value;
+function applyStereoChoice(value){
   if(selAtom>=0){
     if(value) atoms[selAtom].cip=value;else delete atoms[selAtom].cip;
     bonds.filter(b=>b.a===selAtom&&['wedge','hash'].includes(b.stereo)).forEach(b=>delete b.stereo);
@@ -2601,7 +2703,16 @@ $("cpStereo").onchange=()=>{
     if(['wedge','hash'].includes(value))delete atoms[b.a].cip;
   }
   snap();afterChange();
+}
+$("cpStereo").onkeydown=event=>{
+  if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(event.key))return;
+  const choices=[...$("cpStereo").querySelectorAll('.cp-option')],at=choices.indexOf(document.activeElement);if(at<0)return;
+  event.preventDefault();
+  const next=event.key==='Home'?0:event.key==='End'?choices.length-1:(at+(['ArrowRight','ArrowDown'].includes(event.key)?1:-1)+choices.length)%choices.length;
+  choices[next].click();choices[next].focus();
 };
+for(const id of ['cpPlus','cpMinus','cpOrder','cpDelete','cpReverse'])$(id).tabIndex=0;
+$("ctxPop").addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();hidePopover();canvas.focus();}});
 $("cpReverse").onclick=()=>{const b=bonds[selBond];if(!b)return;[b.a,b.b]=[b.b,b.a];snap();afterChange();};
 $("cpOrder").onclick=()=>{ if(selBond<0)return; setBondOrder(selBond, bonds[selBond].order%3+1); };
 $("cpDelete").onclick=()=>{
@@ -2671,6 +2782,40 @@ function showPtTab(which){
 }
 $("tabElements").onclick=()=>showPtTab("el");
 $("tabSaved").onclick=()=>showPtTab("saved");
+/* small skeletal-style picture of a saved structure */
+function structThumb(st){
+  const W=104,H=78,dpr=window.devicePixelRatio||1, c=document.createElement("canvas");
+  c.width=W*dpr; c.height=H*dpr; c.style.width=W+"px"; c.style.height=H+"px";
+  const g=c.getContext("2d"); g.scale(dpr,dpr);
+  const A=st.atoms||[], B=st.bonds||[];
+  const deg=A.map(()=>0); B.forEach(b=>{deg[b.a]++;deg[b.b]++;});
+  // hide plain H on heavy atoms, like the skeletal view
+  const hidden=A.map((a,i)=>a.el==="H"&&!a.charge&&deg[i]===1&&B.some(b=>(b.a===i&&A[b.b].el!=="H")||(b.b===i&&A[b.a].el!=="H")));
+  const vis=A.map((a,i)=>i).filter(i=>!hidden[i]);
+  if(!vis.length) return c;
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; vis.forEach(i=>{x0=Math.min(x0,A[i].x);y0=Math.min(y0,A[i].y);x1=Math.max(x1,A[i].x);y1=Math.max(y1,A[i].y);});
+const pad=8, k=Math.min((W-2*pad)/Math.max(x1-x0,1),(H-2*pad)/Math.max(y1-y0,1),0.5);
+  const ox=W/2-(x0+x1)/2*k, oy=H/2-(y0+y1)/2*k, P=i=>({x:A[i].x*k+ox,y:A[i].y*k+oy});
+  const ink=getComputedStyle(document.body).getPropertyValue("--text").trim()||"#ddd";
+  const label=i=>A[i].el!=="C"||deg[i]===0;
+  g.strokeStyle=ink; g.lineWidth=1.25; g.lineCap="round";
+  B.forEach(b=>{
+    if(hidden[b.a]||hidden[b.b]) return;
+    let p=P(b.a), q=P(b.b); const dx=q.x-p.x, dy=q.y-p.y, L=Math.hypot(dx,dy)||1, ux=dx/L, uy=dy/L;
+    if(label(b.a)) p={x:p.x+ux*4,y:p.y+uy*4};
+    if(label(b.b)) q={x:q.x-ux*4,y:q.y-uy*4};
+    const offs=b.order===2?[-1.3,1.3]:b.order===3?[-2,0,2]:[0];
+    offs.forEach(o=>{ g.beginPath(); g.moveTo(p.x-uy*o,p.y+ux*o); g.lineTo(q.x-uy*o,q.y+ux*o); g.stroke(); });
+  });
+  g.font="700 9px Arial"; g.textAlign="center"; g.textBaseline="middle";
+  vis.forEach(i=>{
+    if(!label(i)) return;
+    const p=P(i);
+    g.fillStyle=SETTINGS.theme==="classic"?"#000":elColor(A[i].el);
+    g.fillText(A[i].el+(A[i].charge>0?"+":A[i].charge<0?"−":""),p.x,p.y);
+  });
+  return c;
+}
 function renderSaved(){
   const list=$("savedList"); list.innerHTML="";
   if(!structures.length){
@@ -2681,13 +2826,14 @@ function renderSaved(){
   structures.forEach((s,i)=>{
     const row=document.createElement("div"); row.className="saved-item";
     row.title="Drag onto the canvas to place it there";
+    const th=structThumb(s); th.className="thumb";
     const nm=document.createElement("div"); nm.className="nm";
     nm.innerHTML=`${esc(s.name)}<small>${esc(s.formula||"")} · ${s.atoms.length} atoms</small>`;
     const ins=document.createElement("button"); ins.textContent="Insert";
     ins.onclick=()=>insertStruct(i);
     const del=document.createElement("button"); del.className="del"; del.textContent="✕";
     del.onclick=()=>{ structures.splice(i,1); saveStructs(); renderSaved(); };
-    row.append(nm,ins,del); list.appendChild(row);
+    row.append(th,nm,ins,del); list.appendChild(row);
     wireStructDrag(row,i);
   });
 }
@@ -2913,13 +3059,18 @@ function idealLayout(){
 }
 $("cleanBtn").onclick=async()=>{
   if(atoms.length<2) return;
-  if(bonds.some(b=>['wedge','hash'].includes(b.stereo))){
+  if(bonds.some(b=>b.order===2||['wedge','hash'].includes(b.stereo))){
     const signature=molecularSignature(),assigned=await Stereochemistry.assign(stereoModel());
     if(signature!==molecularSignature())return;
     if(!assigned.ok){toast(assigned.reason,'err');return;}
+    if(!assigned.coordinates||assigned.coordinates.length!==atoms.length){toast('Stereo-preserving layout is unavailable.','err');return;}
     assigned.atoms.forEach(a=>atoms[a.atom].cip=a.label);
     bonds.forEach(b=>{if(['wedge','hash'].includes(b.stereo))delete b.stereo;});
-    toast('Wedges preserved as explicit R/S labels before tidying','ok');
+    // Layout must preserve recognized E/Z, and must not create a configuration
+    // when the original double-bond geometry was ambiguous or unspecified.
+    assigned.unspecifiedBonds.forEach(e=>{const b=bonds.find(b=>b.a===e.a&&b.b===e.b||b.b===e.a&&b.a===e.b);if(b)b.stereo='unknown';});
+    assigned.coordinates.forEach((p,i)=>{atoms[i].x=p[0]*52;atoms[i].y=-p[1]*52;});
+    snap();afterChange();fitView();toast('Layout tidied · configurations preserved','ok');return;
   }
   const L=52;
   const adjIdx=atoms.map(()=>[]);
@@ -3108,9 +3259,10 @@ function isBenzeneRing(hv,ring){
 }
 
 
-/* Wedge interpretation depends on geometry; explicit R/S and E/Z do not. */
+/* Unmarked C=C bonds follow geometry; explicit labels override the layout. */
+function hasGeometryStereo(){return bonds.some(b=>b.stereo==='wedge'||b.stereo==='hash'||b.order===2&&!b.stereo);}
 function molecularSignature(){
-  const geometric=bonds.some(b=>b.stereo==='wedge'||b.stereo==='hash');
+  const geometric=hasGeometryStereo();
   return JSON.stringify({atoms:atoms.map(a=>({el:a.el,charge:a.charge||0,cip:a.cip,x:geometric?a.x:undefined,y:geometric?a.y:undefined})),
     bonds:bonds.map(b=>({a:b.a,b:b.b,order:b.order,stereo:b.stereo}))});
 }
@@ -3295,6 +3447,64 @@ function addCopyButton(target,name){
   };
   target.appendChild(button);
 }
+/* ---- name polish, common names and the automatic PubChem check ---- */
+// tidy systematic output into the names textbooks use (cyclohexanol, 2-hydroxybenzoic acid, …)
+function polishName(n){
+  if(!n) return n;
+  let m;
+  if((m=n.match(/^cyclo([a-z]+?)an-1-(ol|one|amine|thiol)$/))) return "cyclo"+m[1]+"an"+m[2];
+  if((m=n.match(/^cyclo([a-z]+)-1-ene$/))) return "cyclo"+m[1]+"ene";
+  n=n.replace(/benzene-1-carboxylic acid$/,"benzoic acid").replace(/benzene-1-carbaldehyde$/,"benzaldehyde")
+     .replace(/benzene-1-carbonitrile$/,"benzonitrile").replace(/benzene-1-carboxamide$/,"benzamide")
+     .replace(/benzene-1-carboxylate$/,"benzoate").replace(/benzene-1-carbonyl chloride$/,"benzoyl chloride");
+  if(n==="aminomethanamide") return "urea";
+  if(n==="phenylbenzene") return "biphenyl";
+  return n;
+}
+// systematic name -> [common EN, common DE]
+const COMMON={
+  "methylbenzene":["toluene","Toluol"],"ethenylbenzene":["styrene","Styrol"],"1,2-dimethylbenzene":["o-xylene","o-Xylol"],
+  "1,3-dimethylbenzene":["m-xylene","m-Xylol"],"1,4-dimethylbenzene":["p-xylene","p-Xylol"],
+  "propan-2-one":["acetone","Aceton"],"butan-2-one":["methyl ethyl ketone","Methylethylketon"],
+  "methanoic acid":["formic acid","Ameisensäure"],"ethanoic acid":["acetic acid","Essigsäure"],
+  "propanoic acid":["propionic acid","Propionsäure"],"butanoic acid":["butyric acid","Buttersäure"],
+  "methanal":["formaldehyde","Formaldehyd"],"ethanal":["acetaldehyde","Acetaldehyd"],
+  "trichloromethane":["chloroform","Chloroform"],"tetrachloromethane":["carbon tetrachloride","Tetrachlorkohlenstoff"],
+  "dichloromethane":["methylene chloride","Methylenchlorid"],
+  "ethoxyethane":["diethyl ether","Diethylether"],"propan-2-ol":["isopropanol","Isopropanol"],
+  "2-methylpropan-2-ol":["tert-butanol","tert-Butanol"],"ethane-1,2-diol":["ethylene glycol","Ethylenglycol"],
+  "propane-1,2,3-triol":["glycerol","Glycerin"],"ethene":["ethylene","Ethylen"],"ethyne":["acetylene","Acetylen"],
+  "propene":["propylene","Propylen"],"prop-1-ene":["propylene","Propylen"],
+  "2-aminoethanoic acid":["glycine","Glycin"],"2-aminopropanoic acid":["alanine","Alanin"],
+  "2-hydroxypropanoic acid":["lactic acid","Milchsäure"],"3-carboxy-3-hydroxypentanedioic acid":["citric acid","Citronensäure"],
+  "ethanedioic acid":["oxalic acid","Oxalsäure"],"butanedioic acid":["succinic acid","Bernsteinsäure"],
+  "propanedioic acid":["malonic acid","Malonsäure"],"2-hydroxybenzoic acid":["salicylic acid","Salicylsäure"],
+  "2-ethanoyloxybenzoic acid":["aspirin (acetylsalicylic acid)","Aspirin (Acetylsalicylsäure)"],
+  "N-(4-hydroxyphenyl)ethanamide":["paracetamol","Paracetamol"],
+  "2-[4-(2-methylpropyl)phenyl]propanoic acid":["ibuprofen","Ibuprofen"],
+  "ethanenitrile":["acetonitrile","Acetonitril"],"ethanamide":["acetamide","Acetamid"],
+  "ethyl ethanoate":["ethyl acetate","Ethylacetat (Essigsäureethylester)"],"methyl ethanoate":["methyl acetate","Methylacetat"],
+  "ethanoyl chloride":["acetyl chloride","Acetylchlorid"],"ethanoic anhydride":["acetic anhydride","Essigsäureanhydrid"],
+  "pentane-2,4-dione":["acetylacetone","Acetylaceton"],"benzene-1,2-diol":["catechol","Brenzcatechin"],
+  "benzene-1,4-diol":["hydroquinone","Hydrochinon"],"benzene-1,3-diol":["resorcinol","Resorcin"],
+  "N,N-dimethylmethanamine":["trimethylamine","Trimethylamin"],"methanamine":["methylamine","Methylamin"]
+};
+const DE_FIX={"urea":"Harnstoff","benzaldehyde":"Benzaldehyd","benzoate":"Benzoat","benzamide":"Benzamid","benzoyl chloride":"Benzoylchlorid"};
+const deName=n=>DE_FIX[n]||deFromEN(n);
+const pcTitleOk=(t,iupac)=>t&&/^[A-Za-z(0-9]/.test(t)&&!/^CID\b/i.test(t)&&t.length<=48&&t.toLowerCase()!==String(iupac||"").toLowerCase();
+async function pubchemInfo(smiles){
+  const url="https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/smiles/property/IUPACName,Title/JSON?smiles="+encodeURIComponent(smiles);
+  const r=await fetch(url,{signal:AbortSignal.timeout(12000)});
+  if(!r.ok) throw new Error(r.status===404? "not in PubChem" : "PubChem error "+r.status);
+  const j=await r.json();
+  const p=j.PropertyTable&&j.PropertyTable.Properties&&j.PropertyTable.Properties[0];
+  if(!p||(!p.IUPACName&&!p.Title)) throw new Error("PubChem returned no name");
+  return {iupac:p.IUPACName||null,title:p.Title||null};
+}
+function nameCard(en,de,extra){
+  return card('<div class="lang-row"><span class="lang">EN</span><span class="the-name">'+esc(en)+'</span></div>'+
+    '<div class="lang-row"><span class="lang">DE</span><span class="the-name">'+esc(de)+'</span></div>'+(extra||''));
+}
 async function runNaming(){
   const id=++namingSequence, body=$("resultsBody");
   openDrawer(); body.innerHTML="";
@@ -3306,47 +3516,77 @@ async function runNaming(){
   const waiting=card('<div class="meta">Naming the complete structure offline…</div>');
   body.appendChild(waiting);
   const res=await nativeNameAsync(graph,id,stereoModel());
-  if(id!==namingSequence || snapshot!==molecularSignature()) return;
+  const stale=()=>id!==namingSequence || snapshot!==molecularSignature();
+  if(stale()) return;
   if(res.status==="cancelled") return;
+  autoStereoLabels=(res.stereo?.bonds||[]).filter(b=>b.source==='geometry');redraw();
   body.innerHTML="";
-  if(res.status==="ok"){
-    lastNamed={sig:snapshot,name:res.name};
-    const resultCard=card('<div class="lang-row"><span class="lang">EN</span><span class="the-name">'+esc(res.name)+'</span></div>'+
-      '<div class="lang-row"><span class="lang">DE</span><span class="the-name">'+esc(deFromEN(res.name))+'</span></div>'+fRow+
+  const offlineOk=res.status==="ok";
+  const sys=offlineOk? polishName(res.name) : null, common=sys&&COMMON[sys];
+  let offlineCard=null;
+  if(offlineOk){
+    lastNamed={sig:snapshot,name:common?common[0]:sys};
+    const sysRow=common? '<div class="meta">IUPAC: <b>'+esc(sys)+'</b> · DE: '+esc(deName(sys))+'</div>' : '';
+    offlineCard=nameCard(common?common[0]:sys, common?common[1]:deName(sys), sysRow+fRow+
       '<div class="meta">Offline systematic name · '+res.coveredAtoms+' / '+res.atomCount+' heavy atoms represented. German is an automatic translation.</div>'+
-      '<div class="meta">'+(res.stereo?.atoms.length||res.stereo?.bonds.length?'Specified R/S and E/Z configurations included.':'No absolute configuration specified.')+' Preferred IUPAC names may differ.</div>');
-    addCopyButton(resultCard,res.name);
+      '<div class="meta">'+(res.stereo?.atoms.length||res.stereo?.bonds.length?'Assigned R/S and E/Z configurations included.':'No stereochemical configuration assigned.')+' Preferred IUPAC names may differ.</div>');
+    addCopyButton(offlineCard,common?common[0]:sys);
     const sendB=document.createElement("button"); sendB.className="copy"; sendB.textContent="Send to Playground";
-    sendB.onclick=()=>sendToPlayground(); resultCard.appendChild(sendB);
-    body.appendChild(resultCard);
+    sendB.onclick=()=>sendToPlayground(); offlineCard.appendChild(sendB);
   }else{
-    body.appendChild(card('<strong>Not yet supported offline</strong><div class="meta">'+esc(res.reason)+
-      '</div><div class="meta">No incomplete name has been substituted. Your drawing is preserved.</div>'+fRow,"warn"));
+    offlineCard=card('<strong>Not yet supported offline</strong><div class="meta">'+esc(res.reason)+
+      '</div><div class="meta">'+(SETTINGS.pubchem==="button"?'No incomplete name has been substituted. Your drawing is preserved.':'Asking PubChem for the name instead…')+'</div>'+fRow,"warn");
   }
+  body.appendChild(offlineCard);
   const details=[...(res.stereo?.warnings||[]),...(res.biochemical?.labels||[]).map(x=>x.text),...(res.biochemical?.notes||[])];
+  if(autoStereoLabels.length)details.unshift('E/Z read automatically from the drawing ('+autoStereoLabels.length+' double bond'+(autoStereoLabels.length===1?'':'s')+').');
   if(details.length)body.appendChild(card(details.map(s=>'<div class="meta">'+esc(s)+'</div>').join('')));
-  body.appendChild(card('<div class="meta">Right-click an atom for R/S, or a bond for wedge/dash or E/Z (tap on touch). The narrow wedge endpoint is the stereocenter. D/L and α/β are derived for supported amino-acid and sugar units.</div>'));
-  if(res.stereoError||!res.isomericSMILES)return;
-  const lookup=card('<div class="meta">Optional database lookup sends this structure, including specified stereochemistry, to PubChem. A database miss does not mean the molecule is invalid.</div>',"warn");
-  const button=document.createElement("button"); button.className="copy"; button.textContent="Look up on PubChem";
-  lookup.appendChild(button); body.appendChild(lookup);
-  button.onclick=async()=>{
-    if(snapshot!==molecularSignature() || id!==namingSequence){ button.textContent="Structure changed — name it again"; return; }
-    button.disabled=true; button.textContent="Looking up…";
+  body.appendChild(card('<div class="meta">E/Z follows clear double-bond geometry automatically. Right-click for wedge/dash, R/S, or a manual override (tap on touch). The narrow wedge endpoint is the stereocenter. D/L and α/β are derived for supported amino-acid and sugar units.</div>'));
+  // PubChem: automatic by default (Settings → Online name check); only the structure (SMILES) is sent
+  let smiles=res.isomericSMILES||null;
+  if(!smiles){ try{ smiles=toSMILES(); }catch(e){} }
+  if(!smiles) return;
+  const lookup=card('<div class="meta">'+(SETTINGS.pubchem==="button"
+    ? 'Optional database lookup sends this structure, including specified stereochemistry, to PubChem.'
+    : 'Checking the name with PubChem…')+'</div>',"warn");
+  offlineCard.after(lookup);
+  const run=async()=>{
     try{
-      const smiles=res.isomericSMILES; if(!smiles) throw new Error("No validated stereochemical export is available");
-      const nm=await pubchemName(smiles);
-      if(snapshot!==molecularSignature() || id!==namingSequence) return;
-      const match=card('<div class="lang-row"><span class="lang">EN</span><span class="the-name">'+esc(nm)+'</span></div>'+
-        '<div class="lang-row"><span class="lang">DE</span><span class="the-name">'+esc(deFromEN(nm))+'</span></div>'+
-        '<div class="meta">PubChem database name · query includes specified stereochemistry. German is an automatic translation.</div>');
-      addCopyButton(match,nm); lookup.replaceWith(match);
+      const pc=await pubchemInfo(smiles);
+      if(stale()) return;
+      const title=pcTitleOk(pc.title,pc.iupac)? pc.title : null;
+      if(offlineOk){
+        const agrees=pc.iupac && pc.iupac.toLowerCase()===sys.toLowerCase();
+        const extra=(title&&!common? '<div class="meta">Common name: <b>'+esc(title)+'</b></div>' : '');
+        if(agrees){
+          lookup.replaceWith(card('<div class="meta">✓ PubChem gives the same IUPAC name.</div>'+extra));
+        } else if(pc.iupac){
+          const c=nameCard(pc.iupac, deFromEN(pc.iupac), extra+'<div class="meta">Official IUPAC name from PubChem (matched by the full structure). German is an automatic translation.</div>');
+          addCopyButton(c,pc.iupac); lookup.replaceWith(c);
+        } else lookup.replaceWith(card(extra||'<div class="meta">PubChem knows this structure but lists no IUPAC name.</div>'));
+      } else {
+        const main=title||pc.iupac;
+        lastNamed={sig:snapshot,name:main};
+        const c=nameCard(main, deFromEN(pc.iupac||main),
+          (title&&pc.iupac? '<div class="meta">IUPAC: <b>'+esc(pc.iupac)+'</b></div>' : '')+fRow+
+          '<div class="meta">Name from PubChem (matched by the full structure); the offline engine does not cover this one yet. German is an automatic translation.</div>');
+        addCopyButton(c,main);
+        const sendB=document.createElement("button"); sendB.className="copy"; sendB.textContent="Send to Playground";
+        sendB.onclick=()=>sendToPlayground(); c.appendChild(sendB);
+        offlineCard.remove();
+        lookup.replaceWith(c);
+      }
     }catch(err){
-      if(id!==namingSequence || snapshot!==molecularSignature()) return;
-      lookup.replaceWith(card('<div class="meta">Database lookup unavailable: '+esc(err.message)+
-        (res.status==="ok"? '. The offline result remains available.': '. This structure remains outside current offline coverage.')+'</div>',"warn"));
+      if(stale()) return;
+      lookup.replaceWith(card('<div class="meta">PubChem: '+esc(err.message)+
+        (offlineOk? '. The offline result above still applies.' : '. This structure is outside the offline engine for now.')+'</div>',"warn"));
     }
   };
+  if(SETTINGS.pubchem==="button"){
+    const button=document.createElement("button"); button.className="copy"; button.textContent="Look up on PubChem";
+    lookup.appendChild(button);
+    button.onclick=()=>{ if(stale()){ button.textContent="Structure changed — name it again"; return; } button.disabled=true; button.textContent="Looking up…"; run(); };
+  } else run();
 }
 $("nameBtn").onclick=runNaming;
 
