@@ -2223,31 +2223,60 @@ function lonePairs(i){
   const nb=ve-(a.charge||0)-bondSum(i)-implicitH(i);
   return Math.max(0,Math.floor(nb/2)) + (nb%2===1?1:0); // a lone radical electron gets a site too
 }
-/* free electron pairs around atom i (and a lone single electron for radicals), in world coords:
-   just outside the atom's label, in the free directions, never on the side where its H is written */
-function lonePairSpots(i){
-  const a=atoms[i], ve=VAL_E[a.el]; if(ve===undefined||skelHiddenH(i)) return [];
-  const nb=ve-(a.charge||0)-bondSum(i)-implicitH(i); if(nb<=0) return [];
-  const pairs=Math.floor(nb/2), rad=nb%2, n=pairs+rad;
-  const dh=skelOn()? displayH(i) : 0;
-  // box around the element letter itself (in "OH" the O sits left of the atom point)
-  let box=null, ox=0;
-  if(skelOn() && skelLabel(i)){
-    ctx.font=labelFont();
-    const label=a.el+(dh>0? "H"+(dh>1?subNum(dh):"") : ""), wl=ctx.measureText(label).width, we=ctx.measureText(a.el).width;
-    box={hw:we/2+2.5, hh:Math.max(11,14*view.k)*1.12*.5}; ox=-(wl-we)/2;
+/* ---- electron layout of an atom ----
+   normal view: lone pairs around the element letter (H written in "OH"/"NH₂" keeps the right side)
+   expanded view (inside the loupe, and for electron-arrow aiming): every H is its own domain.
+   Lone pairs sit on the free sides of the letter (top / bottom / left / right) when there is room. */
+function spreadAngles(occ,count){
+  const TWO=2*Math.PI, out=[];
+  if(!count) return out;
+  const angles=occ.map(a=>((a%TWO)+TWO)%TWO).sort((a,b)=>a-b);
+  if(!angles.length){ for(let k=0;k<count;k++) out.push(-Math.PI/2+k*TWO/count); return out; }
+  const gaps=angles.map((a0,g)=>({start:a0,size:(g+1<angles.length? angles[g+1] : angles[0]+TWO)-a0,slots:0}));
+  for(let k=0;k<count;k++){ let best=0,score=-1; gaps.forEach((gp,gi)=>{ const s=gp.size/(gp.slots+2); if(s>score){score=s;best=gi;} }); gaps[best].slots++; }
+  gaps.forEach(gp=>{ for(let s=1;s<=gp.slots;s++) out.push(gp.start+gp.size*s/(gp.slots+1)); });
+  return out;
+}
+const angGap=(a,b)=>Math.abs(Math.atan2(Math.sin(a-b),Math.cos(a-b)));
+function atomLayout(i,expanded){
+  const a=atoms[i], k=view.k, L=medianBondLen(), fsz=Math.max(11,14*k)*1.12;
+  const ve=VAL_E[a.el];
+  const nb= ve===undefined? 0 : ve-(a.charge||0)-bondSum(i)-implicitH(i);
+  const pairs=Math.max(0,Math.floor(nb/2)), rad=nb>0? nb%2 : 0;
+  const lab=skelOn()? skelLabel(i) : null;
+  const dh=lab? displayH(i) : 0;
+  ctx.font=labelFont();
+  const we=ctx.measureText(a.el).width;
+  let ox=0;
+  if(lab&&dh>0){ const label=a.el+"H"+(dh>1?subNum(dh):""); ox=-(ctx.measureText(label).width-we)/2; }
+  const box=(lab||expanded)? {hw:we/2+2.5, hh:fsz*.5} : null;
+  const cx=a.x+ox/k, cy=a.y;
+  const occ=neighborAngles(i);
+  const nH=expanded? implicitH(i) : 0;
+  const hAngles=[];
+  if(!expanded && dh>0) occ.push(0);                       // the written H sits to the right
+  if(nH){
+    const right=!occ.some(g=>angGap(g,0)<0.7);
+    if(lab && dh>0 && right){ hAngles.push(0); occ.push(0); }
+    const rest=spreadAngles(occ,nH-hAngles.length); rest.forEach(g=>{ hAngles.push(g); occ.push(g); });
   }
-  const angs=openAngles(i, n+(dh>0?1:0));
-  if(dh>0){ // the H is written to the right: keep the pairs off that side
-    let k=0,best=9; angs.forEach((g,j)=>{ const d=Math.abs(Math.atan2(Math.sin(g),Math.cos(g))); if(d<best){best=d;k=j;} });
-    angs.splice(k,1);
-  }
-  const L=medianBondLen(), k=view.k, cx=a.x+ox/k, cy=a.y;
-  return angs.map((g,j)=>{
-    const ux=Math.cos(g), uy=Math.sin(g);
-    const r= box? Math.min(Math.abs(ux)>1e-6? box.hw/k/Math.abs(ux) : 1e9, Math.abs(uy)>1e-6? box.hh/k/Math.abs(uy) : 1e9)+3.5/k : 0.3*L;
-    return {x:cx+ux*r, y:cy+uy*r, ux, uy, single: !!rad && j===angs.length-1};
+  // lone pairs: spread into the free space, then settle onto a side of the letter if it is free
+  const lpAngles=[];
+  spreadAngles(occ,pairs+rad).forEach(g=>{
+    const side=Math.round(g/(Math.PI/2))*(Math.PI/2);
+    const taken=[...occ,...lpAngles];
+    lpAngles.push(taken.every(t=>angGap(t,side)>0.75)? side : g);
   });
+  const edge=(ux,uy)=> box? Math.min(Math.abs(ux)>1e-6? box.hw/k/Math.abs(ux) : 1e9, Math.abs(uy)>1e-6? box.hh/k/Math.abs(uy) : 1e9)+3.5/k : 0.3*L;
+  return {
+    cx, cy, box,
+    hs:hAngles.map(g=>({x:cx+Math.cos(g)*0.55*L, y:cy+Math.sin(g)*0.55*L, parent:i})),
+    lps:lpAngles.map((g,j)=>{ const ux=Math.cos(g), uy=Math.sin(g), r=edge(ux,uy); return {x:cx+ux*r, y:cy+uy*r, ux, uy, single: !!rad && j===lpAngles.length-1}; })
+  };
+}
+function lonePairSpots(i,expanded){
+  const a=atoms[i]; if(!a||VAL_E[a.el]===undefined||(!expanded&&skelHiddenH(i))) return [];
+  return atomLayout(i,!!expanded).lps;
 }
 const lpHalf=()=>Math.max(11,14*view.k)*1.12*0.3; // half length of a lone-pair bar, screen px
 // Classic: draw them the textbook way: a short bar per pair, a dot for a single electron
@@ -2277,7 +2306,7 @@ function electronSites(e){
     if(skelHiddenH(i)) return;
     // same spots as the drawn pairs: 2e⁻ = middle of the bar, 1e⁻ = either end of it
     const h=lpHalf()/view.k;
-    lonePairSpots(i).forEach(sp=>{
+    lonePairSpots(i,true).forEach(sp=>{
       if(e===1&&!sp.single){ out.push({x:sp.x-sp.uy*h,y:sp.y+sp.ux*h,kind:"lp"}); out.push({x:sp.x+sp.uy*h,y:sp.y-sp.ux*h,kind:"lp"}); }
       else out.push({x:sp.x,y:sp.y,kind:"lp"});
     });
@@ -2316,34 +2345,18 @@ function snapElectron(w,from,e){
   for(const c of cands){ const d=Math.hypot(c.x-w.x,c.y-w.y)+c.pen; if(d<bd){ bd=d; best=c; } }
   return best? {x:best.x,y:best.y,hRef:best.hRef||null} : w;
 }
-/* ---- hydrogens for electron arrows ----
-   hidden C–H hydrogens (skeletal view) and the H written inside labels like "N⁺H" / "NH₂"
-   are aim points; an arrow that ends on a hidden H turns it into a real, drawn H atom. */
+/* ---- hydrogens for electron arrows (written-out positions, as shown in the loupe) ----
+   an arrow that ends on one of these H turns it into a real, drawn H atom */
 function implicitHSpots(i){
-  const a=atoms[i]; if(!a||a.el==="H"||skelHiddenH(i)) return [];
-  if(skelOn() && skelLabel(i)) return [];            // its H is written in the label instead
-  const n=implicitH(i); if(!n) return [];
-  const L=medianBondLen(), lp=lonePairSpots(i).length;
-  return openAngles(i,n+lp).slice(0,n).map(g=>({x:a.x+Math.cos(g)*0.55*L, y:a.y+Math.sin(g)*0.55*L, parent:i}));
-}
-function labelHSpot(i){
-  if(!skelOn()) return null;
-  const a=atoms[i], dh=displayH(i); if(!dh||a.el==="H"||!skelLabel(i)) return null;
-  ctx.font=labelFont();
-  const label=a.el+"H"+(dh>1?subNum(dh):""), wl=ctx.measureText(label).width, we=ctx.measureText(a.el).width, wh=ctx.measureText("H").width;
-  return {x:a.x+(-wl/2+we+wh/2)/view.k, y:a.y, parent:i};
+  const a=atoms[i]; if(!a||a.el==="H"||skelHiddenH(i)||!implicitH(i)) return [];
+  return atomLayout(i,true).hs;
 }
 function hydrogenTargets(from){
   const out=[], k=view.k;
-  atoms.forEach((a,i)=>{
-    const g=labelHSpot(i);
-    if(g){ const d=from? Math.hypot(from.x-g.x,from.y-g.y)||1 : 1, o=from? 7/k : 0;
-      out.push({x:g.x+(from?(from.x-g.x)/d*o:0), y:g.y+(from?(from.y-g.y)/d*o:0), kind:"labelH", pen:1/k}); }
-    implicitHSpots(i).forEach(h=>{
-      const d=from? Math.hypot(from.x-h.x,from.y-h.y)||1 : 1, o=from? 6/k : 0;
-      out.push({x:h.x+(from?(from.x-h.x)/d*o:0), y:h.y+(from?(from.y-h.y)/d*o:0), kind:"implicitH", pen:1/k, hRef:h});
-    });
-  });
+  atoms.forEach((a,i)=>implicitHSpots(i).forEach(h=>{
+    const d=from? Math.hypot(from.x-h.x,from.y-h.y)||1 : 1, o=from? 6/k : 0;
+    out.push({x:h.x+(from?(from.x-h.x)/d*o:0), y:h.y+(from?(from.y-h.y)/d*o:0), kind:"implicitH", pen:1/k, hRef:h});
+  }));
   return out;
 }
 // make a hidden hydrogen a real atom (kept visible in skeletal view)
@@ -2354,57 +2367,98 @@ function materializeH(ref){
   bonds.push({a:ref.parent,b:atoms.length-1,order:1});
   return true;
 }
-/* ---- magnifier: a loupe follows the cursor in the electron-arrow tool ---- */
-let renderingLoupe=false, loupeCanvas=null;
-const LOUPE_D=168, LOUPE_M=2.6;
-function drawLoupeHydrogens(){
-  // in the loupe the hidden hydrogens are shown, so you can aim at them
-  const L=medianBondLen(), k=view.k, PAL=pal();
-  ctx.save(); ctx.strokeStyle=PAL.hText; ctx.fillStyle=PAL.hText; ctx.lineWidth=1.2;
-  ctx.font=`700 ${Math.max(10,13*Math.min(k,2.4))}px Arial`; ctx.textAlign="center"; ctx.textBaseline="middle";
-  atoms.forEach((a,i)=>implicitHSpots(i).forEach(h=>{
-    const P=W2S(a), Q=W2S(h), dx=Q.x-P.x, dy=Q.y-P.y, d=Math.hypot(dx,dy)||1, ux=dx/d, uy=dy/d;
-    const lab=skelOn()? skelLabel(i) : null, start=lab? 10 : (skelOn()? 0 : R_ATOM*k);
-    ctx.setLineDash([3,2]); ctx.beginPath(); ctx.moveTo(P.x+ux*start,P.y+uy*start); ctx.lineTo(Q.x-ux*7,Q.y-uy*7); ctx.stroke(); ctx.setLineDash([]);
-    ctx.fillText("H",Q.x,Q.y);
+/* ---- magnifier: rest the cursor in the electron-arrow tool and a loupe opens,
+   showing the molecule fully written out (every C, every H, every lone pair) ---- */
+let renderingLoupe=false, loupeCanvas=null, loupeOn=false, loupeAnchor=null, loupeTimer=0;
+const LOUPE_D=240, LOUPE_DWELL=420;
+function loupeTrack(sx,sy){
+  const active=mode==="mech"||(drag.kind==="skHandle"&&sketch[selSketch]?.t==="mech");
+  if(!active){ if(loupeOn){ loupeOn=false; } clearTimeout(loupeTimer); loupeTimer=0; loupeAnchor=null; return; }
+  const restart=()=>{ clearTimeout(loupeTimer); loupeTimer=setTimeout(()=>{ loupeTimer=0; loupeOn=true; redraw(); },LOUPE_DWELL); };
+  if(!loupeAnchor){ loupeAnchor={sx,sy}; restart(); return; }
+  const d=Math.hypot(sx-loupeAnchor.sx,sy-loupeAnchor.sy);
+  if(loupeOn){ if(d>110){ loupeOn=false; loupeAnchor={sx,sy}; restart(); } }   // a big move closes it; small aiming moves keep it
+  else if(d>6){ loupeAnchor={sx,sy}; restart(); }                             // still moving: wait for the cursor to rest
+}
+function hideLoupe(){ loupeOn=false; clearTimeout(loupeTimer); loupeTimer=0; loupeAnchor=null; }
+// draw the molecule written out (Valenzstrichformel) with the current ctx/view
+function renderExpanded(D){
+  const PAL=pal(), k=view.k, fsz=Math.max(11,14*k)*1.12, ink=PAL.ink;
+  if(ownPaper()) drawPaper(D,D);
+  const L=atoms.map((a,i)=>atomLayout(i,true));
+  const pos=i=>({x:L[i].cx,y:L[i].cy});
+  ctx.font=`700 ${fsz}px Arial`;
+  const boxOf=el=>({hw:ctx.measureText(el).width/2+3, hh:fsz*.5+1});
+  // bonds between the letters
+  bonds.forEach(b=>{
+    let A=W2S(pos(b.a)), B=W2S(pos(b.b));
+    const c=clipBond(A,B,boxOf(atoms[b.a].el),boxOf(atoms[b.b].el)); if(!c) return;
+    drawBondLine(c[0].x,c[0].y,c[1].x,c[1].y,b.order,PAL.bond,1.6*Math.min(k,2),bondSide(b));
+  });
+  // hydrogens that are normally hidden or folded into a label
+  L.forEach((lay,i)=>{ if(atoms[i].el==="H") return; implicitH(i)&&lay.hs.forEach(h=>{
+    const A=W2S(pos(i)), B=W2S(h), c=clipBond(A,B,boxOf(atoms[i].el),boxOf("H")); if(!c) return;
+    drawBondLine(c[0].x,c[0].y,c[1].x,c[1].y,1,PAL.bond,1.6*Math.min(k,2),1);
+  }); });
+  // letters
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  atoms.forEach((a,i)=>{
+    const P=W2S(pos(i));
+    ctx.font=`700 ${fsz}px Arial`; ctx.fillStyle=atomInk(a.el); ctx.fillText(a.el,P.x,P.y+1);
+    if(a.charge) drawChargeBadge(P,Math.max(8,fsz*.55),a.charge,fsz);
+    L[i].hs.forEach(h=>{ if(!implicitH(i)) return; const Q=W2S(h); ctx.font=`700 ${fsz}px Arial`; ctx.fillStyle=atomInk("H"); ctx.fillText("H",Q.x,Q.y+1); });
+  });
+  // lone pairs and single electrons
+  const half=lpHalf();
+  ctx.save(); ctx.strokeStyle=ink; ctx.fillStyle=ink; ctx.lineWidth=Math.max(1.5,fsz*0.09); ctx.lineCap="round";
+  L.forEach(lay=>lay.lps.forEach(sp=>{
+    const p=W2S(sp);
+    if(sp.single){ ctx.beginPath(); ctx.arc(p.x,p.y,ctx.lineWidth,0,7); ctx.fill(); return; }
+    ctx.beginPath(); ctx.moveTo(p.x-sp.uy*half,p.y+sp.ux*half); ctx.lineTo(p.x+sp.uy*half,p.y-sp.ux*half); ctx.stroke();
   }));
   ctx.restore();
+  // arrows on top, plus the one being drawn
+  sketch.forEach((it,si)=>drawSketchItem(it, si===selSketch));
+  if(drag.kind==="skDraw" && drag.w0 && drag.w1){ ctx.save(); ctx.globalAlpha=.6; drawSketchItem(newSketchItem(mode,drag.w0,drag.w1),false); ctx.restore(); }
+  drawElectronSites();
 }
 function drawLoupe(){
-  if(renderingLoupe || mode!=="mech" && !(drag.kind==="skHandle" && sketch[selSketch]?.t==="mech")) return;
-  if(!lastCanvasPt || !atoms.length) return;
+  if(renderingLoupe || !loupeOn || !lastCanvasPt || !atoms.length) return;
+  if(mode!=="mech" && !(drag.kind==="skHandle" && sketch[selSketch]?.t==="mech")){ hideLoupe(); return; }
   const D=LOUPE_D, dpr=window.devicePixelRatio||1, c={x:lastCanvasPt.sx,y:lastCanvasPt.sy};
   if(!loupeCanvas) loupeCanvas=document.createElement("canvas");
   loupeCanvas.width=D*dpr; loupeCanvas.height=D*dpr;
   const lctx=loupeCanvas.getContext("2d"); lctx.setTransform(dpr,0,0,dpr,0,0);
   const w=S2W(c), mainCtx=ctx, mainView=view;
-  // zoom so about one bond length fills the loupe radius (always magnifies at least 1.6×)
-  const M=Math.max(1.6,Math.min(4,(D/2)/(1.05*medianBondLen())/mainView.k)), k=mainView.k*M;
+  // about one and a half bond lengths across the loupe radius, at least 1.8× magnified
+  const M=Math.max(1.8,Math.min(5,(D/2)/(1.5*medianBondLen())/mainView.k)), k=mainView.k*M;
   view={k, x:D/2/k-w.x, y:D/2/k-w.y};
   ctx=lctx; renderingLoupe=true;
   try{
     lctx.fillStyle=getComputedStyle(document.body).getPropertyValue("--bg").trim()||"#0a0c10";
     lctx.fillRect(0,0,D,D);
-    redraw();
-    drawLoupeHydrogens();
+    renderExpanded(D);
   } finally { ctx=mainCtx; view=mainView; renderingLoupe=false; }
   const r=wrap.getBoundingClientRect();
-  let lx=c.x+46, ly=c.y-46-D;
-  if(lx+D>r.width-6) lx=c.x-46-D;
-  if(ly<6) ly=c.y+46;
+  let lx=c.x+50, ly=c.y-50-D;
+  if(lx+D>r.width-6) lx=c.x-50-D;
+  if(ly<6) ly=c.y+50;
+  if(ly+D>r.height-6) ly=Math.max(6,r.height-6-D);
   const PAL=pal();
   ctx.save();
-  ctx.shadowColor="rgba(0,0,0,.35)"; ctx.shadowBlur=18;
+  ctx.shadowColor="rgba(0,0,0,.35)"; ctx.shadowBlur=22;
   ctx.beginPath(); ctx.arc(lx+D/2,ly+D/2,D/2,0,7); ctx.fillStyle=PAL.mask; ctx.fill();
   ctx.shadowBlur=0; ctx.save(); ctx.clip(); ctx.drawImage(loupeCanvas,lx,ly,D,D); ctx.restore();
-  ctx.lineWidth=2.5; ctx.strokeStyle=PAL.mech; ctx.stroke();
-  // aim cross at the loupe centre = the cursor
-  ctx.strokeStyle=PAL.mech; ctx.globalAlpha=.7; ctx.lineWidth=1;
+  ctx.lineWidth=3; ctx.strokeStyle=PAL.mech; ctx.stroke();
   const cx=lx+D/2, cy=ly+D/2;
-  ctx.beginPath(); ctx.moveTo(cx-9,cy); ctx.lineTo(cx-3,cy); ctx.moveTo(cx+3,cy); ctx.lineTo(cx+9,cy);
-  ctx.moveTo(cx,cy-9); ctx.lineTo(cx,cy-3); ctx.moveTo(cx,cy+3); ctx.lineTo(cx,cy+9); ctx.stroke();
+  ctx.strokeStyle=PAL.mech; ctx.globalAlpha=.7; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(cx-10,cy); ctx.lineTo(cx-3,cy); ctx.moveTo(cx+3,cy); ctx.lineTo(cx+10,cy);
+  ctx.moveTo(cx,cy-10); ctx.lineTo(cx,cy-3); ctx.moveTo(cx,cy+3); ctx.lineTo(cx,cy+10); ctx.stroke();
   ctx.globalAlpha=1; ctx.font="700 10px Arial"; ctx.fillStyle=PAL.mech; ctx.textAlign="center"; ctx.textBaseline="alphabetic";
-  ctx.fillText("×"+M.toFixed(1), cx, ly+D-10);
+  ctx.fillText("×"+M.toFixed(1)+" · written out", cx, ly+D-12);
+  // a thin leader from the cursor to the loupe
+  ctx.globalAlpha=.35; ctx.lineWidth=1; ctx.setLineDash([3,3]); ctx.beginPath();
+  const ang=Math.atan2(cy-c.y,cx-c.x); ctx.moveTo(c.x+Math.cos(ang)*8,c.y+Math.sin(ang)*8); ctx.lineTo(cx-Math.cos(ang)*D/2,cy-Math.sin(ang)*D/2); ctx.stroke();
   ctx.restore();
 }
 
@@ -2809,8 +2863,8 @@ function zoomAt(sx,sy,factor){
   redraw();
 }
 let lastCanvasPt=null; // last cursor position over the canvas (arrow-key zoom anchor)
-canvas.addEventListener("pointermove",e=>{ const r=canvas.getBoundingClientRect(); lastCanvasPt={sx:e.clientX-r.left,sy:e.clientY-r.top}; });
-canvas.addEventListener("pointerleave",()=>{ lastCanvasPt=null; });
+canvas.addEventListener("pointermove",e=>{ const r=canvas.getBoundingClientRect(); lastCanvasPt={sx:e.clientX-r.left,sy:e.clientY-r.top}; loupeTrack(lastCanvasPt.sx,lastCanvasPt.sy); });
+canvas.addEventListener("pointerleave",()=>{ lastCanvasPt=null; hideLoupe(); });
 /* mouse-wheel zoom, centered on cursor — disabled by Settings → Scroll lock */
 canvas.addEventListener("wheel",e=>{
   e.preventDefault();
