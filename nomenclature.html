@@ -415,7 +415,7 @@ footer.credit{display:none}
       <svg class="ico" viewBox="0 0 24 24"><path d="M4 18C5 8 15 4 19 12"/><path d="M15.5 11.2l4 1.6 1-4.2z" fill="currentColor"/></svg>
     </button>
     <div class="sep"></div>
-    <button class="rbtn" id="moveBtn" title="Move atoms (drag to reposition instead of bonding)">
+    <button class="rbtn" id="moveBtn" title="Move: drag an atom to reposition it, drag a bond to move the whole molecule. Drop it on another molecule to merge (Alt: don't merge)">
       <svg class="ico" viewBox="0 0 24 24"><path d="M4 3l7 18 2.5-7.5L21 11z"/></svg>
     </button>
     <button class="rbtn" id="eraseBtn" title="Eraser (drag over atoms/bonds to remove)">
@@ -625,6 +625,8 @@ footer.credit{display:none}
       <section><h4>Select &amp; edit</h4>
         <p><kbd>Shift</kbd>+drag <span>box-select (any tool), Shift+click adds/removes</span></p>
         <p><kbd>Ctrl</kbd><kbd>A</kbd> <span>select everything</span></p>
+        <p>double-click <span>(select / move) pick the whole molecule</span></p>
+        <p>drop on a molecule <span>merges: atom on atom fuses, H on an atom replaces it, near an atom bonds; hold <kbd>Alt</kbd> to just place it</span></p>
         <p><kbd>Ctrl</kbd><kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd> <span>copy, cut, paste at the cursor</span></p>
         <p><kbd>Ctrl</kbd><kbd>D</kbd> <span>duplicate</span></p>
         <p><kbd>Ctrl</kbd><kbd>Z</kbd> / <kbd>Y</kbd> <span>undo / redo</span></p>
@@ -1968,6 +1970,7 @@ function redraw(){
     if(skelHiddenH(b.a)||skelHiddenH(b.b)) return;
     let A=W2S(atoms[b.a]), B=W2S(atoms[b.b]);
     if(classic){ const c=clipBond(A,B,labs[b.a],labs[b.b]); if(!c) return; A=c[0]; B=c[1]; }
+    ctx.globalAlpha = ghostStart>=0&&b.a>=ghostStart? .5 : 1;
     const sel = bi===selBond;
     const msel = multiSel.has(b.a)&&multiSel.has(b.b);
     const color = sel? PAL.sel : msel? PAL.msel : PAL.bond;
@@ -1988,6 +1991,7 @@ function redraw(){
       ctx.fillText('('+stereoLabel+')',(A.x+B.x)/2,(A.y+B.y)/2-12);
     }
   });
+  ctx.globalAlpha=1;
   // select-tool highlight halo (drawn under the atom glyphs)
   if(multiSel.size){
     ctx.save();
@@ -2017,6 +2021,7 @@ function redraw(){
   const fs=Math.max(11,14*view.k);
   atoms.forEach((a,i)=>{
     if(skelHiddenH(i)) return;
+    ctx.globalAlpha = ghostStart>=0&&i>=ghostStart? .55 : 1;
     const P=W2S(a), rr=R_ATOM*view.k;
     const col=atomInk(a.el);
     if(a.cip){ctx.font='bold 12px Arial';ctx.textAlign='left';ctx.fillStyle=PAL.label;ctx.fillText('('+a.cip+')',P.x+12,P.y-15);}
@@ -2063,6 +2068,7 @@ function redraw(){
     }
     if(a.charge) drawChargeBadge(P,rr,a.charge,fs);
   });
+  ctx.globalAlpha=1;
   // sketch layer (+, reaction arrows, mechanism arrows) on top of the molecule
   sketch.forEach((it,si)=>drawSketchItem(it, si===selSketch));
   if(drag.kind==="skDraw" && drag.w0 && drag.w1){
@@ -2082,10 +2088,10 @@ function redraw(){
     ctx.strokeRect(x0,y0,x1-x0,y1-y0);
     ctx.restore();
   }
-  drawLonePairs(); drawOverValence(); drawHover(PAL); drawElectronSites();
+  drawLonePairs(); drawOverValence(); drawHover(PAL); drawMergeHint(); drawElectronSites();
   if(renderingLoupe) return;
   drawLoupe();
-  updateFormula();
+  if(ghostStart<0) updateFormula();
   positionPopover();
   positionSelPop();
   positionSkPop();
@@ -2278,12 +2284,14 @@ function lonePairSpots(i,expanded){
   const a=atoms[i]; if(!a||VAL_E[a.el]===undefined||(!expanded&&skelHiddenH(i))) return [];
   return atomLayout(i,!!expanded).lps;
 }
-const lpHalf=()=>Math.max(11,14*view.k)*1.12*0.3; // half length of a lone-pair bar, screen px
+const lpHalf=(k=view.k)=>Math.max(11,14*k)*1.12*0.3; // half length of a lone-pair bar, screen px
 // Classic: draw them the textbook way: a short bar per pair, a dot for a single electron
 function drawLonePairs(){
-  if(!isClassic()) return;
-  const fsz=Math.max(11,14*view.k)*1.12, h=lpHalf();
-  ctx.save(); ctx.strokeStyle="#000"; ctx.fillStyle="#000"; ctx.lineWidth=Math.max(1.5,fsz*0.09); ctx.lineCap="round";
+  // Classic: always. Dark style: while the electron-arrow tool is in use, so the arrows have something to start from
+  const mechOn=mode==="mech"||(drag.kind==="skHandle"&&sketch[selSketch]?.t==="mech");
+  if(!isClassic()&&!mechOn) return;
+  const fsz=Math.max(11,14*view.k)*1.12, h=lpHalf(), ink=isClassic()? "#000" : "rgba(231,233,238,.8)";
+  ctx.save(); ctx.strokeStyle=ink; ctx.fillStyle=ink; ctx.lineWidth=Math.max(1.5,fsz*0.09); ctx.lineCap="round";
   atoms.forEach((a,i)=>lonePairSpots(i).forEach(sp=>{
     const p=W2S(sp);
     if(sp.single){ ctx.beginPath(); ctx.arc(p.x,p.y,ctx.lineWidth,0,7); ctx.fill(); return; }
@@ -2291,24 +2299,34 @@ function drawLonePairs(){
   }));
   ctx.restore();
 }
+/* the sites follow the picture the user is aiming in: the loupe's written-out layout while the loupe
+   is open (computed at the loupe's own zoom, so its paddings and π-line gaps line up exactly),
+   otherwise the layout drawn on the canvas */
+let loupeK=0;
 function electronSites(e){
-  const out=[], L=medianBondLen();
+  if(loupeOn&&!renderingLoupe&&loupeK){ const v=view; view={...v,k:loupeK}; try{ return electronSitesAt(e,true); } finally{ view=v; } }
+  return electronSitesAt(e,renderingLoupe);
+}
+function electronSitesAt(e,expanded){
+  const out=[], k=view.k;
   bonds.forEach(b=>{
     if(skelHiddenH(b.a)||skelHiddenH(b.b)) return;
-    const A=atoms[b.a], B=atoms[b.b], dx=B.x-A.x, dy=B.y-A.y, len=Math.hypot(dx,dy)||1, nx=-dy/len, ny=dx/len;
-    const ts=e===1? [0.4,0.6] : [0.5];
-    const lines=[0];
-    if(b.order>=2){ const gw=5.2*Math.min(view.k,1.6)/view.k; lines.push((bondSide(b)||1)*gw); } // π electrons sit on the inner line
-    if(b.order===3){ const gw=5.2*Math.min(view.k,1.6)/view.k; lines.push(-gw); }
-    lines.forEach(o=>ts.forEach(t=>out.push({x:A.x+dx*t+nx*o, y:A.y+dy*t+ny*o, kind:"bond"})));
+    const A=atoms[b.a], B=atoms[b.b], dx=B.x-A.x, dy=B.y-A.y, len=Math.hypot(dx,dy)||1, nx=-dy/len, ny=dx/len, tx=dx/len, ty=dy/len;
+    // the bond's own electrons: 2e⁻ at the middle, 1e⁻ one on each half of the line
+    const ts=e===1? [0.38,0.62] : [0.5];
+    const gw=5.2*Math.min(k,1.6)/k, lines=[{o:0,what:"σ bond"}];
+    if(b.order>=2) lines.push({o:(bondSide(b)||1)*gw,what:"π bond"}); // π electrons sit on the inner line
+    if(b.order===3) lines.push({o:-gw,what:"π bond"});
+    lines.forEach(L=>ts.forEach(t=>out.push({x:A.x+dx*t+nx*L.o, y:A.y+dy*t+ny*L.o, kind:"bond", what:L.what, tx, ty})));
   });
+  const h=lpHalf()/k;
   atoms.forEach((a,i)=>{
     if(skelHiddenH(i)) return;
     // same spots as the drawn pairs: 2e⁻ = middle of the bar, 1e⁻ = either end of it
-    const h=lpHalf()/view.k;
-    lonePairSpots(i,true).forEach(sp=>{
-      if(e===1&&!sp.single){ out.push({x:sp.x-sp.uy*h,y:sp.y+sp.ux*h,kind:"lp"}); out.push({x:sp.x+sp.uy*h,y:sp.y-sp.ux*h,kind:"lp"}); }
-      else out.push({x:sp.x,y:sp.y,kind:"lp"});
+    lonePairSpots(i,expanded).forEach(sp=>{
+      const tx=-sp.uy, ty=sp.ux, what=sp.single? "single e⁻" : "lone pair";
+      if(e===1&&!sp.single){ out.push({x:sp.x-tx*h*.55,y:sp.y-ty*h*.55,kind:"lp",what,tx,ty}); out.push({x:sp.x+tx*h*.55,y:sp.y+ty*h*.55,kind:"lp",what,tx,ty}); }
+      else out.push({x:sp.x,y:sp.y,kind:"lp",what,tx,ty,single:sp.single});
     });
   });
   return out;
@@ -2316,9 +2334,10 @@ function electronSites(e){
 // snap a mechanism-arrow end to the nearest electron site; an arrow head may also land on an atom's edge
 function snapElectron(w,from,e){
   if(!atoms.length) return w;
-  const k=view.k, R=18/k;
+  const k=view.k, R=20/k;
   // electron sites (pairs / single electrons) win ties: atoms and bond lines carry a small penalty
   const cands=electronSites(e||mechE).map(c=>({...c,pen:0}));
+  const ae=atoms.map(a=>a.el);
   atoms.forEach((a,i)=>{
     if(skelHiddenH(i)) return;
     // aim from the other end of the arrow (or from the cursor, for the start)
@@ -2331,19 +2350,19 @@ function snapElectron(w,from,e){
       r= box? Math.min(Math.abs(ux)>1e-6? box.hw/Math.abs(ux):1e9, Math.abs(uy)>1e-6? box.hh/Math.abs(uy):1e9)/k+2/k  // edge of the letters
              : 3/k;                                                                                                   // skeletal C: right at the corner
     } else r=R_ATOM+2/k;                                                                                               // edge of the atom circle
-    cands.push({x:a.x+ux*r, y:a.y+uy*r, kind:"atom", pen:3/k});
+    cands.push({x:a.x+ux*r, y:a.y+uy*r, kind:"atom", what:"atom "+ae[i], pen:8/k});
   });
   // anywhere along a bond line (the drawn line itself)
   bonds.forEach(b=>{
     if(skelHiddenH(b.a)||skelHiddenH(b.b)) return;
     const A=atoms[b.a], B=atoms[b.b], dx=B.x-A.x, dy=B.y-A.y, L2=dx*dx+dy*dy; if(!L2) return;
     const t=Math.max(.15,Math.min(.85,((w.x-A.x)*dx+(w.y-A.y)*dy)/L2));
-    cands.push({x:A.x+dx*t, y:A.y+dy*t, kind:"line", pen:5/k});
+    cands.push({x:A.x+dx*t, y:A.y+dy*t, kind:"line", what:"bond line", pen:9/k});
   });
   hydrogenTargets(from).forEach(h=>cands.push(h));
   let best=null, bd=R;
   for(const c of cands){ const d=Math.hypot(c.x-w.x,c.y-w.y)+c.pen; if(d<bd){ bd=d; best=c; } }
-  return best? {x:best.x,y:best.y,hRef:best.hRef||null} : w;
+  return best? {x:best.x,y:best.y,hRef:best.hRef||null,kind:best.kind,what:best.what||"",tx:best.tx,ty:best.ty,e:e||mechE,snapped:true} : w;
 }
 /* ---- hydrogens for electron arrows (written-out positions, as shown in the loupe) ----
    an arrow that ends on one of these H turns it into a real, drawn H atom */
@@ -2355,7 +2374,7 @@ function hydrogenTargets(from){
   const out=[], k=view.k;
   atoms.forEach((a,i)=>implicitHSpots(i).forEach(h=>{
     const d=from? Math.hypot(from.x-h.x,from.y-h.y)||1 : 1, o=from? 6/k : 0;
-    out.push({x:h.x+(from?(from.x-h.x)/d*o:0), y:h.y+(from?(from.y-h.y)/d*o:0), kind:"implicitH", pen:1/k, hRef:h});
+    out.push({x:h.x+(from?(from.x-h.x)/d*o:0), y:h.y+(from?(from.y-h.y)/d*o:0), kind:"implicitH", what:"H", pen:1/k, hRef:h});
   }));
   return out;
 }
@@ -2432,6 +2451,7 @@ function drawLoupe(){
   const w=S2W(c), mainCtx=ctx, mainView=view;
   // about one and a half bond lengths across the loupe radius, at least 1.8× magnified
   const M=Math.max(1.8,Math.min(5,(D/2)/(1.5*medianBondLen())/mainView.k)), k=mainView.k*M;
+  loupeK=k;
   view={k, x:D/2/k-w.x, y:D/2/k-w.y};
   ctx=lctx; renderingLoupe=true;
   try{
@@ -2462,20 +2482,54 @@ function drawLoupe(){
   ctx.restore();
 }
 
-// faint dots showing where an electron arrow will snap (near the cursor)
+/* electron sites near the cursor: a small ring per site with its electrons inside (a pair is two dots
+   lying along the lone-pair bar / along the bond), and the one the arrow end would snap to right now
+   ringed boldly with a label, so you see exactly where the arrow will start or end */
+let elecHot=null;
+function hotElectron(e){
+  if(!lastCanvasPt) return null;
+  const w=S2W({x:lastCanvasPt.sx,y:lastCanvasPt.sy});
+  let from=null;
+  if(drag.kind==="skDraw"&&drag.w0) from=drag.w0;
+  else if(drag.kind==="skHandle"&&drag.h==="p2"&&sketch[selSketch]) from={x:sketch[selSketch].x1,y:sketch[selSketch].y1};
+  else if(drag.kind==="skHandle"&&drag.h!=="p1") return null;
+  const r=snapElectron(w,from,e);
+  return r&&r.snapped? r : null;
+}
+function drawElectronMark(p,s,e,alpha,sc,col){
+  const tx=s.tx===undefined? 1 : s.tx, ty=s.ty===undefined? 0 : s.ty;
+  ctx.globalAlpha=alpha*.22; ctx.fillStyle=col; ctx.beginPath(); ctx.arc(p.x,p.y,5*sc,0,7); ctx.fill();
+  ctx.globalAlpha=alpha*.85; ctx.strokeStyle=col; ctx.lineWidth=1.2; ctx.stroke();
+  ctx.globalAlpha=alpha; ctx.beginPath();
+  if(e===2&&!s.single){ const g=2.1*sc; ctx.arc(p.x-tx*g,p.y-ty*g,1.35*sc,0,7); ctx.moveTo(p.x+tx*g+1.35*sc,p.y+ty*g); ctx.arc(p.x+tx*g,p.y+ty*g,1.35*sc,0,7); }
+  else ctx.arc(p.x,p.y,1.6*sc,0,7);
+  ctx.fill();
+}
 function drawElectronSites(){
   if(mode!=="mech" && !(drag.kind==="skHandle" && sketch[selSketch]?.t==="mech")) return;
   const P0=renderingLoupe? {x:LOUPE_D/2,y:LOUPE_D/2} : lastCanvasPt? {x:lastCanvasPt.sx,y:lastCanvasPt.sy} : null;
   if(!P0) return;
   const e=drag.kind==="skHandle"? (sketch[selSketch].e||2) : mechE;
-  ctx.save(); ctx.fillStyle=pal().mech;
+  if(!renderingLoupe) elecHot=hotElectron(e);
+  const col=pal().mech, sc=renderingLoupe? 1.3 : 1, RANGE=renderingLoupe? LOUPE_D*.55 : 110;
+  ctx.save();
   electronSites(e).forEach(s=>{
-    const p=W2S(s), d=Math.hypot(p.x-P0.x,p.y-P0.y); if(d>90) return;
-    ctx.globalAlpha=Math.max(.15,.75-d/120);
-    if(e===2){ // a pair: two dots
-      ctx.beginPath(); ctx.arc(p.x-2.3,p.y,1.7,0,7); ctx.arc(p.x+2.3,p.y,1.7,0,7); ctx.fill();
-    } else { ctx.beginPath(); ctx.arc(p.x,p.y,1.9,0,7); ctx.fill(); }
+    const p=W2S(s), d=Math.hypot(p.x-P0.x,p.y-P0.y); if(d>RANGE) return;
+    drawElectronMark(p,s,e,renderingLoupe? .85 : Math.max(.4,1-d/RANGE*.8),sc,col);
   });
+  const h=elecHot;
+  if(h){
+    const p=W2S(h);
+    ctx.globalAlpha=.2; ctx.fillStyle=col; ctx.beginPath(); ctx.arc(p.x,p.y,8*sc,0,7); ctx.fill();
+    ctx.globalAlpha=1; ctx.strokeStyle=col; ctx.lineWidth=1.8; ctx.beginPath(); ctx.arc(p.x,p.y,8*sc,0,7); ctx.stroke();
+    if(h.kind==="bond"||h.kind==="lp") drawElectronMark(p,h,h.e,1,sc*1.15,col);
+    else { ctx.beginPath(); ctx.moveTo(p.x-3*sc,p.y); ctx.lineTo(p.x+3*sc,p.y); ctx.moveTo(p.x,p.y-3*sc); ctx.lineTo(p.x,p.y+3*sc); ctx.stroke(); }
+    if(h.what){
+      ctx.font="700 10.5px Arial"; const tw=ctx.measureText(h.what).width, lx=p.x+11*sc, ly=p.y-11*sc;
+      ctx.globalAlpha=.88; ctx.fillStyle=pal().mask; ctx.fillRect(lx-3,ly-8,tw+6,15);
+      ctx.globalAlpha=1; ctx.fillStyle=col; ctx.textAlign="left"; ctx.textBaseline="middle"; ctx.fillText(h.what,lx,ly);
+    }
+  }
   ctx.restore();
 }
 function resnapMech(it){
@@ -2669,6 +2723,9 @@ canvas.addEventListener("pointerdown",e=>{
   }
   if(skHit>=0){ drag.kind="skMove"; drag.si=skHit; drag.skFrom={...sketch[skHit]}; return; }
   const bi=hitBond(sx,sy);
+  if(bi>=0 && mode==="move"){
+    drag.kind="moveSel"; drag.selStart=moleculeOf(bonds[bi].a).map(idx=>({idx,x:atoms[idx].x,y:atoms[idx].y})); return;
+  }
   if(bi>=0){ drag.kind="bondHit"; drag.bond=bi; return; }
   drag.kind="empty";
 });
@@ -2689,7 +2746,9 @@ canvas.addEventListener("pointermove",e=>{
   }
   if(Math.hypot(sx-drag.sx,sy-drag.sy)>THRESH) drag.moved=true;
   if(drag.kind==="moveAtom"){
-    const w=onPaper(S2W({x:sx,y:sy}),drag.paperG); atoms[drag.from].x=w.x; atoms[drag.from].y=w.y; if(hasGeometryStereo())afterChange();else redraw();
+    const w=onPaper(S2W({x:sx,y:sy}),drag.paperG); atoms[drag.from].x=w.x; atoms[drag.from].y=w.y;
+    mergeHint=drag.moved&&!e.altKey? findMerge([drag.from]) : null;
+    if(hasGeometryStereo())afterChange();else redraw();
   } else if(drag.kind==="growBond"){
     drag.sx=sx; drag.sy=sy; redraw();
   } else if(drag.kind==="erase"){
@@ -2707,6 +2766,7 @@ canvas.addEventListener("pointermove",e=>{
         atoms[s.idx].x=q.x; atoms[s.idx].y=q.y;
       });
     } else drag.selStart.forEach(s=>{ atoms[s.idx].x=s.x+dx; atoms[s.idx].y=s.y+dy; });
+    mergeHint=drag.moved&&!e.altKey? findMerge(drag.selStart.map(s=>s.idx)) : null;
     if(hasGeometryStereo())afterChange();else redraw();
   } else if(drag.kind==="skDraw"){
     if(drag.moved) drag.w1=skPaper(S2W({x:sx,y:sy}),mode,drag.w0);
@@ -2786,7 +2846,10 @@ canvas.addEventListener("pointerup",e=>{
       } else redraw();
     } else redraw();
   } else if(kind==="moveAtom"){
-    if(!drag.moved){ selectAtom(drag.from, e.pointerType!=="mouse"); }
+    const plan=drag.moved&&!e.altKey? findMerge([drag.from]) : null; mergeHint=null;
+    const msg=plan&&applyMerge(plan,[drag.from]);
+    if(msg){ snap(); afterChange(); toast(msg,"ok"); }
+    else if(!drag.moved){ selectAtom(drag.from, e.pointerType!=="mouse"); }
     else { snap(); if(hasGeometryStereo()) afterChange(); else redraw(); }
   } else if(kind==="marquee"){
     const rc=drag.rect;
@@ -2803,6 +2866,10 @@ canvas.addEventListener("pointerup",e=>{
     }
     drag.rect=null; redraw();
   } else if(kind==="moveSel"){
+    const moved=drag.selStart.map(s=>s.idx);
+    const plan=drag.moved&&!e.altKey? findMerge(moved) : null; mergeHint=null;
+    const msg=plan&&applyMerge(plan,moved);
+    if(msg){ snap(); afterChange(); toast(msg,"ok"); return; }
     if(drag.moved){ snap(); if(hasGeometryStereo()) afterChange(); }
     redraw();
   } else if(kind==="selectAdd"){ multiSel.add(drag.from); redraw();
@@ -2852,7 +2919,14 @@ canvas.addEventListener("pointerup",e=>{
     selectBond(drag.bond, e.pointerType!=="mouse");
   }
 });
-canvas.addEventListener("pointercancel",e=>{ pointers.delete(e.pointerId); drag.kind=null; });
+canvas.addEventListener("pointercancel",e=>{ pointers.delete(e.pointerId); drag.kind=null; mergeHint=null; });
+// select tool: double-click an atom to pick its whole molecule
+canvas.addEventListener("dblclick",e=>{
+  if(mode!=="select"&&mode!=="move") return;
+  const r=canvas.getBoundingClientRect(), ai=hitAtom(e.clientX-r.left,e.clientY-r.top); if(ai<0) return;
+  if(mode==="move") setMode("select");
+  multiSel=new Set(moleculeOf(ai)); redraw();
+});
 
 /* zoom by a factor, keeping the world point under (sx,sy) fixed */
 function zoomAt(sx,sy,factor){
@@ -3159,6 +3233,173 @@ function saveSelection(){
     atoms=bakA; bonds=bakB;
     upsertStructure({name, formula, atoms:subAtoms, bonds:subBonds});
   });
+}
+
+
+/* ================= MERGE ON DROP =================
+   Drop a molecule (a moved selection, a whole molecule dragged by a bond in Move, a shelf card)
+   so that one of its atoms lands on an atom of another molecule, or at bond distance from it:
+     · same element on same element -> the two atoms fuse into one shared atom
+     · different elements overlapping, or two atoms at bond distance -> a new bond between them
+     · an H on an atom, or an atom on an H -> that H is replaced by the new bond
+     · an H on an H -> both H leave and their parents bond
+   Hydrogens are adjusted: each joined atom gives up the H its new bond needs (the one pointing
+   at the newcomer), the incoming molecule turns into the free direction, and the H left on the
+   joined atoms are spread out again. Hold Alt while dropping to place without merging. */
+let mergeHint=null, ghostStart=-1;
+const isHyd=i=>!!atoms[i]&&atoms[i].el==="H";
+function nbrsOf(i){ const o=[]; for(const b of bonds){ if(b.a===i) o.push(b.b); else if(b.b===i) o.push(b.a); } return o; }
+const termHs=i=>nbrsOf(i).filter(n=>isHyd(n)&&!atoms[n].charge&&nbrsOf(n).length===1);
+const freeValence=i=>implicitH(i)+termHs(i).length;
+const angTo=(i,j)=>Math.atan2(atoms[j].y-atoms[i].y,atoms[j].x-atoms[i].x);
+const wrapAng=a=>Math.atan2(Math.sin(a),Math.cos(a));
+function heavyAngles(i){ const hs=new Set(termHs(i)); return nbrsOf(i).filter(n=>!hs.has(n)).map(n=>angTo(i,n)); }
+function mergeBondLen(){ return paperOn()? 2*gridSize()*1.118 : medianBondLen(); }
+function bonded(i,j){ return bonds.some(b=>(b.a===i&&b.b===j)||(b.a===j&&b.b===i)); }
+// the free direction of an atom closest to `cur` (zig-zag 120° off a single neighbour, else the middle of a wide gap)
+function pickSlot(occ,cur){
+  if(!occ.length) return snapActive()? Math.round(cur/SNAP_STEP)*SNAP_STEP : cur;
+  if(occ.length===1){ const o=[occ[0]+2*Math.PI/3, occ[0]-2*Math.PI/3]; return angGap(o[0],cur)<=angGap(o[1],cur)? o[0] : o[1]; }
+  const TWO=2*Math.PI, s=occ.map(a=>((a%TWO)+TWO)%TWO).sort((a,b)=>a-b);
+  const gaps=s.map((a,g)=>{ const b=g+1<s.length? s[g+1] : s[0]+TWO; return {mid:a+(b-a)/2,size:b-a}; });
+  const big=Math.max(...gaps.map(g=>g.size));
+  const ok=gaps.filter(g=>g.size>=Math.min(big,1.9)).sort((a,b)=>angGap(a.mid,cur)-angGap(b.mid,cur));
+  return ok[0].mid;
+}
+function circMean(a){ let x=0,y=0; a.forEach(g=>{x+=Math.cos(g);y+=Math.sin(g);}); return Math.hypot(x,y)<1e-6? a[0] : Math.atan2(y,x); }
+// what dropping the moved atoms right here would do (null: nothing)
+function findMerge(moved){
+  const M=moved instanceof Set? moved : new Set(moved);
+  if(!M.size||M.size>=atoms.length) return null;
+  const L=mergeBondLen(), parent=i=>{ const n=nbrsOf(i); return n.length===1? n[0] : -1; };
+  let best=null;
+  const offer=(p,score)=>{ if(!best||score<best.score) best={...p,score}; };
+  M.forEach(m=>{
+    const A=atoms[m]; if(!A) return;
+    atoms.forEach((B,t)=>{
+      if(M.has(t)||bonded(m,t)) return;
+      const d=Math.hypot(A.x-B.x,A.y-B.y);
+      if(d<0.42*L){
+        const hm=isHyd(m), ht=isHyd(t);
+        if(hm&&ht){
+          const R=parent(m), T=parent(t);
+          if(R>=0&&T>=0&&M.has(R)&&!M.has(T)&&!isHyd(R)&&!isHyd(T)&&!bonded(R,T)) offer({kind:"hh",m,t,x:R,y:T},d+0.06*L);
+        } else if(hm){
+          const R=parent(m);
+          if(R>=0&&M.has(R)&&!isHyd(R)&&!bonded(R,t)) offer({kind:"hOnAtom",m,t,x:R,y:t},d+0.03*L);
+        } else if(ht){
+          const T=parent(t);
+          if(T>=0&&!M.has(T)&&!isHyd(T)&&!bonded(m,T)) offer({kind:"atomOnH",m,t,x:m,y:T},d+0.03*L);
+        } else if(A.el===B.el&&nbrsOf(m).length){
+          offer({kind:"fuse",m,t},d);
+        } else if(freeValence(m)&&freeValence(t)) offer({kind:"join",m,t,x:m,y:t},d);
+      } else if(d>0.7*L&&d<1.25*L&&!isHyd(m)&&!isHyd(t)&&freeValence(m)&&freeValence(t)){
+        offer({kind:"join",m,t,x:m,y:t},0.42*L+Math.abs(d-L));
+      }
+    });
+  });
+  if(best) best.label={fuse:"merge "+atoms[best.t].el, join:"bond", hOnAtom:"replaces H", atomOnH:"replaces H", hh:"bond (−2 H)"}[best.kind];
+  return best;
+}
+function drawMergeHint(){
+  const h=mergeHint; if(!h||!atoms[h.m]||!atoms[h.t]) return;
+  const col=isClassic()? "#0a8f5a" : "#34d399", k=Math.min(view.k,1.6);
+  const A=W2S(atoms[h.m]), B=W2S(atoms[h.t]);
+  const X=h.x!==undefined&&atoms[h.x]? W2S(atoms[h.x]) : A, Y=h.y!==undefined&&atoms[h.y]? W2S(atoms[h.y]) : B;
+  ctx.save(); ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=2;
+  ctx.globalAlpha=.18; ctx.beginPath(); ctx.arc(B.x,B.y,17*k,0,7); ctx.fill();
+  ctx.globalAlpha=1; ctx.setLineDash([4,3]); ctx.beginPath(); ctx.arc(B.x,B.y,17*k,0,7); ctx.stroke();
+  if(h.kind!=="fuse"){ ctx.beginPath(); ctx.moveTo(X.x,X.y); ctx.lineTo(Y.x,Y.y); ctx.stroke(); }
+  ctx.setLineDash([]);
+  if(h.kind==="hOnAtom"||h.kind==="atomOnH"||h.kind==="hh"){ // the H that leaves
+    [h.kind!=="atomOnH"? A : null, h.kind!=="hOnAtom"? B : null].forEach(P=>{ if(!P) return; const r=6*k;
+      ctx.beginPath(); ctx.moveTo(P.x-r,P.y-r); ctx.lineTo(P.x+r,P.y+r); ctx.moveTo(P.x+r,P.y-r); ctx.lineTo(P.x-r,P.y+r); ctx.stroke(); });
+  }
+  ctx.font="700 11px Arial"; const tw=ctx.measureText(h.label).width;
+  const lx=B.x+20*k, ly=B.y-20*k;
+  ctx.fillStyle=pal().mask; ctx.globalAlpha=.9; ctx.fillRect(lx-4,ly-9,tw+8,17);
+  ctx.globalAlpha=1; ctx.fillStyle=col; ctx.textAlign="left"; ctx.textBaseline="middle"; ctx.fillText(h.label,lx,ly);
+  ctx.restore();
+}
+function moveGroup(M,pivot,rot,to){
+  const c=Math.cos(rot), s=Math.sin(rot), px=pivot.x, py=pivot.y;
+  M.forEach(i=>{ const a=atoms[i]; if(!a) return; const dx=a.x-px, dy=a.y-py; a.x=to.x+dx*c-dy*s; a.y=to.y+dx*s+dy*c; });
+}
+// put the H left on atom i back into its free directions (each H keeps its bond length)
+function respreadH(i){
+  const hs=termHs(i); if(!hs.length) return;
+  const A=atoms[i], hset=new Set(hs), occ=nbrsOf(i).filter(n=>!hset.has(n)).map(n=>angTo(i,n));
+  if(!occ.length) return;
+  const left=spreadAngles(occ,hs.length);
+  hs.map(h=>({h,ang:angTo(i,h),len:Math.hypot(atoms[h].x-A.x,atoms[h].y-A.y)||0.73*mergeBondLen()}))
+    .forEach(o=>{ let bi=0; left.forEach((g,j)=>{ if(angGap(g,o.ang)<angGap(left[bi],o.ang)) bi=j; });
+      const g=left.splice(bi,1)[0]; atoms[o.h].x=A.x+Math.cos(g)*o.len; atoms[o.h].y=A.y+Math.sin(g)*o.len; });
+}
+function applyMerge(plan,moved){
+  const M=new Set(moved), L=mergeBondLen(), drop=new Set();
+  let lostH=0;
+  const cut=h=>{ bonds=bonds.filter(b=>b.a!==h&&b.b!==h); drop.add(h); if(isHyd(h)) lostH++; };
+  // atom i makes room for one more bond: implicit H first, else the explicit H pointing toward `dir`
+  const giveH=(i,dir)=>{
+    if(implicitH(i)>0) return true;
+    const hs=termHs(i); if(!hs.length) return false;
+    hs.sort((a,b)=>angGap(angTo(i,a),dir)-angGap(angTo(i,b),dir)); cut(hs[0]); return true;
+  };
+  let joined=[];
+  if(plan.kind==="fuse"){
+    const m=plan.m, t=plan.t, occM=heavyAngles(m), occT=heavyAngles(t);
+    let rot=0;
+    if(occM.length&&occT.length){ const mean=circMean(occM); rot=wrapAng(pickSlot(occT,mean)-mean); }
+    moveGroup(M,{x:atoms[m].x,y:atoms[m].y},rot,{x:atoms[t].x,y:atoms[t].y});
+    // m's bonds move over to t
+    bonds=bonds.filter(b=>{
+      if(b.a!==m&&b.b!==m) return true;
+      const n=b.a===m? b.b : b.a; if(n===t) return false;
+      const ex=bonds.find(o=>o!==b&&((o.a===t&&o.b===n)||(o.a===n&&o.b===t)));
+      if(ex){ ex.order=Math.max(ex.order,b.order); return false; }
+      if(b.a===m) b.a=t; else b.b=t; return true;
+    });
+    drop.add(m);
+    const cap=()=>maxValence(atoms[t].el)+(atoms[t].manualCharge&&CATION_OK[atoms[t].el]&&(atoms[t].charge||0)>0? 1 : 0);
+    for(let guard=0; guard<8 && bondSum(t)>cap(); guard++){
+      const hs=termHs(t); if(!hs.length) break;
+      const occ=heavyAngles(t); // drop the H most crowded by the newcomer's bonds
+      hs.sort((a,b)=>Math.min(...occ.map(g=>angGap(g,angTo(t,a))))-Math.min(...occ.map(g=>angGap(g,angTo(t,b)))));
+      cut(hs[0]);
+    }
+    joined=[t];
+  } else {
+    const X=plan.x, Y=plan.y;
+    if(plan.kind==="hOnAtom"||plan.kind==="hh") cut(plan.m);
+    if(plan.kind==="atomOnH"||plan.kind==="hh") cut(plan.t);
+    const dY=pickSlot(heavyAngles(Y),angTo(Y,X));
+    if(plan.kind==="join"||plan.kind==="hOnAtom"){ if(!giveH(Y,dY)) return null; }
+    if(plan.kind==="join"||plan.kind==="atomOnH"){ if(!giveH(X,angTo(X,Y))) return null; }
+    const occX=heavyAngles(X), want=dY+Math.PI;
+    const rot=occX.length? wrapAng(want-pickSlot(occX,want)) : 0;
+    moveGroup(M,{x:atoms[X].x,y:atoms[X].y},rot,{x:atoms[Y].x+L*Math.cos(dY),y:atoms[Y].y+L*Math.sin(dY)});
+    bonds.push({a:X,b:Y,order:1});
+    joined=[X,Y];
+  }
+  joined.forEach(i=>{ respreadH(i); if(overValent(i)) valenceWarn(i,0); });
+  const kept=[...M].filter(i=>!drop.has(i));
+  // drop the removed atoms and renumber
+  const keep=new Map(); let n=0;
+  atoms.forEach((a,i)=>{ if(!drop.has(i)) keep.set(i,n++); });
+  atoms=atoms.filter((a,i)=>!drop.has(i));
+  bonds=bonds.filter(b=>!drop.has(b.a)&&!drop.has(b.b)).map(b=>({...b,a:keep.get(b.a),b:keep.get(b.b)}));
+  multiSel=new Set([...multiSel].filter(i=>keep.has(i)).map(i=>keep.get(i)));
+  selAtom=keep.has(selAtom)? keep.get(selAtom) : -1; selBond=-1; hidePopover();
+  if(paperOn()) snapAllToPaper(kept.map(i=>keep.get(i)));
+  mergeHint=null;
+  const what=plan.kind==="fuse"? "Merged onto "+atoms[keep.get(plan.t)].el : "Joined with a new bond";
+  return what+(lostH? ", "+lostH+" H removed" : "");
+}
+// atoms of the molecule (connected piece) that contains atom i
+function moleculeOf(i){
+  const seen=new Set([i]), st=[i];
+  while(st.length){ const a=st.pop(); nbrsOf(a).forEach(n=>{ if(!seen.has(n)){ seen.add(n); st.push(n); } }); }
+  return [...seen];
 }
 
 /* ================= UI WIRING ================= */
@@ -3557,6 +3798,8 @@ function wireStructDrag(cardEl,i){
         ghost.style.left=ev.clientX+"px"; ghost.style.top=ev.clientY+"px";
         const on=overCanvas(ev);
         ghost.classList.toggle("ready",on); wrap.classList.toggle("drop-ready",on);
+        ghost.style.opacity=on? ".25" : "";
+        previewStruct(on? structures[i] : null, ev);
       }
     };
     const up=ev=>{
@@ -3565,11 +3808,12 @@ function wireStructDrag(cardEl,i){
       cardEl.removeEventListener("pointercancel",up);
       wrap.classList.remove("drop-ready");
       if(ghost) ghost.remove();
+      previewStruct(null);
       $("ptVeil").classList.remove("peek");
       if(!dragging){ if(ev.type==="pointerup") insertStruct(i); return; }
       if(ev.type==="pointerup" && overCanvas(ev)){
         $("ptVeil").classList.remove("show");
-        insertStructAt(i,ev.clientX,ev.clientY);
+        insertStructAt(i,ev.clientX,ev.clientY,!ev.altKey);
       }
     };
     cardEl.addEventListener("pointermove",move);
@@ -3589,22 +3833,38 @@ function insertStruct(i){
   insertStructAt(i, r.left+r.width/2, r.top+r.height/2);
   $("ptVeil").classList.remove("show");
 }
-function insertStructAt(i,clientX,clientY){
-  const s=structures[i]; if(!s) return;
-  const rect=canvas.getBoundingClientRect();
-  const c=S2W({x:clientX-rect.left, y:clientY-rect.top});
+// atoms of shelf entry s, centred on world point c (and fitted to the paper squares)
+function stageStruct(s,c){
   let cx=0,cy=0; s.atoms.forEach(a=>{cx+=a.x;cy+=a.y;});
   cx/=s.atoms.length; cy/=s.atoms.length;
-  const off=atoms.length;
   if(paperOn()){
-    const G=gridSize(), k=G/gridOf(s.atoms,s.bonds);
-    const at=onPaper(c,G);
-    s.atoms.forEach(a=>atoms.push({...a,...onPaper({x:(a.x-cx)*k+at.x,y:(a.y-cy)*k+at.y},G),charge:a.charge||0}));
-  } else
-  s.atoms.forEach(a=>atoms.push({...a,x:a.x-cx+c.x,y:a.y-cy+c.y,charge:a.charge||0}));
+    const G=gridSize(), k=G/gridOf(s.atoms,s.bonds), at=onPaper(c,G);
+    return s.atoms.map(a=>({...a,...onPaper({x:(a.x-cx)*k+at.x,y:(a.y-cy)*k+at.y},G),charge:a.charge||0}));
+  }
+  return s.atoms.map(a=>({...a,x:a.x-cx+c.x,y:a.y-cy+c.y,charge:a.charge||0}));
+}
+function insertStructAt(i,clientX,clientY,merge){
+  const s=structures[i]; if(!s||!s.atoms.length) return;
+  const rect=canvas.getBoundingClientRect();
+  const c=S2W({x:clientX-rect.left, y:clientY-rect.top});
+  const off=atoms.length;
+  stageStruct(s,c).forEach(a=>atoms.push(a));
   s.bonds.forEach(b=>bonds.push({...b,a:b.a+off,b:b.b+off}));
+  const idx=s.atoms.map((a,k)=>off+k);
+  const plan=merge? findMerge(idx) : null;
+  const msg=plan&&applyMerge(plan,idx);
   snap(); afterChange();
-  toast('"'+s.name+'" inserted',"ok");
+  toast(msg? '"'+s.name+'": '+msg.charAt(0).toLowerCase()+msg.slice(1) : '"'+s.name+'" inserted',"ok");
+}
+// while a shelf card is dragged over the canvas: draw the molecule where it would land, and what it would merge with
+function previewStruct(s,ev){
+  if(!s){ if(ghostStart>=0||mergeHint){ ghostStart=-1; mergeHint=null; redraw(); } return; }
+  const rect=canvas.getBoundingClientRect(), c=S2W({x:ev.clientX-rect.left, y:ev.clientY-rect.top});
+  const off=atoms.length, boff=bonds.length;
+  stageStruct(s,c).forEach(a=>atoms.push(a));
+  s.bonds.forEach(b=>bonds.push({...b,a:b.a+off,b:b.b+off}));
+  try{ ghostStart=off; mergeHint=ev.altKey? null : findMerge(s.atoms.map((a,k)=>off+k)); redraw(); }
+  finally{ atoms.length=off; bonds.length=boff; ghostStart=-1; mergeHint=null; }
 }
 $("ptVeil").addEventListener("click",e=>{ if(e.target.id==="ptVeil") $("ptVeil").classList.remove("show"); });
 
