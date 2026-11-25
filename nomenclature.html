@@ -637,7 +637,7 @@ footer.credit{display:none}
       <section><h4>Select &amp; edit</h4>
         <p><kbd>Shift</kbd>+drag <span>box-select (any tool), Shift+click adds/removes</span></p>
         <p><kbd>Ctrl</kbd><kbd>A</kbd> <span>select everything</span></p>
-        <p>drop on a molecule <span>merges: atom on atom fuses, H on an atom replaces it, near an atom bonds; hold <kbd>Alt</kbd> to just place it</span></p>
+        <p>drop on a molecule <span>merges only where atoms lie on each other: same element fuses, different elements bond, H on an atom replaces it; hold <kbd>Alt</kbd> to just place it</span></p>
         <p><kbd>Ctrl</kbd><kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd> <span>copy, cut, paste at the cursor</span></p>
         <p><kbd>Ctrl</kbd><kbd>D</kbd> <span>duplicate</span></p>
         <p><kbd>Ctrl</kbd><kbd>Z</kbd> / <kbd>Y</kbd> <span>undo / redo</span></p>
@@ -2113,6 +2113,7 @@ function redraw(){
   if(renderingLoupe) return;
   drawLoupe();
   if(ghostStart<0) updateFormula();
+  if(typeof saveState==="function") saveState();
   positionPopover();
   positionSelPop();
   positionSkPop();
@@ -3122,7 +3123,7 @@ function pasteClip(offsetPx){
   selAtom=selBond=-1; hidePopover(); multiSel=new Set(idx); redraw();
 }
 function setDrawElement(el){
-  drawEl=el;
+  drawEl=el; if(typeof saveState==="function") saveState();
   let found=false;
   document.querySelectorAll(".el-swatch").forEach(x=>{ const on=x.dataset.el===el; x.classList.toggle("active",on); if(on) found=true; });
   $("ptBtn").classList.toggle("active",!found);
@@ -3323,13 +3324,14 @@ function saveSelection(){
    Drop a molecule (a moved selection, a whole molecule dragged by a bond in Move, a shelf card)
    so that one of its atoms lands on an atom of another molecule, or at bond distance from it:
      · same element on same element -> the two atoms fuse into one shared atom
-     · different elements overlapping, or two atoms at bond distance -> a new bond between them
+     · different elements overlapping -> a new bond between them (nothing happens for atoms that are merely near)
      · an H on an atom, or an atom on an H -> that H is replaced by the new bond
      · an H on an H -> both H leave and their parents bond
    Hydrogens are adjusted: each joined atom gives up the H its new bond needs (the one pointing
    at the newcomer), the incoming molecule turns into the free direction, and the H left on the
    joined atoms are spread out again. Hold Alt while dropping to place without merging. */
 let mergeHint=null, ghostStart=-1;
+const OVERLAP=0.38; // atoms closer than this share of a bond length count as lying on each other
 const isHyd=i=>!!atoms[i]&&atoms[i].el==="H";
 function nbrsOf(i){ const o=[]; for(const b of bonds){ if(b.a===i) o.push(b.b); else if(b.b===i) o.push(b.a); } return o; }
 const termHs=i=>nbrsOf(i).filter(n=>isHyd(n)&&!atoms[n].charge&&nbrsOf(n).length===1);
@@ -3367,7 +3369,7 @@ function findMerge(moved){
     atoms.forEach((B,t)=>{
       if(M.has(t)||bonded(m,t)) return;
       const d=Math.hypot(A.x-B.x,A.y-B.y);
-      if(d<0.42*L){
+      if(d<OVERLAP*L){
         const hm=isHyd(m), ht=isHyd(t);
         if(hm&&ht){
           const R=parent(m), T=parent(t);
@@ -3381,8 +3383,6 @@ function findMerge(moved){
         } else if(A.el===B.el&&nbrsOf(m).length){
           offer({kind:"fuse",m,t},d);
         } else if(freeValence(m)&&freeValence(t)) offer({kind:"join",m,t,x:m,y:t},d);
-      } else if(d>0.7*L&&d<1.25*L&&!isHyd(m)&&!isHyd(t)&&freeValence(m)&&freeValence(t)){
-        offer({kind:"join",m,t,x:m,y:t},0.42*L+Math.abs(d-L));
       }
     });
   });
@@ -3391,7 +3391,7 @@ function findMerge(moved){
   const pairs=[], usedM=new Set(), usedT=new Set(), cand=[];
   M.forEach(m=>{ if(!atoms[m]||isHyd(m)) return; atoms.forEach((B,t)=>{
     if(M.has(t)||isHyd(t)||bonded(m,t)) return;
-    const d=Math.hypot(atoms[m].x-B.x,atoms[m].y-B.y); if(d<0.42*L) cand.push({m,t,d}); }); });
+    const d=Math.hypot(atoms[m].x-B.x,atoms[m].y-B.y); if(d<OVERLAP*L) cand.push({m,t,d}); }); });
   cand.sort((a,b)=>a.d-b.d).forEach(c=>{ if(usedM.has(c.m)||usedT.has(c.t)) return; usedM.add(c.m); usedT.add(c.t); pairs.push([c.m,c.t]); });
   if(pairs.length>=2) best={kind:"fuse",m:pairs[0][0],t:pairs[0][1],pairs,score:0};
   else if(best&&best.kind==="fuse") best.pairs=[[best.m,best.t]];
@@ -4882,10 +4882,50 @@ async function sendToPlayground(){
 }
 $("sendBtn").onclick=sendToPlayground;
 
+/* ================= KEEP EVERYTHING ACROSS RELOADS =================
+   the drawing, arrows and pluses, zoom/pan, tool, element, bond order, skeletal view, selection,
+   undo/redo history and whether it was named are written to localStorage (shortly after every change
+   and when the page closes) and put back on load */
+var saveT=0; // var: redraw can run before this line during start-up
+function saveState(){ clearTimeout(saveT); saveT=setTimeout(writeState,250); }
+function writeState(){
+  clearTimeout(saveT);
+  if(ghostStart>=0||renderingLoupe||drag.kind){ saveState(); return; }
+  let named=false; try{ named=!!(lastNamed&&atoms.length&&lastNamed.sig===molecularSignature()); }catch(e){}
+  const st={v:1,atoms,bonds,sketch,view,skeletal,drawEl,bondOrder,mode,mechE,ringSize,ringArom,
+    multiSel:[...multiSel],named,shelfQuery,hist:hist.slice(-80),redo:redoS.slice(-40)};
+  try{ localStorage.setItem("dne_state",JSON.stringify(st)); }
+  catch(e){ try{ st.hist=hist.slice(-3); st.redo=[]; localStorage.setItem("dne_state",JSON.stringify(st)); }catch(e2){} }
+}
+window.addEventListener("pagehide",()=>{ drag.kind=null; writeState(); });
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") writeState(); });
+function restoreState(){
+  let st=null; try{ st=JSON.parse(localStorage.getItem("dne_state")||"null"); }catch(e){}
+  if(!st||st.v!==1||!Array.isArray(st.atoms)) return false;
+  atoms=st.atoms; bonds=Array.isArray(st.bonds)? st.bonds.filter(b=>atoms[b.a]&&atoms[b.b]) : []; sketch=Array.isArray(st.sketch)? st.sketch : [];
+  if(st.view&&isFinite(st.view.k)&&isFinite(st.view.x)&&isFinite(st.view.y)) view={x:st.view.x,y:st.view.y,k:st.view.k};
+  skeletal=!!st.skeletal;
+  if(st.drawEl) setDrawElement(st.drawEl);
+  if(st.bondOrder){ bondOrder=st.bondOrder; document.querySelectorAll("[data-bond]").forEach(x=>x.classList.toggle("active",+x.dataset.bond===bondOrder)); }
+  if(st.mechE) mechE=st.mechE;
+  if(st.ringSize) ringSize=st.ringSize; ringArom=!!st.ringArom;
+  if(typeof st.shelfQuery==="string"){ shelfQuery=st.shelfQuery; $("svSearch").value=shelfQuery; }
+  hist.length=0; (st.hist||[]).forEach(h=>hist.push(h));
+  redoS.length=0; (st.redo||[]).forEach(h=>redoS.push(h));
+  const cur=JSON.stringify({atoms,bonds,sketch});
+  if(hist[hist.length-1]!==cur) hist.push(cur);
+  applySettings();
+  const m=st.mode||"build";
+  if(m!=="build" && !(SKETCH_MODES.has(m)&&SETTINGS.sketch!=="on")) setMode(m);
+  multiSel=new Set((st.multiSel||[]).filter(i=>i>=0&&i<atoms.length));
+  afterChange();
+  if(st.named&&atoms.length) setTimeout(()=>{ try{ runNaming(); }catch(e){} },400);
+  return true;
+}
+
 /* ================= INIT ================= */
 resizeCanvas();
-snap();
-redraw();
+if(!restoreState()){ snap(); redraw(); }
 </script>
 </body>
 </html>
