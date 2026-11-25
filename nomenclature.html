@@ -309,6 +309,16 @@ body.classic .sv-ghost{box-shadow:0 18px 40px rgba(0,0,0,.2)}
 }
 .ghost-btn:hover{background:var(--surface-3);color:var(--text)}
 .save-cta.inline{width:auto;margin:0;padding:0 18px;height:36px}
+.name-note{min-height:0;margin:-8px 0 12px;font:600 .74rem 'Arial';color:var(--warn)}
+.name-note:empty{display:none}
+.keys-modal{max-width:760px}
+.keys-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.keys-grid section{background:var(--surface-2);border:1px solid var(--border-soft);border-radius:12px;padding:12px 14px}
+.keys-grid h4{font:700 .74rem 'Arial';letter-spacing:.8px;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px}
+.keys-grid p{font:500 .8rem 'Arial';color:var(--text);margin:6px 0;line-height:1.9}
+.keys-grid p span{color:var(--text-dim);margin-right:8px}
+kbd{display:inline-block;min-width:22px;padding:1px 6px;margin-right:3px;border-radius:6px;text-align:center;
+  font:700 .72rem 'Arial';color:var(--text);background:var(--surface);border:1px solid var(--border);box-shadow:0 2px 0 var(--border)}
 
 /* ---------- sketch tools (Settings → Sketch tools) ---------- */
 body:not(.sketch-on) .sketch-only{display:none}
@@ -562,6 +572,10 @@ footer.credit{display:none}
       </div>
     </div>
     <div class="set-row">
+      <div class="lbl">Keyboard shortcuts<small>Elements, bonds, Shift box-select, copy/paste… press <b>?</b> anytime</small></div>
+      <button class="ghost-btn" id="keysBtn" style="width:100%">Show all shortcuts</button>
+    </div>
+    <div class="set-row">
       <div class="lbl">Style<small>Classic: light gray paper with black atoms &amp; bonds, textbook-style</small></div>
       <div class="seg" data-setting="theme">
         <button data-v="dark">Dark</button><button data-v="classic">Classic</button>
@@ -578,9 +592,49 @@ footer.credit{display:none}
       </button>
     </div>
     <input type="text" id="nameInput" class="name-input" maxlength="60" placeholder="Structure name" autocomplete="off"/>
+    <div class="name-note" id="nameNote"></div>
     <div class="name-modal-actions">
       <button class="ghost-btn" id="nameCancel">Cancel</button>
       <button class="save-cta inline" id="nameSave">Save</button>
+    </div>
+  </div>
+</div>
+<div class="modal-veil" id="keysVeil">
+  <div class="pt-modal keys-modal">
+    <div class="pt-modal-head">
+      <h3>Keyboard shortcuts</h3>
+      <button class="drawer-close" id="keysClose">
+        <svg class="ico" viewBox="0 0 24 24" style="width:16px;height:16px"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg>
+      </button>
+    </div>
+    <div class="keys-grid">
+      <section><h4>Draw</h4>
+        <p><kbd>C</kbd><kbd>H</kbd><kbd>O</kbd><kbd>N</kbd><kbd>S</kbd><kbd>F</kbd><kbd>P</kbd><kbd>I</kbd><kbd>B</kbd> <span>element (over an atom: change it)</span></p>
+        <p><kbd>L</kbd> <span>Cl</span> <kbd>R</kbd> <span>Br</span></p>
+        <p><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> <span>bond order (over a bond: change it)</span></p>
+        <p><kbd>+</kbd><kbd>−</kbd> <span>charge of the atom under the cursor</span></p>
+        <p><kbd>Del</kbd> <span>delete the selection or whatever is under the cursor</span></p>
+      </section>
+      <section><h4>Select &amp; edit</h4>
+        <p><kbd>Shift</kbd>+drag <span>box-select (any tool), Shift+click adds/removes</span></p>
+        <p><kbd>Ctrl</kbd><kbd>A</kbd> <span>select everything</span></p>
+        <p><kbd>Ctrl</kbd><kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd> <span>copy, cut, paste at the cursor</span></p>
+        <p><kbd>Ctrl</kbd><kbd>D</kbd> <span>duplicate</span></p>
+        <p><kbd>Ctrl</kbd><kbd>Z</kbd> / <kbd>Y</kbd> <span>undo / redo</span></p>
+        <p>drag a selected atom <span>moves the whole selection</span></p>
+      </section>
+      <section><h4>Tools &amp; view</h4>
+        <p><kbd>V</kbd> <span>select tool</span> <kbd>M</kbd> <span>move</span> <kbd>E</kbd> <span>eraser</span></p>
+        <p><kbd>K</kbd> <span>skeletal view</span> <kbd>T</kbd> <span>tidy layout</span></p>
+        <p><kbd>Shift</kbd><kbd>H</kbd> <span>fill hydrogens</span></p>
+        <p><kbd>0</kbd> <span>fit to screen</span> <kbd>Esc</kbd> <span>close / deselect / back to drawing</span></p>
+        <p><kbd>A</kbd> <span>reaction arrow</span> <kbd>Shift</kbd><kbd>A</kbd> <span>electron arrow</span> <kbd>Shift</kbd><kbd>P</kbd> <span>plus (sketch tools on)</span></p>
+      </section>
+      <section><h4>Name &amp; save</h4>
+        <p><kbd>Enter</kbd> <span>name it</span></p>
+        <p><kbd>Ctrl</kbd><kbd>S</kbd> <span>save to the shelf (same name replaces)</span></p>
+        <p><kbd>?</kbd> / <kbd>F1</kbd> <span>this sheet</span></p>
+      </section>
     </div>
   </div>
 </div>
@@ -1642,7 +1696,7 @@ function applySettings(){
     seg.querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.v===SETTINGS[k]));
   });
   const hint=$("canvasHint");
-  const editLine="<b>Right-click</b> an atom or bond for stereo &amp; editing (tap on touch). E/Z follows the drawing.";
+  const editLine="<b>Right-click</b> an atom or bond for stereo &amp; editing (tap on touch). E/Z follows the drawing.<br/>Press <b>?</b> for keyboard shortcuts";
   if(hint) hint.innerHTML = SETTINGS.place==="click"
     ? `<b>Click</b> empty space to place an atom<br/><b>Drag</b> from an atom on canvas to bond it to another<br/><b>Click</b> an atom or bond to select it, <b>again</b> to retype/cycle order<br/>${editLine}`
     : `<b>Drag</b> an element from the rail to place an atom<br/><b>Drag</b> from an atom on canvas to bond it to another<br/><b>Click</b> an atom or bond to select it, <b>again</b> to retype/cycle order<br/>${editLine}`;
@@ -1687,17 +1741,22 @@ function askName(title,defaultName,cb){
   $("nameModalTitle").textContent=title;
   inp.value=defaultName;
   veil.classList.add("show");
+  inp.focus(); inp.select();
   requestAnimationFrame(()=>{ inp.focus(); inp.select(); });
   function cleanup(){
     veil.classList.remove("show");
     $("nameSave").onclick=null; $("nameCancel").onclick=null; $("nameClose").onclick=null;
-    inp.onkeydown=null; veil.onclick=null;
+    inp.onkeydown=null; inp.oninput=null; veil.onclick=null; $("nameNote").textContent="";
   }
   function submit(){ const v=inp.value.trim(); if(!v) return; cleanup(); cb(v); }
   function cancel(){ cleanup(); }
   $("nameSave").onclick=submit;
   $("nameCancel").onclick=cancel;
   $("nameClose").onclick=cancel;
+  const note=$("nameNote");
+  const checkName=()=>{ const v=inp.value.trim().toLowerCase(); const hit=v&&structures.find(s=>s.name.trim().toLowerCase()===v);
+    note.textContent=hit? "A molecule with this name is on the shelf. Saving replaces it." : ""; };
+  inp.oninput=checkName; checkName();
   inp.onkeydown=e=>{
     if(e.key==="Enter"){ e.preventDefault(); submit(); }
     else if(e.key==="Escape"){ e.preventDefault(); cancel(); }
@@ -1996,6 +2055,7 @@ function redraw(){
     ctx.strokeRect(x0,y0,x1-x0,y1-y0);
     ctx.restore();
   }
+  drawOverValence(); drawHover(PAL);
   updateFormula();
   positionPopover();
   positionSelPop();
@@ -2256,6 +2316,8 @@ canvas.addEventListener("pointerdown",e=>{
     drag.kind="pinch"; return;
   }
   drag.moved=false; drag.sx=sx; drag.sy=sy; drag.panSX=sx; drag.panSY=sy; drag.startView={...view};
+  if(popVisible) hidePopover();
+  if(skPopVisible) hideSkPop();
   // sketch layer: handles of the selected item first, then the items themselves
   drag.hadSk = selSketch>=0;
   const skHandle=hitSketchHandle(sx,sy);
@@ -2268,7 +2330,7 @@ canvas.addEventListener("pointerdown",e=>{
     if(mode==="plus"){ drag.kind="skPlus"; return; }
     drag.kind="skDraw"; drag.w0=S2W({x:sx,y:sy}); drag.w1=null; return;
   }
-  if(mode==="select"){
+  if(mode==="select" || e.shiftKey){
     const ai=hitAtom(sx,sy);
     if(ai>=0){
       if(e.shiftKey){
@@ -2289,6 +2351,9 @@ canvas.addEventListener("pointerdown",e=>{
     return;
   }
   const ai=hitAtom(sx,sy);
+  if(ai>=0 && multiSel.size>1 && multiSel.has(ai)){
+    drag.kind="moveSel"; drag.selStart=[...multiSel].map(idx=>({idx,x:atoms[idx].x,y:atoms[idx].y})); return;
+  }
   if(ai>=0){
     drag.from=ai;
     drag.kind = mode==="move" ? "moveAtom" : "growBond";
@@ -2378,7 +2443,7 @@ canvas.addEventListener("pointerup",e=>{
   if(kind==="empty"){
     if(!drag.moved){
       // if something is selected, the first empty click only deselects — no surprise atom
-      if(selAtom>=0||selBond>=0||drag.hadSk){ selAtom=selBond=-1; hidePopover(); redraw(); return; }
+      if(selAtom>=0||selBond>=0||drag.hadSk||multiSel.size){ selAtom=selBond=-1; hidePopover(); multiSel.clear(); redraw(); return; }
       if(mode==="build" && SETTINGS.place==="click"){
         const w=onPaper(S2W({x:sx,y:sy}));
         atoms.push({el:drawEl,x:w.x,y:w.y,charge:0}); snap(); afterChange();
@@ -2425,7 +2490,7 @@ canvas.addEventListener("pointerup",e=>{
       tryBond(drag.from,ai,bondOrder);
     } else {
       const chk=canAddBond(drag.from,bondOrder);
-      if(!chk.ok){ toast(`${atoms[drag.from].el} can't take another bond (valence full)`,"err"); redraw(); return; }
+      if(!chk.ok) valenceWarn(drag.from,bondOrder);
       let w=S2W({x:sx,y:sy});
       if(snapActive()){
         // resolve the target from the SNAPPED endpoint (matches the preview),
@@ -2439,9 +2504,9 @@ canvas.addEventListener("pointerup",e=>{
       atoms.push({el:drawEl,x:w.x,y:w.y,charge:0});
       const ni=atoms.length-1;
       const chk2=canAddBond(ni,bondOrder);
-      if(!chk2.ok){ atoms.pop(); toast(`${drawEl} can't bond here`,"err"); redraw(); return; }
+      if(!chk2.ok) valenceWarn(ni,bondOrder);
       bonds.push({a:drag.from,b:ni,order:bondOrder});
-      if(chk.charge!==null){atoms[drag.from].charge=chk.charge;}
+      if(chk.ok&&chk.charge!==null){atoms[drag.from].charge=chk.charge;}
       snap(); afterChange();
     }
   } else if(kind==="bondHit" && !drag.moved){
@@ -2472,7 +2537,177 @@ canvas.addEventListener("wheel",e=>{
   zoomAt(e.clientX-rect.left, e.clientY-rect.top, e.deltaY<0?1.12:1/1.12);
 },{passive:false});
 
+/* ================= KEYBOARD SHORTCUTS & EDITING HELPERS ================= */
+let hoverAtom=-1, hoverBond=-1;
+canvas.addEventListener("pointermove",e=>{
+  if(e.buttons || drag.kind) { if(hoverAtom>=0||hoverBond>=0){ hoverAtom=hoverBond=-1; } return; }
+  const r=canvas.getBoundingClientRect(), sx=e.clientX-r.left, sy=e.clientY-r.top;
+  const ha=hitAtom(sx,sy), hb=ha<0? hitBond(sx,sy) : -1;
+  if(ha!==hoverAtom||hb!==hoverBond){ hoverAtom=ha; hoverBond=hb; redraw(); }
+});
+canvas.addEventListener("pointerleave",()=>{ if(hoverAtom>=0||hoverBond>=0){ hoverAtom=hoverBond=-1; redraw(); } });
+function drawHover(PAL){
+  if(drag.kind) return;
+  ctx.save();
+  if(hoverAtom>=0 && atoms[hoverAtom] && !skelHiddenH(hoverAtom)){
+    const P=W2S(atoms[hoverAtom]);
+    ctx.beginPath(); ctx.arc(P.x,P.y,Math.max(11,13*Math.min(view.k,1.6)),0,7);
+    ctx.fillStyle="rgba(91,140,240,.13)"; ctx.fill();
+    ctx.strokeStyle=PAL.sel; ctx.globalAlpha=.55; ctx.lineWidth=1.5; ctx.stroke();
+  } else if(hoverBond>=0 && bonds[hoverBond]){
+    const b=bonds[hoverBond], A=W2S(atoms[b.a]), B=W2S(atoms[b.b]);
+    ctx.strokeStyle="rgba(91,140,240,.28)"; ctx.lineCap="round"; ctx.lineWidth=10*Math.min(view.k,1.4);
+    ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke();
+  }
+  ctx.restore();
+}
+/* bonds over the usual valence are allowed — they're just marked */
+function overValent(i){
+  const a=atoms[i]; if(!a||!VALENCE[a.el]) return false;
+  return bondSum(i) > maxValence(a.el)+Math.abs(a.charge||0);
+}
+function valenceWarn(i,extra){
+  const a=atoms[i]; if(!a) return;
+  toast(`${a.el} now has ${bondSum(i)+extra} bonds (usually max ${maxValence(a.el)}). Done anyway and marked in red.`);
+}
+function drawOverValence(){
+  ctx.save(); ctx.strokeStyle="#e5534b"; ctx.lineWidth=1.6; ctx.setLineDash([3,3]);
+  atoms.forEach((a,i)=>{
+    if(skelHiddenH(i)||!overValent(i)) return;
+    const P=W2S(a); ctx.beginPath(); ctx.arc(P.x,P.y,Math.max(12,15*Math.min(view.k,1.6)),0,7); ctx.stroke();
+  });
+  ctx.restore();
+}
+/* shelf saving: a name that already exists replaces that molecule */
+function upsertStructure(entry){
+  const key=entry.name.trim().toLowerCase();
+  const i=structures.findIndex(s=>s.name.trim().toLowerCase()===key);
+  if(i>=0){ structures[i]=entry; saveStructs(); toast('Replaced "'+structures[i].name+'" on the shelf',"ok"); }
+  else { structures.push(entry); saveStructs(); toast('"'+entry.name+'" saved',"ok"); }
+  if($("ptVeil").classList.contains("show")) renderSaved();
+}
+function suggestedName(){
+  return lastNamed && lastNamed.sig===molecularSignature() ? lastNamed.name : "Structure "+(structures.length+1);
+}
+/* place any {atoms,bonds} at a screen point; returns the new atom indices */
+function placeStruct(s,clientX,clientY){
+  const rect=canvas.getBoundingClientRect();
+  const c=S2W({x:clientX-rect.left, y:clientY-rect.top});
+  let cx=0,cy=0; s.atoms.forEach(a=>{cx+=a.x;cy+=a.y;});
+  cx/=s.atoms.length; cy/=s.atoms.length;
+  const off=atoms.length;
+  if(paperOn()){
+    const G=gridSize(), k=s.bonds.length? G/gridOf(s.atoms,s.bonds) : 1;
+    const at=onPaper(c,G);
+    s.atoms.forEach(a=>atoms.push({...a,...onPaper({x:(a.x-cx)*k+at.x,y:(a.y-cy)*k+at.y},G),charge:a.charge||0}));
+  } else
+  s.atoms.forEach(a=>atoms.push({...a,x:a.x-cx+c.x,y:a.y-cy+c.y,charge:a.charge||0}));
+  s.bonds.forEach(b=>bonds.push({...b,a:b.a+off,b:b.b+off}));
+  snap(); afterChange();
+  return s.atoms.map((a,k)=>off+k);
+}
+/* clipboard (in-page, also survives reloads) */
+function subStruct(idxs){
+  const set=new Set(idxs), remap=new Map(idxs.map((o,n)=>[o,n]));
+  return {atoms:idxs.map(i=>JSON.parse(JSON.stringify(atoms[i]))),
+          bonds:bonds.filter(b=>set.has(b.a)&&set.has(b.b)).map(b=>({...b,a:remap.get(b.a),b:remap.get(b.b)}))};
+}
+function currentPick(){
+  if(multiSel.size) return [...multiSel].sort((a,b)=>a-b);
+  if(selAtom>=0) return [selAtom];
+  return atoms.map((a,i)=>i);
+}
+function copyPick(){
+  const idx=currentPick(); if(!idx.length){ toast("Nothing to copy"); return false; }
+  try{ localStorage.setItem("dne_clip",JSON.stringify(subStruct(idx))); }catch(e){}
+  toast("Copied "+idx.length+" atom"+(idx.length===1?"":"s"),"ok"); return true;
+}
+function pasteClip(offsetPx){
+  let clip=null; try{ clip=JSON.parse(localStorage.getItem("dne_clip")||"null"); }catch(e){}
+  if(!clip||!clip.atoms||!clip.atoms.length){ toast("Clipboard is empty: Ctrl+C something first"); return; }
+  const r=canvas.getBoundingClientRect();
+  const p=lastCanvasPt? {x:r.left+lastCanvasPt.sx, y:r.top+lastCanvasPt.sy} : {x:r.left+r.width/2+(offsetPx||0), y:r.top+r.height/2+(offsetPx||0)};
+  const idx=placeStruct(clip,p.x,p.y);
+  selAtom=selBond=-1; hidePopover(); multiSel=new Set(idx); redraw();
+}
+function setDrawElement(el){
+  drawEl=el;
+  let found=false;
+  document.querySelectorAll(".el-swatch").forEach(x=>{ const on=x.dataset.el===el; x.classList.toggle("active",on); if(on) found=true; });
+  $("ptBtn").classList.toggle("active",!found);
+}
+const KEY_ELEMENTS={c:"C",h:"H",o:"O",n:"N",s:"S",f:"F",p:"P",i:"I",b:"B",l:"Cl",r:"Br"};
+function anyModalOpen(){ return ["setVeil","ptVeil","nameVeil","keysVeil"].some(id=>$(id)&&$(id).classList.contains("show")); }
+function closeTopLayer(){
+  for(const id of ["keysVeil","nameVeil","setVeil","ptVeil"]){ if($(id).classList.contains("show")){ if(id==="nameVeil") $("nameCancel").click(); else $(id).classList.remove("show"); return true; } }
+  if($("drawer").classList.contains("open")){ closeDrawer(); return true; }
+  if(popVisible||skPopVisible||selAtom>=0||selBond>=0||multiSel.size||selSketch>=0){
+    selAtom=selBond=-1; hidePopover(); multiSel.clear(); selSketch=-1; hideSkPop(); redraw(); return true;
+  }
+  if(mode!=="build"){ setMode("build"); return true; }
+  return false;
+}
+function shortcutKey(e){
+  // physical key position as a fallback, so shortcuts also work on Cyrillic / other layouts
+  const byCode=(/^Key([A-Z])$/.exec(e.code)||[])[1], digit=(/^Digit([0-9])$/.exec(e.code)||[])[1];
+  let k=e.key.length===1? e.key.toLowerCase() : e.key;
+  if(k.length===1 && !/[a-z0-9?+=-_]/.test(k)) k=byCode? byCode.toLowerCase() : (digit||k);
+  if(e.code==="Slash"&&e.shiftKey) k="?";
+  const mod=e.ctrlKey||e.metaKey;
+  if(mod && !e.altKey){
+    if(k==="a"){ e.preventDefault(); multiSel=new Set(atoms.map((a,i)=>i).filter(i=>!skelHiddenH(i))); selAtom=selBond=-1; hidePopover(); redraw(); return true; }
+    if(k==="c"){ if(window.getSelection&&String(window.getSelection())) return false; e.preventDefault(); copyPick(); return true; }
+    if(k==="x"){ e.preventDefault(); if(copyPick()){ if(multiSel.size) deleteSelection(); else if(selAtom>=0) deleteAtom(selAtom); else { atoms=[];bonds=[];snap();afterChange(); } } return true; }
+    if(k==="v"){ e.preventDefault(); pasteClip(); return true; }
+    if(k==="d"){ e.preventDefault(); if(copyPick()){ const keep=lastCanvasPt; lastCanvasPt=null; pasteClip(30); lastCanvasPt=keep; } return true; }
+    if(k==="s"){ e.preventDefault(); if(multiSel.size) saveSelection(); else $("saveStructBtn").click(); return true; }
+    if(k==="enter"){ e.preventDefault(); runNaming(); return true; }
+    return false;
+  }
+  if(e.altKey) return false;
+  if(k==="?"||e.key==="F1"){ e.preventDefault(); $("keysVeil").classList.add("show"); return true; }
+  if(e.key==="Enter"){ if(document.activeElement&&document.activeElement!==document.body) return false; e.preventDefault(); runNaming(); return true; }
+  if(k==="0"){ fitView(); return true; }
+  // sketch tools
+  if(SETTINGS.sketch==="on"){
+    if(k==="a"){ setMode(e.shiftKey? (mode==="mech"?"build":"mech") : (mode==="arrow"?"build":"arrow")); return true; }
+    if(k==="p"&&e.shiftKey){ setMode(mode==="plus"?"build":"plus"); return true; }
+  }
+  if(k==="h"&&e.shiftKey){ $("autoHBtn").click(); return true; }
+  // elements: retype the hovered atom, otherwise pick the drawing element
+  if(!e.shiftKey && KEY_ELEMENTS[k]){
+    const el=KEY_ELEMENTS[k];
+    if(hoverAtom>=0 && atoms[hoverAtom]){
+      if(atoms[hoverAtom].el!==el){ atoms[hoverAtom].el=el; atoms[hoverAtom].charge=0; atoms[hoverAtom].manualCharge=false; snap(); afterChange(); }
+    } else { setDrawElement(el); if(mode!=="build") setMode("build"); toast("Drawing with "+el,"ok"); }
+    return true;
+  }
+  // bond order: change the hovered bond, otherwise pick the bond tool
+  if(k==="1"||k==="2"||k==="3"){
+    const n=+k;
+    if(hoverBond>=0 && bonds[hoverBond]) setBondOrder(hoverBond,n);
+    else document.querySelector('[data-bond="'+n+'"]').click();
+    return true;
+  }
+  // charge on the hovered/selected atom, otherwise zoom
+  if(k==="+"||k==="="||k==="-"||k==="_"){
+    const up=k==="+"||k==="=", t=hoverAtom>=0? hoverAtom : selAtom;
+    if(t>=0&&atoms[t]){ atoms[t].charge=(atoms[t].charge||0)+(up?1:-1); atoms[t].manualCharge=true; snap(); afterChange(); }
+    else { const r=canvas.getBoundingClientRect(), p=lastCanvasPt||{sx:r.width/2,sy:r.height/2}; zoomAt(p.sx,p.sy,up?1.2:1/1.2); }
+    return true;
+  }
+  if(k==="e"){ setMode(mode==="erase"?"build":"erase"); return true; }
+  if(k==="m"){ setMode(mode==="move"?"build":"move"); return true; }
+  if(k==="v"){ setMode(mode==="select"?"build":"select"); return true; }
+  if(k==="k"){ $("skelBtn").click(); return true; }
+  if(k==="t"){ $("cleanBtn").click(); return true; }
+  return false;
+}
+$("keysClose").onclick=()=>$("keysVeil").classList.remove("show");
+$("keysVeil").addEventListener("click",e=>{ if(e.target.id==="keysVeil") $("keysVeil").classList.remove("show"); });
+$("keysBtn").onclick=()=>{ $("setVeil").classList.remove("show"); $("keysVeil").classList.add("show"); };
 document.addEventListener("keydown",e=>{
+  if(e.key==="Escape" && document.activeElement && document.activeElement.id==="svSearch"){ document.activeElement.blur(); $("ptVeil").classList.remove("show"); return; }
   if(document.activeElement && ["INPUT","TEXTAREA","SELECT"].includes(document.activeElement.tagName)) return;
   if(e.key==="ScrollLock"){
     SETTINGS.scrollLock = SETTINGS.scrollLock==="on"? "off" : "on";
@@ -2486,10 +2721,14 @@ document.addEventListener("keydown",e=>{
     zoomAt(p.sx,p.sy, e.key==="ArrowUp"? 1.12 : 1/1.12);
     return;
   }
-  if(e.key==="Escape"){ selAtom=selBond=-1; hidePopover(); multiSel.clear(); selSketch=-1; hideSkPop(); redraw(); return; }
+  if(e.key==="Escape"){ closeTopLayer(); return; }
+  if(anyModalOpen()) return;
   if(e.key==="Delete"||e.key==="Backspace"){
+    // order: box selection, then whatever is under the cursor, then the clicked atom/bond
     if(selSketch>=0){ e.preventDefault(); deleteSketch(selSketch); return; }
     if(multiSel.size){ e.preventDefault(); deleteSelection(); return; }
+    if(hoverAtom>=0&&atoms[hoverAtom]){ e.preventDefault(); const h=hoverAtom; hoverAtom=-1; deleteAtom(h); return; }
+    if(hoverBond>=0&&bonds[hoverBond]){ e.preventDefault(); const h=hoverBond; hoverBond=-1; bonds.splice(h,1); if(selBond===h) selBond=-1; else if(selBond>h) selBond--; hidePopover(); snap(); afterChange(); return; }
     if(selAtom>=0||selBond>=0){
       e.preventDefault();
       if(selAtom>=0) deleteAtom(selAtom); else { bonds.splice(selBond,1); selBond=-1; hidePopover(); snap(); afterChange(); }
@@ -2503,19 +2742,17 @@ document.addEventListener("keydown",e=>{
     return;
   }
   if(mod && e.key.toLowerCase()==="y"){ e.preventDefault(); redo(); return; }
+  shortcutKey(e);
 });
 
 function tryBond(i,j,order){
   const ex=bonds.findIndex(b=>(b.a===i&&b.b===j)||(b.a===j&&b.b===i));
   if(ex>=0){ setBondOrder(ex,order); return; }
   const c1=canAddBond(i,order), c2=canAddBond(j,order);
-  if(!c1.ok||!c2.ok){
-    const bad=!c1.ok? atoms[i].el: atoms[j].el;
-    toast(`Impossible bond: ${bad} would exceed its valence`,"err"); redraw(); return;
-  }
+  if(!c1.ok) valenceWarn(i,order); else if(!c2.ok) valenceWarn(j,order);
   bonds.push({a:i,b:j,order});
-  if(c1.charge!==null) atoms[i].charge=c1.charge;
-  if(c2.charge!==null) atoms[j].charge=c2.charge;
+  if(c1.ok&&c1.charge!==null) atoms[i].charge=c1.charge;
+  if(c2.ok&&c2.charge!==null) atoms[j].charge=c2.charge;
   if(c1.charge||c2.charge) toast("Auto-assigned a formal charge","ok");
   snap(); afterChange();
 }
@@ -2524,9 +2761,9 @@ function setBondOrder(bi,order){
   const extra=order-b.order;
   if(extra>0){
     const c1=canAddBond(b.a,extra), c2=canAddBond(b.b,extra);
-    if(!c1.ok||!c2.ok){ toast("That bond order would break valence rules","err"); return; }
-    if(c1.charge!==null) atoms[b.a].charge=c1.charge;
-    if(c2.charge!==null) atoms[b.b].charge=c2.charge;
+    if(!c1.ok) valenceWarn(b.a,extra); else if(!c2.ok) valenceWarn(b.b,extra);
+    if(c1.ok&&c1.charge!==null) atoms[b.a].charge=c1.charge;
+    if(c2.ok&&c2.charge!==null) atoms[b.b].charge=c2.charge;
   }
   b.order=order; delete b.stereo; snap(); afterChange();
 }
@@ -2575,9 +2812,7 @@ function saveSelection(){
     atoms=subAtoms; bonds=subBonds;
     const formula=molFormula().str;
     atoms=bakA; bonds=bakB;
-    structures.push({name, formula, atoms:subAtoms, bonds:subBonds});
-    saveStructs();
-    toast('"'+name+'" saved',"ok");
+    upsertStructure({name, formula, atoms:subAtoms, bonds:subBonds});
   });
 }
 
@@ -2973,14 +3208,8 @@ function wireStructDrag(cardEl,i){
 }
 $("saveStructBtn").onclick=()=>{
   if(!atoms.length){ toast("Draw something first"); return; }
-  askName("Save structure","Structure "+(structures.length+1),name=>{
-    structures.push({
-      name,
-      formula:molFormula().str,
-      atoms:JSON.parse(JSON.stringify(atoms)),
-      bonds:JSON.parse(JSON.stringify(bonds))
-    });
-    saveStructs(); renderSaved(); toast("Structure saved","ok");
+  askName("Save structure",suggestedName(),name=>{
+    upsertStructure({name, formula:molFormula().str, atoms:JSON.parse(JSON.stringify(atoms)), bonds:JSON.parse(JSON.stringify(bonds))});
   });
 };
 function insertStruct(i){
