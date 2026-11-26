@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chem Puzzles</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --desk:#cfcdc8; --paper:#efefec; --grid:rgba(96,118,150,.17); --margin:rgba(205,70,70,.55);
+    --print:#26282b; --soft:#5d6168; --ink:#1f4fa3; --ink-soft:rgba(31,79,163,.14);
+    --red:#c42f2c; --pencil:#4a4a48; --note:#fbe98c;
+    --hand:'Caveat', 'Segoe Print', cursive; --sans:'Source Sans 3', 'Segoe UI', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    min-height:100vh; font-family:var(--sans); color:var(--print);
+    background:
+      radial-gradient(1200px 700px at 30% 10%, rgba(255,255,255,.35), transparent 60%),
+      repeating-linear-gradient(93deg, rgba(0,0,0,.018) 0 2px, transparent 2px 7px),
+      var(--desk);
+    overflow-x:hidden;
+  }
+  button{font:inherit; color:inherit}
+
+  /* ---------- desk layout ---------- */
+  .desk{max-width:1240px; margin:0 auto; padding:22px 22px 60px; display:grid;
+    grid-template-columns:minmax(0,1fr) 250px; grid-template-areas:"ruler ruler" "sheet note"; gap:26px 30px}
+  .back{position:absolute; top:10px; left:16px; font-family:var(--hand); font-size:20px; color:var(--pencil); text-decoration:none; opacity:.75}
+  .back:hover{opacity:1}
+
+  /* ---------- ruler (Celo picker) ---------- */
+  .ruler-wrap{grid-area:ruler; padding-top:18px; padding-bottom:14px}
+  .ruler{position:relative; height:78px; border-radius:6px; transform:rotate(-.6deg);
+    background:linear-gradient(180deg, rgba(222,236,244,.86), rgba(196,218,232,.78));
+    border:1px solid rgba(80,120,150,.35);
+    box-shadow:0 10px 18px -10px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.8), inset 0 -2px 0 rgba(60,100,130,.12);
+    backdrop-filter:blur(2px)}
+  .ruler::before{content:"Celo"; position:absolute; left:12px; bottom:8px; font-family:var(--hand); font-size:20px; color:rgba(30,60,90,.6)}
+  .ruler-track{position:absolute; left:40px; right:40px; top:0; bottom:0}
+  .tick{position:absolute; top:0; width:1px; background:rgba(30,50,70,.7); height:11px; pointer-events:none}
+  .tick.mid{height:16px} .tick.big{height:24px}
+  .tick-label{position:absolute; top:25px; transform:translateX(-50%); font-size:12px; font-weight:600; color:rgba(30,50,70,.8); pointer-events:none; font-variant-numeric:tabular-nums}
+  .tick-hit{position:absolute; top:0; height:48px; transform:translateX(-50%); border:0; background:transparent; cursor:pointer; border-radius:4px; padding:0}
+  .tick-hit:hover{background:rgba(31,79,163,.10)}
+  .tick-hit:focus-visible{outline:2px solid var(--ink)}
+  .tick-dot{position:absolute; top:31px; width:7px; height:7px; border-radius:50%; transform:translateX(-50%); pointer-events:none}
+  .tick-dot.ok{background:var(--ink)} .tick-dot.bad{background:var(--red)} .tick-dot.half{background:linear-gradient(90deg,var(--ink) 50%,var(--red) 50%)}
+  .marker{position:absolute; transform:translateX(-50%); pointer-events:none; transition:left .5s cubic-bezier(.2,.8,.2,1); white-space:nowrap}
+  .marker.cur{top:-19px; color:var(--red); font-family:var(--hand); font-size:18px; font-weight:700; text-align:center; line-height:1}
+  .marker.cur::after{content:""; display:block; margin:1px auto 0; width:0; height:0; border:6px solid transparent; border-top:9px solid var(--red); border-bottom:0}
+  .marker.you{bottom:-26px; color:var(--pencil); font-family:var(--hand); font-size:18px; text-align:center; line-height:1}
+  .marker.you::before{content:""; display:block; margin:0 auto 1px; width:0; height:0; border:6px solid transparent; border-bottom:9px solid var(--pencil); border-top:0}
+  .tip{position:absolute; top:-34px; transform:translateX(-50%); background:var(--print); color:#fff; font-size:12px; padding:3px 7px; border-radius:4px; pointer-events:none; opacity:0; transition:opacity .12s; white-space:nowrap; z-index:5}
+
+  /* ---------- the worksheet ---------- */
+  .sheet{grid-area:sheet; position:relative; min-height:760px; padding:34px 40px 46px 96px;
+    background-color:var(--paper);
+    background-image:
+      linear-gradient(90deg, transparent 70px, var(--margin) 70px, var(--margin) 71.5px, transparent 71.5px),
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size:100% 100%, 20px 20px, 20px 20px;
+    background-position:0 0, 0 12px, 12px 0;
+    box-shadow:0 1px 1px rgba(0,0,0,.08), 0 18px 40px -18px rgba(0,0,0,.45), 0 2px 0 rgba(255,255,255,.6) inset;
+    border-radius:2px; transform:rotate(.25deg)}
+  .sheet::after{content:""; position:absolute; inset:0; pointer-events:none;
+    background:radial-gradient(120% 90% at 50% 0%, transparent 60%, rgba(0,0,0,.045))}
+  .hole{position:absolute; left:26px; width:20px; height:20px; border-radius:50%;
+    background:var(--desk); box-shadow:inset 0 2px 3px rgba(0,0,0,.35)}
+  .sheet-head{display:flex; flex-wrap:wrap; align-items:flex-end; gap:6px 26px; padding-bottom:12px; border-bottom:1.5px solid var(--print); margin-bottom:22px}
+  .sheet-head h1{margin:0; font-size:25px; letter-spacing:.2px; font-weight:700}
+  .sheet-head h1 small{font-weight:400; color:var(--soft); font-size:15px; margin-left:8px}
+  .field{font-size:14px; color:var(--soft); display:flex; align-items:baseline; gap:6px}
+  .field b{font-family:var(--hand); font-size:24px; color:var(--ink); font-weight:700; min-width:60px; border-bottom:1px solid rgba(0,0,0,.35); padding:0 6px; line-height:1}
+  .head-right{margin-left:auto; display:flex; gap:22px}
+
+  .task-no{position:absolute; left:8px; width:56px; text-align:center; font-family:var(--hand); color:var(--red); font-weight:700; line-height:1}
+  .task-no .n{font-size:26px; display:block}
+  .task-no .c{font-size:16px; display:block; opacity:.85}
+  .task-head{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap}
+  .task-head h2{margin:0; font-size:20px}
+  .badge{font-size:12px; text-transform:none; padding:2px 8px; border-radius:20px; border:1px solid currentColor; color:var(--soft); font-weight:600}
+  .badge.rated{color:var(--ink)}
+  .badge.done{color:var(--red)}
+  .task{font-size:18px; line-height:1.55; margin:12px 0 6px; max-width:720px}
+  .how{font-size:13px; color:var(--soft); font-style:italic; margin:0 0 14px}
+  .formula{font-size:26px; margin:18px 0 18px 6px; letter-spacing:.5px; font-weight:600}
+
+  .work{position:relative; margin:8px 0 18px; min-height:60px}
+  svg.mol{display:block; max-width:100%; overflow:visible; touch-action:none; user-select:none; -webkit-user-select:none}
+  svg.mol .bond{stroke:var(--print); stroke-width:2; stroke-linecap:round}
+  svg.mol .ghost{stroke:var(--soft); stroke-width:1.4; stroke-dasharray:3 5}
+  svg.mol .lbl{font:600 17px var(--sans); fill:var(--print); dominant-baseline:central; text-anchor:middle}
+  svg.mol .q{font:700 14px var(--sans); fill:var(--print)}
+  svg.mol .lp{fill:var(--print)}
+  svg.mol .hit{fill:transparent; stroke:transparent; cursor:pointer}
+  svg.mol .hit.bondhit{stroke-width:15; stroke-linecap:round}
+  svg.mol .hit.atomhit{r:12}
+  svg.mol .hit:hover, svg.mol .hit.armed{fill:var(--ink-soft)}
+  svg.mol .hit.bondhit:hover, svg.mol .hit.bondhit.armed{stroke:var(--ink-soft); fill:none}
+  svg.mol .pick{fill:none; stroke:var(--ink); stroke-width:2.2; stroke-dasharray:70; stroke-dashoffset:70; animation:draw .35s ease-out forwards}
+  svg.mol .pick.good{stroke:var(--red)}
+  svg.mol .arr{fill:none; stroke:var(--ink); stroke-width:2.2; stroke-linecap:round}
+  svg.mol .arr.sol{stroke:var(--red)}
+  svg.mol .arr.tmp{stroke-dasharray:5 5; opacity:.7}
+  svg.mol .arrhit{fill:none; stroke:transparent; stroke-width:12; cursor:pointer}
+  svg.mol .arrhit:hover + .arr, svg.mol .arr.hover{stroke:var(--red); opacity:.6}
+  @keyframes draw{to{stroke-dashoffset:0}}
+
+  /* inputs */
+  .answer-line{display:flex; align-items:flex-end; gap:12px; margin:6px 0 4px}
+  .answer-line label{font-size:15px; color:var(--soft)}
+  .answer-line input{flex:0 1 420px; font-family:var(--hand); font-size:30px; color:var(--ink); background:transparent; border:0; border-bottom:1.5px solid var(--pencil); padding:0 6px 0; outline:none; min-width:0}
+  .answer-line input:focus{border-bottom-color:var(--ink)}
+
+  .choices{list-style:none; padding:0; margin:4px 0; display:grid; gap:8px; max-width:560px}
+  .choice{display:flex; align-items:center; gap:12px; cursor:pointer; font-size:18px; padding:3px 6px; border-radius:4px; user-select:none}
+  .choice:hover{background:rgba(255,255,255,.55)}
+  .box{width:22px; height:22px; border:1.6px solid var(--print); flex:none; position:relative; background:rgba(255,255,255,.4)}
+  .choice.on .box::after{content:"✗"; position:absolute; left:1px; top:-12px; font-family:var(--hand); font-size:34px; color:var(--ink); font-weight:700}
+  .choice.is-right{outline:2px solid var(--red); outline-offset:2px; border-radius:16px}
+
+  .order{list-style:none; padding:0; margin:4px 0; display:grid; gap:7px; max-width:420px; counter-reset:o}
+  .order li{display:flex; align-items:center; gap:10px; background:rgba(255,255,255,.72); border:1px solid rgba(0,0,0,.18); border-radius:4px; padding:7px 8px 7px 10px; font-size:18px; cursor:grab; user-select:none; touch-action:none; box-shadow:0 1px 0 rgba(0,0,0,.06)}
+  .order li::before{counter-increment:o; content:counter(o) "."; font-family:var(--hand); font-size:24px; color:var(--ink); width:20px}
+  .order li.dragging{cursor:grabbing; box-shadow:0 8px 16px -6px rgba(0,0,0,.35); border-color:var(--ink); transform:rotate(-1deg)}
+  .order li .grow{flex:1}
+  .order li .mv{border:0; background:transparent; cursor:pointer; color:var(--soft); font-size:13px; padding:2px 5px; border-radius:3px}
+  .order li .mv:hover{background:var(--ink-soft); color:var(--ink)}
+  .order-ends{font-size:13px; color:var(--soft); margin:2px 0}
+
+  .match{position:relative; display:grid; grid-template-columns:minmax(0,max-content) minmax(0,max-content); column-gap:110px; row-gap:8px; align-items:center}
+  .match .m{background:rgba(255,255,255,.72); border:1px solid rgba(0,0,0,.18); border-radius:4px; padding:7px 12px; font-size:17px; cursor:pointer; user-select:none; position:relative; z-index:1}
+  .match .m:hover{border-color:var(--ink)}
+  .match .m.sel{border-color:var(--ink); box-shadow:0 0 0 2px var(--ink-soft)}
+  .match svg{position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible}
+  .match path{fill:none; stroke:var(--ink); stroke-width:2; stroke-linecap:round}
+  .match path.wrong{stroke:var(--red); stroke-dasharray:4 5}
+
+  /* synthesis */
+  .route{display:flex; flex-wrap:wrap; align-items:center; gap:6px 4px; margin:6px 0 12px; min-height:84px}
+  .node{font-family:var(--hand); font-size:24px; color:var(--ink); line-height:1.05; padding:4px 8px; border-radius:6px; max-width:230px; text-align:center}
+  .node.start{color:var(--print); font-family:var(--sans); font-size:16px; font-weight:700; border:1.5px solid var(--print)}
+  .node.goal{border:1.5px dashed var(--red); color:var(--red)}
+  .node.hit-goal{border:2px solid var(--red); background:rgba(196,47,44,.06)}
+  .node.dead{text-decoration:underline wavy rgba(196,47,44,.6)}
+  .step{display:flex; flex-direction:column; align-items:center; min-width:120px; max-width:200px}
+  .step .rg{font-family:var(--hand); font-size:18px; color:var(--pencil); text-align:center; line-height:1.05; padding:0 4px}
+  .step .ar{width:100%; height:12px}
+  .step .y{font-family:var(--hand); font-size:16px; color:var(--red); line-height:1}
+  .target-line{display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:15px; color:var(--soft); margin:0 0 6px}
+  .shelf{display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 8px}
+  .rgt{background:#fffdf6; border:1px solid rgba(0,0,0,.2); border-radius:3px; padding:6px 10px 6px 12px; font-size:15px; cursor:pointer; position:relative; box-shadow:0 1px 0 rgba(0,0,0,.08); transition:transform .12s}
+  .rgt::before{content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--ink); opacity:.5; border-radius:3px 0 0 3px}
+  .rgt:hover{transform:translateY(-2px); border-color:var(--ink)}
+  .rgt:disabled{opacity:.45; cursor:default; transform:none}
+  .shelf-title{font-size:13px; color:var(--soft); text-transform:uppercase; letter-spacing:.08em; margin-top:10px}
+  .synth-stats{font-size:15px; color:var(--soft); display:flex; gap:18px; flex-wrap:wrap; margin:6px 0}
+  .synth-stats b{font-family:var(--hand); font-size:22px; color:var(--ink)}
+  .pencil-note{font-family:var(--hand); font-size:21px; color:var(--pencil); min-height:26px; margin:2px 0}
+  .pencil-note.warn{color:var(--red)}
+
+  /* buttons */
+  .actions{display:flex; flex-wrap:wrap; gap:10px; margin:18px 0 8px}
+  .btn{border:1.5px solid var(--print); background:rgba(255,255,255,.6); padding:7px 16px; border-radius:4px; cursor:pointer; font-weight:600; font-size:15px; transition:background .12s, transform .12s}
+  .btn:hover{background:#fff}
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{background:var(--print); color:#fff}
+  .btn.primary:hover{background:#000}
+  .btn.ghost{border-color:transparent; background:transparent; color:var(--soft)}
+  .btn.ghost:hover{color:var(--print); background:rgba(255,255,255,.5)}
+  .btn:disabled{opacity:.4; cursor:default}
+
+  /* teacher feedback */
+  .feedback{position:relative; min-height:40px; margin-top:6px; max-width:720px}
+  .verdict{display:flex; align-items:center; gap:14px}
+  .verdict svg{width:64px; height:54px; flex:none}
+  .verdict svg path{fill:none; stroke:var(--red); stroke-width:4; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:140; stroke-dashoffset:140; animation:draw .45s .05s ease-out forwards}
+  .verdict .word{font-family:var(--hand); font-size:30px; color:var(--red); font-weight:700}
+  .delta{font-family:var(--hand); font-size:24px; color:var(--red); border:2px solid var(--red); border-radius:50%; padding:2px 12px; transform:rotate(-6deg); display:inline-block}
+  .explain{font-family:var(--hand); font-size:22px; color:var(--red); line-height:1.2; margin:6px 0 0 4px}
+  .hint{font-family:var(--hand); font-size:22px; color:var(--pencil); margin:8px 0 0 4px}
+  .hint::before{content:"Hint: "; font-family:var(--sans); font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--soft)}
+
+  /* sticky note */
+  .note{grid-area:note; align-self:start; position:sticky; top:20px; background:var(--note); padding:22px 20px 20px; transform:rotate(1.4deg);
+    box-shadow:0 14px 22px -14px rgba(0,0,0,.5), 0 1px 0 rgba(0,0,0,.05); background-image:linear-gradient(180deg, rgba(255,255,255,.25), transparent 30%)}
+  .note::before{content:""; position:absolute; top:-12px; left:50%; width:90px; height:26px; transform:translateX(-50%) rotate(-3deg); background:rgba(255,255,255,.55); box-shadow:0 1px 2px rgba(0,0,0,.08)}
+  .note h3{margin:0; font-size:13px; text-transform:uppercase; letter-spacing:.1em; color:rgba(60,50,10,.7)}
+  .celo{font-family:var(--hand); font-size:64px; line-height:.95; font-weight:700; color:#2a2a28; margin:4px 0 0}
+  .tier{font-family:var(--hand); font-size:24px; color:#5a4a10}
+  .stats{font-size:14px; color:rgba(50,40,10,.8); margin:12px 0 14px; line-height:1.6}
+  .note .btn{width:100%; margin-top:8px; background:rgba(255,255,255,.45); border-color:rgba(60,50,10,.65)}
+  .note .btn.primary{background:#2a2a28; color:#fff; border-color:#2a2a28}
+  .note .tiny{font-size:12px; color:rgba(50,40,10,.65); margin-top:14px; line-height:1.45}
+  .note .reset{margin-top:10px; background:none; border:0; text-decoration:underline; cursor:pointer; font-size:12px; color:rgba(50,40,10,.7); padding:0}
+
+  @media (max-width:900px){
+    .desk{grid-template-columns:1fr; grid-template-areas:"ruler" "note" "sheet"; padding:14px 10px 40px; gap:30px}
+    .note{position:relative; top:0; transform:rotate(.6deg); display:grid; grid-template-columns:1fr 1fr; align-items:end; column-gap:14px; padding:18px 16px 14px}
+    .note h3{grid-column:1/-1} .note .celo{font-size:52px} .note .stats{margin:0; grid-column:2; grid-row:2/4} .note .tiny{display:none}
+    .note .btn{grid-column:1/-1} .note .reset{grid-column:1/-1; justify-self:start}
+    .ruler-wrap{overflow-x:auto; padding:34px 10px 30px; margin:0 -10px; scrollbar-width:none}
+    .ruler-wrap::-webkit-scrollbar{display:none}
+    .ruler{min-width:760px}
+    .sheet{padding:26px 16px 40px 64px; transform:none}
+    .sheet{background-image:linear-gradient(90deg, transparent 50px, var(--margin) 50px, var(--margin) 51.5px, transparent 51.5px),linear-gradient(var(--grid) 1px, transparent 1px),linear-gradient(90deg, var(--grid) 1px, transparent 1px)}
+    .hole{left:15px}
+    .task-no{left:0; width:48px}
+    .head-right{margin-left:0}
+    .match{column-gap:60px}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation-duration:.01s!important; transition-duration:.01s!important}}
+</style>
+</head>
+<body>
+<a class="back" href="../">← sketchdanylo</a>
+<div class="desk">
+  <div class="ruler-wrap"><div class="ruler" id="ruler"><div class="ruler-track" id="track"></div></div></div>
+
+  <main class="sheet" id="sheet">
+    <div class="hole" style="top:90px"></div><div class="hole" style="top:46%"></div><div class="hole" style="bottom:90px"></div>
+    <header class="sheet-head">
+      <h1>Chem Puzzles <small>Worksheet</small></h1>
+      <div class="head-right">
+        <div class="field">Level <b id="fLevel">—</b></div>
+        <div class="field">Type <b id="fType">—</b></div>
+      </div>
+    </header>
+    <section id="puzzle"></section>
+  </main>
+
+  <aside class="note" aria-label="Your Celo">
+    <h3>Your Celo</h3>
+    <div class="celo" id="celo">100</div>
+    <div class="tier" id="tier">Novice</div>
+    <div class="stats" id="stats"></div>
+    <button class="btn primary" id="nextRated">Next rated puzzle</button>
+    <div class="tiny">Every puzzle is rated the first time you answer it, whether you reach it here or on the ruler. A hint halves the gain. Pick any level on the ruler to see that level's task.</div>
+    <button class="reset" id="resetAll">Reset Celo</button>
+  </aside>
+</div>
+
+<script>
+/* ================================================================
+   PUZZLES  (task text in German, interface in English)
+   types: text, choice, order, match, click, arrows, synth
+   ================================================================ */
+const PUZZLES = [
+{ id:'br', celo:100, type:'text', title:'Elementsymbole',
+  task:'Welches Element hat das Symbol <b>Br</b>?',
+  accept:['brom','bromine'], placeholder:'Elementname',
+  hint:'Es ist ein Halogen – wie Chlor, nur eine Periode tiefer.',
+  explain:'Brom (Br): Halogen der 7. Hauptgruppe, bei Raumtemperatur eine rotbraune Flüssigkeit.' },
+
+{ id:'propan', celo:100, type:'text', title:'Nomenklatur',
+  task:'Benenne die folgende Verbindung.', formula:'CH₃–CH₂–CH₃',
+  accept:['propan','propane','npropan'], placeholder:'Name',
+  hint:'Zähle die C-Atome: 1 → Meth-, 2 → Eth-, 3 → …',
+  explain:'Propan: drei C-Atome, nur Einfachbindungen → Endung „-an“.' },
+
+{ id:'ord6', celo:200, type:'choice', title:'Periodensystem',
+  task:'Welches Element hat die Ordnungszahl 6?',
+  options:['Sauerstoff','Kohlenstoff','Stickstoff','Bor'], correct:[1],
+  hint:'Es ist das Element, um das sich die ganze organische Chemie dreht.',
+  explain:'Kohlenstoff (C): 6 Protonen.' },
+
+{ id:'alkmatch', celo:200, type:'match', title:'Alkane',
+  task:'Ordne jeder Summenformel den richtigen Namen zu.',
+  pairs:[['CH₄','Methan'],['C₂H₆','Ethan'],['C₃H₈','Propan'],['C₄H₁₀','Butan']],
+  hint:'Alkane haben die allgemeine Formel CₙH₂ₙ₊₂.',
+  explain:'Meth- (1), Eth- (2), Prop- (3), But- (4) – allgemein CₙH₂ₙ₊₂.' },
+
+{ id:'fg', celo:300, type:'choice', title:'Funktionelle Gruppen',
+  task:'Welche funktionelle Gruppe besitzt Ethanol (CH₃–CH₂–OH)?',
+  options:['Carboxygruppe','Hydroxygruppe','Aminogruppe','Carbonylgruppe'], correct:[1],
+  hint:'Achte auf das –OH am Ende.',
+  explain:'–OH = Hydroxygruppe → Alkohole (Endung „-ol“).' },
+
+{ id:'sdp', celo:400, type:'order', title:'Siedetemperaturen',
+  task:'Ordne die Alkane nach steigender Siedetemperatur.',
+  ends:['niedrigste Siedetemperatur','höchste Siedetemperatur'],
+  items:['Methan','Ethan','Propan','Butan'],
+  hint:'Je größer das Molekül, desto stärker die Van-der-Waals-Kräfte.',
+  explain:'Längere Kette → größere Oberfläche → stärkere Van-der-Waals-Kräfte → höhere Siedetemperatur (−162 °C, −89 °C, −42 °C, −1 °C).' },
+
+{ id:'2mb', celo:500, type:'text', title:'Verzweigte Alkane',
+  task:'Benenne die Verbindung nach IUPAC.',
+  mol:{atoms:[{id:'a',t:'CH₃',x:0,y:0},{id:'b',t:'CH',x:72,y:0},{id:'c',t:'CH₂',x:144,y:0},{id:'d',t:'CH₃',x:216,y:0},{id:'e',t:'CH₃',x:72,y:56}],
+       bonds:[{id:'ab',a:'a',b:'b'},{id:'bc',a:'b',b:'c'},{id:'cd',a:'c',b:'d'},{id:'be',a:'b',b:'e'}]},
+  accept:['2methylbutan','2methylbutane','isopentan','isopentane'], placeholder:'Name',
+  hint:'Längste Kette: 4 C → Butan. An welchem C-Atom sitzt der Rest, wenn du so nummerierst, dass die Zahl klein bleibt?',
+  explain:'2-Methylbutan: Hauptkette Butan, Methylgruppe an C-2 (nicht C-3 – kleinste Lokanten).' },
+
+{ id:'buten', celo:600, type:'text', title:'Alkene',
+  task:'Benenne die Verbindung nach IUPAC.', formula:'CH₃–CH=CH–CH₃',
+  accept:['but2en','2buten','but2ene','2butene'], placeholder:'Name',
+  hint:'Die Doppelbindung bekommt die kleinstmögliche Nummer; die Endung ist „-en“.',
+  explain:'But-2-en (2-Buten): 4 C-Atome, Doppelbindung beginnt an C-2.' },
+
+{ id:'iso', celo:700, type:'text', title:'Isomerie',
+  task:'Wie viele Konstitutionsisomere gibt es mit der Summenformel C₅H₁₂?',
+  accept:['3','drei','three'], placeholder:'Anzahl',
+  hint:'Fang mit der geraden Kette an und verzweige dann immer stärker.',
+  explain:'Drei: Pentan, 2-Methylbutan und 2,2-Dimethylpropan.' },
+
+{ id:'rtyp', celo:800, type:'match', title:'Reaktionstypen',
+  task:'Ordne jeder Reaktion den richtigen Reaktionstyp zu.',
+  pairs:[['CH₂=CH₂ + Br₂ → CH₂Br–CH₂Br','Addition'],['CH₄ + Cl₂ → CH₃Cl + HCl','Substitution'],
+         ['CH₃–CH₂–OH → CH₂=CH₂ + H₂O','Eliminierung'],['CH₃COOH + C₂H₅OH ⇌ CH₃COOC₂H₅ + H₂O','Kondensation']],
+  hint:'Addition: zwei Teile werden eins. Eliminierung: ein kleines Molekül fliegt raus und es entsteht eine Doppelbindung.',
+  explain:'Addition an die C=C-Bindung, radikalische Substitution, Eliminierung (Dehydratisierung), Veresterung = Kondensation.' },
+
+{ id:'dibr', celo:900, type:'text', title:'Elektrophile Addition',
+  task:'Ethen reagiert mit Brom. Benenne das Produkt.', formula:'CH₂=CH₂ + Br₂ → ?',
+  accept:['12dibromethan','12dibromoethane','12dibromethane'], placeholder:'Name des Produkts',
+  hint:'Jedes C-Atom der Doppelbindung bekommt ein Br-Atom.',
+  explain:'1,2-Dibromethan (CH₂Br–CH₂Br): Brom addiert an beide C-Atome der Doppelbindung – deshalb entfärbt Ethen Bromwasser.' },
+
+{ id:'hcl', celo:1000, type:'arrows', title:'Elektronenpfeile',
+  task:'Wasser wird von Chlorwasserstoff protoniert: H₂O + HCl → H₃O⁺ + Cl⁻. Zeichne die Elektronenpfeile.',
+  mol:{atoms:[{id:'O',t:'O',x:80,y:70,lp:[-135,-45]},{id:'H1',t:'H',x:50,y:102},{id:'H2',t:'H',x:110,y:102},
+              {id:'H3',t:'H',x:185,y:70},{id:'Cl',t:'Cl',x:240,y:70,lp:[-90,90,0]}],
+       bonds:[{id:'oh1',a:'O',b:'H1'},{id:'oh2',a:'O',b:'H2'},{id:'hcl',a:'H3',b:'Cl'}]},
+  solutions:[['lp:O>a:H3','b:hcl>a:Cl']],
+  hint:'Zwei Pfeile: Ein freies Elektronenpaar des O greift das H an, und die H–Cl-Bindung klappt zum Cl.',
+  explain:'Pfeil 1: freies Elektronenpaar am O → H. Pfeil 2: Bindungselektronen H–Cl → Cl (wird zu Cl⁻).' },
+
+{ id:'acid', celo:1100, type:'order', title:'Acidität',
+  task:'Ordne nach steigender Acidität.',
+  ends:['am wenigsten sauer','am stärksten sauer'],
+  items:['Ethan','Ethanol','Phenol','Essigsäure'],
+  hint:'Je besser die negative Ladung der korrespondierenden Base stabilisiert ist (Mesomerie!), desto saurer.',
+  explain:'pKs ≈ 50 (Ethan) > 16 (Ethanol) > 10 (Phenol, Phenolat mesomeriestabilisiert) > 4,76 (Essigsäure, Ladung auf zwei O verteilt).' },
+
+{ id:'markov', celo:1200, type:'choice', title:'Regioselektivität',
+  task:'Propen reagiert mit HBr (ohne Peroxide). Welches ist das Hauptprodukt?',
+  options:['1-Brompropan','2-Brompropan','1,2-Dibrompropan','Propan'], correct:[1],
+  hint:'Welches Carbokation ist stabiler – primär oder sekundär?',
+  explain:'Markownikow: H⁺ geht an das C-Atom mit mehr H-Atomen, es entsteht das stabilere sekundäre Carbokation → 2-Brompropan.' },
+
+{ id:'stereo', celo:1300, type:'click', title:'Chiralität',
+  task:'Klicke das Stereozentrum (Chiralitätszentrum) in Butan-2-ol an.',
+  mol:{atoms:[{id:'c1',t:'',x:40,y:110},{id:'c2',t:'',x:76,y:89},{id:'c3',t:'',x:113,y:110},{id:'c4',t:'',x:149,y:89},{id:'o',t:'OH',x:76,y:45}],
+       bonds:[{id:'b1',a:'c1',b:'c2'},{id:'b2',a:'c2',b:'c3'},{id:'b3',a:'c3',b:'c4'},{id:'b4',a:'c2',b:'o'}]},
+  answer:['c2'],
+  hint:'Ein Stereozentrum trägt vier verschiedene Substituenten.',
+  explain:'C-2 trägt H, OH, CH₃ und C₂H₅ – vier verschiedene Reste.' },
+
+{ id:'sn1', celo:1400, type:'choice', title:'Substitution',
+  task:'2-Brom-2-methylpropan (tert-Butylbromid) wird in einem Wasser/Ethanol-Gemisch erwärmt. Nach welchem Mechanismus verläuft die Substitution bevorzugt?',
+  options:['SN1','SN2','E2','radikalisch'], correct:[0],
+  hint:'Tertiäres C-Atom, schwaches Nucleophil, polar-protisches Lösungsmittel …',
+  explain:'SN1: das tertiäre Substrat ist für einen Rückseitenangriff zu sperrig, bildet aber ein stabiles tertiäres Carbokation; das polar-protische Lösungsmittel stabilisiert es.' },
+
+{ id:'cip', celo:1500, type:'order', title:'CIP-Regeln',
+  task:'Ordne die Substituenten nach ihrer CIP-Priorität.',
+  ends:['höchste Priorität','niedrigste Priorität'],
+  items:['–OH','–C(CH₃)₃','–CH=CH₂','–CH(CH₃)₂','–H'],
+  hint:'Doppelbindungen werden „verdoppelt“: –CH=CH₂ zählt am ersten C als (C, C, H).',
+  explain:'O > C(C,C,C) > C(C,C,H) mit Duplikat-C > C(C,C,H) mit zwei CH₃ > H. Vinyl gewinnt gegen Isopropyl erst in der nächsten Sphäre: (C,H,H) schlägt (H,H,H).' },
+
+{ id:'sn2', celo:1600, type:'arrows', title:'SN2-Mechanismus',
+  task:'Hydroxid reagiert mit Brommethan zu Methanol und Bromid (SN2). Zeichne die Elektronenpfeile.',
+  mol:{atoms:[{id:'Ho',t:'H',x:22,y:80},{id:'O',t:'O',x:62,y:80,q:'−',lp:[-90,90,10]},
+              {id:'C',t:'C',x:152,y:80},{id:'Ha',t:'H',x:152,y:38},{id:'Hb',t:'H',x:128,y:116},{id:'Hc',t:'H',x:176,y:116},
+              {id:'Br',t:'Br',x:214,y:80,lp:[-90,90,0]}],
+       bonds:[{id:'ho',a:'Ho',b:'O'},{id:'cha',a:'C',b:'Ha'},{id:'chb',a:'C',b:'Hb'},{id:'chc',a:'C',b:'Hc'},{id:'cbr',a:'C',b:'Br'}]},
+  solutions:[['lp:O>a:C','b:cbr>a:Br']],
+  hint:'Rückseitenangriff: das Nucleophil greift das C an, gleichzeitig verlässt Br⁻ das Molekül.',
+  explain:'Pfeil 1: freies Elektronenpaar des O⁻ → C (Rückseite). Pfeil 2: C–Br-Bindung → Br. Beides passiert gleichzeitig (konzertiert).' },
+
+{ id:'e2', celo:1700, type:'arrows', title:'E2-Mechanismus',
+  task:'2-Brompropan reagiert mit Hydroxid zu Propen (E2). Zeichne alle Elektronenpfeile.',
+  mol:{atoms:[{id:'Ho',t:'H',x:30,y:40},{id:'O',t:'O',x:70,y:40,q:'−',lp:[-90,90,8]},
+              {id:'Hb',t:'H',x:150,y:62},{id:'Cb',t:'C',x:150,y:110},{id:'Hb2',t:'H',x:106,y:110},{id:'Hb3',t:'H',x:150,y:158},
+              {id:'Ca',t:'C',x:210,y:110},{id:'Ha',t:'H',x:210,y:62},{id:'Me',t:'CH₃',x:268,y:110},
+              {id:'Br',t:'Br',x:210,y:162,lp:[180,0,90]}],
+       bonds:[{id:'ho',a:'Ho',b:'O'},{id:'chb',a:'Cb',b:'Hb'},{id:'cb2',a:'Cb',b:'Hb2'},{id:'cb3',a:'Cb',b:'Hb3'},
+              {id:'cc',a:'Cb',b:'Ca'},{id:'cha',a:'Ca',b:'Ha'},{id:'cme',a:'Ca',b:'Me'},{id:'cbr',a:'Ca',b:'Br'}]},
+  solutions:[['lp:O>a:Hb','b:chb>b:cc','b:cbr>a:Br']],
+  hint:'Drei Pfeile: Base → H, C–H-Bindung → wird zur C=C-Bindung, C–Br → Br.',
+  explain:'Die Base holt das β-H, dessen Bindungselektronen bilden die π-Bindung, und Br⁻ geht – alles in einem Schritt (anti-periplanar).' },
+
+{ id:'syn1', celo:1800, type:'synth', title:'Synthese',
+  task:'Stelle aus Propen <b>Propan-1-ol</b> her. Jeder Weg zählt.',
+  start:'propen', target:'p1ol',
+  nodes:{propen:'Propen', p1ol:'Propan-1-ol', p2ol:'Propan-2-ol', br1:'1-Brompropan', br2:'2-Brompropan', propan:'Propan', diol:'Propan-1,2-diol'},
+  reagents:{h2o:'H₂O, H₂SO₄ (kat.)', bh3:'1) BH₃·THF  2) H₂O₂, NaOH', hbr:'HBr', hbrp:'HBr, ROOR, hν', naoh:'NaOH (aq)', kotbu:'KOtBu, Δ', h2:'H₂, Pd/C', kmno4:'KMnO₄ (kalt, verd.)', h2so4:'konz. H₂SO₄, Δ'},
+  edges:{
+    propen:{h2o:['p2ol',.85,'Markownikow: das OH landet am mittleren C.'], bh3:['p1ol',.9,'Anti-Markownikow-Hydratisierung.'], hbr:['br2',.9,'Markownikow-Addition.'], hbrp:['br1',.8,'Radikalische Addition → anti-Markownikow.'], h2:['propan',.95,'Hydrierung.'], kmno4:['diol',.7,'syn-Dihydroxylierung.'], naoh:[null,0,'Alkene reagieren nicht mit Lauge.']},
+    br1:{naoh:['p1ol',.75,'SN2 am primären C.'], kotbu:['propen',.85,'E2 mit sperriger Base.']},
+    br2:{naoh:['p2ol',.5,'SN2/E2-Konkurrenz am sekundären C.'], kotbu:['propen',.85,'E2.']},
+    p2ol:{h2so4:['propen',.8,'Dehydratisierung (E1).']},
+    p1ol:{}, propan:{}, diol:{}
+  },
+  hint:'Du brauchst eine Anti-Markownikow-Addition – oder einen Umweg über ein Halogenalkan.',
+  explain:'Kürzester Weg: Hydroborierung/Oxidation. Ebenfalls möglich: HBr mit Peroxiden → 1-Brompropan, dann SN2 mit NaOH.' },
+
+{ id:'da', celo:1900, type:'arrows', title:'Pericyclische Reaktion',
+  task:'Diels-Alder: Buta-1,3-dien + Ethen → Cyclohexen. Zeichne die drei Elektronenpfeile.',
+  mol:{atoms:[{id:'C1',t:'',x:95,y:40},{id:'C2',t:'',x:55,y:65},{id:'C3',t:'',x:55,y:115},{id:'C4',t:'',x:95,y:140},{id:'Ca',t:'',x:178,y:58},{id:'Cb',t:'',x:178,y:122}],
+       bonds:[{id:'d12',a:'C1',b:'C2',o:2},{id:'s23',a:'C2',b:'C3'},{id:'d34',a:'C3',b:'C4',o:2},{id:'dab',a:'Ca',b:'Cb',o:2},
+              {id:'g1',a:'C1',b:'Ca',ghost:true},{id:'g2',a:'C4',b:'Cb',ghost:true}]},
+  solutions:[['b:d12>b:s23','b:d34>a:Cb','b:dab>a:C1'],['b:dab>a:C4','b:d34>b:s23','b:d12>a:Ca']],
+  hint:'Die Pfeile laufen im Kreis: jede π-Bindung „wandert“ eine Position weiter.',
+  explain:'Drei Pfeile im Kreis (konzertiert, 6 Elektronen): zwei neue σ-Bindungen C1–Ca und C4–Cb, die neue π-Bindung liegt zwischen C2 und C3. Beide Kreisrichtungen sind richtig.' },
+
+{ id:'nitro', celo:2000, type:'click', title:'Zweitsubstitution',
+  task:'Toluol wird nitriert (HNO₃/H₂SO₄). Klicke alle Ring-Positionen an, an denen die Nitrogruppe bevorzugt eintritt.',
+  mol:{atoms:[{id:'me',t:'CH₃',x:120,y:30,nopick:true},{id:'r1',t:'',x:120,y:78},{id:'r2',t:'',x:161.6,y:102},{id:'r3',t:'',x:161.6,y:150},{id:'r4',t:'',x:120,y:174},{id:'r5',t:'',x:78.4,y:150},{id:'r6',t:'',x:78.4,y:102}],
+       bonds:[{id:'m',a:'me',b:'r1'},{id:'b12',a:'r1',b:'r2',o:2,c:[120,126]},{id:'b23',a:'r2',b:'r3'},{id:'b34',a:'r3',b:'r4',o:2,c:[120,126]},{id:'b45',a:'r4',b:'r5'},{id:'b56',a:'r5',b:'r6',o:2,c:[120,126]},{id:'b61',a:'r6',b:'r1'}]},
+  answer:['r2','r4','r6'],
+  hint:'Alkylgruppen sind aktivierend (+I-Effekt). Wohin dirigieren sie?',
+  explain:'–CH₃ dirigiert ortho/para: die σ-Komplexe mit positiver Ladung am C-Atom neben dem CH₃ sind besonders stabil. Hauptprodukte: 2- und 4-Nitrotoluol.' },
+
+{ id:'grig', celo:2100, type:'text', title:'Grignard',
+  task:'Ethylacetat (CH₃COOCH₂CH₃) wird mit Methylmagnesiumbromid im Überschuss umgesetzt und anschließend wässrig aufgearbeitet. Benenne das organische Hauptprodukt (außer Ethanol).',
+  accept:['2methylpropan2ol','tertbutanol','tertbutylalkohol','2methyl2propanol','tbutanol','tertbutylalcohol','tbutylalkohol'], placeholder:'Name des Produkts',
+  hint:'Ein Ester reagiert zweimal: erst zum Keton, das sofort noch einmal angegriffen wird.',
+  explain:'1. Äquivalent: Addition und Abspaltung von Ethanolat → Aceton. 2. Äquivalent: Addition an Aceton → nach Aufarbeitung 2-Methylpropan-2-ol (tert-Butanol).' },
+
+{ id:'syn2', celo:2200, type:'synth', title:'Freestyle-Synthese',
+  task:'Stelle aus Benzol <b>Propylbenzol</b> her – mit allen Mitteln. Jede Ausbeute zählt, aber eine gute Ausbeute zählt mehr.',
+  start:'benz', target:'propylb',
+  nodes:{benz:'Benzol', propylb:'Propylbenzol', propio:'Propiophenon', alc:'1-Phenylpropan-1-ol', brb:'Brombenzol', phmg:'Phenylmagnesiumbromid', cumol:'Cumol (Isopropylbenzol)'},
+  reagents:{fca:'CH₃CH₂CH₂Cl, AlCl₃', fcacyl:'CH₃CH₂COCl, AlCl₃', clem:'Zn(Hg), HCl', wk:'N₂H₄, KOH, Δ', nabh4:'NaBH₄', h2:'H₂, Pd/C', br2:'Br₂, FeBr₃', mg:'Mg, Ether', ald:'1) CH₃CH₂CHO  2) H₃O⁺'},
+  edges:{
+    benz:{fca:['propylb',.25,'Friedel-Crafts-Alkylierung: das primäre Kation lagert zum sekundären um → Hauptprodukt Cumol. Propylbenzol nur ca. 25 %.'], fcacyl:['propio',.85,'Friedel-Crafts-Acylierung – das Acylium-Ion lagert nicht um.'], br2:['brb',.85,'Bromierung.'], h2:[null,0,'Benzol wird unter diesen Bedingungen nicht hydriert.']},
+    propio:{clem:['propylb',.8,'Clemmensen-Reduktion: C=O → CH₂.'], wk:['propylb',.85,'Wolff-Kishner-Reduktion: C=O → CH₂.'], nabh4:['alc',.95,'Keton → sek. Alkohol.'], h2:['propylb',.7,'Benzylische Hydrogenolyse.']},
+    alc:{h2:['propylb',.85,'Benzylische C–O-Bindung wird hydrogenolytisch gespalten.']},
+    brb:{mg:['phmg',.9,'Grignard-Reagenz.']},
+    phmg:{ald:['alc',.8,'Grignard-Addition an Propanal.']},
+    propylb:{}, cumol:{}
+  },
+  hint:'Bei Friedel-Crafts-Alkylierungen lagern primäre Carbokationen um. Acylium-Ionen tun das nicht.',
+  explain:'Bester Weg: Friedel-Crafts-Acylierung, dann Wolff-Kishner (oder Clemmensen) – keine Umlagerung, ca. 72 %.' },
+
+{ id:'syn3', celo:2300, type:'synth', title:'Reihenfolge entscheidet',
+  task:'Stelle aus Toluol <b>4-Nitrobenzoesäure</b> her.',
+  start:'tol', target:'pnba',
+  nodes:{tol:'Toluol', pnt:'4-Nitrotoluol', bza:'Benzoesäure', mnba:'3-Nitrobenzoesäure', pnba:'4-Nitrobenzoesäure', tolu:'4-Methylanilin', bnbr:'Benzylbromid'},
+  reagents:{hno3:'HNO₃, H₂SO₄', kmno4:'KMnO₄, Δ; dann H₃O⁺', sn:'Sn, HCl', nbs:'Br₂, hν', naoh:'NaOH (aq)'},
+  edges:{
+    tol:{hno3:['pnt',.55,'ortho/para-Gemisch; das para-Isomer wird abgetrennt.'], kmno4:['bza',.85,'Seitenkettenoxidation.'], nbs:['bnbr',.8,'Radikalische Bromierung an der Benzylposition.']},
+    pnt:{kmno4:['pnba',.8,'Die Methylgruppe wird zur Carbonsäure oxidiert.'], sn:['tolu',.9,'Nitro → Amin.']},
+    bza:{hno3:['mnba',.8,'–COOH dirigiert meta!']},
+    tolu:{kmno4:[null,0,'Das Amin wird zerstört (Oxidation zu teerigen Produkten).']},
+    bnbr:{naoh:[null,0,'Benzylalkohol – hilft dir hier nicht weiter.']},
+    mnba:{}, pnba:{}
+  },
+  hint:'–CH₃ dirigiert ortho/para, –COOH dirigiert meta. Was muss zuerst passieren?',
+  explain:'Erst nitrieren (CH₃ dirigiert para), dann oxidieren: 0,55 × 0,80 = 44 %. Andersherum entsteht 3-Nitrobenzoesäure.' },
+
+{ id:'syn4', celo:2400, type:'synth', title:'Amine sauber herstellen',
+  task:'Stelle aus Benzylbromid <b>Benzylamin</b> her – mit allen Mitteln, aber möglichst sauber.',
+  start:'bnbr', target:'bnnh2',
+  nodes:{bnbr:'Benzylbromid', bnnh2:'Benzylamin', phth:'N-Benzylphthalimid', az:'Benzylazid', nitr:'Phenylacetonitril', pea:'2-Phenylethylamin', bnoh:'Benzylalkohol'},
+  reagents:{nh3:'NH₃ (aq)', kphth:'Kaliumphthalimid, DMF', n2h4:'N₂H₄, EtOH, Δ', nan3:'NaN₃, DMF', lah:'1) LiAlH₄  2) H₂O', h2:'H₂, Pd/C', nacn:'NaCN, DMSO', naoh:'NaOH (aq)'},
+  edges:{
+    bnbr:{nh3:['bnnh2',.3,'Überalkylierung: das Produkt ist nucleophiler als NH₃ → Di- und Tribenzylamin. Nur ca. 30 %.'], kphth:['phth',.9,'Gabriel-Synthese, Schritt 1.'], nan3:['az',.95,'SN2 mit Azid.'], nacn:['nitr',.9,'SN2 mit Cyanid – Kettenverlängerung!'], naoh:['bnoh',.85,'SN2 mit Hydroxid.']},
+    phth:{n2h4:['bnnh2',.9,'Ing-Manske-Hydrazinolyse setzt das primäre Amin frei.'], naoh:[null,0,'Hydrolyse geht, ist aber extrem langsam – Hydrazin ist der Trick.']},
+    az:{lah:['bnnh2',.9,'Azid → Amin.'], h2:['bnnh2',.85,'Azid → Amin (N₂ entweicht).']},
+    nitr:{lah:['pea',.85,'Nitril → Amin … aber mit einem C-Atom zu viel.']},
+    bnoh:{}, pea:{}, bnnh2:{}
+  },
+  hint:'Direktes Aminieren mit NH₃ hört nicht beim primären Amin auf. Es gibt „maskierte“ Stickstoff-Nucleophile.',
+  explain:'Gabriel-Synthese (Phthalimid, dann Hydrazin) ca. 81 %, oder Azid + LiAlH₄ ca. 86 %. NH₃ allein: nur ca. 30 %.' },
+
+{ id:'claisen', celo:2500, type:'arrows', title:'[3,3]-sigmatrope Umlagerung',
+  task:'Claisen-Umlagerung: Allylvinylether → Pent-4-enal. Zeichne die drei Elektronenpfeile.',
+  mol:{atoms:[{id:'O',t:'O',x:140,y:50,lp:[-60,-120]},{id:'Cb',t:'',x:96.7,y:75},{id:'Ca',t:'',x:96.7,y:125},{id:'Ce',t:'',x:140,y:150},{id:'Cd',t:'',x:183.3,y:125},{id:'Cc',t:'',x:183.3,y:75}],
+       bonds:[{id:'ab',a:'Ca',b:'Cb',o:2,c:[140,100]},{id:'bo',a:'Cb',b:'O'},{id:'oc',a:'O',b:'Cc'},{id:'cd',a:'Cc',b:'Cd'},{id:'de',a:'Cd',b:'Ce',o:2,c:[140,100]},{id:'g',a:'Ca',b:'Ce',ghost:true}]},
+  solutions:[['b:ab>a:Ce','b:de>b:cd','b:oc>b:bo'],['b:de>a:Ca','b:ab>b:bo','b:oc>b:cd']],
+  hint:'Wie beim Diels-Alder laufen die Pfeile im Kreis. Eine σ-Bindung bricht, eine neue σ-Bindung entsteht.',
+  explain:'Die C=C-π-Bindung bildet die neue C–C-σ-Bindung, die C–O-σ-Bindung bricht und wird zur C=O-π-Bindung, die zweite π-Bindung wandert. Beide Kreisrichtungen sind richtig.' },
+
+{ id:'syn5', celo:2600, type:'synth', title:'Synthese mit Vorgaben',
+  task:'Stelle aus Cyclohexanon <b>1-Methylcyclohexen</b> her.',
+  start:'chx', target:'mce', maxSteps:3, minYield:.5,
+  nodes:{chx:'Cyclohexanon', talc:'1-Methylcyclohexan-1-ol', mce:'1-Methylcyclohexen', exo:'Methylencyclohexan', mch:'Methylcyclohexan', chol:'Cyclohexanol', chen:'Cyclohexen'},
+  reagents:{grig:'1) CH₃MgBr  2) H₃O⁺', wit:'Ph₃P=CH₂', h2so4:'konz. H₃PO₄, Δ', pocl3:'POCl₃, Pyridin', isom:'HCl (kat.), Δ', nabh4:'NaBH₄', h2:'H₂, Pd/C'},
+  edges:{
+    chx:{grig:['talc',.9,'Grignard-Addition → tertiärer Alkohol.'], wit:['exo',.85,'Wittig: die Doppelbindung entsteht genau dort, wo das O war – also exocyclisch.'], nabh4:['chol',.95,'Reduktion.']},
+    talc:{h2so4:['mce',.8,'E1 nach Saizew: die höher substituierte, endocyclische Doppelbindung.'], pocl3:['mce',.7,'E2 – überwiegend das Saizew-Produkt.']},
+    exo:{isom:['mce',.55,'Säurekatalysierte Isomerisierung zur stabileren endocyclischen Doppelbindung.'], h2:['mch',.95,'Hydrierung.']},
+    chol:{h2so4:['chen',.8,'Dehydratisierung.']},
+    chen:{grig:[null,0,'Alkene reagieren nicht mit Grignard-Reagenzien.']},
+    mce:{}, mch:{}
+  },
+  hint:'Wittig setzt die Doppelbindung genau an die Stelle des Carbonyl-O. Wo willst du sie haben?',
+  explain:'Grignard, dann saure Dehydratisierung (Saizew): 0,9 × 0,8 = 72 %. Der Wittig-Umweg kommt nur auf ca. 47 %.' },
+
+{ id:'sn2stereo', celo:2700, type:'choice', title:'Stereochemie',
+  task:'(R)-2-Brombutan reagiert mit NaCN in DMSO. Welches Produkt entsteht hauptsächlich?',
+  options:['(R)-2-Methylbutannitril','(S)-2-Methylbutannitril','racemisches 2-Methylbutannitril','Pentannitril'], correct:[1],
+  hint:'Welcher Mechanismus läuft in DMSO mit einem guten Nucleophil ab? Und wie sieht die CIP-Priorität von –CN aus?',
+  explain:'SN2 → Walden-Umkehr. –CN hat wie –Br die höchste Priorität (C mit N,N,N schlägt C mit C,H,H). Mit der Geometrie kehrt sich also auch der Deskriptor um: R → S.' },
+
+{ id:'syn6', celo:2800, type:'synth', title:'Umweg über den Stickstoff',
+  task:'Stelle aus Benzol <b>1,3,5-Tribrombenzol</b> her.',
+  start:'benz', target:'tbb', maxSteps:6, minYield:.2,
+  nodes:{benz:'Benzol', brb:'Brombenzol', dbb:'1,4-Dibrombenzol', t124:'1,2,4-Tribrombenzol', nb:'Nitrobenzol', mbnb:'3-Bromnitrobenzol', dbnb:'3,5-Dibromnitrobenzol', dban:'3,5-Dibromanilin', dbdz:'3,5-Dibrombenzoldiazonium', an:'Anilin', tba:'2,4,6-Tribromanilin', tbdz:'2,4,6-Tribrombenzoldiazonium', tbb:'1,3,5-Tribrombenzol', tbp:'2,4,6-Tribromphenol', tetra:'1,2,3,5-Tetrabrombenzol'},
+  reagents:{br2fe:'Br₂, FeBr₃', hno3:'HNO₃, H₂SO₄', sn:'Sn, HCl; dann NaOH', br2aq:'Br₂, H₂O', diaz:'NaNO₂, HCl, 0 °C', h3po2:'H₃PO₂', cubr:'CuBr', h2o:'H₂O, Δ'},
+  edges:{
+    benz:{br2fe:['brb',.8,'Bromierung.'], hno3:['nb',.9,'Nitrierung.']},
+    brb:{br2fe:['dbb',.6,'–Br dirigiert ortho/para.']},
+    dbb:{br2fe:['t124',.5,'Wieder ortho/para – nie 1,3,5.']},
+    nb:{sn:['an',.85,'Reduktion zum Anilin.'], br2fe:['mbnb',.75,'–NO₂ dirigiert meta (langsam).']},
+    mbnb:{br2fe:['dbnb',.4,'Stark desaktiviert – zäh.'], sn:[null,0,'Möglich, aber dann dirigiert –NH₂ ortho/para.']},
+    dbnb:{sn:['dban',.8,'Reduktion.']},
+    dban:{diaz:['dbdz',.9,'Diazotierung.']},
+    dbdz:{cubr:['tbb',.7,'Sandmeyer – funktioniert, aber der Weg ist lang.'], h3po2:[null,0,'Entfernt das N₂⁺ – dann fehlt dir ein Br.']},
+    an:{br2aq:['tba',.95,'–NH₂ aktiviert so stark, dass alle drei o/p-Positionen bromiert werden.'], br2fe:['tba',.6,'Klappt, aber FeBr₃ komplexiert das Amin.'], diaz:[null,0,'Benzoldiazonium bringt dich zurück zu Benzol.']},
+    tba:{diaz:['tbdz',.9,'Diazotierung.']},
+    tbdz:{h3po2:['tbb',.8,'Desaminierung: N₂⁺ wird durch H ersetzt.'], cubr:['tetra',.7,'Sandmeyer – jetzt ist ein Br zu viel.'], h2o:['tbp',.7,'Verkochen zum Phenol.']},
+    t124:{}, tbb:{}, tbp:{}, tetra:{}
+  },
+  hint:'Eine Gruppe, die ortho/para dirigiert, setzt die Br-Atome in 1,3,5-Stellung zueinander – wenn du sie danach wieder loswirst.',
+  explain:'Nitrieren → Reduzieren → Br₂/H₂O (2,4,6-Tribromanilin) → Diazotieren → H₃PO₂: ca. 52 %. Der Weg über das meta-dirigierende –NO₂ kommt nur auf ca. 14 %.' },
+
+{ id:'syn7', celo:2900, type:'synth', title:'Schutzgruppen',
+  task:'Stelle aus Ethyl-4-oxopentanoat (CH₃COCH₂CH₂COOEt) <b>5-Hydroxy-5-methylhexan-2-on</b> her.',
+  start:'lev', target:'tgt', maxSteps:3, minYield:.5,
+  nodes:{lev:'Ethyl-4-oxopentanoat', acet:'Ester mit Keton als Ethylenacetal', acalc:'tert. Alkohol, Keton noch geschützt', tgt:'5-Hydroxy-5-methylhexan-2-on', diol:'2,5-Dimethylhexan-2,5-diol', lact:'γ-Valerolacton'},
+  reagents:{glyc:'HOCH₂CH₂OH, H⁺ (kat.), −H₂O', grig:'CH₃MgBr (Überschuss); NH₄Cl (aq)', h3o:'H₃O⁺, Aceton', nabh4:'NaBH₄', lah:'1) LiAlH₄  2) H₂O'},
+  edges:{
+    lev:{grig:['diol',.7,'Das Keton ist reaktiver als der Ester und wird zuerst angegriffen – am Ende ist beides umgesetzt.'], glyc:['acet',.9,'Das reaktivere Keton wird selektiv als Acetal geschützt.'], nabh4:['lact',.85,'Das Keton wird reduziert, der Hydroxyester cyclisiert zum Lacton.'], lah:[null,0,'Reduziert alles – Pentan-1,4-diol. Weg vom Ziel.']},
+    acet:{grig:['acalc',.85,'Der Ester reagiert zweimal → tertiärer Alkohol. Das Acetal ist basenstabil.'], h3o:['lev',.95,'Entschützt – zurück zum Start.']},
+    acalc:{h3o:['tgt',.9,'Mild sauer: das Acetal wird gespalten, das Keton ist zurück.']},
+    tgt:{}, diol:{}, lact:{}
+  },
+  hint:'Grignard-Reagenzien greifen Ketone schneller an als Ester. Wie versteckst du das Keton kurz?',
+  explain:'Schützen (Acetal) → Grignard (Überschuss) → Entschützen: 0,9 × 0,85 × 0,9 = 69 %.' },
+
+{ id:'syn8', celo:3000, type:'synth', title:'Arzneistoffsynthese',
+  task:'Stelle aus Benzol <b>Paracetamol</b> (N-(4-Hydroxyphenyl)acetamid) her.',
+  start:'benz', target:'para', maxSteps:6, minYield:.15,
+  nodes:{benz:'Benzol', cum:'Cumol', bsa:'Benzolsulfonsäure', phen:'Phenol', pnp:'4-Nitrophenol', pic:'Pikrinsäure', pap:'4-Aminophenol', para:'Paracetamol', diac:'4-Acetamidophenylacetat', nb:'Nitrobenzol', pha:'N-Phenylhydroxylamin', an:'Anilin', acn:'Acetanilid', phac:'Phenylacetat'},
+  reagents:{prop:'Propen, H₃PO₄ (kat.)', hock:'1) O₂  2) H₃O⁺', so3:'SO₃, H₂SO₄', fus:'NaOH, 300 °C; dann H₃O⁺', hno3d:'verd. HNO₃, 20 °C', hno3:'HNO₃, H₂SO₄', h2:'H₂, Pd/C', zn:'Zn, NH₄Cl (aq)', bam:'verd. H₂SO₄, Δ', ac2o:'Ac₂O (1 Äq.)', ac2ox:'Ac₂O (Überschuss), Pyridin', naoh:'NaOH (aq), RT'},
+  edges:{
+    benz:{prop:['cum',.9,'Friedel-Crafts-Alkylierung.'], so3:['bsa',.9,'Sulfonierung.'], hno3:['nb',.9,'Nitrierung.']},
+    cum:{hock:['phen',.85,'Hock-Verfahren (+ Aceton).']},
+    bsa:{fus:['phen',.8,'Alkalischmelze.']},
+    phen:{hno3d:['pnp',.35,'o/p-Gemisch; das para-Isomer wird abgetrennt.'], hno3:['pic',.8,'Dreifach nitriert – Pikrinsäure. Explosiv!'], ac2o:['phac',.9,'O-Acetylierung – ohne Amin bringt das nichts.']},
+    pnp:{h2:['pap',.95,'Nitro → Amin.'], zn:['pap',.8,'Nitro → Amin.']},
+    pap:{ac2o:['para',.9,'Das N ist nucleophiler als das O → selektive N-Acetylierung.'], ac2ox:['diac',.9,'N und O werden beide acetyliert.']},
+    diac:{naoh:['para',.85,'Der Phenylester wird verseift, das Amid bleibt.']},
+    nb:{h2:['an',.95,'Vollständige Reduktion.'], zn:['pha',.8,'Teilreduktion zum Hydroxylamin.']},
+    pha:{bam:['pap',.6,'Bamberger-Umlagerung: Wasser greift in para-Position an.']},
+    an:{ac2o:['acn',.95,'Acetanilid – aber woher soll das para-OH kommen?'], hno3:[null,0,'Das Amin wird oxidiert.']},
+    acn:{}, pic:{}, phac:{}, para:{}
+  },
+  hint:'Es gibt einen Weg über das Phenol – und einen überraschend kurzen über eine Umlagerung am Stickstoff.',
+  explain:'Kürzester Weg: Nitrieren → Zn/NH₄Cl → Bamberger-Umlagerung → Ac₂O: ca. 39 % in 4 Stufen. Über Cumol/Phenol ca. 23 %.' },
+];
+
+const TYPE_NAME = {text:'Write', choice:'Choose', order:'Order', match:'Match', click:'Spot', arrows:'Arrows', synth:'Synthesis'};
+const HOW = {
+  text:'Write your answer on the line, then press Check (or Enter).',
+  choice:'Tick one box.',
+  order:'Drag the cards (or use the arrows) into the right order.',
+  match:'Click an item on the left, then its partner on the right.',
+  click:'Click atoms to circle them. Click again to remove a circle.',
+  arrows:'Drag from a lone pair (dots) or a bond to an atom or bond to draw a curly arrow. You can also click the start, then the end. Click an arrow to erase it.',
+  synth:'Add reagents from the shelf, one step at a time. Undo takes back the last step. The route is graded once you reach the product.'
+};
+const TIERS = [[2800,'Grandmaster'],[2600,'International Master'],[2400,'Master'],[2200,'Candidate Master'],[1800,'Synthesist'],[1400,'Bench Chemist'],[1000,'Lab Assistant'],[600,'Apprentice'],[0,'Novice']];
+const tierOf = r => TIERS.find(t => r >= t[0])[1];
+
+/* ================================================================
+   STATE (localStorage)
+   ================================================================ */
+const KEY = 'chempuzzles.v1';
+let S = load();
+function load(){ try{ const s = JSON.parse(localStorage.getItem(KEY)); if (s && typeof s.celo === 'number') return s; }catch(e){} return {celo:100, games:0, done:{}}; }
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+
+function rate(p, score){
+  if (p.id in S.done) return null;
+  const E = 1/(1+Math.pow(10,(p.celo - S.celo)/400));
+  const K = S.games < 12 ? 60 : 32;
+  const before = S.celo;
+  S.celo = Math.max(100, Math.round(S.celo + K*(score - E)));
+  S.games++; S.done[p.id] = score; save(); renderNote(); renderRuler();
+  return S.celo - before;
+}
+
+/* ================================================================
+   HELPERS
+   ================================================================ */
+const $ = (s, r=document) => r.querySelector(s);
+const el = (tag, attrs={}, html) => { const e = document.createElement(tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (html != null) e.innerHTML = html; return e; };
+const NS = 'http://www.w3.org/2000/svg';
+const sv = (tag, attrs={}) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
+const shuffle = a => { a = a.slice(); for (let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
+const norm = s => s.toLowerCase().replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss')
+  .normalize('NFKD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+const pct = y => Math.round(y*100) + ' %';
+
+/* ================================================================
+   MOLECULE RENDERER
+   ================================================================ */
+function textW(t){ let w = 0; for (const ch of t) w += /[₀-₉]/.test(ch) ? 6 : (ch === 'H' || ch === 'C' || ch === 'O' ? 12 : 10); return w; }
+function shrinkFor(atom, ux, uy){
+  if (!atom.t) return 0;
+  const hw = textW(atom.t)/2 + 3, hh = 11;
+  const ax = Math.abs(ux), ay = Math.abs(uy);
+  return Math.min(ax > 1e-6 ? hw/ax : 1e9, ay > 1e-6 ? hh/ay : 1e9);
+}
+function drawMol(mol, mode){
+  const A = {}; mol.atoms.forEach(a => A[a.id] = a);
+  const xs = mol.atoms.map(a=>a.x), ys = mol.atoms.map(a=>a.y);
+  const pad = 34, minx = Math.min(...xs)-pad-20, miny = Math.min(...ys)-pad, maxx = Math.max(...xs)+pad+20, maxy = Math.max(...ys)+pad;
+  const W = maxx-minx, H = maxy-miny;
+  const svg = sv('svg', {class:'mol', viewBox:`${minx} ${miny} ${W} ${H}`, width:Math.round(W*1.35), height:Math.round(H*1.35)});
+  const defs = sv('defs');
+  defs.innerHTML = `<marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#1f4fa3"/></marker>
+                    <marker id="ahr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#c42f2c"/></marker>`;
+  svg.appendChild(defs);
+  const gB = sv('g'), gL = sv('g'), gHit = sv('g'), gArr = sv('g'), gPick = sv('g');
+  const geo = {atoms:A, bonds:{}, lps:{}, cx: xs.reduce((s,v)=>s+v,0)/xs.length, cy: ys.reduce((s,v)=>s+v,0)/ys.length};
+
+  for (const b of mol.bonds){
+    const a1 = A[b.a], a2 = A[b.b];
+    const dx = a2.x-a1.x, dy = a2.y-a1.y, L = Math.hypot(dx,dy), ux = dx/L, uy = dy/L;
+    const s1 = shrinkFor(a1,ux,uy), s2 = shrinkFor(a2,ux,uy);
+    const x1 = a1.x+ux*s1, y1 = a1.y+uy*s1, x2 = a2.x-ux*s2, y2 = a2.y-uy*s2;
+    geo.bonds[b.id] = {x:(a1.x+a2.x)/2, y:(a1.y+a2.y)/2, a:b.a, b:b.b, x1, y1, x2, y2};
+    if (b.ghost){ gB.appendChild(sv('line',{class:'ghost',x1,y1,x2,y2})); continue; }
+    const nx = -uy, ny = ux;
+    if ((b.o||1) === 2){
+      if (b.c){
+        const mx = (x1+x2)/2, my = (y1+y2)/2, side = ((b.c[0]-mx)*nx + (b.c[1]-my)*ny) > 0 ? 1 : -1;
+        gB.appendChild(sv('line',{class:'bond',x1,y1,x2,y2}));
+        const t = 6;
+        gB.appendChild(sv('line',{class:'bond',x1:x1+ux*t+nx*6*side, y1:y1+uy*t+ny*6*side, x2:x2-ux*t+nx*6*side, y2:y2-uy*t+ny*6*side}));
+      } else {
+        for (const s of [-3,3]) gB.appendChild(sv('line',{class:'bond',x1:x1+nx*s,y1:y1+ny*s,x2:x2+nx*s,y2:y2+ny*s}));
+      }
+    } else gB.appendChild(sv('line',{class:'bond',x1,y1,x2,y2}));
+    if (mode === 'arrows') gHit.appendChild(sv('line',{class:'hit bondhit','data-k':'b:'+b.id,x1,y1,x2,y2}));
+  }
+  for (const a of mol.atoms){
+    if (a.t){
+      const t = sv('text',{class:'lbl',x:a.x,y:a.y}); t.textContent = a.t; gL.appendChild(t);
+    }
+    if (a.q){ const q = sv('text',{class:'q',x:a.x+textW(a.t||'C')/2+1,y:a.y-9}); q.textContent = a.q; gL.appendChild(q); }
+    (a.lp||[]).forEach((deg,i) => {
+      const r = deg*Math.PI/180, cx = a.x+Math.cos(r)*17, cy = a.y+Math.sin(r)*17, px = -Math.sin(r)*3.6, py = Math.cos(r)*3.6;
+      gL.appendChild(sv('circle',{class:'lp',cx:cx+px,cy:cy+py,r:1.9}));
+      gL.appendChild(sv('circle',{class:'lp',cx:cx-px,cy:cy-py,r:1.9}));
+      geo.lps[a.id+':'+i] = {x:cx, y:cy, atom:a.id};
+      if (mode === 'arrows') gHit.appendChild(sv('circle',{class:'hit','data-k':'lp:'+a.id,'data-lp':a.id+':'+i,cx,cy,r:9}));
+    });
+    if (mode === 'arrows' || (mode === 'click' && !a.nopick)) gHit.appendChild(sv('circle',{class:'hit atomhit','data-k':'a:'+a.id,cx:a.x,cy:a.y,r:12}));
+  }
+  svg.append(gB, gL, gPick, gArr, gHit);
+  return {svg, geo, gArr, gPick, gHit};
+}
+
+/* ================================================================
+   RULER
+   ================================================================ */
+const LEVELS = [...new Set(PUZZLES.map(p=>p.celo))].sort((a,b)=>a-b);
+const posOf = c => ((Math.min(3000,Math.max(100,c))-100)/2900*100) + '%';
+let current = null;
+function renderRuler(){
+  const tr = $('#track'); tr.innerHTML = '';
+  const tip = el('div',{class:'tip'}); tr.appendChild(tip);
+  for (let c = 100; c <= 3000; c += 50){
+    const t = el('div',{class:'tick' + (c%500===0||c===100 ? ' big' : c%100===0 ? ' mid' : '')}); t.style.left = posOf(c); tr.appendChild(t);
+    if (c%500===0 || c===100){ const l = el('div',{class:'tick-label'}, c); l.style.left = posOf(c); tr.appendChild(l); }
+  }
+  for (const c of LEVELS){
+    const ps = PUZZLES.filter(p=>p.celo===c);
+    const scores = ps.filter(p=>p.id in S.done).map(p=>S.done[p.id]);
+    if (scores.length){ const d = el('div',{class:'tick-dot ' + (scores.every(s=>s>=.75)?'ok':scores.every(s=>s<.75)?'bad':'half')}); d.style.left = posOf(c); tr.appendChild(d); }
+    const b = el('button',{class:'tick-hit','aria-label':'Level '+c}); b.style.left = posOf(c); b.style.width = (100/29)+'%';
+    b.addEventListener('click', () => {
+      const i = current && current.celo === c ? (ps.indexOf(current)+1) % ps.length : 0;
+      show(ps[i]);
+    });
+    b.addEventListener('mouseenter', () => { tip.textContent = c + ' · ' + ps.map(p=>p.title).join(' / '); tip.style.left = posOf(c); tip.style.opacity = 1; });
+    b.addEventListener('mouseleave', () => tip.style.opacity = 0);
+    tr.appendChild(b);
+  }
+  const you = el('div',{class:'marker you'}, 'you ' + S.celo); you.style.left = posOf(S.celo); tr.appendChild(you);
+  if (current){ const m = el('div',{class:'marker cur'}, current.celo); m.style.left = posOf(current.celo); tr.appendChild(m);
+    const wrap = $('.ruler-wrap'); if (wrap.scrollWidth > wrap.clientWidth) wrap.scrollLeft += m.getBoundingClientRect().left - wrap.getBoundingClientRect().left - wrap.clientWidth/2; }
+}
+
+function renderNote(){
+  $('#celo').textContent = S.celo;
+  $('#tier').textContent = tierOf(S.celo);
+  const ids = Object.keys(S.done), ok = ids.filter(i=>S.done[i]>=.75).length;
+  $('#stats').innerHTML = `Rated puzzles: <b>${ids.length}</b> / ${PUZZLES.length}<br>Solved: <b>${ok}</b>`;
+}
+
+function nextRated(){
+  const open = PUZZLES.filter(p => !(p.id in S.done));
+  const pool = open.length ? open : PUZZLES.filter(p=>p!==current);
+  const d = Math.min(...pool.map(p=>Math.abs(p.celo - S.celo)));
+  const near = pool.filter(p => Math.abs(p.celo - S.celo) === d);
+  return near[Math.floor(Math.random()*near.length)];
+}
+
+/* ================================================================
+   PUZZLE VIEW
+   ================================================================ */
+let P = null; // per-puzzle runtime: {check(), reveal(), reset()}
+function show(p){
+  current = p; history.replaceState(null,'','#'+p.id);
+  $('#fLevel').textContent = p.celo; $('#fType').textContent = TYPE_NAME[p.type];
+  const root = $('#puzzle'); root.innerHTML = '';
+  const rated = !(p.id in S.done);
+  root.innerHTML = `
+    <div class="task-no"><span class="n">${PUZZLES.indexOf(p)+1}</span><span class="c">${p.celo}</span></div>
+    <div class="task-head"><h2>Aufgabe: ${p.title}</h2><span class="badge ${rated?'rated':'done'}">${rated?'Rated':'Already rated · practice'}</span></div>
+    <p class="task">${p.task}</p>
+    <p class="how">${HOW[p.type]}</p>
+    ${p.formula ? `<div class="formula">${p.formula}</div>` : ''}
+    <div class="work" id="work"></div>
+    <div class="actions" id="actions"></div>
+    <div class="feedback" id="feedback"></div>`;
+  P = {p, hinted:false, graded:false};
+  BUILD[p.type](p, $('#work'));
+  const act = $('#actions');
+  if (p.type !== 'synth'){
+    const chk = el('button',{class:'btn primary'}, 'Check'); chk.onclick = () => grade(); act.appendChild(chk);
+  }
+  const hint = el('button',{class:'btn'}, 'Hint'); hint.onclick = () => { if (P.hinted) return; P.hinted = true; $('#feedback').appendChild(el('div',{class:'hint'}, p.hint)); hint.disabled = true; }; act.appendChild(hint);
+  const sol = el('button',{class:'btn ghost'}, p.type==='synth' ? 'Give up · show route' : 'Show solution'); sol.onclick = () => P.reveal(); act.appendChild(sol);
+  const nx = el('button',{class:'btn ghost'}, 'Next →'); nx.onclick = () => show(nextRated()); act.appendChild(nx);
+  renderRuler();
+  if (scrollY > $('#sheet').offsetTop) window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function grade(){
+  const r = P.check();
+  if (r == null) return;
+  finish(r ? 1 : 0, r);
+}
+function finish(score, ok, extra=''){
+  const p = P.p;
+  if (P.hinted && score > .5) score = .5;
+  let delta = null;
+  if (!P.graded){ delta = rate(p, score); P.graded = true; const bd = $('.badge'); if (bd){ bd.className = 'badge done'; bd.textContent = 'Already rated · practice'; } }
+  const fb = $('#feedback'); fb.querySelectorAll('.verdict,.explain').forEach(n=>n.remove());
+  const v = el('div',{class:'verdict'});
+  v.innerHTML = ok
+    ? `<svg viewBox="0 0 64 54"><path d="M6 30 C12 34 18 42 24 48 C32 30 44 14 60 4"/></svg><span class="word">${score>=1?'Correct!':'Correct'}</span>`
+    : `<svg viewBox="0 0 64 54"><path d="M10 8 C24 22 40 36 56 48 M54 8 C40 20 24 34 8 48"/></svg><span class="word">Not quite</span>`;
+  if (delta != null) v.appendChild(el('span',{class:'delta'}, (delta>=0?'+':'−') + Math.abs(delta)));
+  fb.prepend(v);
+  if (extra) fb.appendChild(el('div',{class:'explain'}, extra));
+  if (ok || P.revealed) fb.appendChild(el('div',{class:'explain'}, p.explain));
+  else fb.appendChild(el('div',{class:'explain', style:'color:var(--pencil)'}, 'Try again (now unrated), or look at the solution.'));
+}
+
+const BUILD = {
+/* ---------- text ---------- */
+text(p, w){
+  if (p.mol) w.appendChild(drawMol(p.mol,'view').svg);
+  const line = el('div',{class:'answer-line'});
+  line.innerHTML = `<label for="ans">Antwort:</label><input id="ans" autocomplete="off" spellcheck="false" placeholder="">`;
+  w.appendChild(line);
+  const inp = $('#ans', line); inp.placeholder = p.placeholder || '';
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') grade(); });
+  setTimeout(()=>inp.focus({preventScroll:true}), 60);
+  P.check = () => { const v = norm(inp.value); if (!v) return null; return p.accept.map(norm).includes(v); };
+  P.reveal = () => { P.revealed = true; finish(0, false); };
+},
+/* ---------- choice ---------- */
+choice(p, w){
+  const ul = el('ul',{class:'choices'}); const sel = new Set();
+  const order = shuffle(p.options.map((o,i)=>i));
+  for (const i of order){
+    const li = el('li',{class:'choice', tabindex:0, role:'checkbox'}, `<span class="box"></span><span>${p.options[i]}</span>`);
+    const tog = () => { if (!p.multi){ sel.clear(); ul.querySelectorAll('.choice').forEach(c=>c.classList.remove('on')); } if (sel.has(i)) sel.delete(i); else sel.add(i); li.classList.toggle('on', sel.has(i)); };
+    li.onclick = tog; li.onkeydown = e => { if (e.key===' '||e.key==='Enter'){ e.preventDefault(); tog(); } };
+    li.dataset.i = i; ul.appendChild(li);
+  }
+  w.appendChild(ul);
+  P.check = () => { if (!sel.size) return null; const c = new Set(p.correct); return sel.size === c.size && [...sel].every(i=>c.has(i)); };
+  P.reveal = () => { P.revealed = true; ul.querySelectorAll('.choice').forEach(li => li.classList.toggle('is-right', p.correct.includes(+li.dataset.i))); finish(0,false); };
+},
+/* ---------- order ---------- */
+order(p, w){
+  w.appendChild(el('div',{class:'order-ends'}, '▲ ' + p.ends[0]));
+  const ol = el('ol',{class:'order'});
+  let start = shuffle(p.items); while (start.join() === p.items.join()) start = shuffle(p.items);
+  for (const it of start){
+    const li = el('li',{}, `<span class="grow">${it}</span><button class="mv" aria-label="up">▲</button><button class="mv" aria-label="down">▼</button>`);
+    li.dataset.v = it; ol.appendChild(li);
+    const [up, dn] = li.querySelectorAll('.mv');
+    up.onclick = e => { e.stopPropagation(); if (li.previousElementSibling) ol.insertBefore(li, li.previousElementSibling); };
+    dn.onclick = e => { e.stopPropagation(); if (li.nextElementSibling) ol.insertBefore(li.nextElementSibling, li); };
+    li.addEventListener('pointerdown', e => {
+      if (e.target.closest('.mv')) return;
+      e.preventDefault(); li.classList.add('dragging');
+      const move = ev => {
+        let prev, next, r;
+        while ((prev = li.previousElementSibling) && ev.clientY < (r = prev.getBoundingClientRect()).top + r.height/2) ol.insertBefore(li, prev);
+        while ((next = li.nextElementSibling) && ev.clientY > (r = next.getBoundingClientRect()).top + r.height/2) ol.insertBefore(next, li);
+      };
+      const up2 = ev => { move(ev); li.classList.remove('dragging'); removeEventListener('pointermove', move); removeEventListener('pointerup', up2); removeEventListener('pointercancel', up2); };
+      addEventListener('pointermove', move); addEventListener('pointerup', up2); addEventListener('pointercancel', up2);
+    });
+  }
+  w.appendChild(ol);
+  w.appendChild(el('div',{class:'order-ends'}, '▼ ' + p.ends[1]));
+  P.check = () => [...ol.children].map(li=>li.dataset.v).join('|') === p.items.join('|');
+  P.reveal = () => { P.revealed = true; for (const it of p.items) ol.appendChild([...ol.children].find(li=>li.dataset.v===it)); finish(0,false); };
+},
+/* ---------- match ---------- */
+match(p, w){
+  const box = el('div',{class:'match'}); const svg = sv('svg'); box.appendChild(svg);
+  const rights = shuffle(p.pairs.map(q=>q[1])); const L = [], R = []; const link = {}; let sel = null;
+  p.pairs.forEach((q,i) => {
+    const l = el('div',{class:'m'}, q[0]); l.style.gridColumn = 1; l.style.gridRow = i+1; l.dataset.v = q[0];
+    const r = el('div',{class:'m'}, rights[i]); r.style.gridColumn = 2; r.style.gridRow = i+1; r.dataset.v = rights[i];
+    l.onclick = () => { L.forEach(x=>x.classList.remove('sel')); sel = (sel === l ? null : l); if (sel) l.classList.add('sel'); };
+    r.onclick = () => { if (!sel) return; for (const k in link) if (link[k] === r.dataset.v) delete link[k]; link[sel.dataset.v] = r.dataset.v; sel.classList.remove('sel'); sel = null; lines(); };
+    L.push(l); R.push(r); box.append(l, r);
+  });
+  w.appendChild(box);
+  function lines(wrong){
+    svg.innerHTML = ''; const b = box.getBoundingClientRect();
+    for (const k in link){
+      const l = L.find(x=>x.dataset.v===k), r = R.find(x=>x.dataset.v===link[k]);
+      const a = l.getBoundingClientRect(), c = r.getBoundingClientRect();
+      const x1 = a.right-b.left+2, y1 = a.top+a.height/2-b.top, x2 = c.left-b.left-2, y2 = c.top+c.height/2-b.top, mx = (x1+x2)/2;
+      const path = sv('path',{d:`M${x1} ${y1} C${mx} ${y1+3}, ${mx} ${y2-3}, ${x2} ${y2}`});
+      if (wrong && wrong.has(k)) path.classList.add('wrong');
+      svg.appendChild(path);
+    }
+  }
+  new ResizeObserver(()=>lines()).observe(box);
+  const truth = Object.fromEntries(p.pairs);
+  P.check = () => { if (Object.keys(link).length < p.pairs.length) return null; const bad = new Set(Object.keys(link).filter(k=>link[k]!==truth[k])); lines(bad); return bad.size === 0; };
+  P.reveal = () => { P.revealed = true; Object.assign(link, truth); lines(); finish(0,false); };
+},
+/* ---------- click atoms ---------- */
+click(p, w){
+  const m = drawMol(p.mol,'click'); w.appendChild(m.svg); const sel = new Set();
+  const paint = (good) => { m.gPick.innerHTML = ''; for (const id of (good||sel)){ const a = m.geo.atoms[id]; m.gPick.appendChild(sv('circle',{class:'pick'+(good?' good':''),cx:a.x,cy:a.y,r:a.t?16:11})); } };
+  m.gHit.addEventListener('click', e => { const k = e.target.getAttribute('data-k'); if (!k) return; const id = k.slice(2); sel.has(id) ? sel.delete(id) : sel.add(id); paint(); });
+  P.check = () => { if (!sel.size) return null; const c = new Set(p.answer); return sel.size === c.size && [...sel].every(i=>c.has(i)); };
+  P.reveal = () => { P.revealed = true; paint(p.answer); finish(0,false); };
+},
+/* ---------- curly arrows ---------- */
+arrows(p, w){
+  const m = drawMol(p.mol,'arrows'); w.appendChild(m.svg); const svg = m.svg;
+  const arrows = []; // {src, tgt, srcPt}
+  let drag = null, armed = null; const tmp = sv('path',{class:'arr tmp','marker-end':'url(#ah)'}); tmp.style.display = 'none'; m.gArr.appendChild(tmp);
+  const pt = e => { const p0 = svg.createSVGPoint(); p0.x = e.clientX; p0.y = e.clientY; return p0.matrixTransform(svg.getScreenCTM().inverse()); };
+  const keyAt = e => { const t = document.elementFromPoint(e.clientX, e.clientY); return t && t.closest && t.closest('[data-k]') ? t.closest('[data-k]') : null; };
+  const isSrc = k => k.startsWith('lp:') || k.startsWith('b:');
+  const isTgt = k => k.startsWith('a:') || k.startsWith('b:');
+  const srcPoint = (k, node) => { if (k.startsWith('lp:')) return m.geo.lps[node.getAttribute('data-lp')]; return m.geo.bonds[k.slice(2)]; };
+  function curve(s, t, isAtom){
+    let ex = t.x, ey = t.y; const d0 = Math.hypot(ex-s.x, ey-s.y) || 1;
+    if (isAtom){ const pull = d0 < 45 ? d0*0.2 : 14; ex -= (ex-s.x)/d0*pull; ey -= (ey-s.y)/d0*pull; }
+    const mx = (s.x+ex)/2, my = (s.y+ey)/2, d = Math.hypot(ex-s.x, ey-s.y) || 1;
+    let nx = -(ey-s.y)/d, ny = (ex-s.x)/d;
+    if ((mx+nx-m.geo.cx)**2 + (my+ny-m.geo.cy)**2 < (mx-nx-m.geo.cx)**2 + (my-ny-m.geo.cy)**2){ nx=-nx; ny=-ny; }
+    const h = Math.max(d < 45 ? 16 : 20, d*0.45);
+    return `M${s.x} ${s.y} Q${mx+nx*h} ${my+ny*h} ${ex} ${ey}`;
+  }
+  function targetPoint(k){ return k.startsWith('a:') ? m.geo.atoms[k.slice(2)] : m.geo.bonds[k.slice(2)]; }
+  function redraw(sol){
+    m.gArr.querySelectorAll('.arr:not(.tmp),.arrhit').forEach(n=>n.remove());
+    const list = sol || arrows;
+    list.forEach((a,i) => {
+      const d = curve(a.srcPt, targetPoint(a.tgt), a.tgt.startsWith('a:'));
+      if (!sol){ const hit = sv('path',{class:'arrhit',d}); hit.addEventListener('pointerdown', e => { if (armed || drag) return; e.stopPropagation(); arrows.splice(i,1); redraw(); }); m.gArr.appendChild(hit); }
+      m.gArr.appendChild(sv('path',{class:'arr'+(sol?' sol':''),d,'marker-end':sol?'url(#ahr)':'url(#ah)'}));
+    });
+  }
+  function add(src, srcPt, tgt){
+    if (src === tgt) return;
+    if (arrows.some(a => a.src === src && a.tgt === tgt)) return;
+    arrows.push({src, srcPt, tgt}); redraw();
+  }
+  function disarm(){ armed = null; tmp.style.display = 'none'; svg.querySelectorAll('.armed').forEach(n=>n.classList.remove('armed')); }
+  svg.addEventListener('pointerdown', e => {
+    const node = keyAt(e); const k = node && node.getAttribute('data-k');
+    if (armed){
+      if (k && isTgt(k) && k !== armed.src){ add(armed.src, armed.pt, k); disarm(); return; }
+      disarm();
+      if (!k || !isSrc(k)) return;
+    }
+    if (k && isSrc(k)){ e.preventDefault(); svg.setPointerCapture(e.pointerId); const p0 = pt(e); drag = {src:k, node, pt:srcPoint(k,node), sx:p0.x, sy:p0.y, moved:false}; }
+  });
+  svg.addEventListener('pointermove', e => {
+    const s = drag || armed; if (!s) return;
+    const p0 = pt(e);
+    if (drag && Math.hypot(p0.x-drag.sx, p0.y-drag.sy) > 6) drag.moved = true;
+    if (armed || drag.moved){ tmp.style.display = ''; tmp.setAttribute('d', curve(s.pt, p0, false)); }
+  });
+  svg.addEventListener('pointerup', e => {
+    if (!drag) return;
+    const d = drag; drag = null;
+    if (svg.hasPointerCapture(e.pointerId)) svg.releasePointerCapture(e.pointerId);
+    if (d.moved){
+      tmp.style.display = 'none';
+      const node = keyAt(e); const k = node && node.getAttribute('data-k');
+      if (k && isTgt(k) && k !== d.src) add(d.src, d.pt, k);
+    } else { armed = {src:d.src, pt:d.pt}; d.node.classList.add('armed'); }
+  });
+  document.addEventListener('keydown', function esc(e){ if (!document.body.contains(svg)) return document.removeEventListener('keydown', esc); if (e.key === 'Escape') disarm(); });
+  const tools = el('div',{class:'actions', style:'margin:4px 0 0'});
+  const clr = el('button',{class:'btn ghost'}, 'Erase all arrows'); clr.onclick = () => { arrows.length = 0; disarm(); redraw(); };
+  tools.appendChild(clr); w.appendChild(tools);
+  P.check = () => {
+    if (!arrows.length) return null;
+    const mine = arrows.map(a => a.src + '>' + a.tgt).sort().join(',');
+    return p.solutions.some(s => s.slice().sort().join(',') === mine);
+  };
+  P.reveal = () => {
+    P.revealed = true;
+    const sol = p.solutions[0].map(s => { const [src, tgt] = s.split('>'); const srcPt = src.startsWith('lp:') ? Object.values(m.geo.lps).find(l=>l.atom===src.slice(3)) : m.geo.bonds[src.slice(2)]; return {src, tgt, srcPt}; });
+    // prefer the lone pair nearest the target
+    sol.forEach(a => { if (a.src.startsWith('lp:')){ const t = targetPoint(a.tgt); a.srcPt = Object.values(m.geo.lps).filter(l=>l.atom===a.src.slice(3)).sort((u,v)=>Math.hypot(u.x-t.x,u.y-t.y)-Math.hypot(v.x-t.x,v.y-t.y))[0]; } });
+    redraw(sol); finish(0,false);
+  };
+},
+/* ---------- freestyle synthesis ---------- */
+synth(p, w){
+  const showY = p.celo >= 2200;
+  const best = bestRoute(p);
+  const tl = el('div',{class:'target-line'});
+  tl.innerHTML = `<span>Goal:</span><span class="node goal">${p.nodes[p.target]}</span>` +
+    (p.maxSteps ? `<span>· max. <b>${p.maxSteps}</b> steps</span>` : '') +
+    (p.minYield ? `<span>· overall yield ≥ <b>${pct(p.minYield)}</b></span>` : '') +
+    (!showY ? `<span>· yields don't count at this level</span>` : '');
+  w.appendChild(tl);
+  const route = el('div',{class:'route'}); w.appendChild(route);
+  const note = el('div',{class:'pencil-note'}); w.appendChild(note);
+  const stats = el('div',{class:'synth-stats'}); w.appendChild(stats);
+  w.appendChild(el('div',{class:'shelf-title'}, 'Reagent shelf'));
+  const shelf = el('div',{class:'shelf'}); w.appendChild(shelf);
+  const ctl = el('div',{class:'actions', style:'margin:6px 0 0'});
+  const undo = el('button',{class:'btn'}, 'Undo step'); const restart = el('button',{class:'btn ghost'}, 'Start over');
+  ctl.append(undo, restart); w.appendChild(ctl);
+  let steps = []; // {r, to, y, note}
+  let locked = false;
+  const at = () => steps.length ? steps[steps.length-1].to : p.start;
+  const yieldNow = () => steps.reduce((v,s)=>v*s.y, 1);
+  function arrowSvg(){ return `<svg class="ar" viewBox="0 0 100 12" preserveAspectRatio="none"><path d="M2 6 L94 6 M86 1 L96 6 L86 11" fill="none" stroke="#4a4a48" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>`; }
+  function paint(sol){
+    const list = sol || steps;
+    route.innerHTML = `<span class="node start">${p.nodes[p.start]}</span>`;
+    list.forEach((s,i) => {
+      const st = el('div',{class:'step'}, `<span class="rg">${p.reagents[s.r]}</span>${arrowSvg()}${showY?`<span class="y">${pct(s.y)}</span>`:''}`);
+      const dead = !Object.keys(p.edges[s.to]||{}).some(k => p.edges[s.to][k][0]);
+      const nd = el('span',{class:'node' + (s.to===p.target?' hit-goal':'') + (s.to!==p.target && dead?' dead':'')}, p.nodes[s.to]);
+      route.append(st, nd);
+    });
+    const y = list.reduce((v,s)=>v*s.y,1);
+    stats.innerHTML = `<span>Steps <b>${list.length}</b>${p.maxSteps?' / '+p.maxSteps:''}</span>` + (showY ? `<span>Overall yield <b>${list.length?pct(y):'—'}</b></span>` : '');
+    undo.disabled = !steps.length || locked;
+  }
+  for (const r in p.reagents){
+    const b = el('button',{class:'rgt'}, p.reagents[r]);
+    b.onclick = () => {
+      if (locked) return;
+      const e = (p.edges[at()]||{})[r];
+      if (!e){ note.className = 'pencil-note'; note.textContent = '→ ' + 'Unter diesen Bedingungen passiert nichts Sinnvolles.'; return; }
+      if (!e[0]){ note.className = 'pencil-note warn'; note.textContent = '→ ' + e[2]; return; }
+      steps.push({r, to:e[0], y:e[1]}); note.className = 'pencil-note'; note.textContent = '→ ' + e[2]; paint();
+      if (e[0] === p.target) evaluate();
+      else if (!Object.keys(p.edges[e[0]]||{}).some(k=>p.edges[e[0]][k][0])) { note.className = 'pencil-note warn'; note.textContent += '  Sackgasse – nimm einen Schritt zurück.'; }
+    };
+    shelf.appendChild(b);
+  }
+  undo.onclick = () => { steps.pop(); locked = false; note.textContent = ''; paint(); };
+  restart.onclick = () => { steps = []; locked = false; note.textContent = ''; paint(); };
+  function evaluate(){
+    const y = yieldNow(), n = steps.length;
+    const okSteps = !p.maxSteps || n <= p.maxSteps, okY = !p.minYield || y >= p.minYield - 1e-9;
+    let score, msg;
+    if (!okSteps || !okY){
+      score = 0;
+      msg = (!okSteps ? `Too many steps (${n} > ${p.maxSteps}). ` : '') + (!okY ? `Overall yield ${pct(y)} is below ${pct(p.minYield)}.` : '');
+    } else if (showY && !p.minYield){
+      score = Math.min(1, 0.4 + 0.6*y/best.y);
+      msg = `Product made with ${pct(y)} overall. ` + (y >= best.y - 1e-9 ? 'That is the best route here.' : `The best route here reaches ${pct(best.y)}.`);
+    } else { score = 1; msg = `Product made in ${n} step${n>1?'s':''}` + (showY ? `, ${pct(y)} overall.` : '.'); }
+    locked = true; undo.disabled = false;
+    if (score > 0) P.revealed = true;
+    finish(score, score > 0, msg);
+  }
+  P.reveal = () => {
+    P.revealed = true; locked = true;
+    let prev = p.start;
+    paint(best.path.map(([r,to]) => { const s = {r, to, y:p.edges[prev][r][1]}; prev = to; return s; }));
+    note.className = 'pencil-note warn'; note.textContent = 'Model route' + (showY ? ` – ${pct(best.y)} overall.` : '.');
+    finish(0, false);
+    undo.disabled = true;
+  };
+  paint();
+},
+};
+
+function bestRoute(p){
+  const max = p.maxSteps || 8; let best = {y:0, path:[]};
+  (function dfs(node, y, path, seen){
+    if (node === p.target){ if (y > best.y + 1e-12 || (Math.abs(y-best.y)<1e-12 && path.length < best.path.length)) best = {y, path:path.slice()}; return; }
+    if (path.length >= max) return;
+    const ed = p.edges[node] || {};
+    for (const r in ed){ const [to, yy] = ed[r]; if (!to || seen.has(to)) continue; seen.add(to); path.push([r,to]); dfs(to, y*yy, path, seen); path.pop(); seen.delete(to); }
+  })(p.start, 1, [], new Set([p.start]));
+  return best;
+}
+
+/* ================================================================
+   BOOT
+   ================================================================ */
+$('#nextRated').onclick = () => show(nextRated());
+$('#resetAll').onclick = () => { if (confirm('Reset your Celo to 100 and forget which puzzles were rated?')){ S = {celo:100, games:0, done:{}}; save(); renderNote(); show(nextRated()); } };
+renderNote();
+const fromHash = PUZZLES.find(p => '#'+p.id === location.hash);
+show(fromHash || nextRated());
+addEventListener('hashchange', () => { const p = PUZZLES.find(q => '#'+q.id === location.hash); if (p && p !== current) show(p); });
+</script>
+</body>
+</html>
