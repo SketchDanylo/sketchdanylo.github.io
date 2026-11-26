@@ -191,7 +191,23 @@ svg.mol{display:block;overflow:visible;touch-action:none;user-select:none;-webki
   .tile{min-height:120px;padding:8px}
   .match{column-gap:40px}
 }
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+/* solved animation + hand-over to the next puzzle */
+.fx{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:5}
+.fx .ring{width:104px;height:104px;border-radius:50%;background:var(--good);display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 0 rgba(75,138,29,.45);transform:scale(.5);opacity:0;animation:fxPop .38s cubic-bezier(.2,.9,.3,1.25) forwards,fxPulse .9s .3s ease-out}
+.fx svg{width:54px;height:54px}
+.fx path{fill:none;stroke:#fff;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:32;stroke-dashoffset:32;animation:fxDraw .32s .22s ease-out forwards}
+.fx .d{position:absolute;margin-top:150px;font-weight:700;font-size:22px;color:var(--good);opacity:0;animation:fxUp .5s .3s ease-out forwards;font-variant-numeric:tabular-nums}
+.fx .bar{position:absolute;left:0;bottom:0;height:3px;background:var(--good);border-radius:0 0 0 10px;animation:fxBar linear forwards}
+@keyframes fxPop{to{transform:scale(1);opacity:1}}
+@keyframes fxPulse{from{box-shadow:0 0 0 0 rgba(75,138,29,.45)}to{box-shadow:0 0 0 34px rgba(75,138,29,0)}}
+@keyframes fxDraw{to{stroke-dashoffset:0}}
+@keyframes fxUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes fxBar{from{width:0}to{width:100%}}
+.board.solved>.prompt,.board.solved>.sub,.board.solved>.stage,.board.solved>.answers{transition:opacity .25s,filter .25s;opacity:.35;filter:saturate(.6)}
+.board.leaving>*{transition:opacity .18s,transform .18s;opacity:0!important;transform:translateY(-10px)}
+.board.entering>.prompt,.board.entering>.sub,.board.entering>.stage,.board.entering>.answers{animation:fxIn .28s ease-out both}
+@keyframes fxIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation-duration:.01s!important;animation-delay:0s!important}}
 </style>
 </head>
 <body>
@@ -377,6 +393,9 @@ const qBox = () => el('div', { class: 'qbox' }, '?');
 function fitScale(mi) { const [A] = CP.M[mi]; const xs = A.map(a => a[1] / 100), ys = A.map(a => a[2] / 100); const w = Math.max(...xs) - Math.min(...xs) + 2.1, h = Math.max(...ys) - Math.min(...ys) + 1.5; const bw = $('#stage').clientWidth || 700; return Math.max(30, Math.min(64, (bw - 40) / w, 300 / h)); }
 
 function show(p) {
+  if (cur && cur.auto) clearTimeout(cur.auto);
+  const bd = $('#board'); bd.classList.remove('solved', 'leaving'); bd.querySelectorAll('.fx').forEach(n => n.remove());
+  bd.classList.remove('entering'); void bd.offsetWidth; bd.classList.add('entering');
   cur = { p, done: false, hinted: false, revealed: false };
   history.replaceState(null, '', '#' + p.i);
   const fam = famOf(p);
@@ -408,7 +427,16 @@ function finish(score, ok, note) {
   showExplain(ok);
   renderMeta();
   setTimeout(() => $('#nextBtn').focus({ preventScroll: true }), 0);
+  if (ok) celebrate(d, p.k === 'syn' || p.k === 'arr' ? 1900 : 1150);
 }
+function celebrate(delta, wait) {
+  const bd = $('#board'), fx = el('div', { class: 'fx' });
+  fx.innerHTML = `<div class="ring"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>` + (delta != null ? `<div class="d">${delta >= 0 ? '+' : '−'}${Math.abs(delta)}</div>` : '') + `<div class="bar" style="animation-duration:${wait}ms"></div>`;
+  bd.appendChild(fx); bd.classList.add('solved');
+  const me = cur;
+  me.auto = setTimeout(() => { if (cur !== me) return; bd.classList.add('leaving'); me.auto = setTimeout(() => { if (cur === me) show(choose()); }, 180); }, wait);
+}
+const stopAuto = () => { if (cur && cur.auto) { clearTimeout(cur.auto); cur.auto = null; const bd = $('#board'); bd.classList.remove('solved', 'leaving'); bd.querySelectorAll('.fx').forEach(n => n.remove()); } };
 function showExplain(ok) {
   const p = cur.p, box = $('#explain'); let html = '';
   if (!ok) html += `<div class="h">Answer</div><p>${answerText(p)}</p>`;
@@ -631,7 +659,7 @@ const ICON = { turn: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="4" fil
 function setStatus(kind, delta, note) {
   const s = $('#status'); s.className = 'card status' + (kind === 'ok' ? ' ok' : kind === 'no' ? ' no' : '');
   const t1 = kind === 'turn' ? 'Your turn' : kind === 'ok' ? (cur.hinted ? 'Solved with a hint' : 'Correct') : cur.revealed ? 'Solution shown' : 'Incorrect';
-  const t2 = kind === 'turn' ? (cur.p.i in S.done ? 'Already rated — practice' : 'This puzzle is rated') : (note || (kind === 'ok' ? 'Press Enter for the next puzzle.' : 'Check the answer, then move on.'));
+  const t2 = kind === 'turn' ? (cur.p.i in S.done ? 'Already rated — practice' : 'This puzzle is rated') : (note || (kind === 'ok' ? 'Next puzzle coming up…' : 'Check the answer, then press Next.'));
   s.innerHTML = `<div class="icon">${ICON[kind]}</div><div><div class="t1">${t1}</div><div class="t2">${t2}</div></div>` + (delta != null ? `<div class="delta">${delta >= 0 ? '+' : '−'}${Math.abs(delta)}</div>` : '');
 }
 function renderMeta() {
@@ -649,6 +677,8 @@ function renderSide() {
 }
 
 /* ================= wiring ================= */
+$('#explain').addEventListener('pointerdown', stopAuto);
+$('#dots').addEventListener('pointerdown', stopAuto);
 $('#hintBtn').onclick = () => {
   if (cur.done || cur.hinted) return; cur.hinted = true;
   const h = cur.p.hint || HINT[famOf(cur.p)]; const box = $('#explain');
