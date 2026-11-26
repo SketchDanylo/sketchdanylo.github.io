@@ -107,7 +107,7 @@ function toGerman(en) {
   s = s.replace(/benzene/g, 'benzol').replace(/ane\b/g, 'an').replace(/ene\b/g, 'en').replace(/yne\b/g, 'in').replace(/one\b/g, 'on');
   s = s.replace(/^(\w+) (\S+oat)$/, (m, a, b) => a + (/^\d/.test(b) ? '-' : '') + b);            // ester: "ethyl ethanoate" -> "ethylethanoat"
   if (/ /.test(s)) return null;
-  return s.replace(/^((?:\(\d?[EZRS](?:,\d?[EZRS])*\)-)?(?:[\d,]+-)?(?:N(?:,N)?-)?)([a-z])/, (m, p, c) => p + c.toUpperCase());
+  return s.replace(/^((?:\(\d?[EZRS](?:,\d?[EZRS])*\)-)?(?:[\d,]+-)?(?:N(?:,N)?-)?\(?)([a-z])/, (m, p, c) => p + c.toUpperCase());
 }
 function nameDE(g) {
   const r = nameEN(forNamer(g));
@@ -210,10 +210,13 @@ function attach(g, at, frag) {
   const off = g.length; sub.forEach(a => g.push({ el: a.el, ch: a.ch, nb: a.nb.map(e => ({ n: e.n + off, o: e.o })) }));
   bond(g, at, off, frag.startsWith('=') ? 2 : 1);
 }
+const NameDE = require('../namer-de.js');
+function chargedNitro(g) { for (let i = 0; i < g.length; i++) if (g[i].el === 'N') { const dbl = g[i].nb.filter(e => g[e.n].el === 'O' && e.o === 2); if (dbl.length === 2) { g[i].ch = 1; const o = dbl[1].n; dbl[1].o = 1; g[o].nb.find(e => e.n === i).o = 1; g[o].ch = -1; } } return g; }
+function readGraph(nm) { return chargedNitro(NameDE.parse(nm).g); }
 function roundTrip(nm, sm) {
-  let g; try { g = parseGerman(nm); } catch (e) { return 'parse: ' + e.message; }
+  let g; try { g = readGraph(nm); } catch (e) { return 'parse: ' + e.message + ' :: ' + nm; }
   let a, b; try { a = canon(smiles(g)); b = canon(sm); } catch (e) { return 'rdkit: ' + e.message; }
   return a === b ? null : 'mismatch ' + nm + ' -> ' + a + ' vs ' + b;
 }
 
-module.exports = { attach, VAL, initRDKit, G, add, bond, chain, setOrder, hcount, smiles, parseSmiles, canon, stereoTags, formula, depict, nameDE, toGerman, schoolForm, parseGerman, roundTrip, get RD() { return RD; } };
+module.exports = { readGraph, chargedNitro, attach, VAL, initRDKit, G, add, bond, chain, setOrder, hcount, smiles, parseSmiles, canon, stereoTags, formula, depict, nameDE, toGerman, schoolForm, parseGerman, roundTrip, get RD() { return RD; } };

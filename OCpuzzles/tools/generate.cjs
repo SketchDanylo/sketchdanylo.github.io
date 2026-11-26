@@ -268,11 +268,11 @@ function famNaming() {
     const isos = isomerNames(e);
     const base = celoName(e.score);
     const r = rnd();
-    if (r < 0.48) { // choose the name
+    if (r < 0.22) { // choose the name
       const w = [reversedNumbering(e.name), nonAlphabetical(e.name), ...shuffle(isos.map(x => x.name))].filter(Boolean);
       // a distractor must not name the same molecule correctly
       if (mc('nm', { c: jit(base), t: T.nom, q: 'Wie heißt diese Verbindung nach IUPAC?', m: e.mi }, e.name, w)) mcN++;
-    } else if (r < 0.78) { // choose the structure
+    } else if (r < 0.42) { // choose the structure
       const opts = isos.filter(x => mol(x.sm) >= 0).slice(0, 3);
       if (opts.length < 3) continue;
       const o = shuffle([e.mi, ...opts.map(x => mol(x.sm))]);
@@ -280,7 +280,7 @@ function famNaming() {
     } else { // type the name
       const acc = [e.name, C.schoolForm(e.name)].filter(Boolean);
       if (/Toluol|Anilin|Phenol/.test(e.name)) {}
-      if (put('tn', { c: jit(base + 170), t: T.nom, k: 'txt', q: 'Benenne die Verbindung nach IUPAC.', m: e.mi, acc, ans: e.name })) txN++;
+      if (put('tn', { c: jit(base + 170), t: T.nom, k: 'txt', q: 'Benenne die Verbindung nach IUPAC.', m: e.mi, mt: e.mi, acc, ans: e.name })) txN++;
     }
   }
   return { mcN, mmN, txN };
@@ -294,6 +294,7 @@ function famFormula(n) {
     const c = +(m[1] || 1), h = +(m[2] || 1), rest = m[3];
     const v = [[c, h + 2], [c, h - 2], [c + 1, h + 2], [c - 1, h], [c, h + 1]].filter(([a, b]) => a > 0 && b >= 0).map(([a, b]) => fmt('C' + (a > 1 ? a : '') + 'H' + (b > 1 ? b : b === 1 ? '' : '0') + rest).replace('H₀', ''));
     if (rest) v.push(fmt('C' + (c > 1 ? c : '') + 'H' + (h > 1 ? h : '') + rest.replace(/O(\d*)/, (x, d) => 'O' + ((+(d || 1)) + 1))));
+    if (chance(0.5)) { put('ft', { c: jit(430 + 28 * e.g.length + (e.spec.ring ? 120 : 0)), t: T.str, k: 'txt', q: 'Gib die Summenformel der Verbindung an.', m: e.mi, ff: f, ans: fmt(f), ph: 'z. B. C5H12O' }); continue; }
     mc('fo', { c: jit(300 + 28 * e.g.length + (e.spec.ring ? 120 : 0)), t: T.str, q: 'Welche Summenformel hat die Verbindung?', m: e.mi, f: 1 }, fmt(f), shuffle(v));
   }
 }
@@ -575,6 +576,11 @@ function famReactions(nProd, nReag) {
     const others = Object.entries(x.outs).filter(([r, o]) => r !== x.r && o !== 'none' && (out === 'none' || o.can !== out.can)).map(([r, o]) => o.name);
     const isoNames = out !== 'none' && others.length < 3 ? [] : [];
     const asReagent = made >= nProd || chance(0.38);
+    if (!asReagent && out !== 'none' && chance(0.38)) {
+      const pm = mol(out.sm);
+      if (pm >= 0 && put('rt', { c: jit(RC[x.r] + 240, 60), t: T.rx, k: 'txt', q: 'Benenne das Hauptprodukt.', m: mi, rg: RG[x.r], mt: pm, ans: out.name, e: RWHY[x.r] })) made++;
+      RXN.push(x); continue;
+    }
     if (!asReagent) {
       const ws = shuffle(others); if (out !== 'none' && x.kind === 'alcohol' && chance(0.3)) ws.push('Keine Reaktion');
       if (chance(0.5) && out !== 'none') {
@@ -613,6 +619,11 @@ function famTwoStep(nProd, nSeq) {
     seqs.push([ch[2], ch[1]]);
     for (const sq of seqs) { const p = run(g, sq); const key = sq.join('>'); if (p) { const c = can(smOf(p)); if (c && c !== ec) alts.set(key, { sq, p, c, name: nm(p) }); } else alts.set(key, { sq, p: null }); }
     const altList = [...alts.values()];
+    if (a < nProd && chance(0.4)) {
+      const pm = mol(esm);
+      if (pm >= 0 && put('tt', { c: jit(2200 + (ch.includes('mgco2') || ch.includes('memgbr') || ch.includes('kotbu') ? 150 : 0), 80), t: T.syn, k: 'txt', q: 'Benenne das Produkt nach beiden Schritten.', m: mi, rg: `1) ${RG[ch[1]]}  →  2) ${RG[ch[2]]}`, mt: pm, ans: en })) a++;
+      continue;
+    }
     if (a < nProd && chance(0.55)) {
       const ws = altList.filter(x => x.p && x.name).map(x => x.name);
       const mid = run(g, [ch[1]]); if (mid) { const mn = nm(mid); if (mn && can(smOf(mid)) !== ec) ws.push(mn); }
@@ -793,7 +804,7 @@ function famHand() {
     const p = { c: h.celo, t: { syn1: T.syn, syn2: T.syn, syn3: T.syn, syn4: T.syn, syn5: T.syn, syn6: T.syn, syn7: T.syn, syn8: T.syn }[h.id] || ({ text: T.nom, choice: T.rx, order: T.phys, match: T.rx, click: T.st, arrows: T.mech }[h.type]), k: map[h.type], q: h.task, e: h.explain, hint: h.hint };
     if (h.formula) p.f2 = h.formula;
     if (h.mol) p.tm = h.mol;
-    if (h.type === 'text') { p.acc = h.accept; p.ans = h.explain.split(/[:(–]/)[0].trim(); }
+    if (h.type === 'text') { p.acc = h.accept; p.ans = h.explain.split(/[:(–]/)[0].trim(); const sm = { propan: 'CCC', '2mb': 'CC(C)CC', buten: 'CC=CC', dibr: 'BrCCBr', grig: 'CC(C)(C)O' }[h.id]; if (sm) { p.mt = mol(sm); p.ans = { propan: 'Propan', '2mb': '2-Methylbutan', buten: 'But-2-en', dibr: '1,2-Dibromethan', grig: '2-Methylpropan-2-ol' }[h.id]; } }
     if (h.type === 'choice') { p.o = h.options; p.a = h.correct[0]; }
     if (h.type === 'order') { p.items = h.items; p.ends = h.ends; }
     if (h.type === 'match') p.pairs = h.pairs;
@@ -820,10 +831,10 @@ function themeFix() {
   famElements(); famBasics();
   fillPool(1500);
   const nr = famNaming();
-  famFormula(170); famClass(); famHybrid(170); famOx(230);
+  famFormula(300); famClass(); famHybrid(170); famOx(230);
   famStereoCenters(320); famEZ(260); famRS(300);
   famAcidBase(230); famBP(130); famMech();
-  famReactions(560, 280); famTwoStep(220, 170); famThreeStep(150, 150); famThreeStep(70, 90, 4); famReverse(220); famGrignardRetro(130); famSNStereo(110);
+  famReactions(700, 280); famTwoStep(300, 170); famThreeStep(150, 150); famThreeStep(70, 90, 4); famReverse(220); famGrignardRetro(130); famSNStereo(110);
   famArrows();
 
   // stats
@@ -838,7 +849,8 @@ function themeFix() {
   fs.writeFileSync(path.join(__dirname, '..', 'puzzles.js'), out);
   // stamp the data version into the page and the service worker so caches stay consistent
   const ver = require('crypto').createHash('sha1').update(out).digest('hex').slice(0, 10);
-  for (const [f, re, rep] of [['index.html', /puzzles\.js\?v=[\w-]+/, 'puzzles.js?v=' + ver], ['sw.js', /puzzles\.js\?v=[\w-]+/, 'puzzles.js?v=' + ver], ['sw.js', /VERSION = '[^']+'/, "VERSION = 'cp-" + ver + "'"]]) {
+  const ver2 = require('crypto').createHash('sha1').update(out + fs.readFileSync(path.join(__dirname, '..', 'namer-de.js'), 'utf8') + fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8').replace(/\?v=[\w-]+/g, '')).digest('hex').slice(0, 10);
+  for (const [f, re, rep] of [['index.html', /(puzzles|namer-de)\.js\?v=[\w-]+/g, '$1.js?v=' + ver2], ['sw.js', /(puzzles|namer-de)\.js\?v=[\w-]+/g, '$1.js?v=' + ver2], ['sw.js', /VERSION = '[^']+'/, "VERSION = 'cp-" + ver2 + "'"]]) {
     const fp = path.join(__dirname, '..', f); if (fs.existsSync(fp)) fs.writeFileSync(fp, fs.readFileSync(fp, 'utf8').replace(re, rep));
   }
   console.log('data version', ver);

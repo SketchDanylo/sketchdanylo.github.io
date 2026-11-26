@@ -29,7 +29,8 @@ function rd(mi) {
   r.flat = flat ? flat.get_smiles() : r.can; if (flat) flat.delete();
   m.delete(); cache.set(mi, r); return r;
 }
-const canName = n => { try { const g = C.parseGerman(n); return C.canon(C.smiles(g)); } catch (e) { return null; } };
+const NameDE = require('../namer-de.js');
+const canName = n => { try { return C.canon(C.smiles(C.readGraph(n))); } catch (e) { return null; } };
 const plain = s => s.replace(/<[^>]+>/g, '');
 // graph from depiction (for hybridisation / oxidation number / formula)
 function graphOf(mi) { const [A, B] = M[mi]; const g = A.map(a => ({ el: a[0], ch: a[3] || 0, nb: [] })); for (const b of B) { g[b[0]].nb.push({ n: b[1], o: b[2] }); g[b[1]].nb.push({ n: b[0], o: b[2] }); } return g; }
@@ -53,6 +54,12 @@ const ok = fam => stats[fam] = (stats[fam] || 0) + 1;
       if (fam === 'nm') { const c = canName(ans); if (c !== rd(p.m).can) fail(p, 'answer name does not match drawing: ' + ans);
         for (const w of p.o) if (w !== ans) { const cw = canName(w); if (cw === c) stats.misnumbered = (stats.misnumbered || 0) + 1; } }
       if (fam === 'tn') { if (canName(p.ans) !== rd(p.m).can) fail(p, 'typed answer does not match drawing: ' + p.ans); }
+      if (p.k === 'txt' && p.mt !== undefined) { // the page's own check must accept the official answer and the school form
+        const tg = NameDE.fromDepiction(M[p.mt]);
+        for (const a of [p.ans, ...(p.acc || []).filter(x => /[a-z]/i.test(x) && x.length > 3 && !/^[a-z0-9]+$/.test(x))]) { const r = NameDE.read(a); if (!r.ok || !NameDE.same(r.g, tg)) fail(p, 'page reader rejects accepted answer ' + a); }
+        if (canName(p.ans) !== rd(p.mt).flat && canName(p.ans) !== rd(p.mt).can) fail(p, 'typed answer vs target (RDKit): ' + p.ans);
+      }
+      if (fam === 'ft') { const f = C.formula(graphOf(p.m)); if (f !== p.ff) fail(p, 'typed formula ' + p.ff + ' vs ' + f); }
       if (fam === 'sm') { const n = plain(p.q).match(/ist (.+)\?$/)[1]; if (canName(n) !== rd(p.o[p.a]).can) fail(p, 'structure answer does not match ' + n); for (let k = 0; k < p.o.length; k++) if (k !== p.a && rd(p.o[k]).can === rd(p.o[p.a]).can) fail(p, 'distractor equals answer'); }
       if (['rx', 'tp', 't3', 't4'].includes(fam)) { const cs = p.o.filter(x => x !== 'Keine Reaktion').map(canName); if (cs.some(x => !x)) fail(p, 'unparseable option ' + p.o.join(' | ')); if (new Set(cs).size !== cs.length) fail(p, 'two options name the same molecule'); }
       if (fam === 'gr') { const n = plain(p.q).match(/liefert nach wässriger Aufarbeitung (.+)\?$/)[1]; if (canName(n) !== rd(p.m).can) fail(p, 'target name does not match drawing'); }

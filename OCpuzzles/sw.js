@@ -1,6 +1,6 @@
 /* Chem Puzzles offline cache. VERSION is stamped by tools/generate.cjs. */
-const VERSION = 'cp-a55258b1b4';
-const FILES = ['./', './index.html', './puzzles.js?v=a55258b1b4'];
+const VERSION = 'cp-49a74baef0';
+const FILES = ['./', './index.html', './puzzles.js?v=49a74baef0', './namer-de.js?v=49a74baef0'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('cp-') && k !== VERSION).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {

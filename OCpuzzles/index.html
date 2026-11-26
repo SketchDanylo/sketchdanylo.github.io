@@ -102,6 +102,16 @@ svg.mol{display:block;overflow:visible;touch-action:none;user-select:none;-webki
 .typed input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .typed input.right{border-color:var(--good);background:var(--good-soft)}
 .typed input.wrong{border-color:var(--bad);background:var(--bad-soft)}
+.typed input.half{border-color:#c98a12;background:rgba(201,138,18,.12)}
+.readas{max-width:620px;margin:8px auto 0;font-size:14px;color:var(--muted);min-height:20px;text-align:center}
+.readas b{color:var(--text);font-weight:600}
+.readas.err{color:var(--bad)}
+.yours{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 12px;border:1px dashed var(--bad);border-radius:10px}
+.yours.half{border-color:#c98a12}
+.yours .cap{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--bad)}
+.yours.half .cap{color:#c98a12}
+.status.half .icon{background:#c98a12;color:#fff}
+.status.half .delta{color:#c98a12}
 .btn{border:1px solid var(--line2);background:var(--card);border-radius:8px;padding:10px 16px;cursor:pointer;font-weight:600;font-size:15px}
 .btn:hover:not(:disabled){border-color:var(--text)}
 .btn.primary{background:var(--text);color:#fff;border-color:var(--text)}
@@ -239,7 +249,8 @@ svg.mol{display:block;overflow:visible;touch-action:none;user-select:none;-webki
     <div class="foot"><span id="count"></span><button id="reset">Reset rating</button></div>
   </aside>
 </main>
-<script src="puzzles.js?v=a55258b1b4"></script>
+<script src="namer-de.js?v=49a74baef0"></script>
+<script src="puzzles.js?v=49a74baef0"></script>
 <script>
 'use strict';
 const CP = window.CP_DATA || {M:[], P:[]};
@@ -300,7 +311,7 @@ const SUBS = '₀₁₂₃₄₅₆₇₈₉';
 const subN = n => String(n).split('').map(d => SUBS[d]).join('');
 const tw = t => { let w = 0; for (const ch of t) w += /[₀-₉]/.test(ch) ? .17 : /[il|·]/.test(ch) ? .13 : /[A-Z]/.test(ch) ? .29 : .24; return w; };
 function fromDepiction(mi) {
-  const [A, B] = CP.M[mi];
+  const [A, B] = Array.isArray(mi) ? mi : CP.M[mi];
   const atoms = A.map((a, i) => ({ id: String(i), el: a[0], x: a[1] / 100, y: a[2] / 100, q: a[3] || 0, nb: [] }));
   const bonds = B.map((b, k) => ({ id: String(k), a: String(b[0]), b: String(b[1]), o: b[2], st: b[3] || 0 }));
   for (const b of bonds) { atoms[+b.a].nb.push([+b.b, b.o]); atoms[+b.b].nb.push([+b.a, b.o]); }
@@ -380,7 +391,36 @@ function drawMol(mol, opt = {}) {
   return { svg, geo, gM, gA, gX };
 }
 let UID = 0;
-const molView = (src, opt = {}) => drawMol(typeof src === 'number' ? fromDepiction(src) : fromTemplate(src), Object.assign({ uid: ++UID }, opt));
+const molView = (src, opt = {}) => drawMol(typeof src === 'number' || Array.isArray(src) ? fromDepiction(src) : fromTemplate(src), Object.assign({ uid: ++UID }, opt));
+/* simple 2D layout for a graph read from a typed name (zigzag chains, one ring) */
+function layoutGraph(g) {
+  const n = g.length, pos = new Array(n), rad = d => d * Math.PI / 180;
+  const size = (i, from, seen = new Set()) => { seen.add(i); let s = 1; for (const e of g[i].nb) if (e.n !== from && !seen.has(e.n)) s += size(e.n, i, seen); return s; };
+  let ring = null;
+  { const par = new Array(n).fill(-2), depth = []; (function dfs(i, p, d) { par[i] = p; depth[i] = d; for (const e of g[i].nb) { if (ring) return; if (e.n === p) continue; if (par[e.n] !== -2) { if (depth[e.n] < d) { const cyc = [i]; let k = i; while (k !== e.n) { k = par[k]; cyc.push(k); } ring = cyc; } continue; } dfs(e.n, i, d + 1); } })(0, -1, 0); }
+  function place(i, from, ang, flip) {
+    const kids = g[i].nb.filter(e => pos[e.n] === undefined).sort((a, b) => size(b.n, i) - size(a.n, i));
+    const lin = g[i].nb.some(e => e.o === 3) || g[i].nb.filter(e => e.o === 2).length === 2;
+    let angs;
+    if (lin) angs = [ang];
+    else if (kids.length === 1) angs = [ang + (flip ? 60 : -60)];
+    else if (kids.length === 2) angs = flip ? [ang + 60, ang - 60] : [ang - 60, ang + 60];
+    else angs = [ang + (flip ? 60 : -60), ang + (flip ? -60 : 60), ang + (flip ? -150 : 150), ang];
+    kids.forEach((e, k) => { const a = angs[k] ?? ang + 30 * k; pos[e.n] = [pos[i][0] + Math.cos(rad(a)), pos[i][1] + Math.sin(rad(a))]; place(e.n, i, a, !flip); });
+  }
+  if (ring) {
+    const k = ring.length, R = 1 / (2 * Math.sin(Math.PI / k));
+    ring.forEach((a, j) => pos[a] = [R * Math.cos(2 * Math.PI * j / k - Math.PI / 2), R * Math.sin(2 * Math.PI * j / k - Math.PI / 2)]);
+    ring.forEach(a => { const ang = Math.atan2(pos[a][1], pos[a][0]) * 180 / Math.PI; for (const e of g[a].nb) if (pos[e.n] === undefined) { pos[e.n] = [pos[a][0] + Math.cos(rad(ang)), pos[a][1] + Math.sin(rad(ang))]; place(e.n, a, ang, true); } });
+  } else {
+    const far = s0 => { const d = new Array(n).fill(-1), q = [s0]; d[s0] = 0; while (q.length) { const u = q.shift(); for (const e of g[u].nb) if (d[e.n] < 0) { d[e.n] = d[u] + 1; q.push(e.n); } } return d.indexOf(Math.max(...d)); };
+    const a = far(0); pos[a] = [0, 0]; place(a, -1, 30, false);
+  }
+  for (let i = 0; i < n; i++) if (!pos[i]) pos[i] = [i, 3];
+  const bonds = []; g.forEach((a, i) => a.nb.forEach(e => { if (i < e.n) bonds.push([i, e.n, e.o]); }));
+  return [g.map((a, i) => [a.el, Math.round(pos[i][0] * 100), Math.round(pos[i][1] * 100)].concat(a.ch ? [a.ch] : [])), bonds];
+}
+const pretty = t => t.replace(/^((?:[\d,]+-|n-|\()*)([a-zäöü])/, (m, p, c) => p + c.toUpperCase()).replace(/(^|-)n-/g, '$1N-');
 
 /* ================= board ================= */
 let cur = null;
@@ -416,14 +456,14 @@ function show(p) {
   renderMeta(); setStatus('turn');
   window.scrollTo({ top: 0 });
 }
-const SUBTEXT = { pick: 'Click an atom.', txt: 'Type the name and press Enter.', ord: 'Drag into order, then submit.', arr: 'Drag from a lone pair or bond to an atom or bond. Click an arrow to erase it.', mat: 'Click a left item, then its partner.', syn: 'Add reagents step by step. The route is graded when you reach the product.' };
+const SUBTEXT = { pick: 'Click an atom.', txt: 'Type your answer and press Enter. Any correct form counts, brackets included.', ord: 'Drag into order, then submit.', arr: 'Drag from a lone pair or bond to an atom or bond. Click an arrow to erase it.', mat: 'Click a left item, then its partner.', syn: 'Add reagents step by step. The route is graded when you reach the product.' };
 
-function finish(score, ok, note) {
+function finish(score, ok, note, half) {
   if (cur.graded) return;
   const p = cur.p; if (cur.hinted && score > .5) score = .5;
   const d = rate(p, score);
   cur.graded = true; cur.done = true;
-  setStatus(ok ? 'ok' : 'no', d, note);
+  setStatus(ok ? 'ok' : half ? 'half' : 'no', d, note);
   showExplain(ok);
   renderMeta();
   setTimeout(() => $('#nextBtn').focus({ preventScroll: true }), 0);
@@ -445,7 +485,7 @@ function showExplain(ok) {
 }
 function answerText(p) {
   if (p.k === 'mc') return p.o[p.a];
-  if (p.k === 'txt') return p.ans;
+  if (p.k === 'txt') return p.ans + (p.mt !== undefined ? ' (IUPAC)' : '');
   if (p.k === 'ord') return p.items.join(' → ');
   if (p.k === 'mm') return 'Structure ' + (p.a + 1) + ' (marked green).';
   if (p.k === 'pick') return 'Marked in green.';
@@ -499,11 +539,57 @@ pick(p, stage, ans) {
 },
 txt(p, stage, ans) {
   const box = el('div', { class: 'typed' });
-  box.innerHTML = '<input id="ti" autocomplete="off" spellcheck="false" placeholder="Name"><button class="btn primary" id="tb">Submit</button>';
+  box.innerHTML = '<input id="ti" autocomplete="off" spellcheck="false"><button class="btn primary" id="tb">Submit</button>';
   ans.appendChild(box);
-  const inp = $('#ti', box);
-  const go = () => { if (cur.done) return; const v = norm(inp.value); if (!v) return; const ok = p.acc.map(norm).includes(v); inp.classList.add(ok ? 'right' : 'wrong'); inp.disabled = true; $('#tb', box).disabled = true; finish(ok ? 1 : 0, ok); };
+  const note = el('div', { class: 'readas' }); ans.appendChild(note);
+  const inp = $('#ti', box); inp.placeholder = p.ff ? (p.ph || 'Summenformel') : p.mt !== undefined ? 'IUPAC-Name' : 'Antwort';
+  const lock = cls => { inp.classList.add(cls); inp.disabled = true; $('#tb', box).disabled = true; };
+  const target = p.mt !== undefined ? NameDE.fromDepiction(CP.M[p.mt]) : null;
+  const official = p.mt !== undefined && p.ans ? NameDE.read(p.ans) : null;
+  function showYours(g, half) {
+    const fig = el('div', { class: 'yours' + (half ? ' half' : '') }); fig.appendChild(el('div', { class: 'cap' }, half ? 'Your name — same molecule' : 'Your name describes'));
+    try { fig.appendChild(molView(layoutGraph(g), { scale: 34 }).svg); } catch (e) { return; }
+    stage.appendChild(fig);
+  }
+  const SUB = '₀₁₂₃₄₅₆₇₈₉';
+  const fmtF = c => ['C', 'H', ...Object.keys(c).filter(k => k !== 'C' && k !== 'H').sort()].filter(k => c[k]).map(k => k + (c[k] > 1 ? String(c[k]).replace(/\d/g, d => SUB[d]) : '')).join('');
+  const go = () => {
+    if (cur.done) return; const raw = inp.value.trim(); if (!raw) return;
+    if (p.ff) { // molecular formula, any element order
+      const plain = raw.replace(/[₀-₉]/g, d => SUB.indexOf(d)).replace(/\s/g, '');
+      const cnt = t => { const c = {}; for (const m of t.matchAll(/(Cl|Br|[A-Z][a-z]?)(\d*)/g)) c[m[1]] = (c[m[1]] || 0) + (m[2] ? +m[2] : 1); return c; };
+      const a = cnt(plain), b = cnt(p.ff);
+      const ok = /^(?:(?:Cl|Br|[A-Z][a-z]?)\d*)+$/.test(plain) && Object.keys(a).length === Object.keys(b).length && Object.keys(b).every(k => a[k] === b[k]);
+      lock(ok ? 'right' : 'wrong'); finish(ok ? 1 : 0, ok); return;
+    }
+    if (!target) { const ok = p.acc.map(norm).includes(norm(raw)); lock(ok ? 'right' : 'wrong'); finish(ok ? 1 : 0, ok); return; }
+    const r = NameDE.read(raw);
+    if (!r.ok) { note.className = 'readas err'; note.textContent = `Couldn't read that name (${r.error}). Check it and submit again.`; return; }
+    const readAs = pretty(r.text);
+    const same = NameDE.same(r.g, target);
+    const astEq = official && official.ok && JSON.stringify({ ...r.ast, order: 0 }) === JSON.stringify({ ...official.ast, order: 0 });
+    const notes = [];
+    if (r.fixed || norm(readAs) !== norm(raw)) notes.push(`Read as <b>${readAs}</b>${r.fixed ? ' (spelling corrected)' : ''}.`);
+    if (same && (astEq || !official || !official.ok)) {
+      const ord = r.ast.order, alpha = ord.slice().sort((x, y) => x.localeCompare(y, 'de'));
+      if (ord.join() !== alpha.join()) notes.push('Tipp: Substituenten alphabetisch ordnen.');
+      note.className = 'readas'; note.innerHTML = notes.join(' ');
+      lock('right'); finish(1, true, notes.length ? notes.join(' ').replace(/<[^>]+>/g, '') : null); return;
+    }
+    if (same) {
+      const why = r.ast.parent !== official.ast.parent ? 'Richtiges Molekül – aber nicht die richtige Hauptkette (längste Kette mit der Hauptgruppe wählen).'
+        : 'Richtiges Molekül – aber die Nummerierung ergibt nicht die kleinstmöglichen Lokanten.';
+      note.className = 'readas'; note.innerHTML = notes.concat([why]).join(' ');
+      showYours(r.g, true); lock('half'); finish(.5, false, why, true); return;
+    }
+    const fa = NameDE.formula(r.g), fb = NameDE.formula(target);
+    const sameF = Object.keys({ ...fa, ...fb }).every(k => fa[k] === fb[k]);
+    const why = sameF ? 'Anderes Molekül mit gleicher Summenformel (ein Isomer) – prüfe Kette und Positionen.' : `Anderes Molekül: ${fmtF(fa)} statt ${fmtF(fb)}.`;
+    note.className = 'readas'; note.innerHTML = notes.concat([why]).join(' ');
+    showYours(r.g, false); lock('wrong'); finish(0, false, why);
+  };
   inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); go(); } });
+  inp.addEventListener('input', () => { if (note.classList.contains('err')) { note.textContent = ''; note.className = 'readas'; } });
   $('#tb', box).onclick = go;
   setTimeout(() => inp.focus({ preventScroll: true }), 30);
   cur.reveal = () => { inp.value = p.ans; inp.disabled = true; $('#tb', box).disabled = true; };
@@ -655,10 +741,10 @@ function bestRoute(p) {
 }
 
 /* ================= side panel ================= */
-const ICON = { turn: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="4" fill="#686c72"/></svg>', ok: '<svg viewBox="0 0 20 20"><path d="M4 10.5l4 4 8-9" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>', no: '<svg viewBox="0 0 20 20"><path d="M5 5l10 10M15 5L5 15" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg>' };
+const ICON = { half: '<svg viewBox="0 0 20 20"><path d="M5 10h10" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg>', turn: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="4" fill="#686c72"/></svg>', ok: '<svg viewBox="0 0 20 20"><path d="M4 10.5l4 4 8-9" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>', no: '<svg viewBox="0 0 20 20"><path d="M5 5l10 10M15 5L5 15" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg>' };
 function setStatus(kind, delta, note) {
-  const s = $('#status'); s.className = 'card status' + (kind === 'ok' ? ' ok' : kind === 'no' ? ' no' : '');
-  const t1 = kind === 'turn' ? 'Your turn' : kind === 'ok' ? (cur.hinted ? 'Solved with a hint' : 'Correct') : cur.revealed ? 'Solution shown' : 'Incorrect';
+  const s = $('#status'); s.className = 'card status' + (kind === 'ok' ? ' ok' : kind === 'no' ? ' no' : kind === 'half' ? ' half' : '');
+  const t1 = kind === 'turn' ? 'Your turn' : kind === 'ok' ? (cur.hinted ? 'Solved with a hint' : 'Correct') : kind === 'half' ? 'Almost — half credit' : cur.revealed ? 'Solution shown' : 'Incorrect';
   const t2 = kind === 'turn' ? (cur.p.i in S.done ? 'Already rated — practice' : 'This puzzle is rated') : (note || (kind === 'ok' ? 'Next puzzle coming up…' : 'Check the answer, then press Next.'));
   s.innerHTML = `<div class="icon">${ICON[kind]}</div><div><div class="t1">${t1}</div><div class="t2">${t2}</div></div>` + (delta != null ? `<div class="delta">${delta >= 0 ? '+' : '−'}${Math.abs(delta)}</div>` : '');
 }
